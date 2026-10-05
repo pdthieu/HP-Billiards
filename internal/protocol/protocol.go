@@ -16,6 +16,9 @@ const (
 	TypePlaceCue = "place_cue"
 	TypeChoose   = "choose"
 	TypeRematch  = "rematch"
+	// TypePing may be sent at any time, even before join; the server answers
+	// with TypePong. Lets a client notice a dead connection quickly.
+	TypePing = "ping"
 )
 
 // Message types, server → client. TypeAim travels in both directions.
@@ -27,6 +30,7 @@ const (
 	TypeAim       = "aim"
 	TypePlayer    = "player"
 	TypeError     = "error"
+	TypePong      = "pong"
 )
 
 // Error codes carried by the error message.
@@ -51,7 +55,8 @@ const (
 type ClientMessage struct {
 	Type string `json:"type"`
 
-	// join
+	// join. Token, when it matches a seat of the room, reclaims that seat
+	// (reconnect) instead of taking a free one.
 	RoomCode string `json:"roomCode"`
 	Token    string `json:"token"`
 	Name     string `json:"name"`
@@ -80,10 +85,12 @@ type Welcome struct {
 	RoomCode string `json:"roomCode"`
 }
 
-// PlayerInfo describes one seat.
+// PlayerInfo describes one seat. A seat with a Name but Connected false is
+// held for a player who dropped out mid-game and may reconnect; Name "" is an
+// empty seat.
 type PlayerInfo struct {
 	Seat      int    `json:"seat"`
-	Name      string `json:"name"` // "" while the seat is empty
+	Name      string `json:"name"`
 	Connected bool   `json:"connected"`
 	Ready     bool   `json:"ready"`
 }
@@ -141,6 +148,11 @@ type Aim struct {
 	Seat  int     `json:"seat"`
 	Angle float64 `json:"angle"`
 	Power float64 `json:"power"`
+}
+
+// Pong answers a ping.
+type Pong struct {
+	Type string `json:"type"`
 }
 
 // Error reports a rejected message.

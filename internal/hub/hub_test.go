@@ -18,11 +18,13 @@ import (
 
 const readTimeout = 10 * time.Second
 
-// fastOptions makes shots settle in well under a second and seat 0 break.
+// fastOptions makes shots settle in well under a second, seat 0 break and
+// held seats expire quickly.
 func fastOptions() Options {
 	opts := DefaultOptions()
 	opts.Game.RollingDecel = 6
 	opts.Breaker = func() int { return 0 }
+	opts.ReconnectGrace = 500 * time.Millisecond
 	return opts
 }
 
@@ -384,16 +386,29 @@ func TestIllegalBreakDecision(t *testing.T) {
 	c1.expectError("no_decision")
 }
 
-func TestLeavingAbandonsTheGame(t *testing.T) {
+func TestLeavingHoldsTheSeatThenAbandonsTheGame(t *testing.T) {
 	h, srv := newServer(t, fastOptions())
 	c0, c1, code := startGame(t, srv)
 
+	// First the seat is only held: the name stays, the game goes on.
+	left := time.Now()
 	c1.conn.Close(websocket.StatusNormalClosure, "")
+	if p := c0.expect("player"); p["seat"] != 1.0 || p["connected"] != false || p["name"] != "Bob" || p["ready"] != true {
+		t.Errorf("disconnect announcement = %v", p)
+	}
+	third := dial(t, srv)
+	third.send(msg{"type": "join", "roomCode": code, "name": "Cat"})
+	third.expectError("room_full")
+
+	// Then the grace runs out: the seat is freed and the game abandoned.
 	if p := c0.expect("player"); p["seat"] != 1.0 || p["connected"] != false || p["name"] != "" {
 		t.Errorf("leave announcement = %v", p)
 	}
+	if held := time.Since(left); held < fastOptions().ReconnectGrace/2 {
+		t.Errorf("seat was freed after %v, want about %v", held, fastOptions().ReconnectGrace)
+	}
 	st := c0.expect("room_state")
-	if st["phase"] != "lobby" || players(st)[0].(msg)["ready"] != false {
+	if st["phase"] != "lobby" || players(st)[0].(msg)["ready"] != false || players(st)[1].(msg)["name"] != "" {
 		t.Errorf("state after the opponent left: %v", st)
 	}
 
@@ -404,6 +419,156 @@ func TestLeavingAbandonsTheGame(t *testing.T) {
 	}
 	if h.RoomCount() != 1 {
 		t.Errorf("RoomCount = %d, want 1", h.RoomCount())
+	}
+}
+
+func TestLeavingTheLobbyFreesTheSeatAtOnce(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c0, c1 := dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	c1.join(code, "Bob")
+	c0.expect("player")
+
+	c1.conn.Close(websocket.StatusNormalClosure, "")
+	if p := c0.expect("player"); p["seat"] != 1.0 || p["connected"] != false || p["name"] != "" {
+		t.Errorf("leave announcement = %v", p)
+	}
+	if w, _ := dial(t, srv).join(code, "Cat"); w["seat"] != 1.0 {
+		t.Errorf("new player got seat %v, want 1", w["seat"])
+	}
+}
+
+func TestReconnectWithToken(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c0, c1 := dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	w1, _ := c1.join(code, "Bob")
+	c0.expect("player")
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	for _, c := range []*testClient{c0, c1} {
+		c.waitFor("room_state")
+	}
+	// Move the cue ball so the reconnecting player must see non-rack state.
+	c0.send(msg{"type": "place_cue", "x": 0.3, "y": 0.4})
+	c0.expect("room_state")
+	c1.expect("room_state")
+
+	c1.conn.Close(websocket.StatusNormalClosure, "")
+	if p := c0.expect("player"); p["connected"] != false || p["name"] != "Bob" {
+		t.Fatalf("disconnect announcement = %v", p)
+	}
+
+	// Back with the token: same seat, same id, same token, current state.
+	c1b := dial(t, srv)
+	c1b.send(msg{"type": "join", "roomCode": code, "name": "Someone Else", "token": w1["token"]})
+	w := c1b.expect("welcome")
+	if w["seat"] != 1.0 || w["playerId"] != w1["playerId"] || w["token"] != w1["token"] {
+		t.Errorf("reconnect welcome = %v, want the original seat", w)
+	}
+	st := c1b.expect("room_state")
+	if st["phase"] != "breaking" {
+		t.Errorf("phase after reconnect = %v, want breaking", st["phase"])
+	}
+	if cue := st["balls"].([]any)[0].(msg); cue["x"] != 0.3 || cue["y"] != 0.4 {
+		t.Errorf("cue ball after reconnect = %v, want (0.3, 0.4)", cue)
+	}
+	if p := players(st)[1].(msg); p["name"] != "Bob" || p["connected"] != true || p["ready"] != true {
+		t.Errorf("own seat after reconnect = %v", p)
+	}
+	if p := c0.expect("player"); p["seat"] != 1.0 || p["connected"] != true || p["name"] != "Bob" {
+		t.Errorf("reconnect announcement = %v", p)
+	}
+
+	// The grace timer of the old disconnect must not fire later.
+	time.Sleep(2 * fastOptions().ReconnectGrace)
+	c0.send(msg{"type": "shoot", "angle": 0, "power": 1})
+	var settled [2][]byte
+	for i, c := range []*testClient{c0, c1b} {
+		settled[i], _ = c.waitFor("settled")
+	}
+	if !bytes.Equal(settled[0], settled[1]) {
+		t.Fatalf("settled payloads differ after a reconnect:\n%s\n%s", settled[0], settled[1])
+	}
+}
+
+func TestReconnectReplacesALiveSocket(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c0 := dial(t, srv)
+	w0, _ := c0.join(code, "Ann")
+
+	// Same token from a second socket while the first is still open.
+	c0b := dial(t, srv)
+	c0b.send(msg{"type": "join", "roomCode": code, "token": w0["token"]})
+	if w := c0b.expect("welcome"); w["seat"] != 0.0 || w["playerId"] != w0["playerId"] {
+		t.Errorf("welcome on the new socket = %v", w)
+	}
+	c0b.expect("room_state")
+
+	// The old socket is closed by the server.
+	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
+	defer cancel()
+	_, _, err := c0.conn.Read(ctx)
+	if websocket.CloseStatus(err) != websocket.StatusPolicyViolation {
+		t.Fatalf("old socket read = %v, want a policy-violation close", err)
+	}
+
+	// The room still has one occupied seat and one free seat; the old
+	// socket's departure must not have vacated the reclaimed seat.
+	c1 := dial(t, srv)
+	_, st := c1.join(code, "Bob")
+	if p := players(st)[0].(msg); p["name"] != "Ann" || p["connected"] != true {
+		t.Errorf("seat 0 after replacement = %v", p)
+	}
+	c0b.expect("player")
+}
+
+func TestUnknownTokenJoinsNormally(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c := dial(t, srv)
+	c.send(msg{"type": "join", "roomCode": code, "name": "Ann", "token": strings.Repeat("ab", 16)})
+	w := c.expect("welcome")
+	if w["seat"] != 0.0 || w["token"] == strings.Repeat("ab", 16) {
+		t.Errorf("welcome with a bogus token = %v", w)
+	}
+}
+
+func TestPingPong(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c := dial(t, srv)
+	c.send(msg{"type": "ping"}) // allowed before join
+	c.expect("pong")
+	c.join(code, "Ann")
+	c.send(msg{"type": "ping"})
+	c.expect("pong")
+}
+
+func TestDeadPeerIsDisconnectedByPing(t *testing.T) {
+	opts := fastOptions()
+	opts.WS.PingInterval = 50 * time.Millisecond
+	opts.WS.PingTimeout = 100 * time.Millisecond
+	_, srv := newServer(t, opts)
+	code := createRoom(t, srv)
+	c0, c1 := dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	c1.join(code, "Bob")
+	c0.expect("player")
+
+	// c1 never reads, so it never answers pings (pongs are handled by the
+	// reader); the server must notice and free the seat.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if p := c0.expect("player"); p["seat"] == 1.0 && p["connected"] == false {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("unresponsive peer was not disconnected")
+		}
 	}
 }
 

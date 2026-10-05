@@ -23,13 +23,14 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 | type | fields | notes |
 |---|---|---|
-| `join` | `roomCode`, `name`, `token?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. `token` is reserved for reconnecting. |
+| `join` | `roomCode`, `name`, `token?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
 | `aim` | `angle`, `power` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
 | `shoot` | `angle`, `power`, `call?` | `power` is clamped to [0,1]. `call` is required on every shot except the break. |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
+| `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
 `call` is either `{"ball": 3, "pocket": 4}` or `{"safety": true}`.
 
@@ -50,7 +51,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ### `welcome`
 
-`{type, v, playerId, seat, token, roomCode}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat.
+`{type, v, playerId, seat, token, roomCode}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect.
 
 ### `room_state`
 
@@ -75,6 +76,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 }
 ```
 
+- `players[].connected` false with a non-empty `name` is a seat held for a player who dropped out (see Reconnecting); `name` `""` is an empty seat.
 - `ballInHand`: the player in `turn` may send `place_cue`. `kitchen`: placement is limited to x ≤ 0.635 (break, and after a foul on the break).
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
 - `winner`: seat or `null`.
@@ -120,7 +122,11 @@ Ends a shot. Positions are exact; clients snap to them.
 
 ### `player`
 
-`{type, seat, name, connected, ready}` — a seat changed: someone joined, became ready, or left (`name` `""`, `connected` false). If a player leaves during a game the game is abandoned and a `room_state` with phase `lobby` follows.
+`{type, seat, name, connected, ready}` — a seat changed: someone joined, became ready, dropped out (`name` kept, `connected` false), came back (`connected` true again) or left for good (`name` `""`, `connected` false). When a seat is emptied during a game the game is abandoned and a `room_state` with phase `lobby` follows.
+
+### `pong`
+
+`{type}` — answers a `ping`.
 
 ### `error`
 
@@ -142,8 +148,20 @@ Ends a shot. Positions are exact; clients snap to them.
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
 
+## Reconnecting
+
+- When a socket closes **in the lobby**, its seat is freed immediately.
+- When a socket closes **during a game** (any phase but `lobby`), the seat is held for 60 seconds: the other player gets `player` with `connected` false and the name kept, the game state is untouched, and a third player is refused with `room_full`. A shot in progress keeps running; the absent player simply misses the snapshots and `settled`.
+- `join` with the seat's `token` reclaims it at any time while it is held, **and also while its old socket is still open** (a phone that changed networks reconnects long before the dead socket is noticed). The old socket is closed with status 1008 and reason `replaced by a new connection`. The reconnecting client gets `welcome` (same `seat`, `playerId` and `token`; `name` in the join is ignored) and a fresh `room_state`; the other player gets `player` with `connected` true.
+- If the hold expires the seat is emptied (`player` with `name` `""`) and the game is abandoned (`room_state` with phase `lobby`).
+- A `join` whose `token` matches nothing is treated as a plain join.
+
+## Keepalive
+
+- The server sends a WebSocket ping every 20 seconds and closes connections whose pong does not arrive within 10 seconds (status 1001, reason `ping timeout`). Browsers answer pings on their own.
+- A client that wants to detect a dead connection itself sends `ping` and expects `pong`.
+
 ## Lifetime
 
-- A room with no connected player for 10 minutes is deleted.
-- When a socket closes, its seat is freed immediately. (Reconnecting to a seat with `token` is not implemented yet.)
-- A client whose outbound buffer (32 messages) overflows is disconnected.
+- A room with no connected player for 10 minutes is deleted. Held seats do not count as connected.
+- Each client has an outbound queue of 32 messages. When it is full, the oldest queued `snapshot` or `aim` is discarded to make room (the next one supersedes it). If none can be discarded the client is disconnected with status 1008 and reason `outbound buffer full`.

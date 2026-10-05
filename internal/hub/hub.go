@@ -30,6 +30,11 @@ type Options struct {
 	// IdleTimeout is how long a room may have no connected player before it
 	// is deleted.
 	IdleTimeout time.Duration
+	// ReconnectGrace is how long a seat is held for a player who drops out
+	// of a game in progress.
+	ReconnectGrace time.Duration
+	// WS tunes the connections (keepalive pings).
+	WS ws.Options
 	// Breaker picks the seat that breaks a room's first rack. Later racks
 	// alternate. Nil means random.
 	Breaker func() int
@@ -37,7 +42,12 @@ type Options struct {
 
 // DefaultOptions returns the production settings.
 func DefaultOptions() Options {
-	return Options{Game: game.DefaultConfig(), IdleTimeout: 10 * time.Minute}
+	return Options{
+		Game:           game.DefaultConfig(),
+		IdleTimeout:    10 * time.Minute,
+		ReconnectGrace: 60 * time.Second,
+		WS:             ws.DefaultOptions(),
+	}
 }
 
 // Hub is the set of live rooms. Its mutex guards only the map; game state is
@@ -57,6 +67,12 @@ func New(opts Options) *Hub {
 	}
 	if opts.IdleTimeout <= 0 {
 		opts.IdleTimeout = def.IdleTimeout
+	}
+	if opts.ReconnectGrace <= 0 {
+		opts.ReconnectGrace = def.ReconnectGrace
+	}
+	if opts.WS == (ws.Options{}) {
+		opts.WS = def.WS
 	}
 	if opts.Breaker == nil {
 		opts.Breaker = func() int {
@@ -120,11 +136,13 @@ func (h *Hub) ServeWS(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		return // Accept already wrote the HTTP error
 	}
-	client := ws.NewClient(conn)
+	client := ws.NewClient(conn, h.opts.WS)
 
 	var joined *room // touched only by the read pump below
 	client.Run(req.Context(), func(msg protocol.ClientMessage) {
 		switch {
+		case msg.Type == protocol.TypePing:
+			client.SendJSON(protocol.Pong{Type: protocol.TypePong})
 		case joined != nil:
 			joined.post(event{kind: evMessage, client: client, msg: msg})
 		case msg.Type != protocol.TypeJoin:

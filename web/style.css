@@ -90,6 +90,8 @@ input[type=range] { padding: 0; flex: 1; min-width: 80px; accent-color: var(--ac
 .seat .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--border); color: var(--text); white-space: nowrap; }
 .seat .tag.ready { background: var(--ok); color: #03200f; }
 .seat .tag.you { background: var(--accent); color: var(--accent-text); }
+.seat .tag.offline { background: var(--bad); color: #fff; }
+.seat.held { border-style: dashed; opacity: 0.8; }
 .seat .group { display: inline-flex; gap: 2px; }
 .seat .group i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid #0006; }
 

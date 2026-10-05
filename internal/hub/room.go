@@ -1,6 +1,7 @@
 package hub
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/coder/websocket"
 
 	"billiards/internal/game"
 	"billiards/internal/protocol"
@@ -26,6 +29,7 @@ const (
 	evJoin eventKind = iota
 	evMessage
 	evLeave
+	evHoldExpired // the reconnect grace of a held seat ran out
 )
 
 // event is one input to a room's goroutine.
@@ -34,15 +38,22 @@ type event struct {
 	client *ws.Client
 	msg    protocol.ClientMessage
 	joined chan bool // evJoin: whether the client got a seat
+	seat   int       // evHoldExpired
+	gen    int       // evHoldExpired: the hold this timer belongs to
 }
 
+// seat is one of the two places at the table. Empty: name == "". Held for a
+// reconnect: name != "" and client == nil. Occupied: client != nil.
 type seat struct {
-	client *ws.Client // nil while the seat is empty
-	id     string
-	token  string
-	name   string
-	ready  bool
+	client  *ws.Client
+	id      string
+	token   string
+	name    string
+	ready   bool
+	holdGen int // identifies the current hold so stale timers are ignored
 }
+
+func (s *seat) empty() bool { return s.name == "" }
 
 // room is one table and its two seats. Everything below inbox is owned by the
 // run goroutine and must not be touched from anywhere else.
@@ -57,6 +68,7 @@ type room struct {
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
 	lastBreaker int
+	holds       int // hold generations handed out so far
 }
 
 func newRoom(h *Hub, code string) *room {
@@ -162,6 +174,8 @@ func (r *room) handle(ev event) {
 		ev.joined <- r.handleJoin(ev.client, ev.msg)
 	case evLeave:
 		r.handleLeave(ev.client)
+	case evHoldExpired:
+		r.handleHoldExpired(ev.seat, ev.gen)
 	case evMessage:
 		if s := r.seatOf(ev.client); s >= 0 {
 			r.handleMessage(s, ev.msg)
@@ -170,9 +184,22 @@ func (r *room) handle(ev event) {
 }
 
 func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
+	// A token that matches a seat reclaims it, whether the seat is held for
+	// a reconnect or its old socket is still (nominally) open: a phone that
+	// changed networks reconnects long before the dead socket is noticed.
+	if s := r.seatByToken(msg.Token); s >= 0 {
+		if old := r.seats[s].client; old != nil {
+			old.Close(websocket.StatusPolicyViolation, "replaced by a new connection")
+		}
+		r.seats[s].client = c
+		r.seats[s].holdGen = 0 // any pending expiry is stale now
+		r.welcome(c, s)
+		return true
+	}
+
 	s := -1
 	for i := range r.seats {
-		if r.seats[i].client == nil {
+		if r.seats[i].empty() {
 			s = i
 			break
 		}
@@ -187,6 +214,26 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 		token:  randomHex(16), // 128 bits
 		name:   cleanName(msg.Name, s),
 	}
+	r.welcome(c, s)
+	return true
+}
+
+// seatByToken returns the seat whose token is tok, or -1.
+func (r *room) seatByToken(tok string) int {
+	if tok == "" {
+		return -1
+	}
+	for i := range r.seats {
+		st := &r.seats[i]
+		if !st.empty() && subtle.ConstantTimeCompare([]byte(st.token), []byte(tok)) == 1 {
+			return i
+		}
+	}
+	return -1
+}
+
+// welcome tells c about its seat and the room, and the other player about c.
+func (r *room) welcome(c *ws.Client, s int) {
 	c.SendJSON(protocol.Welcome{
 		Type:     protocol.TypeWelcome,
 		V:        protocol.Version,
@@ -197,14 +244,40 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 	})
 	c.SendJSON(r.roomState())
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
-	return true
 }
 
+// handleLeave runs when a socket closes. In the lobby the seat is freed at
+// once; during a game it is held for ReconnectGrace so the player can come
+// back with their token.
 func (r *room) handleLeave(c *ws.Client) {
 	s := r.seatOf(c)
 	if s < 0 {
+		return // not seated, or already replaced by a reconnect
+	}
+	if r.game.Rules.Phase == game.PhaseLobby {
+		r.vacate(s)
 		return
 	}
+	r.seats[s].client = nil
+	r.holds++
+	gen := r.holds
+	r.seats[s].holdGen = gen
+	time.AfterFunc(r.hub.opts.ReconnectGrace, func() {
+		r.post(event{kind: evHoldExpired, seat: s, gen: gen})
+	})
+	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+}
+
+func (r *room) handleHoldExpired(s, gen int) {
+	st := &r.seats[s]
+	if st.client != nil || st.empty() || st.holdGen != gen {
+		return // reconnected, already vacated, or a newer hold
+	}
+	r.vacate(s)
+}
+
+// vacate empties a seat and, if a game was on, abandons it.
+func (r *room) vacate(s int) {
 	r.seats[s] = seat{}
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 
@@ -295,7 +368,7 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 	if math.IsNaN(msg.Angle) || math.IsInf(msg.Angle, 0) || math.IsNaN(msg.Power) {
 		return
 	}
-	r.sendTo(1-s, protocol.Aim{
+	r.sendDroppableTo(1-s, protocol.Aim{
 		Type:  protocol.TypeAim,
 		Seat:  s,
 		Angle: msg.Angle,
@@ -313,7 +386,7 @@ func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 	}
 	r.ticks = 0
 	r.ticker = time.NewTicker(time.Second / tickRate)
-	r.broadcast(r.snapshot())
+	r.broadcastDroppable(r.snapshot())
 	return nil
 }
 
@@ -323,7 +396,7 @@ func (r *room) tick() {
 	r.ticks++
 	if res == nil {
 		if r.ticks%snapshotEvery == 0 {
-			r.broadcast(r.snapshot())
+			r.broadcastDroppable(r.snapshot())
 		}
 		return
 	}
@@ -407,9 +480,33 @@ func (r *room) broadcast(msg any) {
 	}
 }
 
+// broadcastDroppable is broadcast for messages a slow client may miss
+// (snapshots): the next one supersedes them.
+func (r *room) broadcastDroppable(msg any) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	for i := range r.seats {
+		if c := r.seats[i].client; c != nil {
+			c.SendDroppable(data)
+		}
+	}
+}
+
 func (r *room) sendTo(s int, msg any) {
 	if c := r.seats[s].client; c != nil {
 		c.SendJSON(msg)
+	}
+}
+
+func (r *room) sendDroppableTo(s int, msg any) {
+	c := r.seats[s].client
+	if c == nil {
+		return
+	}
+	if data, err := json.Marshal(msg); err == nil {
+		c.SendDroppable(data)
 	}
 }
 

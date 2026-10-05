@@ -22,6 +22,7 @@
   <button id="create">Create room</button>
   <input id="code" placeholder="CODE" size="6" maxlength="5">
   <input id="name" placeholder="name" size="10">
+  <input id="token" placeholder="token (reconnect)" size="14">
   <button id="join">Connect + join</button>
   <button id="close">Close socket</button>
   <span id="status" class="sys">disconnected</span>
@@ -46,6 +47,7 @@
   <button data-msg='{"type":"choose","option":"spot_eight"}'>spot_eight</button>
   <button data-msg='{"type":"choose","option":"rebreak"}'>rebreak</button>
   <button data-msg='{"type":"rematch"}'>rematch</button>
+  <button data-msg='{"type":"ping"}'>ping</button>
 </fieldset>
 <fieldset>
   <legend>Raw JSON</legend>
@@ -83,7 +85,9 @@ function connect() {
   $('status').textContent = 'connecting';
   sock.onopen = () => {
     $('status').textContent = 'connected';
-    send({ type: 'join', roomCode: $('code').value.trim(), name: $('name').value });
+    const join = { type: 'join', roomCode: $('code').value.trim(), name: $('name').value };
+    if ($('token').value.trim()) join.token = $('token').value.trim();
+    send(join);
   };
   sock.onclose = (e) => {
     $('status').textContent = 'disconnected';
@@ -91,6 +95,7 @@ function connect() {
   };
   sock.onmessage = (e) => {
     const msg = JSON.parse(e.data);
+    if (msg.type === 'welcome') $('token').value = msg.token; // kept for a reconnect
     if (msg.type === 'snapshot') { snapshots++; return; } // too chatty to print
     if (snapshots) { log(`< ${snapshots} snapshots`, 'sys'); snapshots = 0; }
     log('< ' + e.data, msg.type === 'error' ? 'err' : '');

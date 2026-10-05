@@ -28,6 +28,10 @@ const BALL_COLORS = {
 };
 const RENDER_DELAY_MS = 100;  // how far behind the newest snapshot we draw
 const AIM_SEND_MS = 100;      // at most 10 aim messages per second
+const PING_EVERY_MS = 15000;  // heartbeat; the server answers with pong
+const PONG_TIMEOUT_MS = 10000;
+const RECONNECT_MAX_MS = 8000;
+const SEAT_HOLD_S = 60;       // how long the server holds a seat (PROTOCOL.md)
 const DEG = Math.PI / 180;
 
 const OPTION_TEXT = {
@@ -54,6 +58,10 @@ const S = {
   name: '',
   seat: -1,
   token: '',
+  reconnectAttempt: 0,
+  reconnectTimer: 0,
+  pingTimer: 0,
+  pongTimer: 0,
 
   // last room state from the server
   players: [
@@ -92,15 +100,35 @@ const S = {
 // ---------------------------------------------------------------------------
 // 2. networking
 
-function connectAndJoin(roomCode, name) {
+// Session storage keeps the seat token per room and per tab: reloading the
+// tab reclaims the seat, a second tab does not steal it.
+function sessionKey(roomCode) { return `pool:${roomCode}`; }
+function loadSession(roomCode) {
+  try { return JSON.parse(sessionStorage.getItem(sessionKey(roomCode))) || null; } catch { return null; }
+}
+function saveSession() {
+  try { sessionStorage.setItem(sessionKey(S.roomCode), JSON.stringify({ token: S.token, name: S.name })); } catch { /* unavailable */ }
+}
+function clearSession(roomCode) {
+  try { sessionStorage.removeItem(sessionKey(roomCode)); } catch { /* unavailable */ }
+}
+
+function connectAndJoin(roomCode, name, token) {
   if (S.ws) { S.intentionalClose = true; S.ws.close(); }
   S.intentionalClose = false;
+  clearTimeout(S.reconnectTimer);
+  S.reconnectTimer = 0;
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   const ws = new WebSocket(`${proto}//${location.host}/ws`);
   S.ws = ws;
   S.roomCode = roomCode;
   S.name = name;
-  ws.onopen = () => send({ type: 'join', roomCode, name });
+  ws.onopen = () => {
+    const join = { type: 'join', roomCode, name };
+    if (token) join.token = token;
+    send(join);
+    startHeartbeat();
+  };
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
@@ -109,16 +137,59 @@ function connectAndJoin(roomCode, name) {
   ws.onclose = (e) => {
     if (ws !== S.ws) return;
     S.ws = null;
+    stopHeartbeat();
     if (S.intentionalClose) return;
     if (S.seat < 0) {
       showLanding(`Could not join: ${e.reason || 'connection closed'}`);
       return;
     }
-    $('disconnectedText').textContent =
-      `The connection to room ${S.roomCode} was closed${e.reason ? ` (${e.reason})` : ''}. ` +
-      'Rejoining takes a free seat; a game in progress is abandoned.';
-    $('disconnected').hidden = false;
+    if (/replaced/.test(e.reason)) {
+      // Another connection took this seat with our token; do not fight it.
+      showDisconnected('This seat was taken over by another connection, probably another tab.', false);
+      return;
+    }
+    scheduleReconnect();
   };
+}
+
+function scheduleReconnect() {
+  S.reconnectAttempt++;
+  const delay = S.reconnectAttempt === 1 ? 300 : Math.min(RECONNECT_MAX_MS, 1000 * 2 ** (S.reconnectAttempt - 2));
+  showDisconnected(
+    `Connection lost. Reconnecting${S.reconnectAttempt > 1 ? ` (attempt ${S.reconnectAttempt})` : ''}… ` +
+    `Your seat is held for ${SEAT_HOLD_S} seconds.`, true);
+  clearTimeout(S.reconnectTimer);
+  S.reconnectTimer = setTimeout(() => {
+    S.reconnectTimer = 0;
+    if (S.seat < 0 || S.ws) return;
+    connectAndJoin(S.roomCode, S.name, S.token);
+  }, delay);
+}
+
+function showDisconnected(text, retrying) {
+  $('disconnectedText').textContent = text;
+  $('rejoin').textContent = retrying ? 'Retry now' : 'Rejoin';
+  $('disconnected').hidden = false;
+}
+
+// The browser only notices a dead socket when TCP gives up, which can take
+// minutes. A ping without a pong closes it so the reconnect kicks in.
+function startHeartbeat() {
+  stopHeartbeat();
+  S.pingTimer = setInterval(() => {
+    if (!send({ type: 'ping' })) return;
+    clearTimeout(S.pongTimer);
+    S.pongTimer = setTimeout(() => {
+      if (S.ws) S.ws.close(4000, 'pong timeout');
+    }, PONG_TIMEOUT_MS);
+  }, PING_EVERY_MS);
+}
+
+function stopHeartbeat() {
+  clearInterval(S.pingTimer);
+  clearTimeout(S.pongTimer);
+  S.pingTimer = 0;
+  S.pongTimer = 0;
 }
 
 function send(msg) {
@@ -135,18 +206,23 @@ function handle(msg) {
     case 'settled': onSettled(msg); break;
     case 'aim': if (msg.seat !== S.seat) S.oppAim = { angle: msg.angle, power: msg.power }; break;
     case 'player': onPlayer(msg); break;
+    case 'pong': clearTimeout(S.pongTimer); S.pongTimer = 0; break;
     case 'error': onError(msg); break;
   }
 }
 
 function onWelcome(msg) {
+  const reconnected = S.seat >= 0 && S.reconnectAttempt > 0;
   S.seat = msg.seat;
   S.token = msg.token;
   S.roomCode = msg.roomCode;
+  S.reconnectAttempt = 0;
   $('roomCode').textContent = msg.roomCode;
   history.replaceState(null, '', `/?room=${encodeURIComponent(msg.roomCode)}`);
   $('landing').hidden = true;
   $('disconnected').hidden = true;
+  saveSession();
+  if (reconnected) toast('Reconnected');
   try { localStorage.setItem('poolName', S.name); } catch { /* storage unavailable */ }
 }
 
@@ -171,7 +247,7 @@ function onRoomState(msg) {
   S.players = msg.players;
   S.moving = msg.moving;
   setBalls(msg.balls);
-  if (!S.moving) S.snaps = [];
+  S.snaps = []; // a shot in progress resumes from the next snapshot
   const hadDecision = !!S.decision;
   const turnChanged = applyRules(msg);
   S.cuePlacedAt = null;
@@ -189,9 +265,10 @@ function onRoomState(msg) {
 
 function onSnapshot(msg) {
   const balls = new Map(msg.balls.map((b) => [b.id, { x: b.x, y: b.y }]));
-  if (msg.t === 0 || !S.moving) {
+  if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
+    // A new shot, or joining one midway (reconnect): align our clock to it.
     S.snaps = [];
-    S.shotWall0 = performance.now();
+    S.shotWall0 = performance.now() - msg.t;
     S.moving = true;
     S.oppAim = null;
     S.aiming = false;
@@ -217,8 +294,14 @@ function onPlayer(msg) {
   const was = S.players[msg.seat];
   S.players[msg.seat] = { seat: msg.seat, name: msg.name, connected: msg.connected, ready: msg.ready };
   if (msg.seat !== S.seat) {
-    if (msg.connected && !was.connected) toast(`${msg.name} joined`);
-    else if (!msg.connected && was.connected) toast(`${was.name} left`);
+    if (msg.connected && !was.connected) {
+      toast(was.name ? `${msg.name} is back` : `${msg.name} joined`);
+    } else if (!msg.connected && was.connected && msg.name) {
+      toast(`${msg.name} lost connection`);
+      setStatus(`${msg.name} lost connection. Their seat is held for ${SEAT_HOLD_S} seconds.`, 'foul');
+    } else if (!msg.connected && !msg.name && was.name) {
+      toast(`${was.name} left`);
+    }
   }
   refreshPanels();
 }
@@ -230,11 +313,36 @@ function onError(msg) {
     S.cuePlacedAt = null;
   }
   if (msg.code === 'room_not_found' || msg.code === 'room_full') {
+    // The join failed: the room is gone or our held seat expired and was
+    // taken. Nothing to come back to.
     S.intentionalClose = true;
     if (S.ws) S.ws.close();
     S.ws = null;
-    showLanding(msg.message);
+    stopHeartbeat();
+    clearSession(S.roomCode);
+    resetToLanding(msg.message);
   }
+}
+
+// resetToLanding forgets the room and shows the landing form.
+function resetToLanding(error) {
+  clearTimeout(S.reconnectTimer);
+  S.reconnectTimer = 0;
+  S.reconnectAttempt = 0;
+  S.seat = -1;
+  S.token = '';
+  S.phase = 'lobby';
+  S.moving = false;
+  S.snaps = [];
+  S.decision = null;
+  S.players = [
+    { seat: 0, name: '', connected: false, ready: false },
+    { seat: 1, name: '', connected: false, ready: false },
+  ];
+  history.replaceState(null, '', '/');
+  $('roomCode').textContent = '—';
+  refreshPanels();
+  showLanding(error);
 }
 
 // newTurn resets the per-shot UI when the shooter or phase changes.
@@ -816,17 +924,19 @@ function renderSeat(seat) {
   const p = S.players[seat];
   el.className = 'seat';
   el.replaceChildren();
-  if (!p.connected) {
+  if (!p.connected && !p.name) {
     el.classList.add('empty');
     el.append(Object.assign(document.createElement('span'), { className: 'name', textContent: 'waiting…' }));
     return;
   }
+  if (!p.connected) el.classList.add('held');
   if ((inPlay() || S.moving) && S.turn === seat) el.classList.add('turn');
   const name = document.createElement('span');
   name.className = 'name';
   name.textContent = p.name;
   el.append(name);
   if (isMe(seat)) el.append(tag('you', 'you'));
+  if (!p.connected) el.append(tag('offline', 'offline'));
   if (S.phase === 'lobby' && p.ready) el.append(tag('ready', 'ready'));
   const g = S.groups[seat];
   if (g) {
@@ -886,13 +996,14 @@ function refreshPanels() {
     $('ready').disabled = me.ready;
     $('ready').textContent = me.ready ? 'Ready ✓' : "I'm ready";
     $('lobbyText').textContent = !opp.connected
-      ? 'Waiting for an opponent. Share the room link.'
+      ? (opp.name ? `${opp.name} is offline; their seat is held for a moment.` : 'Waiting for an opponent. Share the room link.')
       : me.ready ? `Waiting for ${opp.name} to be ready.` : `${opp.name} is here. Ready when you are.`;
   }
   if (myShot) refreshShotPanel();
   if (!$('waitPanel').hidden) {
     let t;
     if (S.moving) t = 'Balls are rolling…';
+    else if (opp && opp.name && !opp.connected) t = `Waiting for ${opp.name} to reconnect…`;
     else if (S.decision) t = isMe(S.decision.seat) ? 'Your decision.' : `Waiting for ${nameOf(S.decision.seat)} to decide.`;
     else t = `${nameOf(S.turn)}'s turn.${S.ballInHand ? ' Ball in hand.' : ''}`;
     $('waitText').textContent = t;
@@ -1003,22 +1114,33 @@ $('landingForm').onsubmit = (e) => {
   if (code.length !== 5) { showLanding('Room codes have 5 letters.'); return; }
   connectAndJoin(code, landingName());
 };
-$('rejoin').onclick = () => { $('disconnected').hidden = true; connectAndJoin(S.roomCode, S.name); };
+$('rejoin').onclick = () => { $('disconnected').hidden = true; connectAndJoin(S.roomCode, S.name, S.token); };
 $('leave').onclick = () => {
-  S.seat = -1;
-  S.phase = 'lobby';
-  history.replaceState(null, '', '/');
-  showLanding();
+  S.intentionalClose = true;
+  if (S.ws) S.ws.close();
+  S.ws = null;
+  stopHeartbeat();
+  clearSession(S.roomCode);
+  resetToLanding();
 };
 
 // boot
 (function init() {
   try { $('name').value = localStorage.getItem('poolName') || ''; } catch { /* storage unavailable */ }
-  const room = new URLSearchParams(location.search).get('room');
-  if (room) $('code').value = room.toUpperCase();
+  const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
+  if (room) $('code').value = room;
   new ResizeObserver(resize).observe($('tableWrap'));
   window.addEventListener('orientationchange', () => setTimeout(resize, 100));
   resize();
   refreshPanels();
   requestAnimationFrame(draw);
+  // A reloaded tab goes straight back to its seat.
+  const saved = room ? loadSession(room) : null;
+  if (saved && saved.token) {
+    $('landing').hidden = true;
+    showDisconnected(`Rejoining room ${room}…`, true);
+    S.seat = 0; // pretend we are seated so a failed join is handled as a lost connection
+    S.token = saved.token;
+    connectAndJoin(room, saved.name || landingName(), saved.token);
+  }
 })();

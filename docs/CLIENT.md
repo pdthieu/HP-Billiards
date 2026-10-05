@@ -34,8 +34,19 @@ CSS and JavaScript with no build step, embedded into the server binary by
 5. **Decisions** after the break (illegal break, 8-ball on the break) open a
    dialog for the choosing player; the other sees "Waiting for … to decide".
 6. **Game over**: banner plus *Rematch* (either player).
-7. **Disconnect**: an overlay offers *Rejoin* (takes a free seat; the game in
-   progress has already been abandoned by the server) or *Leave*.
+7. **Disconnect**: the client reconnects by itself with the seat token from
+   `welcome` (300 ms, then 1 s, 2 s, 4 s, 8 s, 8 s, …) and shows an overlay
+   with *Retry now* and *Leave* meanwhile. The server holds the seat for 60 s
+   during a game, so the rack continues where it was. The token lives in
+   `sessionStorage` per room: reloading the tab rejoins the same seat at once,
+   a second tab does not steal it. A `ping` every 15 s without a `pong` within
+   10 s closes the socket so a dead connection is noticed quickly. If the
+   socket is closed with reason `replaced by a new connection` (the token was
+   used elsewhere) the client does not reconnect automatically. *Leave*
+   forgets the token and returns to the landing page.
+8. **Opponent offline**: their seat shows an *offline* tag, the status line
+   says the seat is held, and the wait panel reads "Waiting for … to
+   reconnect…". If the hold expires the server abandons the game.
 
 ## Rendering
 
@@ -46,7 +57,8 @@ CSS and JavaScript with no build step, embedded into the server binary by
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays
   at its earlier position until that snapshot's time passes, then disappears.
-  `settled` replaces everything with exact positions.
+  `settled` replaces everything with exact positions. After a reconnect in
+  the middle of a shot the clock is re-aligned to the first snapshot received.
 - Legal call targets are computed client-side with the same rule as the
   server (`legalTargets` mirrors `Rules.legalTarget`); the server still
   validates every call.
