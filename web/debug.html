@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool – protocol debug</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 12px; }
+  fieldset { margin: 0 0 8px; padding: 8px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  input { font: inherit; padding: 4px; }
+  input[type=number] { width: 5em; }
+  #raw { flex: 1; min-width: 16em; font-family: ui-monospace, monospace; }
+  button { font: inherit; padding: 4px 10px; }
+  #log { font: 12px/1.35 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all;
+         border: 1px solid #999; padding: 6px; height: 60vh; overflow-y: scroll; }
+  .out { color: #06c; } .err { color: #c00; } .sys { color: #777; }
+</style>
+</head>
+<body>
+<fieldset>
+  <legend>Room</legend>
+  <button id="create">Create room</button>
+  <input id="code" placeholder="CODE" size="6" maxlength="5">
+  <input id="name" placeholder="name" size="10">
+  <button id="join">Connect + join</button>
+  <button id="close">Close socket</button>
+  <span id="status" class="sys">disconnected</span>
+</fieldset>
+<fieldset>
+  <legend>Actions</legend>
+  <button data-msg='{"type":"ready"}'>ready</button>
+  angle <input id="angle" type="number" step="0.01" value="0">
+  power <input id="power" type="number" step="0.05" min="0" max="1" value="0.8">
+  call ball <input id="ball" type="number" min="1" max="15" value="1">
+  pocket <input id="pocket" type="number" min="0" max="5" value="2">
+  <button id="aim">aim</button>
+  <button id="shoot">shoot (break: no call)</button>
+  <button id="shootCall">shoot + call</button>
+  <button id="shootSafe">shoot safety</button>
+  x <input id="x" type="number" step="0.05" value="0.4">
+  y <input id="y" type="number" step="0.05" value="0.635">
+  <button id="place">place_cue</button>
+  <button data-msg='{"type":"choose","option":"accept_table"}'>accept_table</button>
+  <button data-msg='{"type":"choose","option":"rerack_break"}'>rerack_break</button>
+  <button data-msg='{"type":"choose","option":"rerack_opponent_breaks"}'>rerack_opponent_breaks</button>
+  <button data-msg='{"type":"choose","option":"spot_eight"}'>spot_eight</button>
+  <button data-msg='{"type":"choose","option":"rebreak"}'>rebreak</button>
+  <button data-msg='{"type":"rematch"}'>rematch</button>
+</fieldset>
+<fieldset>
+  <legend>Raw JSON</legend>
+  <input id="raw" value='{"type":"ready"}'>
+  <button id="sendRaw">send</button>
+  <button id="clear">clear log</button>
+</fieldset>
+<div id="log"></div>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+const num = (id) => Number($(id).value);
+let ws = null;
+let snapshots = 0;
+
+function log(text, cls) {
+  const line = document.createElement('div');
+  line.textContent = new Date().toISOString().slice(11, 23) + ' ' + text;
+  if (cls) line.className = cls;
+  $('log').append(line);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+function send(msg) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return log('not connected', 'err');
+  const text = typeof msg === 'string' ? msg : JSON.stringify(msg);
+  ws.send(text);
+  log('> ' + text, 'out');
+}
+
+function connect() {
+  if (ws) ws.close();
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const sock = ws = new WebSocket(`${proto}//${location.host}/ws`);
+  $('status').textContent = 'connecting';
+  sock.onopen = () => {
+    $('status').textContent = 'connected';
+    send({ type: 'join', roomCode: $('code').value.trim(), name: $('name').value });
+  };
+  sock.onclose = (e) => {
+    $('status').textContent = 'disconnected';
+    log(`socket closed (${e.code} ${e.reason})`, 'sys');
+  };
+  sock.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'snapshot') { snapshots++; return; } // too chatty to print
+    if (snapshots) { log(`< ${snapshots} snapshots`, 'sys'); snapshots = 0; }
+    log('< ' + e.data, msg.type === 'error' ? 'err' : '');
+  };
+}
+
+$('create').onclick = async () => {
+  const res = await fetch('/api/rooms', { method: 'POST' });
+  const { roomCode } = await res.json();
+  $('code').value = roomCode;
+  log('created room ' + roomCode, 'sys');
+};
+$('join').onclick = connect;
+$('close').onclick = () => ws && ws.close();
+$('aim').onclick = () => send({ type: 'aim', angle: num('angle'), power: num('power') });
+$('shoot').onclick = () => send({ type: 'shoot', angle: num('angle'), power: num('power') });
+$('shootCall').onclick = () => send({
+  type: 'shoot', angle: num('angle'), power: num('power'),
+  call: { ball: num('ball'), pocket: num('pocket') },
+});
+$('shootSafe').onclick = () => send({
+  type: 'shoot', angle: num('angle'), power: num('power'), call: { safety: true },
+});
+$('place').onclick = () => send({ type: 'place_cue', x: num('x'), y: num('y') });
+$('sendRaw').onclick = () => send($('raw').value);
+$('clear').onclick = () => { $('log').textContent = ''; };
+for (const b of document.querySelectorAll('button[data-msg]')) b.onclick = () => send(b.dataset.msg);
+
+const room = new URLSearchParams(location.search).get('room');
+if (room) $('code').value = room;
+</script>
+</body>
+</html>
