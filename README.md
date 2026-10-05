@@ -49,6 +49,7 @@ go run ./cmd/server -hold 10s -abandon 30s -idle 1m
 | `-abandon` | `5m` | both players gone: how long the game survives before it is cancelled and both seats freed |
 | `-idle` | `10m` | no connected player: how long the room is kept |
 | `-max-rooms` | `3` | how many rooms may exist at once |
+| `-physics` | – | override a physics constant, `Name=value`, repeatable or comma-separated (e.g. `-physics CushionRestitution=0.8,RollingFriction=0.012`); `-physics list` prints every tunable with its default |
 
 Things to try: reload a tab mid-game (it rejoins its seat), close one tab and
 watch the other see "offline" then, after `-hold`, the lobby; close both tabs,
