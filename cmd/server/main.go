@@ -18,16 +18,19 @@ func main() {
 	hold := flag.Duration("hold", def.ReconnectGrace, "how long a seat is held for a player who drops out while the other is connected")
 	abandon := flag.Duration("abandon", def.AbandonTimeout, "how long a game survives with both players gone")
 	idle := flag.Duration("idle", def.IdleTimeout, "how long an empty room is kept")
+	maxRooms := flag.Int("max-rooms", def.MaxRooms, "how many rooms may exist at once")
 	flag.Parse()
 
 	opts := def
 	opts.ReconnectGrace = *hold
 	opts.AbandonTimeout = *abandon
 	opts.IdleTimeout = *idle
+	opts.MaxRooms = *maxRooms
 	h := hub.New(opts)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/rooms", h.HandleCreateRoom)
+	mux.HandleFunc("GET /api/rooms", h.HandleListRooms)
 	mux.HandleFunc("GET /ws", h.ServeWS)
 	mux.Handle("GET /", noCache(http.FileServerFS(web.Files)))
 

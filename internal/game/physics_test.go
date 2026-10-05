@@ -422,3 +422,173 @@ func TestHeadStringEvents(t *testing.T) {
 		})
 	}
 }
+
+// TestSidePocketRejectsShallowAngles: a side pocket takes a ball coming in
+// steeply and spits out one that arrives along the rail, which is what the
+// noses and the near-vertical jaws of a real side pocket do.
+func TestSidePocketRejectsShallowAngles(t *testing.T) {
+	cfg := DefaultConfig()
+	mouth := Vec{cfg.TableWidth / 2, 0}
+	for _, tc := range []struct {
+		deg  float64 // angle between the path and the top rail
+		want bool
+	}{
+		{90, true}, {60, true}, {40, true}, {15, false}, {8, false},
+	} {
+		tbl := emptyTable(cfg)
+		rad := tc.deg * math.Pi / 180
+		dir := Vec{math.Cos(rad), -math.Sin(rad)}
+		start := mouth.Sub(dir.Scale(0.5))
+		tbl.place(3, start, dir.Scale(2))
+		runUntilSettled(t, tbl, 30)
+		if tbl.Balls[3].Pocketed != tc.want {
+			t.Errorf("ball at %.0f° to the rail: pocketed=%v, want %v (ended at %v)", tc.deg, tbl.Balls[3].Pocketed, tc.want, tbl.Balls[3].Pos)
+		}
+	}
+}
+
+// TestCornerPocketAcceptsOffAxisBalls: corner pockets are forgiving; a ball
+// entering well off the diagonal still drops.
+func TestCornerPocketAcceptsOffAxisBalls(t *testing.T) {
+	cfg := DefaultConfig()
+	for _, deg := range []float64{45, 25, 65} {
+		tbl := emptyTable(cfg)
+		rad := deg * math.Pi / 180
+		dir := Vec{-math.Cos(rad), -math.Sin(rad)} // toward the top-left corner
+		a := cfg.CornerMouth / math.Sqrt2
+		start := Vec{a / 2, a / 2}.Sub(dir.Scale(0.4))
+		tbl.place(3, start, dir.Scale(2))
+		runUntilSettled(t, tbl, 30)
+		if !tbl.Balls[3].Pocketed {
+			t.Errorf("ball entering the corner at %.0f°: not pocketed, ended at %v", deg, tbl.Balls[3].Pos)
+		}
+	}
+}
+
+func TestPocketGeometryMatchesSpec(t *testing.T) {
+	cfg := DefaultConfig()
+	tbl := NewTable(cfg)
+	if got := cfg.TableWidth; !near(got, 2.54, 1e-9) {
+		t.Errorf("playing surface length %v, want 2.54 m (100 in)", got)
+	}
+	if got := 2 * cfg.BallRadius; !near(got, 0.05715, 1e-9) {
+		t.Errorf("ball diameter %v, want 57.15 mm", got)
+	}
+	// Corner noses are CornerMouth apart, side noses SideMouth apart.
+	a := cfg.CornerMouth / math.Sqrt2
+	if d := (Vec{a, 0}).Dist(Vec{0, a}); !near(d, cfg.CornerMouth, 1e-12) {
+		t.Errorf("corner mouth %v, want %v", d, cfg.CornerMouth)
+	}
+	if len(tbl.segments) != 18 {
+		t.Fatalf("got %d segments, want 6 cushions + 12 jaws", len(tbl.segments))
+	}
+	// Every jaw leaves room for a ball at its far end.
+	for i := 0; i < len(tbl.segments); i += 3 {
+		j1, j2 := tbl.segments[i+1], tbl.segments[i+2]
+		_ = j2
+		if l := j1.a.Dist(j1.b); l < cfg.BallRadius {
+			t.Errorf("jaw %d is only %v long", i+1, l)
+		}
+	}
+	mouths, axes := tbl.Pockets()
+	if mouths[1] != (Vec{cfg.TableWidth / 2, 0}) || axes[1] != (Vec{0, -1}) {
+		t.Errorf("top-middle pocket = %v %v", mouths[1], axes[1])
+	}
+	// A ball may rest near a pocket but not in its mouth.
+	if !tbl.canPlace(CueBall, Vec{0.08, 0.08}) {
+		t.Error("cannot place a ball near the corner pocket")
+	}
+	if tbl.canPlace(CueBall, Vec{0.03, 0.03}) {
+		t.Error("placed a ball inside the corner pocket mouth")
+	}
+	if !tbl.canPlace(CueBall, Vec{cfg.TableWidth / 2, cfg.BallRadius}) {
+		t.Error("cannot place a ball on the surface in front of the side pocket")
+	}
+	if tbl.canPlace(CueBall, Vec{cfg.TableWidth / 2, cfg.BallRadius / 2}) {
+		t.Error("placed a ball hanging over the side pocket mouth")
+	}
+}
+
+func TestFollowAndDraw(t *testing.T) {
+	const v = 2.0
+	run := func(spinY float64) (cue, obj Vec) {
+		cfg := frictionless()
+		tbl := emptyTable(cfg)
+		tbl.place(CueBall, Vec{0.8, 0.6}, Vec{})
+		tbl.place(1, Vec{1.2, 0.6}, Vec{})
+		tbl.ShootSpin(0, v/cfg.MaxCueSpeed, Vec{0, spinY})
+		for i := 0; i < 300; i++ {
+			tbl.Step(cfg.Dt)
+		}
+		return tbl.Balls[CueBall].Vel, tbl.Balls[1].Vel
+	}
+	e := DefaultConfig().BallRestitution
+	stun := v * (1 - e) / 2
+	if cue, _ := run(0); !near(cue.X, stun, 1e-9) {
+		t.Errorf("centre hit: cue velocity %v, want the stun %g", cue, stun)
+	}
+	if cue, obj := run(1); cue.X <= stun+0.3 || obj.X <= 0 {
+		t.Errorf("top spin: cue %v should follow well past %g, object %v should go on", cue, stun, obj)
+	}
+	if cue, obj := run(-1); cue.X >= -0.3 || obj.X <= 0 {
+		t.Errorf("bottom spin: cue %v should draw back, object %v should go on", cue, obj)
+	}
+	// A thin hit converts little spin: the cue ball keeps most of its speed
+	// and gains little along its original line.
+	cfg := frictionless()
+	tbl := emptyTable(cfg)
+	tbl.place(CueBall, Vec{0.8, 0.6}, Vec{})
+	tbl.place(1, Vec{1.2, 0.6 + 1.9*cfg.BallRadius}, Vec{})
+	tbl.ShootSpin(0, v/cfg.MaxCueSpeed, Vec{0, -1})
+	for i := 0; i < 300; i++ {
+		tbl.Step(cfg.Dt)
+	}
+	if cue := tbl.Balls[CueBall].Vel; cue.X < 0.5*v {
+		t.Errorf("thin hit with draw: cue velocity %v should stay mostly forward", cue)
+	}
+	if sp := tbl.Balls[CueBall].Spin.Y; sp > -0.5 {
+		t.Errorf("thin hit should keep most of the spin, got %v", sp)
+	}
+}
+
+func TestSideSpinKicksOffTheCushion(t *testing.T) {
+	run := func(spinX float64) Vec {
+		cfg := frictionless()
+		tbl := emptyTable(cfg)
+		tbl.place(CueBall, Vec{1.0, 1.0}, Vec{})
+		tbl.ShootSpin(math.Pi/2, 2/cfg.MaxCueSpeed, Vec{spinX, 0}) // straight down at the bottom rail
+		for i := 0; i < 200; i++ {
+			tbl.Step(cfg.Dt)
+		}
+		return tbl.Balls[CueBall].Vel
+	}
+	if v := run(0); !near(v.X, 0, 1e-9) || v.Y >= 0 {
+		t.Errorf("no spin: velocity after the rail %v, want straight back", v)
+	}
+	// Moving down the screen the shooter's right is -x.
+	if v := run(1); v.X >= -0.1 || v.Y >= 0 {
+		t.Errorf("right english: velocity after the rail %v, want a kick toward -x", v)
+	}
+	if v := run(-1); v.X <= 0.1 || v.Y >= 0 {
+		t.Errorf("left english: velocity after the rail %v, want a kick toward +x", v)
+	}
+}
+
+func TestSpinFadesWithDistanceAndIsClamped(t *testing.T) {
+	cfg := frictionless()
+	tbl := emptyTable(cfg)
+	tbl.place(CueBall, Vec{0.2, 0.6}, Vec{})
+	tbl.ShootSpin(0, 1, Vec{3, 4}) // clamped to the unit disc
+	if sp := tbl.Balls[CueBall].Spin; !near(sp.Len(), 1, 1e-9) || !near(sp.X/sp.Y, 0.75, 1e-9) {
+		t.Fatalf("spin after clamping = %v, want (0.6, 0.8)", sp)
+	}
+	for i := 0; i < 60; i++ { // 0.1 s at 8 m/s: 0.8 m
+		tbl.Step(cfg.Dt)
+	}
+	sp := tbl.Balls[CueBall].Spin
+	wantY := 0.8 * math.Exp(-0.8/cfg.SpinDecayLength)
+	wantX := 0.6 * math.Exp(-0.8/(2*cfg.SpinDecayLength))
+	if !near(sp.Y, wantY, 0.02) || !near(sp.X, wantX, 0.02) {
+		t.Errorf("spin after 0.8 m = %v, want about (%.3f, %.3f)", sp, wantX, wantY)
+	}
+}

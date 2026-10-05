@@ -8,26 +8,39 @@ CSS and JavaScript with no build step, embedded into the server binary by
 
 ## Flow
 
-1. **Landing**: enter a name, then *Create a room* (`POST /api/rooms`, then
-   `join`) or type a 5-letter code and *Join*. Opening `/?room=CODE` prefills
-   the code; after joining, the URL is rewritten to that form so *Copy link*
-   gives an invite.
+1. **Landing**: the name field is prefilled with the last name used (kept in
+   `localStorage`) or, the first time, a random one such as "Brisk Otter".
+   Below it the live room list (`GET /api/rooms`, refreshed every 3 s while
+   the landing is open) offers *Join* on rooms with a free seat and shows the
+   others as full. *Create a room* is disabled with a note once the server's
+   limit (3) is reached. Opening `/?room=CODE` turns the landing into a "Join
+   room CODE" form; after joining, the URL is rewritten to that form so *Copy
+   link* gives an invite.
 2. **Lobby**: both seats shown in the header; the rack starts when both press
    *I'm ready*.
 3. **Your shot** (shot panel visible):
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
      placement is limited to it and the drag is clamped there. The position is
      sent as `place_cue` on release and shown until the server confirms it.
-   - *Call* (every shot but the break): tap a legal ball (ringed in white),
-     then a pocket (ringed and numbered 1–6). *Safety* (or the `S` key)
-     declares a safety instead. *Clear* starts over.
+   - *Call* (every shot but the break): tap a legal ball (ringed in white);
+     no pocket is called, the ball counts wherever it drops. *Safety* (or the
+     `S` key) declares a safety instead. *Clear* starts over.
    - *Aim*: drag on the felt; the cue points from the cue ball toward the
      pointer. The guide shows the ghost ball at first contact, the object
      ball's line and the cue ball's deflection. Arrow keys nudge the angle
      (0.5°, Shift for 0.05°) and power; the `«‹›»` buttons nudge by 5° and
      0.25°.
-   - *Power*: slider, 5–100 %. *Shoot*, Enter or Space fires; the button is
-     disabled until a call is made.
+   - *Power and shooting*: the bar beside the table. Press it, pull down to
+     set the power (the cue draws back on the table) and release to shoot;
+     releasing in the top 8 % cancels. Arrow up/down also change the power
+     and Enter or Space shoots with it. A shot that still needs a call is
+     refused with a hint.
+   - *Spin*: the small cue ball in the shot panel. Tap or drag where the tip
+     should strike (limited to the dashed circle, the no-miscue zone); above
+     centre is top spin, below is draw, left and right are english. Reset
+     returns to a centre hit, and every new turn starts centred. Sent as
+     `spin` with the shot.
+   - Hovering a ball with the mouse shows its number and group above it.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".
@@ -53,6 +66,9 @@ CSS and JavaScript with no build step, embedded into the server binary by
 - The table is drawn in meters on a canvas scaled to fit; on a portrait
   screen it is rotated 90° (`view.rotated`), and pointer coordinates are mapped
   back through the same transform. Ball numbers and labels are counter-rotated.
+  Cushions and pocket jaws are drawn from the same WPA dimensions the server
+  simulates (constants at the top of `app.js`; keep them in sync with
+  `game.DefaultConfig`).
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays

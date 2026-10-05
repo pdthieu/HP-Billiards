@@ -38,6 +38,11 @@ type Ball struct {
 	Pos      Vec
 	Vel      Vec
 	Pocketed bool
+	// Spin is the english on the ball, as the cue tip offset that produced
+	// it, each component in [-1, 1]: X > 0 right english (tip right of
+	// centre as the shooter sees it), Y > 0 top spin. It fades with the
+	// distance rolled and is spent by collisions; see physics.go.
+	Spin Vec
 }
 
 // EventKind identifies what happened in an Event.
@@ -103,36 +108,67 @@ type Config struct {
 	Substeps int
 
 	BallRestitution    float64 // ball–ball
-	CushionRestitution float64 // ball–rail, applied to the normal component
+	CushionRestitution float64 // ball–cushion (and pocket jaw), normal component
 
-	CornerCaptureRadius float64 // pocketed when the center is this close to a corner
-	SideCaptureRadius   float64 // same, for the two side pockets
+	// Pocket geometry, WPA equipment specifications. The playing surface is
+	// measured between cushion noses; a pocket is the gap between two noses.
+	CornerMouth    float64 // distance between the noses of a corner pocket
+	SideMouth      float64 // same for a side pocket
+	CornerJawAngle float64 // angle between a cushion and the jaw past its nose, radians
+	SideJawAngle   float64
+	CornerShelf    float64 // from the mouth line to where a ball drops, along the pocket axis
+	SideShelf      float64
 
 	RollingDecel float64 // constant rolling deceleration, m/s²
 	StopSpeed    float64 // a ball slower than this is stopped dead
+
+	// Spin model (deliberately simple, see Table.collideBalls and
+	// Table.collideCushions). SpinDecayLength is the distance over which
+	// spin fades by a factor e; FollowGain scales the follow/draw a full hit
+	// with full top/bottom spin adds to the cue ball, as a fraction of its
+	// speed; SideGain scales the sideways kick full side spin adds off a
+	// cushion, as a fraction of the normal speed.
+	SpinDecayLength float64
+	FollowGain      float64
+	SideGain        float64
 
 	// RackGap is the space left between neighbouring balls in the rack so a
 	// resting rack never registers as overlapping.
 	RackGap float64
 }
 
-// DefaultConfig returns the standard table: 9 ft playing surface, 600 Hz
+const inch = 0.0254
+
+// DefaultConfig returns a WPA-specification 9 ft table: 100 × 50 in playing
+// surface between the cushion noses, 2¼ in balls, corner pockets 4 9⁄16 in
+// wide with 142° jaws and a 1¾ in shelf, side pockets 5 1⁄16 in wide with
+// 104° jaws and a ¼ in shelf (the middle of each permitted range). 600 Hz
 // physics, 60 Hz ticks.
+//
+// Restitution is not in the specification; 0.95 ball–ball and 0.8
+// ball–cushion are typical measured values for tournament equipment.
 func DefaultConfig() Config {
 	return Config{
-		TableWidth:          2.54,
-		TableHeight:         1.27,
-		BallRadius:          0.028575,
-		MaxCueSpeed:         8,
-		Dt:                  1.0 / 600,
-		Substeps:            10,
-		BallRestitution:     0.95,
-		CushionRestitution:  0.8,
-		CornerCaptureRadius: 0.06,
-		SideCaptureRadius:   0.055,
-		RollingDecel:        0.4,
-		StopSpeed:           0.01,
-		RackGap:             0.0005,
+		TableWidth:         100 * inch,
+		TableHeight:        50 * inch,
+		BallRadius:         2.25 / 2 * inch,
+		MaxCueSpeed:        8,
+		Dt:                 1.0 / 600,
+		Substeps:           10,
+		BallRestitution:    0.95,
+		CushionRestitution: 0.8,
+		CornerMouth:        4.5625 * inch,
+		SideMouth:          5.0625 * inch,
+		CornerJawAngle:     142 * math.Pi / 180,
+		SideJawAngle:       104 * math.Pi / 180,
+		CornerShelf:        1.75 * inch,
+		SideShelf:          0.25 * inch,
+		RollingDecel:       0.4,
+		StopSpeed:          0.01,
+		SpinDecayLength:    2.5,
+		FollowGain:         0.6,
+		SideGain:           0.6,
+		RackGap:            0.0005,
 	}
 }
 
@@ -217,20 +253,28 @@ func (g *Game) checkTurn(seat int) error {
 	return nil
 }
 
-// Shoot strikes the cue ball for seat. power is clamped to [0,1]. call is the
-// called ball and pocket (or safety); it is ignored on the break.
+// Shoot strikes the cue ball for seat with a centre-ball hit. power is
+// clamped to [0,1]. call is the called ball and pocket (or safety); it is
+// ignored on the break.
 func (g *Game) Shoot(seat int, angle, power float64, call Call) error {
+	return g.ShootSpin(seat, angle, power, call, Vec{})
+}
+
+// ShootSpin is Shoot with english: spin is the cue tip offset, see Ball.Spin.
+// It is clamped to the unit disc.
+func (g *Game) ShootSpin(seat int, angle, power float64, call Call, spin Vec) error {
 	if err := g.checkTurn(seat); err != nil {
 		return err
 	}
-	if math.IsNaN(angle) || math.IsInf(angle, 0) || math.IsNaN(power) {
+	if math.IsNaN(angle) || math.IsInf(angle, 0) || math.IsNaN(power) ||
+		math.IsNaN(spin.X) || math.IsInf(spin.X, 0) || math.IsNaN(spin.Y) || math.IsInf(spin.Y, 0) {
 		return ErrBadInput
 	}
 	if err := g.Rules.CheckCall(call); err != nil {
 		return err
 	}
 	g.shot = Shot{Call: call, FromKitchen: g.Rules.BallInHand && g.Rules.Kitchen && g.cueInKitchen}
-	g.Table.Shoot(angle, power)
+	g.Table.ShootSpin(angle, power, spin)
 	g.shooting = true
 	return nil
 }

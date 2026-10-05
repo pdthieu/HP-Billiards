@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -62,6 +63,9 @@ type room struct {
 	code  string
 	inbox chan event
 	done  chan struct{} // closed when run exits
+	// info is the summary shown in the room list. The run goroutine
+	// republishes it after every event; anyone may Load it.
+	info atomic.Pointer[RoomInfo]
 
 	game        *game.Game
 	seats       [2]seat
@@ -74,13 +78,27 @@ type room struct {
 }
 
 func newRoom(h *Hub, code string) *room {
-	return &room{
+	r := &room{
 		hub:   h,
 		code:  code,
 		inbox: make(chan event, 16),
 		done:  make(chan struct{}),
 		game:  game.NewGame(h.opts.Game),
 	}
+	r.publishInfo()
+	return r
+}
+
+// publishInfo refreshes the room-list summary.
+func (r *room) publishInfo() {
+	info := &RoomInfo{RoomCode: r.code, Phase: r.game.Rules.Phase}
+	for i := range r.seats {
+		info.Players[i] = r.seats[i].name
+		if !r.seats[i].empty() {
+			info.Seated++
+		}
+	}
+	r.info.Store(info)
 }
 
 // post hands an event to the room. It reports false if the room is gone.
@@ -128,6 +146,7 @@ func (r *room) run() {
 		case ev := <-r.inbox:
 			wasEmpty := r.connected() == 0
 			r.handle(ev)
+			r.publishInfo()
 			if empty := r.connected() == 0; empty && !wasEmpty {
 				emptySince = time.Now()
 				idle.Reset(timeout)
@@ -421,11 +440,7 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 }
 
 func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
-	var call game.Call // the zero call is rejected on every shot but the break
-	if msg.Call != nil {
-		call = *msg.Call
-	}
-	if err := r.game.Shoot(s, msg.Angle, msg.Power, call); err != nil {
+	if err := r.game.ShootSpin(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec()); err != nil {
 		return err
 	}
 	r.ticks = 0
@@ -445,6 +460,7 @@ func (r *room) tick() {
 		return
 	}
 	r.stopTicker()
+	r.publishInfo()
 
 	st := r.game.State()
 	pocketed := res.Pocketed

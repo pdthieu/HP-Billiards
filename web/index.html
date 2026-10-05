@@ -23,7 +23,13 @@
 </header>
 
 <main>
-  <div id="tableWrap"><canvas id="table"></canvas></div>
+  <div id="tableWrap">
+    <canvas id="table"></canvas>
+    <div id="powerBar" hidden title="Drag down to set the power, release to shoot">
+      <div id="powerFill"></div>
+      <span id="powerLabel">pull</span>
+    </div>
+  </div>
 
   <div id="status" aria-live="polite"></div>
 
@@ -40,19 +46,24 @@
         <button id="clearCall" class="small" hidden>Clear</button>
       </div>
       <div class="row">
-        <span class="label">Angle</span>
-        <button class="small nudge" data-deg="-5" title="−5°">«</button>
-        <button class="small nudge" data-deg="-0.25" title="−0.25°">‹</button>
-        <span id="angleText" class="mono">0.0°</span>
-        <button class="small nudge" data-deg="0.25" title="+0.25°">›</button>
-        <button class="small nudge" data-deg="5" title="+5°">»</button>
+        <div class="row">
+          <span class="label">Angle</span>
+          <button class="small nudge" data-deg="-5" title="−5°">«</button>
+          <button class="small nudge" data-deg="-0.25" title="−0.25°">‹</button>
+          <span id="angleText" class="mono">0.0°</span>
+          <button class="small nudge" data-deg="0.25" title="+0.25°">›</button>
+          <button class="small nudge" data-deg="5" title="+5°">»</button>
+        </div>
+        <div id="spinPad" title="Where the cue tip strikes the cue ball">
+          <canvas id="spinCanvas" width="72" height="72"></canvas>
+          <div class="spinText">
+            <span class="label">Spin</span>
+            <span id="spinText" class="muted">centre</span>
+            <button id="spinReset" class="small">Reset</button>
+          </div>
+        </div>
       </div>
-      <div class="row">
-        <span class="label">Power</span>
-        <input id="power" type="range" min="0.05" max="1" step="0.01" value="0.6">
-        <span id="powerText" class="mono">60%</span>
-        <button id="shoot" class="primary">Shoot</button>
-      </div>
+      <p id="powerHint" class="muted">Drag the bar beside the table down and release to shoot. Arrow keys fine-tune, Enter shoots.</p>
     </section>
 
     <section id="waitPanel" hidden>
@@ -79,6 +90,11 @@
     <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Enter your name" required></label>
     <div class="row" id="createRow">
       <button type="button" id="create" class="primary">Create a room</button>
+      <span id="createNote" class="muted" hidden></span>
+    </div>
+    <div id="roomsBox">
+      <div class="label">Rooms</div>
+      <ul id="roomList"></ul>
     </div>
     <div class="row" id="joinRow">
       <input id="code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" spellcheck="false">

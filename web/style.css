@@ -105,7 +105,27 @@ main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; g
   display: flex;
   align-items: center;
   justify-content: center;
+  padding-right: 44px; /* gutter for the power bar */
 }
+#powerBar {
+  position: absolute; right: 0; top: 4px; bottom: 4px; width: 34px;
+  border-radius: 17px; border: 1px solid var(--border); background: var(--panel-2);
+  overflow: hidden; touch-action: none; user-select: none; cursor: ns-resize;
+}
+#powerFill {
+  position: absolute; left: 0; right: 0; top: 0; height: 0%;
+  background: linear-gradient(to bottom, #4cc38a, var(--accent) 60%, var(--bad));
+}
+#powerLabel {
+  position: absolute; left: 0; right: 0; bottom: 8px; text-align: center;
+  font-size: 11px; color: var(--text); writing-mode: vertical-rl; transform: rotate(180deg);
+  pointer-events: none; height: 60%; display: flex; align-items: center; justify-content: center;
+}
+#powerBar.dragging #powerLabel { font-weight: 700; }
+#spinPad { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+#spinCanvas { width: 72px; height: 72px; border-radius: 50%; touch-action: none; cursor: crosshair; }
+#spinPad .spinText { display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+#powerHint { font-size: 12px; }
 #table { display: block; touch-action: none; user-select: none; max-width: 100%; max-height: 100%; }
 
 #status {
@@ -168,6 +188,15 @@ main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; g
 .card h1, .card h2 { margin: 0; }
 .card label { display: flex; flex-direction: column; gap: 4px; }
 .card .row input { flex: 1; min-width: 0; text-transform: uppercase; }
+#roomsBox { display: flex; flex-direction: column; gap: 4px; }
+#roomList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
+#roomList li {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2);
+}
+#roomList li .code { font-size: 15px; letter-spacing: 1px; }
+#roomList li .who { flex: 1; min-width: 0; color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#roomList li.none { color: var(--muted); font-style: italic; justify-content: center; }
 .options { display: flex; flex-direction: column; gap: 8px; }
 .options button { text-align: left; padding: 10px 14px; }
 .options button small { display: block; color: var(--muted); font-weight: normal; }

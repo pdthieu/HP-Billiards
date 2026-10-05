@@ -12,9 +12,21 @@ var rackOrder = [15]int{
 	6, 13, 7, 14, 15,
 }
 
+// segment is a straight piece of cushion rubber: a rail between two pocket
+// noses, or a jaw leading from a nose into a pocket. Balls bounce off it,
+// including off its end points, which is what makes a ball rattle in the jaws.
+type segment struct {
+	a, b   Vec
+	inward Vec // unit normal toward the playing surface; used only when a center lies on the line
+}
+
+// pocket is the drop zone behind a pocket mouth. A ball is pocketed once its
+// center is shelf past the mouth line, measured along axis.
 type pocket struct {
-	pos    Vec
-	radius float64
+	mouth Vec     // middle of the line between the two noses
+	axis  Vec     // unit vector from the table into the pocket
+	half  float64 // half the mouth width
+	shelf float64
 }
 
 // Table is the physics world: the balls and the events of the current shot.
@@ -26,24 +38,94 @@ type Table struct {
 	Events []Event
 
 	pockets      [NumPockets]pocket
-	firstContact bool // the cue ball has already touched an object ball this shot
-	crossedHead  bool // the cue ball has already crossed the head string this shot
+	segments     []segment // 6 cushions and 12 jaws
+	firstContact bool      // the cue ball has already touched an object ball this shot
+	crossedHead  bool      // the cue ball has already crossed the head string this shot
 }
 
 // NewTable returns a racked table ready for the break.
 func NewTable(cfg Config) *Table {
 	t := &Table{Cfg: cfg}
-	w, h := cfg.TableWidth, cfg.TableHeight
-	t.pockets = [NumPockets]pocket{ // order defines the pocket index used in events and calls
-		{Vec{0, 0}, cfg.CornerCaptureRadius},
-		{Vec{w / 2, 0}, cfg.SideCaptureRadius},
-		{Vec{w, 0}, cfg.CornerCaptureRadius},
-		{Vec{0, h}, cfg.CornerCaptureRadius},
-		{Vec{w / 2, h}, cfg.SideCaptureRadius},
-		{Vec{w, h}, cfg.CornerCaptureRadius},
-	}
+	t.buildRails()
 	t.Rack()
 	return t
+}
+
+// buildRails lays out the cushions, jaws and drop zones from Cfg.
+//
+// The corner noses sit CornerMouth/√2 from the corner along each rail, so the
+// mouth line between them (at 45°) is CornerMouth long. The side noses sit
+// SideMouth/2 either side of the rail's middle.
+func (t *Table) buildRails() {
+	cfg := t.Cfg
+	w, h := cfg.TableWidth, cfg.TableHeight
+	a := cfg.CornerMouth / math.Sqrt2
+	s := cfg.SideMouth / 2
+	d := 1 / math.Sqrt2
+
+	// Order defines the pocket index used in events and calls.
+	t.pockets = [NumPockets]pocket{
+		{Vec{a / 2, a / 2}, Vec{-d, -d}, cfg.CornerMouth / 2, cfg.CornerShelf},
+		{Vec{w / 2, 0}, Vec{0, -1}, s, cfg.SideShelf},
+		{Vec{w - a/2, a / 2}, Vec{d, -d}, cfg.CornerMouth / 2, cfg.CornerShelf},
+		{Vec{a / 2, h - a/2}, Vec{-d, d}, cfg.CornerMouth / 2, cfg.CornerShelf},
+		{Vec{w / 2, h}, Vec{0, 1}, s, cfg.SideShelf},
+		{Vec{w - a/2, h - a/2}, Vec{d, d}, cfg.CornerMouth / 2, cfg.CornerShelf},
+	}
+
+	t.segments = t.segments[:0]
+	// cushion adds a rail between two noses and the jaw at each end. corner
+	// says which end (a or b) meets a corner pocket; the other meets a side
+	// pocket or, for the short rails, both ends are corners.
+	cushion := func(from, to, inward Vec, fromCorner, toCorner bool) {
+		t.segments = append(t.segments, segment{from, to, inward})
+		dir := to.Sub(from)
+		dir = dir.Scale(1 / dir.Len())
+		t.segments = append(t.segments, t.jaw(from, dir, inward, fromCorner))
+		t.segments = append(t.segments, t.jaw(to, dir.Scale(-1), inward, toCorner))
+	}
+	cushion(Vec{a, 0}, Vec{w/2 - s, 0}, Vec{0, 1}, true, false)
+	cushion(Vec{w/2 + s, 0}, Vec{w - a, 0}, Vec{0, 1}, false, true)
+	cushion(Vec{a, h}, Vec{w/2 - s, h}, Vec{0, -1}, true, false)
+	cushion(Vec{w/2 + s, h}, Vec{w - a, h}, Vec{0, -1}, false, true)
+	cushion(Vec{0, a}, Vec{0, h - a}, Vec{1, 0}, true, true)
+	cushion(Vec{w, a}, Vec{w, h - a}, Vec{-1, 0}, true, true)
+}
+
+// jaw returns the piece of cushion that runs from a nose into the pocket.
+// along is the unit direction of the cushion away from the pocket; the jaw
+// makes the configured angle with it, turning away from the playing surface.
+// It is long enough to reach the drop line with a ball radius to spare.
+func (t *Table) jaw(nose, along, inward Vec, corner bool) segment {
+	angle, shelf := t.Cfg.SideJawAngle, t.Cfg.SideShelf
+	if corner {
+		angle, shelf = t.Cfg.CornerJawAngle, t.Cfg.CornerShelf
+	}
+	dir := along.Scale(math.Cos(angle)).Sub(inward.Scale(math.Sin(angle)))
+	// Depth gained per unit length along the jaw is dir·axis; the pocket
+	// axis is the bisector of the two jaws.
+	var axis Vec
+	for _, p := range t.pockets {
+		if p.mouth.Dist(nose) <= p.half+1e-9 {
+			axis = p.axis
+			break
+		}
+	}
+	gain := dir.Dot(axis)
+	if gain < 0.1 {
+		gain = 0.1
+	}
+	length := shelf/gain + t.Cfg.BallRadius
+	return segment{nose, nose.Add(dir.Scale(length)), inward}
+}
+
+// Pockets returns, for drawing, the middle of each pocket mouth and the unit
+// direction into the pocket, in pocket-index order.
+func (t *Table) Pockets() (mouths, axes [NumPockets]Vec) {
+	for i, p := range t.pockets {
+		mouths[i], axes[i] = p.mouth, p.axis
+	}
+	return
 }
 
 // Rack puts all 16 balls back: cue ball on the head spot, the triangle with
@@ -79,13 +161,23 @@ func (t *Table) ClearEvents() {
 	t.crossedHead = false
 }
 
-// Shoot strikes the cue ball. angle is in radians (0 = +x, y down), power is
-// clamped to [0,1] and scales MaxCueSpeed. It starts a new shot's event list.
-func (t *Table) Shoot(angle, power float64) {
+// Shoot strikes the cue ball dead centre. angle is in radians (0 = +x, y
+// down), power is clamped to [0,1] and scales MaxCueSpeed. It starts a new
+// shot's event list.
+func (t *Table) Shoot(angle, power float64) { t.ShootSpin(angle, power, Vec{}) }
+
+// ShootSpin is Shoot with english: spin is the cue tip offset (see
+// Ball.Spin), clamped to the unit disc.
+func (t *Table) ShootSpin(angle, power float64, spin Vec) {
 	power = math.Max(0, math.Min(1, power))
 	speed := power * t.Cfg.MaxCueSpeed
+	if l := spin.Len(); l > 1 {
+		spin = spin.Scale(1 / l)
+	}
 	t.ClearEvents()
-	t.Balls[CueBall].Vel = Vec{math.Cos(angle) * speed, math.Sin(angle) * speed}
+	cue := &t.Balls[CueBall]
+	cue.Vel = Vec{math.Cos(angle) * speed, math.Sin(angle) * speed}
+	cue.Spin = spin
 }
 
 // Settled reports whether every ball on the table has zero speed.
@@ -138,11 +230,43 @@ func (t *Table) integrate(dt float64) {
 		b.Vel = b.Vel.Scale(next / speed)
 		prevX := b.Pos.X
 		b.Pos = b.Pos.Add(b.Vel.Scale(dt))
+		if b.Spin != (Vec{}) {
+			// Cloth friction turns english back into plain rolling; side
+			// spin lasts about twice as long as top/bottom spin.
+			dist := next * dt
+			b.Spin.Y *= math.Exp(-dist / t.Cfg.SpinDecayLength)
+			b.Spin.X *= math.Exp(-dist / (2 * t.Cfg.SpinDecayLength))
+		}
 		if head := t.Cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
 			t.crossedHead = true
 			t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
 		}
 	}
+}
+
+// pocketAt returns the index of the pocket whose drop zone holds pos, or -1.
+func (t *Table) pocketAt(pos Vec) int {
+	for n, p := range t.pockets {
+		rel := pos.Sub(p.mouth)
+		depth := rel.Dot(p.axis)
+		lateral := math.Abs(rel.X*p.axis.Y - rel.Y*p.axis.X)
+		if depth >= p.shelf && lateral <= p.half+t.Cfg.BallRadius {
+			return n
+		}
+	}
+	// A ball that somehow got clear of the rails is lost down the nearest
+	// pocket rather than left rolling forever.
+	m := 2 * t.Cfg.BallRadius
+	if pos.X < -m || pos.Y < -m || pos.X > t.Cfg.TableWidth+m || pos.Y > t.Cfg.TableHeight+m {
+		best, bestD := 0, math.Inf(1)
+		for n, p := range t.pockets {
+			if d := pos.Dist(p.mouth); d < bestD {
+				best, bestD = n, d
+			}
+		}
+		return best
+	}
+	return -1
 }
 
 func (t *Table) capturePockets() {
@@ -151,51 +275,53 @@ func (t *Table) capturePockets() {
 		if b.Pocketed {
 			continue
 		}
-		for n, p := range t.pockets {
-			if b.Pos.Dist(p.pos) <= p.radius {
-				b.Pocketed = true
-				b.Vel = Vec{}
-				t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
-				break
-			}
+		if n := t.pocketAt(b.Pos); n >= 0 {
+			b.Pocketed = true
+			b.Vel = Vec{}
+			t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 		}
 	}
 }
 
-// collideCushions keeps ball centers inside the rails (the table edges inset
-// by the ball radius), reflecting the normal velocity component.
+// collideCushions bounces balls off the cushions and pocket jaws: a ball
+// overlapping a segment is pushed out along the contact normal and, if it was
+// moving into it, has that velocity component reflected with the cushion
+// restitution. Segment ends act as the rounded noses they are.
 func (t *Table) collideCushions() {
 	r, e := t.Cfg.BallRadius, t.Cfg.CushionRestitution
-	maxX, maxY := t.Cfg.TableWidth-r, t.Cfg.TableHeight-r
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if b.Pocketed {
 			continue
 		}
 		hit := false
-		if b.Pos.X < r {
-			b.Pos.X = r
-			if b.Vel.X < 0 {
-				b.Vel.X *= -e
-				hit = true
+		for _, s := range t.segments {
+			closest := s.closest(b.Pos)
+			delta := b.Pos.Sub(closest)
+			dist := delta.Len()
+			if dist >= r {
+				continue
 			}
-		} else if b.Pos.X > maxX {
-			b.Pos.X = maxX
-			if b.Vel.X > 0 {
-				b.Vel.X *= -e
-				hit = true
+			n := s.inward
+			if dist > 1e-12 {
+				n = delta.Scale(1 / dist)
 			}
-		}
-		if b.Pos.Y < r {
-			b.Pos.Y = r
-			if b.Vel.Y < 0 {
-				b.Vel.Y *= -e
-				hit = true
-			}
-		} else if b.Pos.Y > maxY {
-			b.Pos.Y = maxY
-			if b.Vel.Y > 0 {
-				b.Vel.Y *= -e
+			b.Pos = closest.Add(n.Scale(r))
+			if vn := b.Vel.Dot(n); vn < 0 {
+				before := b.Vel
+				b.Vel = b.Vel.Sub(n.Scale((1 + e) * vn))
+				// Side spin grips the cushion and kicks the ball toward
+				// the side the tip struck: right english sends a ball
+				// that hits a rail square off to the shooter's right.
+				if b.Spin.X != 0 {
+					if sp := before.Len(); sp > 0 {
+						d := before.Scale(1 / sp)
+						right := Vec{-d.Y, d.X} // y is down, so this is the shooter's right
+						right = right.Sub(n.Scale(right.Dot(n)))
+						b.Vel = b.Vel.Add(right.Scale(b.Spin.X * t.Cfg.SideGain * -vn))
+					}
+					b.Spin.X *= 0.5
+				}
 				hit = true
 			}
 		}
@@ -203,6 +329,18 @@ func (t *Table) collideCushions() {
 			t.Events = append(t.Events, Event{Kind: CushionHit, Ball: b.ID})
 		}
 	}
+}
+
+// closest returns the point of the segment nearest to p.
+func (s segment) closest(p Vec) Vec {
+	ab := s.b.Sub(s.a)
+	l2 := ab.Dot(ab)
+	if l2 == 0 {
+		return s.a
+	}
+	f := p.Sub(s.a).Dot(ab) / l2
+	f = math.Max(0, math.Min(1, f))
+	return s.a.Add(ab.Scale(f))
 }
 
 // collideBalls resolves every overlapping pair: the balls are pushed apart
@@ -233,13 +371,21 @@ func (t *Table) collideBalls() {
 			a.Pos = a.Pos.Sub(push)
 			b.Pos = b.Pos.Add(push)
 
-			vn := b.Vel.Sub(a.Vel).Dot(n)
+			rel := b.Vel.Sub(a.Vel)
+			vn := rel.Dot(n)
 			if vn >= 0 {
 				continue // already separating
 			}
+			aBefore, bBefore := a.Vel, b.Vel
 			impulse := n.Scale(-(1 + e) / 2 * vn)
 			a.Vel = a.Vel.Sub(impulse)
 			b.Vel = b.Vel.Add(impulse)
+			// Top or bottom spin carries the striking ball on (follow) or
+			// back (draw) along its original line, in proportion to how
+			// full the hit was; the spin is spent accordingly.
+			fullness := -vn / rel.Len()
+			t.applyFollow(a, aBefore, fullness)
+			t.applyFollow(b, bBefore, fullness)
 
 			// i < j, so the cue ball can only be a.
 			if i == CueBall && !t.firstContact {
@@ -254,15 +400,37 @@ func (t *Table) collideBalls() {
 	}
 }
 
-// canPlace reports whether ball id could rest at pos: inside the rails, clear
-// of every pocket's capture zone and not overlapping another ball.
+// applyFollow converts a ball's vertical spin into follow or draw after it
+// struck another ball. before is its velocity going into the collision and
+// fullness the fraction of the approach that was head on (1 = full hit).
+func (t *Table) applyFollow(b *Ball, before Vec, fullness float64) {
+	if b.Spin.Y == 0 {
+		return
+	}
+	sp := before.Len()
+	if sp == 0 {
+		return
+	}
+	dir := before.Scale(1 / sp)
+	b.Vel = b.Vel.Add(dir.Scale(b.Spin.Y * t.Cfg.FollowGain * sp * fullness))
+	b.Spin.Y *= 1 - 0.7*fullness
+}
+
+// canPlace reports whether ball id could rest at pos: on the playing surface
+// (inside the cushion-nose rectangle, not in a pocket mouth), clear of every
+// cushion and not overlapping another ball.
 func (t *Table) canPlace(id int, pos Vec) bool {
 	r := t.Cfg.BallRadius
 	if !(pos.X >= r && pos.X <= t.Cfg.TableWidth-r && pos.Y >= r && pos.Y <= t.Cfg.TableHeight-r) {
 		return false // also rejects NaN
 	}
 	for _, p := range t.pockets {
-		if pos.Dist(p.pos) <= p.radius {
+		if pos.Sub(p.mouth).Dot(p.axis) > -r {
+			return false // in, or hanging over, a pocket mouth
+		}
+	}
+	for _, s := range t.segments {
+		if pos.Dist(s.closest(pos)) < r {
 			return false
 		}
 	}

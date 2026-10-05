@@ -17,12 +17,19 @@ const H = 1.27;
 const R = 0.028575;        // ball radius
 const HEAD = W / 4;        // head string; the kitchen is x <= HEAD
 const FOOT = { x: W * 3 / 4, y: H / 2 };
-const RAIL = 0.1;          // drawn rail width
-const POCKETS = [
-  { x: 0, y: 0, r: 0.06 }, { x: W / 2, y: 0, r: 0.055 }, { x: W, y: 0, r: 0.06 },
-  { x: 0, y: H, r: 0.06 }, { x: W / 2, y: H, r: 0.055 }, { x: W, y: H, r: 0.06 },
-];
-const POCKET_NAMES = ['top left', 'top middle', 'top right', 'bottom left', 'bottom middle', 'bottom right'];
+const RAIL = 0.1;          // drawn wooden rail width beyond the cushions
+const CUSHION = 0.045;     // drawn cushion depth behind the nose line
+// Pocket geometry, WPA equipment specification; keep in sync with
+// game.DefaultConfig on the server.
+const INCH = 0.0254;
+const CORNER_MOUTH = 4.5625 * INCH;
+const SIDE_MOUTH = 5.0625 * INCH;
+const CORNER_JAW = 142 * Math.PI / 180;
+const SIDE_JAW = 104 * Math.PI / 180;
+const CORNER_SHELF = 1.75 * INCH;
+const SIDE_SHELF = 0.25 * INCH;
+const TABLE = buildTable();
+const POCKETS = TABLE.pockets; // {x, y}: middle of each mouth, pocket-index order
 const BALL_COLORS = {
   1: '#f2c230', 2: '#2457c5', 3: '#d8322c', 4: '#6b2fa0', 5: '#ee7b1d', 6: '#1f8a4c', 7: '#8b1a2b', 8: '#111',
 };
@@ -32,6 +39,45 @@ const PING_EVERY_MS = 15000;  // heartbeat; the server answers with pong
 const PONG_TIMEOUT_MS = 10000;
 const RECONNECT_MAX_MS = 8000;
 const SEAT_HOLD_S = 60;       // how long the server holds a seat (PROTOCOL.md)
+const ROOMS_POLL_MS = 3000;
+
+// buildTable lays out cushions and pockets like Table.buildRails on the server.
+function buildTable() {
+  const a = CORNER_MOUTH / Math.SQRT2; // corner noses sit this far from the corner along each rail
+  const s = SIDE_MOUTH / 2;
+  const d = 1 / Math.SQRT2;
+  const pockets = [
+    { x: a / 2, y: a / 2, ax: -d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
+    { x: W / 2, y: 0, ax: 0, ay: -1, half: s, shelf: SIDE_SHELF },
+    { x: W - a / 2, y: a / 2, ax: d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
+    { x: a / 2, y: H - a / 2, ax: -d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
+    { x: W / 2, y: H, ax: 0, ay: 1, half: s, shelf: SIDE_SHELF },
+    { x: W - a / 2, y: H - a / 2, ax: d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
+  ];
+  // jaw direction from a nose: the cushion direction (away from the pocket)
+  // rotated by the jaw angle away from the playing surface
+  const jaw = (ux, uy, inx, iny, corner) => {
+    const t = corner ? CORNER_JAW : SIDE_JAW;
+    return { x: ux * Math.cos(t) - inx * Math.sin(t), y: uy * Math.cos(t) - iny * Math.sin(t) };
+  };
+  const cushions = [];
+  const add = (from, to, inward, fromCorner, toCorner) => {
+    const len = Math.hypot(to.x - from.x, to.y - from.y);
+    const ux = (to.x - from.x) / len, uy = (to.y - from.y) / len;
+    cushions.push({
+      from, to, inward,
+      jawFrom: jaw(ux, uy, inward.x, inward.y, fromCorner),
+      jawTo: jaw(-ux, -uy, inward.x, inward.y, toCorner),
+    });
+  };
+  add({ x: a, y: 0 }, { x: W / 2 - s, y: 0 }, { x: 0, y: 1 }, true, false);
+  add({ x: W / 2 + s, y: 0 }, { x: W - a, y: 0 }, { x: 0, y: 1 }, false, true);
+  add({ x: a, y: H }, { x: W / 2 - s, y: H }, { x: 0, y: -1 }, true, false);
+  add({ x: W / 2 + s, y: H }, { x: W - a, y: H }, { x: 0, y: -1 }, false, true);
+  add({ x: 0, y: a }, { x: 0, y: H - a }, { x: 1, y: 0 }, true, true);
+  add({ x: W, y: a }, { x: W, y: H - a }, { x: -1, y: 0 }, true, true);
+  return { pockets, cushions };
+}
 const DEG = Math.PI / 180;
 
 const OPTION_TEXT = {
@@ -85,8 +131,11 @@ const S = {
   // my shot
   angle: 0,
   power: 0.6,
-  call: null,            // {ball, pocket} or {safety: true}
-  pendingBall: null,     // picked ball waiting for a pocket
+  spin: { x: 0, y: 0 },  // cue tip offset, unit disc; y > 0 is top spin
+  powerDrag: false,      // the power bar is being pulled
+  hoverBall: null,       // ball under the mouse, for its label
+  call: null,            // {ball} or {safety: true}; no pocket is called
+  roomsTimer: 0,
   aiming: false,
   dragCue: null,         // {x, y} while placing the cue ball
   cuePlacedAt: null,     // last place_cue we sent, kept until the server confirms
@@ -221,9 +270,9 @@ function onWelcome(msg) {
   history.replaceState(null, '', `/?room=${encodeURIComponent(msg.roomCode)}`);
   $('landing').hidden = true;
   $('disconnected').hidden = true;
+  stopRoomsPoll();
   saveSession();
   if (reconnected) toast('Reconnected');
-  try { localStorage.setItem('poolName', S.name); } catch { /* storage unavailable */ }
 }
 
 function applyRules(msg) {
@@ -348,10 +397,10 @@ function resetToLanding(error) {
 // newTurn resets the per-shot UI when the shooter or phase changes.
 function newTurn() {
   S.call = null;
-  S.pendingBall = null;
   S.aiming = false;
   S.dragCue = null;
   S.cuePlacedAt = null;
+  S.spin = { x: 0, y: 0 };
   if (isMyShot()) {
     const cue = S.balls.get(0);
     const targets = legalTargets();
@@ -471,9 +520,108 @@ function canShoot() {
 function shoot() {
   if (!canShoot()) return;
   const msg = { type: 'shoot', angle: S.angle, power: S.power };
-  if (needsCall()) msg.call = S.call.safety ? { safety: true } : { ball: S.call.ball, pocket: S.call.pocket };
+  if (needsCall()) msg.call = S.call.safety ? { safety: true } : { ball: S.call.ball };
+  if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   send(msg);
 }
+
+// --- power bar: pull down, release to shoot -------------------------------
+
+const powerBar = $('powerBar');
+
+function renderPower() {
+  $('powerFill').style.height = `${Math.round(S.power * 100)}%`;
+  $('powerLabel').textContent = S.powerDrag ? `${Math.round(S.power * 100)}%` : `${Math.round(S.power * 100)}% · pull`;
+}
+
+function barPower(e) {
+  const rect = powerBar.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+}
+
+powerBar.addEventListener('pointerdown', (e) => {
+  if (!isMyShot()) return;
+  e.preventDefault();
+  powerBar.setPointerCapture(e.pointerId);
+  S.powerDrag = true;
+  powerBar.classList.add('dragging');
+  setPower(barPower(e), true);
+});
+powerBar.addEventListener('pointermove', (e) => {
+  if (S.powerDrag) setPower(barPower(e), true);
+});
+function endPowerDrag(e, fire) {
+  if (!S.powerDrag) return;
+  S.powerDrag = false;
+  powerBar.classList.remove('dragging');
+  const p = barPower(e);
+  if (fire && p >= 0.08) {
+    setPower(p);
+    if (canShoot()) shoot();
+    else toast(needsCall() && !S.call ? 'Tap the ball you are going for first' : 'Cannot shoot now', true);
+  } else {
+    renderPower();
+    if (fire) toast('Shot cancelled');
+  }
+}
+powerBar.addEventListener('pointerup', (e) => endPowerDrag(e, true));
+powerBar.addEventListener('pointercancel', (e) => endPowerDrag(e, false));
+
+// --- spin pad: where the tip strikes the cue ball --------------------------
+
+const spinCanvas = $('spinCanvas');
+const SPIN_LIMIT = 0.72; // of the drawn ball radius: beyond this a real shot miscues
+
+function renderSpin() {
+  const c = spinCanvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const size = 72;
+  if (spinCanvas.width !== size * dpr) { spinCanvas.width = size * dpr; spinCanvas.height = size * dpr; }
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, size, size);
+  const cx = size / 2, cy = size / 2, r = size / 2 - 2;
+  const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(1, '#cfc9b8');
+  c.fillStyle = g;
+  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#00000033';
+  c.setLineDash([3, 3]);
+  c.beginPath(); c.arc(cx, cy, r * SPIN_LIMIT, 0, Math.PI * 2); c.stroke();
+  c.setLineDash([]);
+  c.beginPath(); c.moveTo(cx - r, cy); c.lineTo(cx + r, cy); c.moveTo(cx, cy - r); c.lineTo(cx, cy + r); c.stroke();
+  const px = cx + S.spin.x * r * SPIN_LIMIT, py = cy - S.spin.y * r * SPIN_LIMIT;
+  c.fillStyle = '#d8322c';
+  c.beginPath(); c.arc(px, py, 5, 0, Math.PI * 2); c.fill();
+  c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.stroke();
+  const parts = [];
+  if (S.spin.y > 0.15) parts.push('top'); else if (S.spin.y < -0.15) parts.push('draw');
+  if (S.spin.x > 0.15) parts.push('right'); else if (S.spin.x < -0.15) parts.push('left');
+  $('spinText').textContent = parts.length ? parts.join(' + ') : 'centre';
+}
+
+function setSpinFromEvent(e) {
+  const rect = spinCanvas.getBoundingClientRect();
+  const r = rect.width / 2;
+  let x = (e.clientX - rect.left - r) / (r * SPIN_LIMIT);
+  let y = -(e.clientY - rect.top - r) / (r * SPIN_LIMIT);
+  const l = Math.hypot(x, y);
+  if (l > 1) { x /= l; y /= l; }
+  S.spin = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+  renderSpin();
+}
+let spinDrag = false;
+spinCanvas.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  spinDrag = true;
+  spinCanvas.setPointerCapture(e.pointerId);
+  setSpinFromEvent(e);
+});
+spinCanvas.addEventListener('pointermove', (e) => { if (spinDrag) setSpinFromEvent(e); });
+const endSpin = () => { spinDrag = false; };
+spinCanvas.addEventListener('pointerup', endSpin);
+spinCanvas.addEventListener('pointercancel', endSpin);
+$('spinReset').onclick = () => { S.spin = { x: 0, y: 0 }; renderSpin(); };
 
 function queueAim() {
   if (!isMyShot()) return;
@@ -495,8 +643,7 @@ function setAngle(a) {
 
 function setPower(p) {
   S.power = Math.max(0.05, Math.min(1, p));
-  $('power').value = S.power;
-  $('powerText').textContent = `${Math.round(S.power * 100)}%`;
+  renderPower();
   queueAim();
 }
 
@@ -591,19 +738,14 @@ function draw() {
   }
 
   for (const [id, p] of balls) drawBall(id, p);
+  if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
 
   if (targets) {
     for (const id of targets) {
       const p = balls.get(id);
       if (!p) continue;
-      ring(p, R + 0.012, id === S.pendingBall || (S.call && S.call.ball === id) ? '#f0b429' : '#ffffff88', 0.006);
+      ring(p, R + 0.012, S.call && S.call.ball === id ? '#f0b429' : '#ffffff88', 0.006);
     }
-  }
-  if (myShot && S.pendingBall !== null) {
-    for (const [i, pk] of POCKETS.entries()) ring(pk, pk.r + 0.02, '#f0b429', 0.008, i);
-  } else if (myShot && S.call && !S.call.safety) {
-    const pk = POCKETS[S.call.pocket];
-    ring(pk, pk.r + 0.02, '#f0b429', 0.008);
   }
   if (myShot && S.ballInHand && cue) {
     ring(cue, R + 0.016, S.dragCue ? '#ffffff' : '#4cc38a', 0.006);
@@ -621,16 +763,35 @@ function roundRect(x, y, w, h, r) {
 }
 
 function drawTable() {
-  // rails
+  // wooden rails
   roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 0.06);
   ctx.fillStyle = '#5a3a1e';
   ctx.fill();
-  roundRect(-RAIL * 0.55, -RAIL * 0.55, W + RAIL * 1.1, H + RAIL * 1.1, 0.03);
-  ctx.fillStyle = '#1e6b3a';
-  ctx.fill();
-  // felt
+  // felt, running under the cushions and into the pocket mouths
   ctx.fillStyle = '#2b8a4a';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
+  // pocket holes: a circle behind each mouth, reaching the drop line
+  for (const pk of POCKETS) {
+    const r = pk.half + 0.008;
+    const depth = pk.shelf + 0.012;
+    ctx.fillStyle = '#0b0b0b';
+    ctx.beginPath();
+    ctx.arc(pk.x + pk.ax * depth, pk.y + pk.ay * depth, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // cushions: the nose line, with the jaws angled into the pockets
+  ctx.fillStyle = '#1e6b3a';
+  for (const c of TABLE.cushions) {
+    const lf = CUSHION / Math.abs(c.jawFrom.x * c.inward.x + c.jawFrom.y * c.inward.y);
+    const lt = CUSHION / Math.abs(c.jawTo.x * c.inward.x + c.jawTo.y * c.inward.y);
+    ctx.beginPath();
+    ctx.moveTo(c.from.x, c.from.y);
+    ctx.lineTo(c.to.x, c.to.y);
+    ctx.lineTo(c.to.x + c.jawTo.x * lt, c.to.y + c.jawTo.y * lt);
+    ctx.lineTo(c.from.x + c.jawFrom.x * lf, c.from.y + c.jawFrom.y * lf);
+    ctx.closePath();
+    ctx.fill();
+  }
   // kitchen highlight while placing there
   if (isMyShot() && S.ballInHand && S.kitchen) {
     ctx.fillStyle = '#ffffff18';
@@ -647,13 +808,6 @@ function drawTable() {
   ctx.beginPath();
   ctx.arc(FOOT.x, FOOT.y, 0.006, 0, Math.PI * 2);
   ctx.fill();
-  // pockets
-  for (const pk of POCKETS) {
-    ctx.fillStyle = '#0b0b0b';
-    ctx.beginPath();
-    ctx.arc(pk.x, pk.y, pk.r + 0.008, 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
 
 function ring(p, r, color, width, label) {
@@ -719,6 +873,26 @@ function drawBall(id, p) {
     ctx.textBaseline = 'middle';
     ctx.fillText(String(id), 0, R * 0.03);
   }
+  ctx.restore();
+}
+
+// drawBallLabel names the ball under the mouse, just above it.
+function drawBallLabel(id, p) {
+  const text = id === 0 ? 'cue ball' : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if (view.rotated) ctx.rotate(Math.PI / 2);
+  ctx.font = `600 ${0.038}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = ctx.measureText(text).width + 0.03;
+  const h = 0.055;
+  const y = -(R + 0.05);
+  roundRect(-w / 2, y - h / 2, w, h, 0.012);
+  ctx.fillStyle = '#15181cee';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, 0, y + 0.002);
   ctx.restore();
 }
 
@@ -793,15 +967,6 @@ function hitBall(p, balls, skipCue) {
   return best ? best.id : null;
 }
 
-function hitPocket(p) {
-  let best = null;
-  for (const [i, pk] of POCKETS.entries()) {
-    const d = Math.hypot(pk.x - p.x, pk.y - p.y);
-    if (d < pk.r + 0.06 && (!best || d < best.d)) best = { i, d };
-  }
-  return best ? best.i : null;
-}
-
 function clampCue(p) {
   const maxX = S.kitchen ? HEAD : W - R;
   return {
@@ -826,19 +991,11 @@ canvas.addEventListener('pointerdown', (e) => {
     const id = hitBall(p, balls, true);
     if (id !== null) {
       if (legalTargets().has(id)) {
-        S.pendingBall = id;
-        S.call = null;
+        S.call = { ball: id };
         refreshShotPanel();
       } else {
         toast(`${ballName(id)[0].toUpperCase() + ballName(id).slice(1)} is not a legal target`, true);
       }
-      return;
-    }
-    const pk = hitPocket(p);
-    if (pk !== null && S.pendingBall !== null) {
-      S.call = { ball: S.pendingBall, pocket: pk };
-      S.pendingBall = null;
-      refreshShotPanel();
       return;
     }
   }
@@ -850,8 +1007,11 @@ canvas.addEventListener('pointerdown', (e) => {
 });
 
 canvas.addEventListener('pointermove', (e) => {
-  if (!isMyShot()) return;
   const p = pointerPos(e);
+  if (e.pointerType === 'mouse' && !S.dragCue && !S.aiming) {
+    S.hoverBall = hitBall(p, displayBalls(), false);
+  }
+  if (!isMyShot()) return;
   if (S.dragCue) {
     S.dragCue = clampCue(p);
   } else if (S.aiming) {
@@ -874,14 +1034,12 @@ function endPointer(e) {
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('pointerleave', () => { S.hoverBall = null; });
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
-  const inRange = t instanceof HTMLInputElement && t.type === 'range';
-  if ((t instanceof HTMLInputElement && !inRange) || t instanceof HTMLTextAreaElement) return;
+  if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
   if (!isMyShot()) return;
-  // Inside the power slider the arrows keep their native meaning.
-  if (inRange && e.key !== ' ' && e.key !== 'Enter' && e.key !== 's' && e.key !== 'S') return;
   const step = e.shiftKey ? 0.05 * DEG : 0.5 * DEG;
   switch (e.key) {
     case 'ArrowLeft': setAngle(S.angle - step); break;
@@ -912,11 +1070,26 @@ function toast(text, isError) {
   setTimeout(() => el.remove(), 3600);
 }
 
+// Names: the last one used is kept; the first time a random one is offered.
+const ADJECTIVES = ['Brisk', 'Calm', 'Clever', 'Daring', 'Eager', 'Fancy', 'Gentle', 'Happy', 'Jolly', 'Keen', 'Lucky', 'Merry', 'Nimble', 'Proud', 'Quick', 'Rapid', 'Sharp', 'Swift', 'Witty', 'Zesty'];
+const ANIMALS = ['Otter', 'Falcon', 'Badger', 'Heron', 'Lynx', 'Panda', 'Tiger', 'Walrus', 'Gecko', 'Koala', 'Marten', 'Osprey', 'Puffin', 'Raven', 'Shark', 'Stoat', 'Tapir', 'Viper', 'Whale', 'Yak'];
+function randomName() {
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  return `${pick(ADJECTIVES)} ${pick(ANIMALS)}`;
+}
+function rememberedName() {
+  try { return localStorage.getItem('poolName') || ''; } catch { return ''; }
+}
+function rememberName(name) {
+  try { localStorage.setItem('poolName', name); } catch { /* storage unavailable */ }
+}
+
 function showLanding(error) {
   $('landing').hidden = false;
   $('disconnected').hidden = true;
   $('landingError').hidden = !error;
   $('landingError').textContent = error || '';
+  if (!$('name').value.trim()) $('name').value = rememberedName() || randomName();
   // An invite link opens straight onto "join this room": the name is the
   // only thing to fill in.
   const code = $('code').value.trim().toUpperCase();
@@ -926,11 +1099,78 @@ function showLanding(error) {
     ? 'Enter your name to take the free seat.'
     : 'Two players, one table. WPA 8-ball rules: call your shots.';
   $('createRow').hidden = invited;
+  $('roomsBox').hidden = invited;
   $('code').hidden = invited;
   $('join').classList.toggle('primary', invited);
   $('join').textContent = invited ? 'Join' : 'Join by code';
   $('switchMode').hidden = !invited;
   setTimeout(() => $('name').focus(), 0);
+  if (!invited) startRoomsPoll(); else stopRoomsPoll();
+}
+
+// The room list is live while the landing page is open.
+function startRoomsPoll() {
+  stopRoomsPoll();
+  refreshRooms();
+  S.roomsTimer = setInterval(refreshRooms, ROOMS_POLL_MS);
+}
+function stopRoomsPoll() {
+  clearInterval(S.roomsTimer);
+  S.roomsTimer = 0;
+}
+async function refreshRooms() {
+  if ($('landing').hidden) { stopRoomsPoll(); return; }
+  let list;
+  try {
+    const res = await fetch('/api/rooms');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    list = await res.json();
+  } catch {
+    return; // keep the last list; the next poll may succeed
+  }
+  renderRooms(list);
+}
+function renderRooms(list) {
+  const ul = $('roomList');
+  ul.replaceChildren();
+  if (!list.rooms.length) {
+    const li = document.createElement('li');
+    li.className = 'none';
+    li.textContent = 'No rooms yet. Create one.';
+    ul.append(li);
+  }
+  for (const room of list.rooms) {
+    const li = document.createElement('li');
+    const code = document.createElement('span');
+    code.className = 'code';
+    code.textContent = room.roomCode;
+    const who = document.createElement('span');
+    who.className = 'who';
+    const names = room.players.filter(Boolean);
+    const phase = room.phase === 'lobby' ? 'in the lobby' : room.phase === 'game_over' ? 'finished a game' : 'playing';
+    who.textContent = names.length ? `${names.join(' vs ')} · ${phase}` : 'empty';
+    const btn = document.createElement('button');
+    btn.className = 'small';
+    if (room.seated < 2) {
+      btn.textContent = 'Join';
+      btn.classList.add('primary');
+      btn.type = 'button';
+      btn.onclick = () => {
+        const name = landingName();
+        if (!name) return;
+        connectAndJoin(room.roomCode, name);
+      };
+    } else {
+      btn.textContent = 'Full';
+      btn.disabled = true;
+    }
+    li.append(code, who, btn);
+    ul.append(li);
+  }
+  const full = list.rooms.length >= list.max;
+  $('create').disabled = full;
+  $('createNote').hidden = !full;
+  $('createNote').textContent = full ? `All ${list.max} rooms are in use; join one below.` : '';
 }
 
 function renderSeat(seat) {
@@ -1004,6 +1244,8 @@ function refreshPanels() {
   $('overPanel').hidden = S.phase !== 'game_over';
   const myShot = isMyShot();
   $('shotPanel').hidden = !myShot;
+  $('powerBar').hidden = !myShot;
+  if (!myShot && S.powerDrag) { S.powerDrag = false; powerBar.classList.remove('dragging'); }
   $('waitPanel').hidden = S.phase === 'lobby' || S.phase === 'game_over' || myShot;
 
   if (S.phase === 'lobby' && me) {
@@ -1042,26 +1284,21 @@ function refreshShotPanel() {
     callEl.classList.add('set');
     $('clearCall').hidden = false;
   } else if (S.call) {
-    callEl.textContent = `Called: ${ballName(S.call.ball)} in the ${POCKET_NAMES[S.call.pocket]} pocket`;
+    callEl.textContent = `Called: ${ballName(S.call.ball)}`;
     callEl.classList.add('set');
-    $('clearCall').hidden = false;
-  } else if (S.pendingBall !== null) {
-    callEl.textContent = `${ballName(S.pendingBall)} picked, now tap a pocket (1–6)`;
     $('clearCall').hidden = false;
   } else {
     callEl.textContent = S.ballInHand
-      ? 'Ball in hand: drag the cue ball, then tap a ball and a pocket to call.'
-      : 'Tap a ball, then a pocket to call your shot.';
+      ? 'Ball in hand: drag the cue ball, then tap the ball you are going for.'
+      : 'Tap the ball you are going for to call it.';
   }
-  $('shoot').disabled = !canShoot();
   setAngle(S.angle);
-  $('power').value = S.power;
-  $('powerText').textContent = `${Math.round(S.power * 100)}%`;
+  renderPower();
+  renderSpin();
 }
 
 function toggleSafety() {
-  if (S.call && S.call.safety) S.call = null;
-  else { S.call = { safety: true }; S.pendingBall = null; }
+  S.call = S.call && S.call.safety ? null : { safety: true };
   refreshShotPanel();
 }
 
@@ -1090,10 +1327,8 @@ function refreshDecision() {
 
 $('ready').onclick = () => send({ type: 'ready' });
 $('rematch').onclick = () => send({ type: 'rematch' });
-$('shoot').onclick = shoot;
 $('safety').onclick = toggleSafety;
-$('clearCall').onclick = () => { S.call = null; S.pendingBall = null; refreshShotPanel(); };
-$('power').oninput = (e) => { setPower(Number(e.target.value)); $('shoot').disabled = !canShoot(); };
+$('clearCall').onclick = () => { S.call = null; refreshShotPanel(); };
 for (const b of document.querySelectorAll('.nudge')) {
   b.onclick = () => setAngle(S.angle + Number(b.dataset.deg) * DEG);
 }
@@ -1116,6 +1351,7 @@ function landingName() {
     $('name').focus();
     return null;
   }
+  rememberName(name);
   return name;
 }
 $('create').onclick = async () => {
@@ -1124,8 +1360,9 @@ $('create').onclick = async () => {
   $('landingError').hidden = true;
   try {
     const res = await fetch('/api/rooms', { method: 'POST' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { roomCode } = await res.json();
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
+    const { roomCode } = body;
     $('code').value = roomCode;
     connectAndJoin(roomCode, name);
   } catch (err) {
@@ -1152,7 +1389,7 @@ $('leave').onclick = () => {
 
 // boot
 (function init() {
-  try { $('name').value = localStorage.getItem('poolName') || ''; } catch { /* storage unavailable */ }
+  $('name').value = rememberedName() || randomName();
   const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
   if (room) $('code').value = room;
   new ResizeObserver(resize).observe($('tableWrap'));

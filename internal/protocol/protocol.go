@@ -65,7 +65,9 @@ type ClientMessage struct {
 	Angle float64 `json:"angle"` // radians, 0 = +x, y down
 	Power float64 `json:"power"` // clamped to [0,1]
 	// shoot: required on every shot except the break
-	Call *game.Call `json:"call"`
+	Call *Call `json:"call"`
+	// shoot: optional english, see Spin
+	Spin *Spin `json:"spin"`
 
 	// place_cue
 	X float64 `json:"x"`
@@ -73,6 +75,42 @@ type ClientMessage struct {
 
 	// choose
 	Option game.Option `json:"option"`
+}
+
+// Spin is where the cue tip strikes the cue ball, as an offset from its
+// centre in units of the usable radius: X > 0 right (as the shooter sees
+// it), Y > 0 above centre (top spin). The server clamps it to the unit disc.
+type Spin struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
+// Vec converts the wire spin to the rules' representation; nil is no spin.
+func (s *Spin) Vec() game.Vec {
+	if s == nil {
+		return game.Vec{}
+	}
+	return game.Vec{X: s.X, Y: s.Y}
+}
+
+// Call is the shooter's declaration: a safety, or a ball and optionally the
+// pocket. Without a pocket the ball counts wherever it drops.
+type Call struct {
+	Safety bool `json:"safety,omitempty"`
+	Ball   int  `json:"ball"`
+	Pocket *int `json:"pocket,omitempty"`
+}
+
+// Game converts the wire call to the rules' representation.
+func (c *Call) Game() game.Call {
+	if c == nil {
+		return game.Call{} // rejected by the rules on every shot but the break
+	}
+	out := game.Call{Safety: c.Safety, Ball: c.Ball, Pocket: game.AnyPocket}
+	if c.Pocket != nil {
+		out.Pocket = *c.Pocket
+	}
+	return out
 }
 
 // Welcome answers a successful join.

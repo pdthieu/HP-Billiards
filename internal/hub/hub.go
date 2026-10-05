@@ -7,7 +7,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +33,8 @@ type Options struct {
 	// IdleTimeout is how long a room may have no connected player before it
 	// is deleted.
 	IdleTimeout time.Duration
+	// MaxRooms caps how many rooms exist at once; CreateRoom fails beyond it.
+	MaxRooms int
 	// ReconnectGrace is how long a seat is held for a player who drops out
 	// of a game in progress while the other player is still connected.
 	ReconnectGrace time.Duration
@@ -48,6 +53,7 @@ func DefaultOptions() Options {
 	return Options{
 		Game:           game.DefaultConfig(),
 		IdleTimeout:    10 * time.Minute,
+		MaxRooms:       3,
 		ReconnectGrace: 60 * time.Second,
 		AbandonTimeout: 5 * time.Minute,
 		WS:             ws.DefaultOptions(),
@@ -72,6 +78,9 @@ func New(opts Options) *Hub {
 	if opts.IdleTimeout <= 0 {
 		opts.IdleTimeout = def.IdleTimeout
 	}
+	if opts.MaxRooms <= 0 {
+		opts.MaxRooms = def.MaxRooms
+	}
 	if opts.ReconnectGrace <= 0 {
 		opts.ReconnectGrace = def.ReconnectGrace
 	}
@@ -91,10 +100,17 @@ func New(opts Options) *Hub {
 	return &Hub{opts: opts, rooms: make(map[string]*room)}
 }
 
-// CreateRoom starts a new empty room and returns its code.
-func (h *Hub) CreateRoom() string {
+// ErrRoomLimit is returned by CreateRoom when MaxRooms rooms already exist.
+var ErrRoomLimit = errors.New("room limit reached")
+
+// CreateRoom starts a new empty room and returns its code. It fails with
+// ErrRoomLimit when MaxRooms rooms already exist.
+func (h *Hub) CreateRoom() (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	if len(h.rooms) >= h.opts.MaxRooms {
+		return "", ErrRoomLimit
+	}
 	for {
 		code := newCode()
 		if _, taken := h.rooms[code]; taken {
@@ -103,8 +119,42 @@ func (h *Hub) CreateRoom() string {
 		r := newRoom(h, code)
 		h.rooms[code] = r
 		go r.run()
-		return code
+		return code, nil
 	}
+}
+
+// RoomInfo is the public summary of a room, for the room list.
+type RoomInfo struct {
+	RoomCode string     `json:"roomCode"`
+	Players  [2]string  `json:"players"` // names; "" for an empty seat
+	Phase    game.Phase `json:"phase"`
+	// Seated counts taken seats, including seats held for a reconnect;
+	// a room with Seated < 2 can be joined.
+	Seated int `json:"seated"`
+}
+
+// RoomList is the body of GET /api/rooms.
+type RoomList struct {
+	Rooms []RoomInfo `json:"rooms"`
+	Max   int        `json:"max"`
+}
+
+// Rooms returns a summary of every live room, by code.
+func (h *Hub) Rooms() RoomList {
+	h.mu.Lock()
+	rooms := make([]*room, 0, len(h.rooms))
+	for _, r := range h.rooms {
+		rooms = append(rooms, r)
+	}
+	h.mu.Unlock()
+	list := RoomList{Rooms: make([]RoomInfo, 0, len(rooms)), Max: h.opts.MaxRooms}
+	for _, r := range rooms {
+		if info := r.info.Load(); info != nil {
+			list.Rooms = append(list.Rooms, *info)
+		}
+	}
+	sort.Slice(list.Rooms, func(i, j int) bool { return list.Rooms[i].RoomCode < list.Rooms[j].RoomCode })
+	return list
 }
 
 // RoomCount returns the number of live rooms.
@@ -129,10 +179,26 @@ func (h *Hub) remove(r *room) {
 }
 
 // HandleCreateRoom is the POST handler that creates a room and answers
-// {"roomCode": "ABCDE"}.
+// {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
+// MaxRooms rooms already exist.
 func (h *Hub) HandleCreateRoom(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"roomCode": h.CreateRoom()})
+	code, err := h.CreateRoom()
+	if err != nil {
+		w.WriteHeader(http.StatusConflict)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "room_limit",
+			"message": fmt.Sprintf("At most %d rooms can exist at once; join one of them instead.", h.opts.MaxRooms),
+		})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]string{"roomCode": code})
+}
+
+// HandleListRooms is the GET handler that answers with a RoomList.
+func (h *Hub) HandleListRooms(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(h.Rooms())
 }
 
 // ServeWS upgrades the request to a WebSocket and serves it until it closes.

@@ -59,6 +59,7 @@ func newServer(t *testing.T, opts Options) (*Hub, *httptest.Server) {
 	h := New(opts)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/rooms", h.HandleCreateRoom)
+	mux.HandleFunc("GET /api/rooms", h.HandleListRooms)
 	mux.HandleFunc("GET /ws", h.ServeWS)
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
@@ -183,10 +184,13 @@ func startGame(t *testing.T, srv *httptest.Server) (c0, c1 *testClient, code str
 func players(st msg) []any { return st["players"].([]any) }
 
 func TestRoomCodeFormat(t *testing.T) {
-	h := New(Options{})
+	h := New(Options{MaxRooms: 200})
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		code := h.CreateRoom()
+		code, err := h.CreateRoom()
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(code) != 5 {
 			t.Fatalf("code %q is not 5 letters", code)
 		}
@@ -202,6 +206,75 @@ func TestRoomCodeFormat(t *testing.T) {
 	}
 	if h.RoomCount() != 200 {
 		t.Errorf("RoomCount = %d, want 200", h.RoomCount())
+	}
+	if _, err := h.CreateRoom(); err != ErrRoomLimit {
+		t.Errorf("201st room: err = %v, want ErrRoomLimit", err)
+	}
+}
+
+func TestRoomListAndLimit(t *testing.T) {
+	opts := fastOptions()
+	opts.MaxRooms = 2
+	h, srv := newServer(t, opts)
+
+	list := func() RoomList {
+		t.Helper()
+		res, err := http.Get(srv.URL + "/api/rooms")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var l RoomList
+		if err := json.NewDecoder(res.Body).Decode(&l); err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	if l := list(); len(l.Rooms) != 0 || l.Max != 2 {
+		t.Fatalf("empty hub list = %+v", l)
+	}
+
+	code1 := createRoom(t, srv)
+	c0 := dial(t, srv)
+	c0.join(code1, "Ann")
+	code2 := createRoom(t, srv)
+
+	// Third room: 409 with a JSON error.
+	res, err := http.Post(srv.URL+"/api/rooms", "application/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body map[string]string
+	json.NewDecoder(res.Body).Decode(&body)
+	res.Body.Close()
+	if res.StatusCode != http.StatusConflict || body["error"] != "room_limit" || body["message"] == "" {
+		t.Errorf("third room: status %d body %v", res.StatusCode, body)
+	}
+
+	// The list reflects who is seated and the phase; summaries are updated
+	// by the room goroutine so give it a moment.
+	deadline := time.Now().Add(2 * time.Second)
+	var l RoomList
+	for {
+		l = list()
+		byCode := map[string]RoomInfo{}
+		for _, r := range l.Rooms {
+			byCode[r.RoomCode] = r
+		}
+		if r1 := byCode[code1]; r1.Seated == 1 && r1.Players[0] == "Ann" && r1.Phase == game.PhaseLobby && byCode[code2].Seated == 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("room list = %+v", l)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if h.RoomCount() != 2 {
+		t.Errorf("RoomCount = %d", h.RoomCount())
+	}
+	// Codes are sorted so the list is stable.
+	if len(l.Rooms) == 2 && l.Rooms[0].RoomCode > l.Rooms[1].RoomCode {
+		t.Errorf("rooms not sorted: %+v", l.Rooms)
 	}
 }
 

@@ -166,7 +166,8 @@ func TestCheckCall(t *testing.T) {
 		{"open: ball already pocketed", openRules(0, 3), call(3), false},
 		{"open: ball id out of range", openRules(0), call(16), false},
 		{"open: pocket out of range", openRules(0), callIn(3, NumPockets), false},
-		{"open: negative pocket", openRules(0), callIn(3, -1), false},
+		{"open: no pocket called", openRules(0), callIn(3, AnyPocket), true},
+		{"open: negative pocket", openRules(0), callIn(3, -2), false},
 		{"assigned: own group", assignedRules(0), call(3), true},
 		{"assigned: opponent group", assignedRules(0), call(12), false},
 		{"assigned: 8-ball too early", assignedRules(0), call(EightBall), false},
@@ -951,5 +952,34 @@ func TestStateJSON(t *testing.T) {
 	raw, _ = json.Marshal(Call{Ball: 3, Pocket: 4})
 	if string(raw) != `{"ball":3,"pocket":4}` {
 		t.Errorf("call JSON = %s", raw)
+	}
+}
+
+func TestCallWithoutAPocket(t *testing.T) {
+	r := NewRules()
+	r.Start(0)
+	r.Phase = PhaseOpen
+	any := Call{Ball: 3, Pocket: AnyPocket}
+	if err := r.CheckCall(any); err != nil {
+		t.Fatalf("CheckCall(any pocket) = %v", err)
+	}
+	if err := r.CheckCall(Call{Ball: 3, Pocket: -2}); err == nil {
+		t.Error("CheckCall accepted pocket -2")
+	}
+	if err := r.CheckCall(Call{Ball: 3, Pocket: NumPockets}); err == nil {
+		t.Error("CheckCall accepted a pocket past the last one")
+	}
+
+	// The 3 drops in pocket 5, not the hand-built test pocket: still made.
+	events := []Event{
+		{Kind: FirstContact, Ball: 3},
+		{Kind: BallPocketed, Ball: 3, Pocket: 5},
+	}
+	res := r.Resolve(Shot{Events: events, Call: any})
+	if !res.CalledMade || res.Foul != FoulNone {
+		t.Errorf("result = %+v, want the call made without a foul", res)
+	}
+	if r.Turn != 0 || r.Groups[0] != GroupSolids {
+		t.Errorf("after the made call: turn %d groups %v", r.Turn, r.Groups)
 	}
 }

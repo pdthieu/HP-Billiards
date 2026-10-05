@@ -63,11 +63,21 @@ const (
 )
 
 // Call is the shooter's declaration before a shot (WPA 1.7): one ball and the
-// pocket it is meant for, or a safety. It is not used on the break.
+// pocket it is meant for, or a safety. It is not used on the break. Pocket may
+// be AnyPocket, in which case the called ball counts wherever it drops (a
+// house-rule relaxation of 1.7).
 type Call struct {
 	Safety bool `json:"safety,omitempty"`
 	Ball   int  `json:"ball"`
 	Pocket int  `json:"pocket"`
+}
+
+// AnyPocket as Call.Pocket means the pocket was not called.
+const AnyPocket = -1
+
+// made reports whether a ball dropping into pocket satisfies the call.
+func (c Call) made(ball, pocket int) bool {
+	return ball == c.Ball && (c.Pocket == AnyPocket || pocket == c.Pocket)
 }
 
 // Shot is everything the rules need to judge one settled shot.
@@ -211,7 +221,7 @@ func (r *Rules) CheckCall(c Call) error {
 	if r.Phase == PhaseBreaking || c.Safety {
 		return nil
 	}
-	if c.Pocket < 0 || c.Pocket >= NumPockets || !r.legalTarget(c.Ball) {
+	if (c.Pocket != AnyPocket && (c.Pocket < 0 || c.Pocket >= NumPockets)) || !r.legalTarget(c.Ball) {
 		return ErrBadCall
 	}
 	return nil
@@ -256,7 +266,7 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 			toRail[e.Ball] = true
 		case BallPocketed:
 			res.Pocketed = append(res.Pocketed, e.Ball)
-			if called && e.Ball == s.Call.Ball && e.Pocket == s.Call.Pocket {
+			if called && s.Call.made(e.Ball, e.Pocket) {
 				res.CalledMade = true
 			}
 			switch e.Ball {

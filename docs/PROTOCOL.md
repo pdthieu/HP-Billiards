@@ -4,7 +4,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. Codes are 5 uppercase letters without `I` and `O`.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "max": 3}`. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
 
@@ -14,7 +15,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 - **Angles:** radians, 0 points along +x, positive turns toward +y (clockwise on screen).
 - **Seats:** `0` and `1`.
 - **Balls:** id `0` is the cue ball, `1`–`7` solids, `8` the 8-ball, `9`–`15` stripes. Ball lists contain only balls on the table, as `{id, x, y}`.
-- **Pockets:** index `0` top-left, `1` top-middle, `2` top-right, `3` bottom-left, `4` bottom-middle, `5` bottom-right ("top" is y = 0).
+- **Pockets:** index `0` top-left, `1` top-middle, `2` top-right, `3` bottom-left, `4` bottom-middle, `5` bottom-right ("top" is y = 0). The table follows the WPA equipment specification: the surface is measured between the cushion noses; corner pockets are 4 9⁄16 in (0.1159 m) wide between noses that sit 0.0820 m from the corner along each rail, side pockets 5 1⁄16 in (0.1286 m) wide centred on the long rails. Jaws lead from the noses into the pocket at 142° (corner) and 104° (side); a ball drops once its centre is 1¾ in (corner) or ¼ in (side) past the mouth line. Ball centres can therefore be slightly outside the 2.54 × 1.27 rectangle while a ball is in a pocket mouth.
 - **Head string:** x = 0.635. The kitchen is x ≤ 0.635.
 - **Phases:** `lobby`, `breaking`, `open`, `assigned`, `game_over`.
 - **Groups:** `""` (not assigned), `solids`, `stripes`.
@@ -26,16 +27,17 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `join` | `roomCode`, `name`, `token?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
 | `aim` | `angle`, `power` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
-| `shoot` | `angle`, `power`, `call?` | `power` is clamped to [0,1]. `call` is required on every shot except the break. |
+| `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is required on every shot except the break. `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
-`call` is either `{"ball": 3, "pocket": 4}` or `{"safety": true}`.
+`call` is `{"ball": 3}`, `{"ball": 3, "pocket": 4}` or `{"safety": true}`. Without `pocket` the called ball counts in whichever pocket it drops (the shipped client never sends a pocket).
 
 - The called ball must be a legal target: on an open table any ball but the 8; once groups are assigned a ball of the shooter's group, or the 8-ball when that group is cleared. On an open table the 8-ball may be called once either group is completely pocketed.
-- The shooter keeps the turn only if the called ball drops into the called pocket on a shot without a foul. After a safety the turn always passes.
+- Spin is modelled simply: top/bottom spin makes the cue ball follow or draw along its original line after it hits a ball, in proportion to how full the hit was; side spin kicks the cue ball sideways when it rebounds off a cushion (right english → toward the shooter's right) and halves at each cushion; both fade with the distance rolled. There is no squirt, swerve or throw.
+- The shooter keeps the turn only if the called ball drops (into the called pocket, if one was called) on a shot without a foul. After a safety the turn always passes.
 
 `option` values:
 
@@ -111,7 +113,7 @@ Ends a shot. Positions are exact; clients snap to them.
 
 - `pocketed`: ids pocketed by this shot, in order; includes `0` for a scratch.
 - `foul`: omitted for a legal shot, otherwise `scratch`, `no_contact`, `wrong_ball`, `kitchen` (cue ball in hand above the head string hit a ball there without crossing the head string first) or `no_rail` (nothing pocketed and no ball reached a rail after contact).
-- `calledMade`: the called ball went into the called pocket.
+- `calledMade`: the called ball dropped (into the called pocket, if one was called).
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; a `decision` for the opponent follows.
 - `winner`: present only when the game is over.
 - After a scratch the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
@@ -144,7 +146,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `no_ball_in_hand` | `place_cue` without ball in hand. |
 | `bad_placement` | `place_cue` off the table, in a pocket, on another ball, or outside the kitchen while `kitchen` is true. |
 | `bad_input` | `angle` or `power` is not a finite number. |
-| `bad_call` | `shoot` without a legal `call`. |
+| `bad_call` | `shoot` without a legal `call` (illegal ball, or a `pocket` outside 0–5). |
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
 
