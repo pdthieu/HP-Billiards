@@ -43,7 +43,9 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
      starts over.
    - *Aim*: drag on the felt; the cue points from the cue ball toward the
      pointer. The guide shows the ghost ball at first contact, the object
-     ball's line and the cue ball's deflection. Arrow keys nudge the angle
+     ball's line and the cue ball's deflection: the tangent line for a
+     stun shot, bent forward or back by the top or bottom spin set on the
+     spin pad (a tendency, not a prediction). Arrow keys nudge the angle
      (0.5°, Shift for 0.05°) and power; the `«‹›»` buttons nudge by 5° and
      0.25°.
    - *Power and shooting*: the bar beside the table. Press it, pull down to

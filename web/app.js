@@ -1650,13 +1650,27 @@ function drawAim(balls, cue, angle, mine, alpha) {
     ctx.lineTo(x1, y1);
     ctx.lineTo(x1 - od.x * 0.024 - nx * 0.009, y1 - od.y * 0.024 - ny * 0.009);
     ctx.stroke();
-    if (cast.cueDir) {
+    // Where the cue ball goes next: the tangent line for a stun shot, bent
+    // forward by top spin or back by draw (only a tendency: how much roll is
+    // left at contact depends on speed and distance). The opponent's spin is
+    // not relayed, so their preview shows the stun line.
+    const f = mine ? S.spin.y : 0;
+    let cd = cast.cueDir;
+    if (cd && f) {
+      cd = { x: cd.x + 0.8 * f * d.x, y: cd.y + 0.8 * f * d.y };
+      const l = Math.hypot(cd.x, cd.y) || 1;
+      cd = { x: cd.x / l, y: cd.y / l };
+    } else if (!cd && Math.abs(f) > 0.05) {
+      cd = { x: d.x * Math.sign(f), y: d.y * Math.sign(f) }; // full hit: follow or draw straight
+    }
+    if (cd) {
+      const len = cast.cueDir ? 0.15 : 0.06 + 0.09 * Math.abs(f);
       ctx.strokeStyle = rgba(line, 0.5);
       ctx.lineWidth = 0.003;
       ctx.setLineDash([0.010, 0.010]);
       ctx.beginPath();
-      ctx.moveTo(cast.ghost.x + cast.cueDir.x * R, cast.ghost.y + cast.cueDir.y * R);
-      ctx.lineTo(cast.ghost.x + cast.cueDir.x * (R + 0.15), cast.ghost.y + cast.cueDir.y * (R + 0.15));
+      ctx.moveTo(cast.ghost.x + cd.x * R, cast.ghost.y + cd.y * R);
+      ctx.lineTo(cast.ghost.x + cd.x * (R + len), cast.ghost.y + cd.y * (R + len));
       ctx.stroke();
       ctx.setLineDash([]);
     }
