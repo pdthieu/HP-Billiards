@@ -134,34 +134,16 @@ main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; g
 .tray i span { position: relative; z-index: 1; }
 .tray i.down { opacity: 0.18; filter: grayscale(1); }
 
-/* overlays */
+/* overlays (decision, disconnected; replaced in later steps) */
 .overlay {
   position: fixed; inset: 0;
-  background: #000a;
+  background: var(--scrim);
   display: flex; align-items: center; justify-content: center;
   padding: 16px;
-  z-index: 10;
+  z-index: var(--z-dialog);
 }
-.card {
-  background: var(--surface-1);
-  border: 1px solid var(--hairline-strong);
-  border-radius: 16px;
-  padding: 20px;
-  width: min(100%, 380px);
-  display: flex; flex-direction: column; gap: 12px;
-}
-.card h1, .card h2 { margin: 0; }
-.card label { display: flex; flex-direction: column; gap: 4px; }
-.card .row input { flex: 1; min-width: 0; text-transform: uppercase; }
-#roomsBox { display: flex; flex-direction: column; gap: 4px; }
-#roomList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 40vh; overflow-y: auto; }
-#roomList li {
-  display: flex; align-items: center; gap: 8px;
-  padding: 6px 10px; border: 1px solid var(--hairline-strong); border-radius: 8px; background: var(--surface-2);
-}
-#roomList li .code { font-size: 15px; letter-spacing: 1px; }
-#roomList li .who { flex: 1; min-width: 0; color: var(--text-muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#roomList li.none { color: var(--text-muted); font-style: italic; justify-content: center; }
+.overlay .card { padding: 20px; width: min(100%, 380px); display: flex; flex-direction: column; gap: 12px; }
+.overlay .card h2 { margin: 0; }
 .options { display: flex; flex-direction: column; gap: 8px; }
 .options button { text-align: left; padding: 10px 14px; }
 .options button small { display: block; color: var(--text-muted); font-weight: normal; }
@@ -193,3 +175,18 @@ main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; g
   .seat { max-width: 46%; padding: 3px 8px; }
   .vs { display: none; }
 }
+
+/* landing: the design's overlay is absolute (for mock-up frames); the app
+   covers the viewport and dims the live table behind it */
+.landing { position: fixed; background: var(--scrim); }
+body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) saturate(.8); }
+.landing__invite { display: flex; flex-direction: column; gap: 8px; }
+.wordmark--small { font-size: 20px; line-height: 24px; color: var(--text-muted); }
+.landing__create { display: flex; flex-direction: column; gap: 12px; }
+.landing__switch { text-align: center; font-size: 14px; line-height: 20px; }
+.landing--invited .landing__create, .landing--invited .rooms, .landing--invited .divider,
+.landing--invited .join-row .field { display: none; }
+.landing--invited .join-row .btn { flex: 1; }
+.room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
+#roomList { max-height: 40vh; overflow-y: auto; }
+.rooms__empty-title { font: 600 16px/22px var(--font-ui); }

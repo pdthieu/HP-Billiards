@@ -268,9 +268,8 @@ function onWelcome(msg) {
   S.reconnectAttempt = 0;
   $('roomCode').textContent = msg.roomCode;
   history.replaceState(null, '', `/?room=${encodeURIComponent(msg.roomCode)}`);
-  $('landing').hidden = true;
+  hideLanding();
   $('disconnected').hidden = true;
-  stopRoomsPoll();
   saveSession();
   if (reconnected) toast('Reconnected');
 }
@@ -1087,26 +1086,51 @@ function rememberName(name) {
 
 function showLanding(error) {
   $('landing').hidden = false;
+  document.body.classList.add('is-landing');
   $('disconnected').hidden = true;
   $('landingError').hidden = !error;
-  $('landingError').textContent = error || '';
+  $('landingError').lastElementChild.textContent = error || '';
   if (!$('name').value.trim()) $('name').value = rememberedName() || randomName();
   // An invite link opens straight onto "join this room": the name is the
   // only thing to fill in.
   const code = $('code').value.trim().toUpperCase();
   const invited = /^[A-Z]{5}$/.test(code) && !!new URLSearchParams(location.search).get('room');
-  $('landingTitle').textContent = invited ? `Join room ${code}` : '8-ball';
-  $('landingLead').textContent = invited
-    ? 'Enter your name to take the free seat.'
-    : 'Two players, one table. WPA 8-ball rules: call your shots.';
+  const form = $('landingForm');
+  form.classList.toggle('landing--invited', invited);
+  $('landingBrand').hidden = invited;
+  $('landingInvite').hidden = !invited;
+  $('landingCode').textContent = code;
+  $('landingLead').textContent = 'Enter your name to take the free seat.';
   $('createRow').hidden = invited;
   $('roomsBox').hidden = invited;
   $('code').hidden = invited;
-  $('join').classList.toggle('primary', invited);
-  $('join').textContent = invited ? 'Join' : 'Join by code';
+  $('join').className = invited ? 'btn btn--primary btn--lg btn--block' : 'btn btn--secondary';
   $('switchMode').hidden = !invited;
   setTimeout(() => $('name').focus(), 0);
-  if (!invited) startRoomsPoll(); else stopRoomsPoll();
+  if (invited) { stopRoomsPoll(); describeInvite(code); } else startRoomsPoll();
+}
+
+function hideLanding() {
+  // A button inside the form may still hold focus; an Enter meant for the
+  // game would otherwise resubmit the form.
+  if ($('landing').contains(document.activeElement)) document.activeElement.blur();
+  $('landing').hidden = true;
+  document.body.classList.remove('is-landing');
+  stopRoomsPoll();
+}
+
+// describeInvite names the host in the invited lead, when the room is listed.
+async function describeInvite(code) {
+  try {
+    const res = await fetch('/api/rooms');
+    if (!res.ok) return;
+    const list = await res.json();
+    const room = list.rooms.find((r) => r.roomCode === code);
+    if (!room || $('landingCode').textContent !== code) return;
+    const host = room.players.find(Boolean);
+    if (room.seated >= 2) $('landingLead').textContent = 'This room is full right now.';
+    else if (host) $('landingLead').textContent = `${host} is at the table and waiting for an opponent.`;
+  } catch { /* keep the generic lead */ }
 }
 
 // The room list is live while the landing page is open.
@@ -1131,46 +1155,71 @@ async function refreshRooms() {
   }
   renderRooms(list);
 }
+// renderRooms keeps rows keyed by room code: existing rows are updated in
+// place (so they never re-animate), new ones enter with a stagger and
+// removed ones fade out.
 function renderRooms(list) {
   const ul = $('roomList');
-  ul.replaceChildren();
-  if (!list.rooms.length) {
-    const li = document.createElement('li');
-    li.className = 'none';
-    li.textContent = 'No rooms yet. Create one.';
-    ul.append(li);
+  const rows = new Map();
+  for (const li of ul.querySelectorAll('li.room-row')) {
+    if (!li.classList.contains('is-leaving')) rows.set(li.dataset.code, li);
   }
+  let empty = ul.querySelector('.rooms__empty');
+  if (!list.rooms.length && !empty) {
+    empty = document.createElement('li');
+    empty.className = 'rooms__empty';
+    empty.innerHTML = '<svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="15" stroke="currentColor" stroke-opacity=".35" stroke-width="2" stroke-dasharray="4 5"></circle><circle cx="20" cy="20" r="5" fill="currentColor" fill-opacity=".35"></circle></svg>' +
+      '<p class="rooms__empty-title">No rooms yet.</p><p class="caption">Create one and send the link to a friend.</p>';
+    ul.append(empty);
+  } else if (list.rooms.length && empty) {
+    empty.remove();
+  }
+  let added = 0;
+  const seen = new Set();
   for (const room of list.rooms) {
-    const li = document.createElement('li');
-    const code = document.createElement('span');
-    code.className = 'code';
-    code.textContent = room.roomCode;
-    const who = document.createElement('span');
-    who.className = 'who';
-    const names = room.players.filter(Boolean);
-    const phase = room.phase === 'lobby' ? 'in the lobby' : room.phase === 'game_over' ? 'finished a game' : 'playing';
-    who.textContent = names.length ? `${names.join(' vs ')} · ${phase}` : 'empty';
-    const btn = document.createElement('button');
-    btn.className = 'btn btn--secondary btn--small';
-    if (room.seated < 2) {
-      btn.textContent = 'Join';
-      btn.type = 'button';
-      btn.onclick = () => {
+    seen.add(room.roomCode);
+    let li = rows.get(room.roomCode);
+    if (!li) {
+      li = document.createElement('li');
+      li.className = 'room-row';
+      li.dataset.code = room.roomCode;
+      li.style.animationDelay = `${40 * added++}ms`;
+      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div><button class="btn btn--secondary btn--small" type="button"></button>';
+      li.querySelector('.room-row__code').textContent = room.roomCode;
+      li.querySelector('button').onclick = () => {
         const name = landingName();
-        if (!name) return;
-        connectAndJoin(room.roomCode, name);
+        if (name) connectAndJoin(li.dataset.code, name);
       };
-    } else {
-      btn.textContent = 'Full';
-      btn.disabled = true;
+      ul.append(li);
     }
-    li.append(code, who, btn);
-    ul.append(li);
+    const names = room.players.filter(Boolean);
+    const namesEl = li.querySelector('.room-row__names');
+    namesEl.classList.toggle('room-row__names--empty', !names.length);
+    namesEl.replaceChildren();
+    if (!names.length) namesEl.textContent = 'empty';
+    else names.forEach((n, i) => {
+      if (i) namesEl.append(Object.assign(document.createElement('span'), { className: 'room-row__vs', textContent: ' vs ' }));
+      namesEl.append(n);
+    });
+    const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
+    const chip = li.querySelector('.chip');
+    chip.className = `chip chip--${phase}`;
+    chip.querySelector('.chip__text').textContent = phase;
+    const btn = li.querySelector('button');
+    const open = room.seated < 2;
+    btn.textContent = open ? 'Join' : 'Full';
+    btn.disabled = !open;
   }
+  for (const [code, li] of rows) {
+    if (seen.has(code)) continue;
+    li.classList.add('is-leaving');
+    setTimeout(() => li.remove(), 160);
+  }
+  $('roomsCount').textContent = `${list.rooms.length} of ${list.max} in use`;
   const full = list.rooms.length >= list.max;
   $('create').disabled = full;
   $('createNote').hidden = !full;
-  $('createNote').textContent = full ? `All ${list.max} rooms are in use; join one below.` : '';
+  $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one below.` : '';
 }
 
 function renderSeat(seat) {
@@ -1343,18 +1392,35 @@ $('copyLink').onclick = async () => {
   }
 };
 
-// landingName returns the typed name, or null (with an error shown) if it
+// landingName returns the typed name, or null (with the field marked) if it
 // is empty.
 function landingName() {
   const name = $('name').value.trim();
   if (!name) {
-    showLanding('Please enter your name first.');
+    const field = $('nameField');
+    $('name').classList.add('input--error');
+    $('name').setAttribute('aria-invalid', 'true');
+    $('nameError').hidden = false;
+    field.classList.remove('field--shake');
+    void field.offsetWidth; // restart the animation
+    field.classList.add('field--shake');
     $('name').focus();
     return null;
   }
   rememberName(name);
   return name;
 }
+$('nameField').addEventListener('animationend', () => $('nameField').classList.remove('field--shake'));
+$('name').addEventListener('input', () => {
+  $('name').classList.remove('input--error');
+  $('name').removeAttribute('aria-invalid');
+  $('nameError').hidden = true;
+});
+$('shuffleName').onclick = () => {
+  $('name').value = randomName();
+  $('name').dispatchEvent(new Event('input'));
+  $('name').focus();
+};
 $('create').onclick = async () => {
   const name = landingName();
   if (!name) return;
@@ -1372,6 +1438,7 @@ $('create').onclick = async () => {
 };
 $('landingForm').onsubmit = (e) => {
   e.preventDefault();
+  if ($('landing').hidden) return; // already in a room
   const name = landingName();
   if (!name) return;
   const code = $('code').value.trim().toUpperCase();
@@ -1408,7 +1475,7 @@ function applyTheme(theme) {
   // A reloaded tab goes straight back to its seat.
   const saved = room ? loadSession(room) : null;
   if (saved && saved.token) {
-    $('landing').hidden = true;
+    hideLanding();
     showDisconnected(`Rejoining room ${room}…`, true);
     S.seat = 0; // pretend we are seated so a failed join is handled as a lost connection
     S.token = saved.token;

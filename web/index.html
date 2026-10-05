@@ -87,25 +87,46 @@
   </div>
 </main>
 
-<div id="landing" class="overlay">
-  <form id="landingForm" class="card">
-    <h1 id="landingTitle">8-ball</h1>
-    <p id="landingLead" class="muted">Two players, one table. WPA 8-ball rules: call your shots.</p>
-    <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Enter your name" required></label>
-    <div class="row" id="createRow">
+<div id="landing" class="landing">
+  <form id="landingForm" class="card landing__card" novalidate>
+    <div id="landingBrand" class="landing__brand">
+      <span class="wordmark">POOL</span>
+      <span class="caption">8-ball · WPA rules · called shots</span>
+    </div>
+    <div id="landingInvite" class="landing__invite" hidden>
+      <span class="wordmark wordmark--small">POOL</span>
+      <h1 id="landingTitle" class="landing__title">Join room <span id="landingCode" class="code-text"></span></h1>
+      <p id="landingLead" class="landing__lead"></p>
+    </div>
+    <div class="field" id="nameField">
+      <label class="field__label" for="name">Your name</label>
+      <div class="input-group">
+        <input class="input" id="name" maxlength="20" autocomplete="nickname" placeholder="Enter your name">
+        <button class="icon-btn" type="button" id="shuffleName" aria-label="Suggest another name"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg></button>
+      </div>
+      <span class="field__msg" id="nameError" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span>Enter a name so your opponent knows who you are.</span></span>
+    </div>
+    <div id="createRow" class="landing__create">
       <button type="button" id="create" class="btn btn--primary btn--lg btn--block">Create a room</button>
-      <span id="createNote" class="muted" hidden></span>
+      <p id="createNote" class="note" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
     </div>
-    <div id="roomsBox">
-      <div class="label">Rooms</div>
+    <hr class="divider" id="roomsDivider">
+    <section class="rooms" id="roomsBox" aria-labelledby="rooms-h">
+      <div class="rooms__head">
+        <h2 class="eyebrow" id="rooms-h">Rooms</h2>
+        <span class="caption" id="roomsCount"></span>
+      </div>
       <ul id="roomList"></ul>
-    </div>
-    <div class="row" id="joinRow">
-      <input id="code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" spellcheck="false">
+    </section>
+    <div class="join-row" id="joinRow">
+      <div class="field" id="codeField">
+        <label class="field__label" for="code">Join by code</label>
+        <input class="input input--code" id="code" placeholder="ABCDE" maxlength="5" autocapitalize="characters" spellcheck="false">
+      </div>
       <button type="submit" id="join" class="btn btn--secondary">Join</button>
     </div>
-    <p id="landingError" class="error" hidden></p>
-    <p id="switchMode" class="muted" hidden><a href="/">Create your own room instead</a></p>
+    <p id="landingError" class="note note--foul" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
+    <p id="switchMode" class="landing__switch" hidden><a class="link" href="/">Create your own room instead</a></p>
   </form>
 </div>
 
