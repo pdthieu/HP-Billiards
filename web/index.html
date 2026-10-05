@@ -3,9 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
 <title>Pool</title>
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<p>The game client is not built yet. Use the <a href="/debug.html">protocol debug page</a>.</p>
+
+<header id="top">
+  <div class="room">
+    <span class="label">Room</span>
+    <span id="roomCode" class="code">—</span>
+    <button id="copyLink" class="small" title="Copy an invite link">Copy link</button>
+  </div>
+  <div class="seats">
+    <div class="seat" id="seat0"></div>
+    <div class="vs">vs</div>
+    <div class="seat" id="seat1"></div>
+  </div>
+</header>
+
+<main>
+  <div id="tableWrap"><canvas id="table"></canvas></div>
+
+  <div id="status" aria-live="polite"></div>
+
+  <div id="controls">
+    <section id="lobbyPanel" hidden>
+      <p id="lobbyText">Waiting for an opponent. Share the room link.</p>
+      <button id="ready" class="primary">I'm ready</button>
+    </section>
+
+    <section id="shotPanel" hidden>
+      <div class="row">
+        <span id="callText" class="call"></span>
+        <button id="safety" class="small">Safety</button>
+        <button id="clearCall" class="small" hidden>Clear</button>
+      </div>
+      <div class="row">
+        <span class="label">Angle</span>
+        <button class="small nudge" data-deg="-5" title="−5°">«</button>
+        <button class="small nudge" data-deg="-0.25" title="−0.25°">‹</button>
+        <span id="angleText" class="mono">0.0°</span>
+        <button class="small nudge" data-deg="0.25" title="+0.25°">›</button>
+        <button class="small nudge" data-deg="5" title="+5°">»</button>
+      </div>
+      <div class="row">
+        <span class="label">Power</span>
+        <input id="power" type="range" min="0.05" max="1" step="0.01" value="0.6">
+        <span id="powerText" class="mono">60%</span>
+        <button id="shoot" class="primary">Shoot</button>
+      </div>
+    </section>
+
+    <section id="waitPanel" hidden>
+      <p id="waitText"></p>
+    </section>
+
+    <section id="overPanel" hidden>
+      <p id="overText"></p>
+      <button id="rematch" class="primary">Rematch</button>
+      <span id="rematchNote" class="muted"></span>
+    </section>
+  </div>
+
+  <div id="trays">
+    <div class="tray" id="traySolids"></div>
+    <div class="tray" id="trayStripes"></div>
+  </div>
+</main>
+
+<div id="landing" class="overlay">
+  <form id="landingForm" class="card">
+    <h1>8-ball</h1>
+    <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Player"></label>
+    <div class="row">
+      <button type="button" id="create" class="primary">Create a room</button>
+    </div>
+    <div class="row">
+      <input id="code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" spellcheck="false">
+      <button type="submit" id="join">Join</button>
+    </div>
+    <p id="landingError" class="error" hidden></p>
+    <p class="muted">Two players, one table. WPA 8-ball rules: call your shots.</p>
+  </form>
+</div>
+
+<div id="decision" class="overlay" hidden>
+  <div class="card">
+    <h2 id="decisionTitle"></h2>
+    <p id="decisionText" class="muted"></p>
+    <div id="decisionOptions" class="options"></div>
+  </div>
+</div>
+
+<div id="disconnected" class="overlay" hidden>
+  <div class="card">
+    <h2>Connection lost</h2>
+    <p id="disconnectedText" class="muted"></p>
+    <div class="row">
+      <button id="rejoin" class="primary">Rejoin</button>
+      <button id="leave">Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="/app.js"></script>
 </body>
 </html>
