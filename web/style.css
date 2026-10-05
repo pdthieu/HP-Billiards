@@ -99,12 +99,13 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .toast__close { pointer-events: auto; }
 .toast__close { width: 36px; height: 36px; color: var(--toast-text); }
 
-/* still on the old markup (disconnected; step 7) */
-.overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: var(--z-dialog); }
-.overlay .card { padding: 20px; width: min(100%, 380px); display: flex; flex-direction: column; gap: 12px; }
-.overlay .card h2 { margin: 0; }
-.row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.error { color: var(--foul); }
+/* connectivity */
+.scrim--conn { backdrop-filter: blur(3px) saturate(.6); -webkit-backdrop-filter: blur(3px) saturate(.6); }
+.conn__body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.conn__icon--accent { background: var(--accent-soft); color: var(--accent-text); }
+.splash { position: fixed; }
+.splash__bar span { animation: pool-splash 1.2s var(--ease-inout) infinite alternate; }
+@keyframes pool-splash { from { transform: translateX(-40%); } to { transform: translateX(110%); } }
 
 /* phone (the full phone layout comes in step 8) */
 @media (max-width: 600px) {

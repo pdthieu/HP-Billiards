@@ -111,6 +111,15 @@ const S = {
   token: '',
   reconnectAttempt: 0,
   reconnectTimer: 0,
+  reconnectDue: 0,       // when the next attempt fires
+  reconnectDelay: 0,
+  discSince: 0,          // when our socket dropped (seat hold countdown)
+  discTimer: 0,          // delayed display of the connection card
+  retryTicker: 0,
+  splashTimer: 0,
+  splashFallback: 0,
+  lobbyNote: '',         // one-off note for the lobby panel (e.g. the opponent did not come back)
+  lastOppName: '',
   pingTimer: 0,
   pongTimer: 0,
 
@@ -215,7 +224,8 @@ function connectAndJoin(roomCode, name, token) {
     }
     if (/replaced/.test(e.reason)) {
       // Another connection took this seat with our token; do not fight it.
-      showDisconnected('This seat was taken over by another connection, probably another tab.', false);
+      S.reconnectAttempt = 0;
+      showConn('taken');
       return;
     }
     scheduleReconnect();
@@ -223,11 +233,18 @@ function connectAndJoin(roomCode, name, token) {
 }
 
 function scheduleReconnect() {
+  if (!S.reconnectAttempt) S.discSince = performance.now();
   S.reconnectAttempt++;
   const delay = S.reconnectAttempt === 1 ? 300 : Math.min(RECONNECT_MAX_MS, 1000 * 2 ** (S.reconnectAttempt - 2));
-  showDisconnected(
-    `Connection lost. Reconnecting${S.reconnectAttempt > 1 ? ` (attempt ${S.reconnectAttempt})` : ''}… ` +
-    `Your seat is held for ${SEAT_HOLD_S} seconds.`, true);
+  S.reconnectDelay = delay;
+  S.reconnectDue = performance.now() + delay;
+  // Show the card only once the drop has lasted a moment: most reconnects
+  // succeed before anyone would have read it.
+  if ($('disconnected').hidden && !S.discTimer) {
+    S.discTimer = setTimeout(() => { S.discTimer = 0; if (S.reconnectAttempt) showConn('lost'); }, 300);
+  } else if (!$('disconnected').hidden) {
+    showConn('lost');
+  }
   clearTimeout(S.reconnectTimer);
   S.reconnectTimer = setTimeout(() => {
     S.reconnectTimer = 0;
@@ -236,10 +253,73 @@ function scheduleReconnect() {
   }, delay);
 }
 
-function showDisconnected(text, retrying) {
-  $('disconnectedText').textContent = text;
-  $('rejoin').textContent = retrying ? 'Retry now' : 'Rejoin';
+// showConn shows the connectivity card: 'lost' (retrying with a backoff) or
+// 'taken' (another connection holds the seat; no automatic retry).
+function showConn(kind) {
+  hideSplash();
+  const taken = kind === 'taken';
+  $('connIconLost').hidden = taken;
+  $('connIconTaken').hidden = !taken;
+  $('connTitle').textContent = taken ? 'Playing somewhere else?' : 'Connection lost';
+  $('disconnectedText').textContent = taken
+    ? 'This seat was taken over by another connection, probably another tab or device. Only one can hold a seat.'
+    : `Reconnecting… Your seat is held for ${SEAT_HOLD_S} seconds.`;
+  $('retry').hidden = taken;
+  $('connNote').hidden = !taken;
+  $('rejoin').className = taken ? 'btn btn--primary' : 'btn btn--secondary';
+  $('rejoin').lastElementChild.textContent = taken ? 'Play here' : 'Retry now';
   $('disconnected').hidden = false;
+  if (!taken) startRetryTicker(); else stopRetryTicker();
+}
+
+function hideConn() {
+  clearTimeout(S.discTimer);
+  S.discTimer = 0;
+  $('disconnected').hidden = true;
+  stopRetryTicker();
+}
+
+// The retry strip: one step per attempt, the current one filling up until
+// it fires; the meta line counts the next attempt and the seat hold.
+function startRetryTicker() {
+  stopRetryTicker();
+  renderRetry();
+  S.retryTicker = setInterval(renderRetry, 50);
+}
+function stopRetryTicker() {
+  clearInterval(S.retryTicker);
+  S.retryTicker = 0;
+}
+function renderRetry() {
+  const steps = $('retry').querySelectorAll('.retry__step');
+  const now = performance.now();
+  const attempt = Math.max(1, S.reconnectAttempt);
+  const idx = Math.min(attempt, steps.length) - 1;
+  const p = S.reconnectDelay ? clamp01(1 - (S.reconnectDue - now) / S.reconnectDelay) : 1;
+  steps.forEach((el, i) => {
+    el.className = 'retry__step' + (i < idx ? ' retry__step--done' : i === idx ? ' retry__step--now' : '');
+    if (i === idx) el.style.setProperty('--p', String(p));
+  });
+  const next = Math.max(0, (S.reconnectDue - now) / 1000);
+  $('retryTry').textContent = S.ws ? `Try ${attempt} · connecting…` : `Try ${attempt} · next in ${next.toFixed(1)} s`;
+  const held = Math.max(0, SEAT_HOLD_S - (now - S.discSince) / 1000);
+  $('retryHold').textContent = `Seat held ${Math.ceil(held)} s`;
+}
+
+// The splash covers a reload inside a room: shown only after 150 ms so an
+// instant rejoin never flashes it, replaced by the card after 4 s.
+function showSplash(code) {
+  $('splashCode').textContent = code;
+  clearTimeout(S.splashTimer);
+  clearTimeout(S.splashFallback);
+  S.splashTimer = setTimeout(() => { S.splashTimer = 0; $('splash').hidden = false; }, 150);
+  S.splashFallback = setTimeout(() => { if (!$('splash').hidden && S.seat >= 0) { S.reconnectAttempt = Math.max(1, S.reconnectAttempt); showConn('lost'); } }, 4000);
+}
+function hideSplash() {
+  clearTimeout(S.splashTimer);
+  clearTimeout(S.splashFallback);
+  S.splashTimer = 0;
+  $('splash').hidden = true;
 }
 
 // The browser only notices a dead socket when TCP gives up, which can take
@@ -296,7 +376,8 @@ function onWelcome(msg) {
   $('roomCode').textContent = msg.roomCode;
   history.replaceState(null, '', `/?room=${encodeURIComponent(msg.roomCode)}`);
   hideLanding();
-  $('disconnected').hidden = true;
+  hideConn();
+  hideSplash();
   saveSession();
   if (reconnected) toast('Reconnected');
 }
@@ -331,7 +412,9 @@ function onRoomState(msg) {
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
   if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
   if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
-    setStatus('The game was abandoned. Back to the lobby.', 'foul');
+    setStatus('The game was abandoned.', 'foul');
+    const gone = S.players[1 - S.seat];
+    if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
     setStatus(`${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'}. Place the cue ball in the kitchen and shoot.`);
   } else if (msg.phase === 'lobby') {
@@ -384,10 +467,12 @@ function onSettled(msg) {
 
 function onPlayer(msg) {
   const was = S.players[msg.seat];
+  if (msg.seat !== S.seat && msg.name) S.lastOppName = msg.name;
   S.players[msg.seat] = { seat: msg.seat, name: msg.name, connected: msg.connected, ready: msg.ready };
   S.offlineSince[msg.seat] = msg.name && !msg.connected ? performance.now() : 0;
   if (msg.seat !== S.seat) {
     if (msg.connected && !was.connected) {
+      S.lobbyNote = '';
       toast(was.name ? `${msg.name} is back` : `${msg.name} joined`);
     } else if (!msg.connected && was.connected && msg.name) {
       toast(`${msg.name} lost connection`);
@@ -422,6 +507,8 @@ function resetToLanding(error) {
   clearTimeout(S.reconnectTimer);
   S.reconnectTimer = 0;
   S.reconnectAttempt = 0;
+  hideConn();
+  hideSplash();
   S.seat = -1;
   S.token = '';
   S.phase = 'lobby';
@@ -1599,7 +1686,7 @@ function rememberName(name) {
 function showLanding(error) {
   $('landing').hidden = false;
   document.body.classList.add('is-landing');
-  $('disconnected').hidden = true;
+  hideConn();
   $('landingError').hidden = !error;
   $('landingError').lastElementChild.textContent = error || '';
   if (!$('name').value.trim()) $('name').value = rememberedName() || randomName();
@@ -1905,8 +1992,8 @@ function refreshPanels() {
     $('ready').hidden = alone || me.ready;
     $('lobbyCopy').hidden = !alone;
     if (alone) {
-      setPanelMsg('lobbyText', 'Waiting for an opponent.');
-      $('lobbySub').textContent = 'Send the link; this room stays open while you are here.';
+      setPanelMsg('lobbyText', S.lobbyNote ? esc(S.lobbyNote) : 'Waiting for an opponent.');
+      $('lobbySub').textContent = S.lobbyNote ? 'The room stays open. Send the link to someone else.' : 'Send the link; this room stays open while you are here.';
     } else if (!opp.connected) {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)}</strong> is offline.`);
       $('lobbySub').textContent = 'Their seat is held for a moment.';
@@ -2150,7 +2237,11 @@ $('landingForm').onsubmit = (e) => {
   if (code.length !== 5) { showLanding('Room codes have 5 letters.'); return; }
   connectAndJoin(code, name);
 };
-$('rejoin').onclick = () => { $('disconnected').hidden = true; connectAndJoin(S.roomCode, S.name, S.token); };
+$('rejoin').onclick = () => {
+  S.reconnectAttempt = 0; // "Retry now" restarts the backoff
+  $('retryTry').textContent = 'Connecting…';
+  connectAndJoin(S.roomCode, S.name, S.token);
+};
 function leaveRoom() {
   S.intentionalClose = true;
   if (S.ws) S.ws.close();
@@ -2193,7 +2284,7 @@ function applyTheme(theme) {
   const saved = room ? loadSession(room) : null;
   if (saved && saved.token) {
     hideLanding();
-    showDisconnected(`Rejoining room ${room}…`, true);
+    showSplash(room);
     S.seat = 0; // pretend we are seated so a failed join is handled as a lost connection
     S.token = saved.token;
     connectAndJoin(room, saved.name || 'Player', saved.token);

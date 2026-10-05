@@ -172,15 +172,34 @@
   </section>
 </div>
 
-<div id="disconnected" class="overlay" hidden>
-  <div class="card">
-    <h2>Connection lost</h2>
-    <p id="disconnectedText" class="muted"></p>
-    <div class="row">
-      <button id="rejoin" class="btn btn--primary">Rejoin</button>
-      <button id="leave" class="btn btn--quiet">Leave</button>
+<div id="disconnected" class="scrim scrim--conn" role="presentation" hidden>
+  <section class="conn" role="alertdialog" aria-labelledby="connTitle" aria-describedby="disconnectedText">
+    <div class="conn__head">
+      <span id="connIconLost" class="conn__icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8.8a15 15 0 0 1 4.2-2.6"></path><path d="M10.7 5.1A15 15 0 0 1 22 8.8"></path><path d="M5 12.9a10 10 0 0 1 5.2-2.7"></path><path d="M16.5 11.4a10 10 0 0 1 2.5 1.5"></path><path d="M8.5 16.4a5 5 0 0 1 7 0"></path><path d="M12 20h.01"></path><path d="M3 3l18 18"></path></svg></span>
+      <span id="connIconTaken" class="conn__icon conn__icon--accent" aria-hidden="true" hidden><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="13" height="10" rx="2"></rect><rect x="14" y="9" width="8" height="12" rx="2"></rect><path d="M6 18h5"></path></svg></span>
+      <div class="conn__body">
+        <h2 id="connTitle" class="conn__title">Connection lost</h2>
+        <p id="disconnectedText" class="conn__text"></p>
+      </div>
     </div>
-  </div>
+    <div id="retry" class="retry" role="status" aria-live="polite">
+      <div class="retry__steps" aria-hidden="true">
+        <span class="retry__step"></span><span class="retry__step"></span><span class="retry__step"></span><span class="retry__step"></span><span class="retry__step"></span>
+      </div>
+      <div class="retry__meta"><span id="retryTry"></span><span id="retryHold"></span></div>
+    </div>
+    <div class="conn__actions">
+      <button id="leave" class="btn btn--quiet">Leave</button>
+      <button id="rejoin" class="btn btn--secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg><span>Retry now</span></button>
+    </div>
+    <p id="connNote" class="caption" hidden>No automatic retry: rejoining here disconnects the other one.</p>
+  </section>
+</div>
+
+<div id="splash" class="splash" role="status" aria-live="polite" hidden>
+  <span class="wordmark wordmark--small">POOL</span>
+  <span id="splashCode" class="splash__code"></span>
+  <div class="splash__bar" aria-hidden="true"><span></span></div>
 </div>
 
 <div id="toasts" class="toasts" aria-live="polite"></div>
