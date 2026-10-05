@@ -172,11 +172,12 @@ const (
 // 104° jaws and a ¼ in shelf (the middle of each permitted range). 600 Hz
 // physics, 60 Hz ticks.
 //
-// Restitution and friction are not in the specification; 0.95 ball–ball,
-// 0.85 ball–cushion with μ 0.2 at the nose (the values pooltool ships), μ 0.2
-// sliding and 0.015 rolling are typical measured values for tournament
-// equipment (rolling is a little on the slow side so a shot does not outlast
-// the players' patience).
+// Restitution and friction are not in the specification. The values are
+// measured ones (Alciatore's property table, Mathavan 2010, pooltool): 0.95
+// ball–ball (0.92–0.98), μ 0.2 sliding, 0.012 rolling (0.005–0.015, a
+// typical cloth is 0.01; slightly slow so a shot does not outlast the
+// players' patience), and a cushion that, with μ 0.2 at the nose, sends a
+// rolling ball back with about half its speed as high-speed video shows.
 func DefaultConfig() Config {
 	return Config{
 		TableWidth:      100 * inch,
@@ -187,8 +188,8 @@ func DefaultConfig() Config {
 		Substeps:        10,
 		BallRestitution: 0.95,
 
-		CushionRestitution:     0.85,
-		CushionRestitutionFast: 0.65,
+		CushionRestitution:     0.78,
+		CushionRestitutionFast: 0.6,
 		CushionFastSpeed:       2.5,
 		CushionFriction:        0.2,
 		CushionNose:            0.635,
@@ -200,7 +201,7 @@ func DefaultConfig() Config {
 		CornerShelf:     1.75 * inch,
 		SideShelf:       0.25 * inch,
 		SlidingFriction: 0.2,
-		RollingFriction: 0.015,
+		RollingFriction: 0.012,
 		StopSpeed:       0.01,
 		TipOffset:       0.5,
 		SpinDecayLength: 2.5,

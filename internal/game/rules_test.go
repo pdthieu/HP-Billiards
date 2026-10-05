@@ -615,7 +615,7 @@ func slicesContains(s []int, v int) bool {
 func TestGameNeedsNoCallAfterTheBreak(t *testing.T) {
 	cfg := DefaultConfig()
 	g := sparseGame(PhaseOpen, map[int]Vec{
-		CueBall: {cfg.TableWidth / 2, 0.6},
+		CueBall: {cfg.TableWidth / 2, 0.32}, // close enough for a stun: the cue ball stays out of the pocket
 		3:       {cfg.TableWidth / 2, 0.2},
 		12:      {2.0, 1.0},
 	})
@@ -637,7 +637,7 @@ func TestGameEightNeedsItsPocket(t *testing.T) {
 	cfg := DefaultConfig()
 	onEight := func() *Game {
 		g := sparseGame(PhaseAssigned, map[int]Vec{
-			CueBall:   {cfg.TableWidth / 2, 0.6},
+			CueBall:   {cfg.TableWidth / 2, 0.32}, // close enough for a stun: the cue ball stays out of the pocket
 			EightBall: {cfg.TableWidth / 2, 0.2},
 			12:        {2.0, 1.0},
 		})
@@ -777,7 +777,7 @@ func TestGameEightOnBreak(t *testing.T) {
 		// Only the cue ball, the 8-ball in front of the top side pocket and a
 		// ball sitting on the foot spot.
 		g := sparseGame(PhaseBreaking, map[int]Vec{
-			CueBall:   {cfg.TableWidth / 2, 0.6},
+			CueBall:   {cfg.TableWidth / 2, 0.32}, // close enough for a stun: the cue ball stays out of the pocket
 			EightBall: {cfg.TableWidth / 2, 0.2},
 			5:         cfg.FootSpot(),
 		})
@@ -868,7 +868,7 @@ func TestGameIllegalBreak(t *testing.T) {
 func TestGameOverStopsPlay(t *testing.T) {
 	cfg := DefaultConfig()
 	g := sparseGame(PhaseOpen, map[int]Vec{
-		CueBall:   {cfg.TableWidth / 2, 0.6},
+		CueBall:   {cfg.TableWidth / 2, 0.32}, // close enough for a stun: the cue ball stays out of the pocket
 		EightBall: {cfg.TableWidth / 2, 0.2},
 		3:         {2.0, 1.0},
 	})
@@ -895,7 +895,7 @@ func TestGameOverStopsPlay(t *testing.T) {
 func TestGameLegalEightBallWin(t *testing.T) {
 	cfg := DefaultConfig()
 	g := sparseGame(PhaseAssigned, map[int]Vec{
-		CueBall:   {cfg.TableWidth / 2, 0.6},
+		CueBall:   {cfg.TableWidth / 2, 0.32}, // close enough for a stun: the cue ball stays out of the pocket
 		EightBall: {cfg.TableWidth / 2, 0.2},
 		12:        {2.0, 1.0},
 	})

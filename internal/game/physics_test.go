@@ -279,7 +279,7 @@ func TestCushionReflects(t *testing.T) {
 func TestFrictionStopsBall(t *testing.T) {
 	cfg := DefaultConfig()
 	tbl := emptyTable(cfg)
-	tbl.place(CueBall, Vec{0.5, 0.635}, Vec{1, 0})
+	tbl.place(CueBall, Vec{0.1, 0.635}, Vec{1, 0}) // 2.3 m of road ahead
 	steps := runUntilSettled(t, tbl, 60)
 
 	// Struck without spin the ball slides, losing 2/7 of its speed while the
@@ -293,7 +293,7 @@ func TestFrictionStopsBall(t *testing.T) {
 	if got := float64(steps) * cfg.Dt; !near(got, t1+t2, 0.05) {
 		t.Errorf("stopped after %.3f s, want ~%.2f s", got, t1+t2)
 	}
-	if got := tbl.Balls[CueBall].Pos.X - 0.5; !near(got, d1+d2, 0.01) {
+	if got := tbl.Balls[CueBall].Pos.X - 0.1; !near(got, d1+d2, 0.01) {
 		t.Errorf("travelled %.4f m, want ~%.3f m", got, d1+d2)
 	}
 	if b := tbl.Balls[CueBall]; b.Roll != (Vec{}) {
