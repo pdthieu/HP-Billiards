@@ -24,6 +24,7 @@ func frictionless() Config {
 	cfg := DefaultConfig()
 	cfg.SlidingFriction = 0
 	cfg.RollingFriction = 0
+	cfg.CushionFriction = 0
 	cfg.StopSpeed = 0
 	return cfg
 }
@@ -35,7 +36,7 @@ func (t *Table) kineticEnergy() float64 {
 	sum := 0.0
 	for i := range t.Balls {
 		if b := &t.Balls[i]; !b.Pocketed {
-			sum += b.Vel.Dot(b.Vel)/2 + b.Roll.Dot(b.Roll)/5
+			sum += b.Vel.Dot(b.Vel)/2 + b.Roll.Dot(b.Roll)/5 + b.Spin*b.Spin/5
 		}
 	}
 	return sum
@@ -301,9 +302,10 @@ func TestFrictionStopsBall(t *testing.T) {
 }
 
 func TestCushionScrubsRoll(t *testing.T) {
-	// A naturally rolling ball rebounds with no roll along the rail's normal
-	// and slides until the cloth has turned it round: it comes back at 5/7 of
-	// what the cushion restitution alone would give.
+	// A naturally rolling ball rebounds with most of its roll scrubbed off
+	// by the nose (friction allows μ(1+e)·v of it to go) and slides until
+	// the cloth has turned it round: it comes back well under what the
+	// cushion restitution alone would give.
 	cfg := DefaultConfig()
 	tbl := emptyTable(cfg)
 	tbl.place(CueBall, Vec{cfg.TableWidth - 0.3, 0.635}, Vec{1, 0})
@@ -316,15 +318,44 @@ func TestCushionScrubsRoll(t *testing.T) {
 	if countEvents(tbl.Events, CushionHit, CueBall) != 1 {
 		t.Fatalf("events %v, want one cushion hit", tbl.Events)
 	}
-	for i := 0; i < 90; i++ { // 0.15 s: the slide (|slip| = e·v at 7/2 μg) takes about 0.11 s
+	for i := 0; i < 90; i++ { // 0.15 s: the slide takes about 0.12 s
 		tbl.Step(cfg.Dt)
 	}
 	b := tbl.Balls[CueBall]
 	if b.Vel != b.Roll {
 		t.Errorf("should be rolling again, vel %v roll %v", b.Vel, b.Roll)
 	}
-	if want := -cfg.CushionRestitution * before * 5 / 7; !near(b.Vel.X, want, 0.02) || b.Vel.Y != 0 {
-		t.Errorf("velocity after the rail %v, want about %.3f (restitution alone would give %.3f)", b.Vel, want, -cfg.CushionRestitution*before)
+	e := cfg.CushionRestitution
+	cos := math.Sqrt(1 - math.Pow(2*cfg.CushionNose-1, 2))
+	scrub := math.Min(before, 2.5*cos*cfg.CushionFriction*(1+e)*before) // roll removed by the nose
+	rollAfter := before - scrub                                         // still into the rail
+	want := -(5.0/7*e*before - 2.0/7*rollAfter)
+	if !near(b.Vel.X, want, 0.02) || b.Vel.Y != 0 {
+		t.Errorf("velocity after the rail %v, want about %.3f (restitution alone would give %.3f)", b.Vel, want, -e*before)
+	}
+}
+
+func TestObliqueReboundLosesSpeedToCushionFriction(t *testing.T) {
+	// A sliding ball at 45° keeps its tangential speed off a frictionless
+	// rail but loses some of it to the nose on a real one, so it comes off
+	// steeper and slower.
+	run := func(cfg Config) Vec {
+		tbl := emptyTable(cfg)
+		tbl.place(5, Vec{0.6, 1.0}, Vec{2, 2})
+		for i := 0; i < 120; i++ {
+			tbl.Step(cfg.Dt)
+		}
+		return tbl.Balls[5].Vel
+	}
+	cfg := frictionless()
+	cfg.CushionFriction = DefaultConfig().CushionFriction
+	free, real := run(frictionless()), run(cfg)
+	if !near(free.X, 2, 1e-9) {
+		t.Fatalf("frictionless rail changed the tangential speed: %v", free)
+	}
+	// Stick needs 2/3.5 = 0.57 m/s; friction allows μ(1+e)·2 = 0.74: it sticks.
+	if want := 2 - 2/3.5; !near(real.X, want, 1e-6) || !near(real.Y, free.Y, 1e-9) {
+		t.Errorf("velocity off a real rail %v, want (%.3f, %.3f)", real, want, free.Y)
 	}
 }
 
@@ -378,6 +409,7 @@ func TestFollowAndDraw(t *testing.T) {
 func TestSideSpinKicksOffTheCushion(t *testing.T) {
 	run := func(spinX float64) Vec {
 		cfg := frictionless()
+		cfg.CushionFriction = DefaultConfig().CushionFriction
 		tbl := emptyTable(cfg)
 		tbl.place(CueBall, Vec{1.0, 1.0}, Vec{})
 		tbl.ShootSpin(math.Pi/2, 2/cfg.MaxCueSpeed, Vec{spinX, 0}) // straight down at the bottom rail
@@ -405,15 +437,16 @@ func TestSpinIsClampedAndSideFades(t *testing.T) {
 	tbl.ShootSpin(0, 1, Vec{3, 4}) // clamped to the unit disc: (0.6, 0.8)
 	b := tbl.Balls[CueBall]
 	wantRoll := 2.5 * cfg.TipOffset * 0.8 * cfg.MaxCueSpeed
-	if !near(b.Side, 0.6, 1e-9) || !near(b.Roll.X, wantRoll, 1e-9) || b.Roll.Y != 0 {
-		t.Fatalf("after clamping side = %v roll = %v, want 0.6 and (%.3f, 0)", b.Side, b.Roll, wantRoll)
+	wantSpin := -2.5 * cfg.TipOffset * 0.6 * cfg.MaxCueSpeed // right english turns clockwise from above
+	if !near(b.Spin, wantSpin, 1e-9) || !near(b.Roll.X, wantRoll, 1e-9) || b.Roll.Y != 0 {
+		t.Fatalf("after clamping spin = %v roll = %v, want %.3f and (%.3f, 0)", b.Spin, b.Roll, wantSpin, wantRoll)
 	}
 	for i := 0; i < 60; i++ { // 0.1 s at 8 m/s: 0.8 m
 		tbl.Step(cfg.Dt)
 	}
 	b = tbl.Balls[CueBall]
-	if want := 0.6 * math.Exp(-0.8/(2*cfg.SpinDecayLength)); !near(b.Side, want, 0.02) {
-		t.Errorf("side spin after 0.8 m = %v, want about %.3f", b.Side, want)
+	if want := wantSpin * math.Exp(-0.8/(2*cfg.SpinDecayLength)); !near(b.Spin, want, 0.02*math.Abs(wantSpin)) {
+		t.Errorf("side spin after 0.8 m = %v, want about %.3f", b.Spin, want)
 	}
 	if !near(b.Roll.X, wantRoll, 1e-9) {
 		t.Errorf("without cloth friction the roll should not change, got %v", b.Roll)

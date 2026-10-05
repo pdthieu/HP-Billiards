@@ -44,10 +44,12 @@ type Ball struct {
 	// spin (draw). While Roll != Vel the ball slides and cloth friction pulls
 	// the two together; see Table.integrate.
 	Roll Vec
-	// Side is the english about the vertical axis, as the cue tip offset that
-	// produced it in [-1, 1] (> 0: tip right of centre as the shooter sees
-	// it). It fades with the distance rolled and halves at each cushion.
-	Side float64
+	// Spin is the english about the vertical axis as the speed of the ball's
+	// equator, R·ωz, positive for a counter-clockwise turn seen from above
+	// in the table's frame (right english as the shooter sees it is
+	// negative). It fades with the distance rolled and is partly spent
+	// gripping a cushion; see Table.collideCushions.
+	Spin float64
 }
 
 // EventKind identifies what happened in an Event.
@@ -112,8 +114,21 @@ type Config struct {
 	// Substeps is how many Dt steps make up one server tick.
 	Substeps int
 
-	BallRestitution    float64 // ball–ball
-	CushionRestitution float64 // ball–cushion (and pocket jaw), normal component
+	BallRestitution float64 // ball–ball
+
+	// Cushions (and pocket jaws). The normal speed rebounds with
+	// CushionRestitution up to CushionFastSpeed and with CushionRestitutionFast
+	// at MaxCueSpeed, linearly in between: rubber gives back less of a hard
+	// hit (Han 2005; Mathavan 2010 only vouch for a rigid cushion below
+	// 2.5 m/s). CushionFriction acts at the contact point, which sits
+	// CushionNose ball diameters above the slate (WPA: 62.5–64.5 %), so it
+	// throws a spinning ball along the rail and takes speed off an oblique
+	// rebound.
+	CushionRestitution     float64
+	CushionRestitutionFast float64
+	CushionFastSpeed       float64
+	CushionFriction        float64
+	CushionNose            float64
 
 	// Pocket geometry, WPA equipment specifications. The playing surface is
 	// measured between cushion noses; a pocket is the gap between two noses.
@@ -135,13 +150,11 @@ type Config struct {
 	// Spin. TipOffset is where the rim of the client's spin pad lands on the
 	// cue ball, as a fraction of the radius (the miscue limit is about ½ R);
 	// a tip offset of b·R starts the ball with a surface speed 2.5·b times
-	// its speed. SpinDecayLength is the distance over which side spin fades
-	// by a factor e and SideGain scales the sideways kick full side spin adds
-	// off a cushion, as a fraction of the normal speed. Side spin has no
-	// squirt, swerve or throw.
+	// its speed, as roll or as side spin. SpinDecayLength is the distance
+	// over which side spin fades by a factor e. Side spin has no squirt,
+	// swerve or throw.
 	TipOffset       float64
 	SpinDecayLength float64
-	SideGain        float64
 
 	// RackGap is the space left between neighbouring balls in the rack so a
 	// resting rack never registers as overlapping.
@@ -160,32 +173,38 @@ const (
 // physics, 60 Hz ticks.
 //
 // Restitution and friction are not in the specification; 0.95 ball–ball,
-// 0.8 ball–cushion, μ 0.2 sliding and 0.015 rolling are typical measured
-// values for tournament equipment (rolling is a little on the slow side so a
-// shot does not outlast the players' patience).
+// 0.85 ball–cushion with μ 0.2 at the nose (the values pooltool ships), μ 0.2
+// sliding and 0.015 rolling are typical measured values for tournament
+// equipment (rolling is a little on the slow side so a shot does not outlast
+// the players' patience).
 func DefaultConfig() Config {
 	return Config{
-		TableWidth:         100 * inch,
-		TableHeight:        50 * inch,
-		BallRadius:         2.25 / 2 * inch,
-		MaxCueSpeed:        8,
-		Dt:                 1.0 / 600,
-		Substeps:           10,
-		BallRestitution:    0.95,
-		CushionRestitution: 0.8,
-		CornerMouth:        4.5625 * inch,
-		SideMouth:          5.0625 * inch,
-		CornerJawAngle:     142 * math.Pi / 180,
-		SideJawAngle:       104 * math.Pi / 180,
-		CornerShelf:        1.75 * inch,
-		SideShelf:          0.25 * inch,
-		SlidingFriction:    0.2,
-		RollingFriction:    0.015,
-		StopSpeed:          0.01,
-		TipOffset:          0.5,
-		SpinDecayLength:    2.5,
-		SideGain:           0.6,
-		RackGap:            0.0005,
+		TableWidth:      100 * inch,
+		TableHeight:     50 * inch,
+		BallRadius:      2.25 / 2 * inch,
+		MaxCueSpeed:     8,
+		Dt:              1.0 / 600,
+		Substeps:        10,
+		BallRestitution: 0.95,
+
+		CushionRestitution:     0.85,
+		CushionRestitutionFast: 0.65,
+		CushionFastSpeed:       2.5,
+		CushionFriction:        0.2,
+		CushionNose:            0.635,
+
+		CornerMouth:     4.5625 * inch,
+		SideMouth:       5.0625 * inch,
+		CornerJawAngle:  142 * math.Pi / 180,
+		SideJawAngle:    104 * math.Pi / 180,
+		CornerShelf:     1.75 * inch,
+		SideShelf:       0.25 * inch,
+		SlidingFriction: 0.2,
+		RollingFriction: 0.015,
+		StopSpeed:       0.01,
+		TipOffset:       0.5,
+		SpinDecayLength: 2.5,
+		RackGap:         0.0005,
 	}
 }
 

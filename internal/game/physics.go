@@ -181,7 +181,7 @@ func (t *Table) ShootSpin(angle, power float64, spin Vec) {
 	dir := Vec{math.Cos(angle), math.Sin(angle)}
 	cue.Vel = dir.Scale(speed)
 	cue.Roll = dir.Scale(2.5 * t.Cfg.TipOffset * spin.Y * speed)
-	cue.Side = spin.X
+	cue.Spin = -2.5 * t.Cfg.TipOffset * spin.X * speed // tip right of centre: clockwise from above
 }
 
 // Settled reports whether every ball on the table is at rest: neither
@@ -248,7 +248,7 @@ func (t *Table) integrate(dt float64) {
 			}
 			next := speed - cfg.RollingFriction*gravity*dt
 			if next < cfg.StopSpeed {
-				b.Vel, b.Roll = Vec{}, Vec{}
+				b.Vel, b.Roll, b.Spin = Vec{}, Vec{}, 0
 				continue
 			}
 			b.Vel = b.Vel.Scale(next / speed)
@@ -260,10 +260,10 @@ func (t *Table) integrate(dt float64) {
 		}
 		prevX := b.Pos.X
 		b.Pos = b.Pos.Add(b.Vel.Scale(dt))
-		if b.Side != 0 {
+		if b.Spin != 0 {
 			// Cloth friction grinds side spin away; it lasts about twice
 			// as long as follow or draw would.
-			b.Side *= math.Exp(-speed * dt / (2 * cfg.SpinDecayLength))
+			b.Spin *= math.Exp(-speed * dt / (2 * cfg.SpinDecayLength))
 		}
 		if head := cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
 			t.crossedHead = true
@@ -305,18 +305,18 @@ func (t *Table) capturePockets() {
 		}
 		if n := t.pocketAt(b.Pos); n >= 0 {
 			b.Pocketed = true
-			b.Vel, b.Roll, b.Side = Vec{}, Vec{}, 0
+			b.Vel, b.Roll, b.Spin = Vec{}, Vec{}, 0
 			t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 		}
 	}
 }
 
-// collideCushions bounces balls off the cushions and pocket jaws: a ball
+// collideCushions bounces balls off the cushions and pocket jaws. A ball
 // overlapping a segment is pushed out along the contact normal and, if it was
-// moving into it, has that velocity component reflected with the cushion
-// restitution. Segment ends act as the rounded noses they are.
+// moving into it, gets an impulse at the cushion nose (see bounce). Segment
+// ends act as the rounded noses they are.
 func (t *Table) collideCushions() {
-	r, e := t.Cfg.BallRadius, t.Cfg.CushionRestitution
+	r := t.Cfg.BallRadius
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if b.Pocketed {
@@ -335,25 +335,8 @@ func (t *Table) collideCushions() {
 				n = delta.Scale(1 / dist)
 			}
 			b.Pos = closest.Add(n.Scale(r))
-			if vn := b.Vel.Dot(n); vn < 0 {
-				before := b.Vel
-				b.Vel = b.Vel.Sub(n.Scale((1 + e) * vn))
-				// The rubber scrubs off the spin along its normal: a
-				// rolling ball comes back sliding, with its roll now
-				// against it, and dies down over the next few decimetres.
-				b.Roll = b.Roll.Sub(n.Scale(b.Roll.Dot(n)))
-				// Side spin grips the cushion and kicks the ball toward
-				// the side the tip struck: right english sends a ball
-				// that hits a rail square off to the shooter's right.
-				if b.Side != 0 {
-					if sp := before.Len(); sp > 0 {
-						d := before.Scale(1 / sp)
-						right := Vec{-d.Y, d.X} // y is down, so this is the shooter's right
-						right = right.Sub(n.Scale(right.Dot(n)))
-						b.Vel = b.Vel.Add(right.Scale(b.Side * t.Cfg.SideGain * -vn))
-					}
-					b.Side *= 0.5
-				}
+			if b.Vel.Dot(n) < 0 {
+				t.bounce(b, n)
 				hit = true
 			}
 		}
@@ -361,6 +344,59 @@ func (t *Table) collideCushions() {
 			t.Events = append(t.Events, Event{Kind: CushionHit, Ball: b.ID})
 		}
 	}
+}
+
+// cushionRestitution is the normal coefficient of restitution for a ball
+// hitting a cushion at normal speed vn.
+func (c *Config) cushionRestitution(vn float64) float64 {
+	if vn <= c.CushionFastSpeed || c.MaxCueSpeed <= c.CushionFastSpeed {
+		return c.CushionRestitution
+	}
+	f := math.Min(1, (vn-c.CushionFastSpeed)/(c.MaxCueSpeed-c.CushionFastSpeed))
+	return c.CushionRestitution + f*(c.CushionRestitutionFast-c.CushionRestitution)
+}
+
+// bounce applies a cushion impact to b, whose velocity has a component
+// against n, the unit normal from the cushion into the table. It is the
+// impulse model of Han (2005) and pooltool, per unit mass and with the ball
+// kept on the slate:
+//
+// The nose touches the ball at r = R(−cosθ·n + sinθ·ẑ), sinθ = 2·CushionNose
+// − 1. The normal impulse J = (1+e)·vn reverses the normal speed (its torque
+// about the raised contact is taken up by the slate, which the ball is
+// pressed into, so it is left out). Friction at the nose, up to μJ, opposes
+// the slip of the contact point: along the rail (t = ẑ × n) the slip is the
+// tangential speed plus what side spin and roll add there, so english throws
+// the ball along the rail and an oblique rebound loses speed; vertically the
+// slip is the roll into the rail, so the rail scrubs that roll off. Where
+// friction can stop the slip it does (stick), otherwise it slides at μJ.
+func (t *Table) bounce(b *Ball, n Vec) {
+	cfg := &t.Cfg
+	vn := -b.Vel.Dot(n)
+	e := cfg.cushionRestitution(vn)
+	sin := 2*cfg.CushionNose - 1
+	cos := math.Sqrt(1 - sin*sin)
+	tan := Vec{-n.Y, n.X} // ẑ × n, along the rail
+
+	// normal impulse
+	j := (1 + e) * vn
+	b.Vel = b.Vel.Add(n.Scale(j))
+	rollN := b.Roll.Dot(n)
+	rollT := b.Roll.Dot(tan)
+
+	// friction: what it takes to stick along the rail and vertically
+	slipT := b.Vel.Dot(tan) + sin*rollT - cos*b.Spin
+	jt := -slipT / 3.5         // an impulse changes the contact speed 3.5× (1 + lever 2.5)
+	jz := -rollN / (2.5 * cos) // vertical: only the roll into the rail slips there
+	if f := math.Hypot(jt, jz); f > cfg.CushionFriction*j {
+		k := cfg.CushionFriction * j / f
+		jt, jz = jt*k, jz*k
+	}
+	b.Vel = b.Vel.Add(tan.Scale(jt))
+	b.Spin -= 2.5 * cos * jt
+	rollT += 2.5 * sin * jt
+	rollN += 2.5 * cos * jz
+	b.Roll = n.Scale(rollN).Add(tan.Scale(rollT))
 }
 
 // closest returns the point of the segment nearest to p.
