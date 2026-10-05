@@ -1,29 +1,42 @@
 # Web client
 
-The client is `web/index.html`, `web/style.css` and `web/app.js`: plain HTML,
-CSS and JavaScript with no build step, embedded into the server binary by
-`web/embed.go`. Rebuild the server after editing them.
+The client is plain HTML, CSS and JavaScript with no build step, embedded
+into the server binary by `web/embed.go`. Rebuild the server after editing it.
+
+- `web/index.html`, `web/app.js`: markup and all behaviour.
+- `web/tokens.css`, `web/components.css`: the "Night hall" design system,
+  copied from `design/` (see `design/README.md`); edit them there first.
+- `web/style.css`: app glue only (page layout, overlays made `fixed`, the
+  live table stage, phone and landscape media queries).
+- `web/fonts.css` + `web/fonts/*.woff2`: Source Sans 3 and Barlow Semi
+  Condensed, self-hosted (latin, latin-ext, vietnamese), served from `/fonts/`
+  with an immutable cache.
+- The canvas follows `design/canvas-spec.md`; motion follows `design/motion.md`.
 
 `web/debug.html` is a separate raw-protocol page for poking the server by hand.
 
 ## Flow
 
 1. **Landing**: the name field is prefilled with the last name used (kept in
-   `localStorage`) or, the first time, a random one such as "Brisk Otter".
-   Below it the live room list (`GET /api/rooms`, refreshed every 3 s while
-   the landing is open) offers *Join* on rooms with a free seat and shows the
-   others as full. *Create a room* is disabled with a note once the server's
-   limit (3) is reached. Opening `/?room=CODE` turns the landing into a "Join
-   room CODE" form; after joining, the URL is rewritten to that form so *Copy
-   link* gives an invite.
+   `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
+   shuffle button suggests another. The live room list (`GET /api/rooms`,
+   refreshed every 3 s while the landing is open) keeps rows keyed by room
+   code, offers *Join* on rooms with a free seat and shows the others as
+   full; *Create a room* is disabled with a note once the server's limit (3)
+   is reached. Opening `/?room=CODE` turns the landing into a "Join room
+   CODE" form that names the host; after joining, the URL is rewritten to
+   that form so the invite button gives a link (it shares on phones).
 2. **Lobby**: both seats shown in the header; the rack starts when both press
-   *I'm ready*.
+   *I'm ready*. Once groups are assigned a seat shows seven dots for the
+   player's balls, dimmed as they are pocketed; the seat on turn pulses
+   (paused while balls roll); an offline seat shows the 60 s hold ring.
 3. **Your shot** (shot panel visible):
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
      placement is limited to it and the drag is clamped there. The position is
      sent as `place_cue` on release and shown until the server confirms it.
    - *Call* (every shot but the break): tap a legal ball (ringed in white);
-     no pocket is called, the ball counts wherever it drops. *Safety* (or the
+     a press that moves more than 8 px or lasts over 250 ms aims instead. No
+     pocket is called, the ball counts wherever it drops. *Safety* (or the
      `S` key) declares a safety instead. *Clear* starts over.
    - *Aim*: drag on the felt; the cue points from the cue ball toward the
      pointer. The guide shows the ghost ball at first contact, the object
@@ -40,7 +53,13 @@ CSS and JavaScript with no build step, embedded into the server binary by
      centre is top spin, below is draw, left and right are english. Reset
      returns to a centre hit, and every new turn starts centred. Sent as
      `spin` with the shot.
-   - Hovering a ball with the mouse shows its number and group above it.
+   - Hovering a ball with the mouse shows its number and group above it; on
+     touch the label shows for 1.5 s after a tap.
+   - The panel slot and the status line have fixed heights, so the table
+     never jumps when panels swap or a sentence wraps; both cross-fade.
+   - *Settings* (gear in the header): theme (system, dark, light), power bar
+     on the left for left-handed play, and "show hints again". Stored in
+     `localStorage` under `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".
@@ -57,9 +76,15 @@ CSS and JavaScript with no build step, embedded into the server binary by
    socket is closed with reason `replaced by a new connection` (the token was
    used elsewhere) the client does not reconnect automatically. *Leave*
    forgets the token and returns to the landing page.
-8. **Opponent offline**: their seat shows an *offline* tag, the status line
-   says the seat is held, and the wait panel reads "Waiting for … to
-   reconnect…". If the hold expires the server abandons the game.
+8. **Opponent offline**: their seat shows an *offline* tag and a hold ring,
+   the status line says the seat is held, and the wait panel counts down
+   "Their seat is held for N more seconds". If the hold expires the server
+   abandons the game and the lobby says the opponent did not come back.
+9. **Phones**: portrait rotates the table and stacks the shot panel in two
+   rows; screens under 700 px tall drop the trays; landscape phones show the
+   shot panel as a sidebar with the status floating over the table. The
+   connection card appears only after 300 ms offline, with the retry backoff
+   drawn as steps; a reload inside a room shows a splash after 150 ms.
 
 ## Rendering
 

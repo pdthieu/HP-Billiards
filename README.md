@@ -30,6 +30,11 @@ example `http://192.168.1.20:8080/?room=CODE`.
 `http://localhost:8080/debug.html` sends raw protocol messages and shows what
 comes back.
 
+The gear in the header opens settings: theme (system, dark, light), a
+left-handed power bar, and "show hints again". Fonts are embedded in the
+binary, so nothing is fetched from the Internet at runtime. The design
+handoff the UI follows lives in [design/](design/).
+
 ### Timers
 
 The defaults are production values; shorten them to try the edge cases:

@@ -555,9 +555,10 @@ function newTurn() {
 function describeShot(msg) {
   const parts = [];
   const who = nameOf(msg.shooter);
+  const me = isMe(msg.shooter);
   const made = msg.pocketed.filter((id) => id !== 0);
-  if (msg.illegalBreak) parts.push(`Illegal break by ${who}.`);
-  if (msg.foul) parts.push(`Foul by ${who}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
+  if (msg.illegalBreak) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
+  if (msg.foul) parts.push(`${me ? 'Your foul' : `Foul by ${who}`}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
   if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
   if (msg.calledMade && !msg.foul) parts.push('Called shot made.');
   if (msg.winner !== undefined && msg.winner !== null) {
@@ -573,9 +574,9 @@ function describeShot(msg) {
     parts.push(t + '.');
   }
   if (msg.illegalBreak) {
-    S.lastDecisionReason = `${who} broke illegally: nothing pocketed and fewer than four balls reached a rail.`;
+    S.lastDecisionReason = `${me ? 'You' : who} broke illegally: nothing pocketed and fewer than four balls reached a rail.`;
   } else if (msg.decision) {
-    S.lastDecisionReason = `${who} pocketed the 8-ball on the break.`;
+    S.lastDecisionReason = `${me ? 'You' : who} pocketed the 8-ball on the break.`;
   }
   setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.calledMade ? 'good' : ''));
 }

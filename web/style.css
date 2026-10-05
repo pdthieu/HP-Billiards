@@ -2,7 +2,12 @@
    table stage, and the few pieces the design system leaves to the app.
    Everything visual lives in components.css. */
 
-* { box-sizing: border-box; }
+/* the resets components.css scopes to .pool; the body is only .pool-app so
+   that the light theme on :root is not shadowed by .pool's dark tokens */
+*, *::before, *::after { box-sizing: border-box; }
+h1, h2, h3, p, ul { margin: 0; }
+ul { padding: 0; list-style: none; }
+button, input { font: inherit; color: inherit; }
 html, body { height: 100%; }
 body {
   margin: 0;
@@ -183,7 +188,8 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .status__layer { font-size: 14px; line-height: 20px; padding: 4px 12px; background: rgba(13, 18, 24, .88); }
   .slot { grid-row: 1; grid-column: 2; height: auto; padding: 4px 0; }
   .slot .panel { height: 100%; justify-content: center; gap: 14px; }
-  .slot .panel .call { flex: none; }
+  .slot .panel .call { flex: none; flex-direction: column; align-items: stretch; gap: 8px; }
+  .slot .panel .call__line { font-size: 15px; }
   .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; }
   .seat { flex: 0 1 auto; min-width: 0; }
   #shotPanel .angle > .field__label { display: none; }
