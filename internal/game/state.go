@@ -220,7 +220,7 @@ var (
 	ErrNoBallInHand = errors.New("you do not have ball in hand")
 	ErrBadPlacement = errors.New("the cue ball cannot be placed there")
 	ErrBadInput     = errors.New("invalid angle or power")
-	ErrBadCall      = errors.New("you must call a legal ball and a pocket, or a safety")
+	ErrBadCall      = errors.New("call a pocket for the 8-ball, or a safety")
 	ErrNoDecision   = errors.New("there is no decision to make")
 	ErrBadOption    = errors.New("that option is not available")
 )

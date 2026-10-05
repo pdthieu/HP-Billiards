@@ -413,11 +413,11 @@ func TestShotSettlesIdenticallyForBothPlayers(t *testing.T) {
 		t.Errorf("winner present after the break: %v", m["winner"])
 	}
 
-	// A shot after the break needs a call.
+	// A shot after the break needs no call (only the 8-ball does).
 	if m["decision"] == nil {
 		shooter := []*testClient{c0, c1}[int(m["turn"].(float64))]
 		shooter.send(msg{"type": "shoot", "angle": 0, "power": 0.5})
-		shooter.expectError("bad_call")
+		shooter.expect("snapshot")
 	}
 }
 

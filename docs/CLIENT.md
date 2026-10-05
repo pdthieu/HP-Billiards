@@ -34,10 +34,13 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
      placement is limited to it and the drag is clamped there. The position is
      sent as `place_cue` on release and shown until the server confirms it.
-   - *Call* (every shot but the break): tap a legal ball (ringed in white);
-     a press that moves more than 8 px or lasts over 250 ms aims instead. No
-     pocket is called, the ball counts wherever it drops. *Safety* (or the
-     `S` key) declares a safety instead. *Clear* starts over.
+   - *Call*: object balls are not called; the line above the panel says
+     whose group you shoot (legal first-contact balls are ringed in white).
+     Once the 8-ball is your target the pockets light up: tap the one you
+     are going for (a press that moves more than 8 px or lasts over 250 ms
+     aims instead); the called pocket is ringed in brass and named in the
+     line. *Safety* (or the `S` key) declares a safety instead. *Clear*
+     starts over.
    - *Aim*: drag on the felt; the cue points from the cue ball toward the
      pointer. The guide shows the ghost ball at first contact, the object
      ball's line and the cue ball's deflection. Arrow keys nudge the angle
@@ -46,8 +49,8 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
    - *Power and shooting*: the bar beside the table. Press it, pull down to
      set the power (the cue draws back on the table) and release to shoot;
      releasing in the top 8 % cancels. Arrow up/down also change the power
-     and Enter or Space shoots with it. A shot that still needs a call is
-     refused with a hint.
+     and Enter or Space shoots with it. A shot at the 8-ball without a
+     called pocket is refused with a hint.
    - *Spin*: the small cue ball in the shot panel. Tap or drag where the tip
      should strike (limited to the dashed circle, the no-miscue zone); above
      centre is top spin, below is draw, left and right are english. Reset
@@ -100,6 +103,7 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
   at its earlier position until that snapshot's time passes, then disappears.
   `settled` replaces everything with exact positions. After a reconnect in
   the middle of a shot the clock is re-aligned to the first snapshot received.
-- Legal call targets are computed client-side with the same rule as the
-  server (`legalTargets` mirrors `Rules.legalTarget`); the server still
-  validates every call.
+- Legal first-contact balls and whether the 8-ball is on are computed
+  client-side with the same rules as the server (`legalTargets` and
+  `eightOn` mirror `Rules.legalTarget` and `Rules.eightOn`); the server still
+  validates every shot.

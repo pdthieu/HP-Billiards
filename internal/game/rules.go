@@ -62,23 +62,18 @@ const (
 	FoulNoRail    Foul = "no_rail"    // 3.3: nothing pocketed and no rail after contact
 )
 
-// Call is the shooter's declaration before a shot (WPA 1.7): one ball and the
-// pocket it is meant for, or a safety. It is not used on the break. Pocket may
-// be AnyPocket, in which case the called ball counts wherever it drops (a
-// house-rule relaxation of 1.7).
+// Call is the shooter's declaration before a shot. Object balls are not
+// called (a house-rule relaxation of WPA 1.7: any ball of the shooter's
+// group that drops counts, and on an open table the first ball down decides
+// the groups); the 8-ball must be shot into the called Pocket. A Safety
+// passes the turn whatever drops. Nothing is called on the break.
 type Call struct {
 	Safety bool `json:"safety,omitempty"`
-	Ball   int  `json:"ball"`
-	Pocket int  `json:"pocket"`
+	Pocket int  `json:"pocket"` // the 8-ball's pocket; AnyPocket when none was called
 }
 
-// AnyPocket as Call.Pocket means the pocket was not called.
+// AnyPocket as Call.Pocket means no pocket was called.
 const AnyPocket = -1
-
-// made reports whether a ball dropping into pocket satisfies the call.
-func (c Call) made(ball, pocket int) bool {
-	return ball == c.Ball && (c.Pocket == AnyPocket || pocket == c.Pocket)
-}
 
 // Shot is everything the rules need to judge one settled shot.
 type Shot struct {
@@ -131,7 +126,7 @@ type ShotResult struct {
 	Foul         Foul
 	Pocketed     []int // every ball pocketed this shot, in order, cue ball included
 	CuePocketed  bool  // the cue ball must be put back on the table
-	CalledMade   bool  // the called ball went into the called pocket
+	Made         bool  // a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket
 	IllegalBreak bool  // break shot that pocketed nothing and drove too few balls to a rail
 }
 
@@ -214,14 +209,17 @@ func (r *Rules) legalTarget(ball int) bool {
 	return false
 }
 
-// CheckCall validates the current shooter's call before the shot: a safety,
-// or a legal target ball and an existing pocket. Nothing is called on the
-// break.
+// CheckCall validates the current shooter's call before the shot: a safety
+// is always fine, a pocket must exist if one is named, and a shooter whose
+// legal target is the 8-ball must name one. Nothing is called on the break.
 func (r *Rules) CheckCall(c Call) error {
 	if r.Phase == PhaseBreaking || c.Safety {
 		return nil
 	}
-	if (c.Pocket != AnyPocket && (c.Pocket < 0 || c.Pocket >= NumPockets)) || !r.legalTarget(c.Ball) {
+	if c.Pocket != AnyPocket && (c.Pocket < 0 || c.Pocket >= NumPockets) {
+		return ErrBadCall
+	}
+	if c.Pocket == AnyPocket && r.eightOn(r.Turn) {
 		return ErrBadCall
 	}
 	return nil
@@ -238,8 +236,14 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 	breaking := r.Phase == PhaseBreaking
 
 	// Legality is judged against the table as it was when the shot was struck,
-	// so both are evaluated before this shot's pocketed balls are recorded.
-	called := !breaking && !s.Call.Safety && r.CheckCall(s.Call) == nil
+	// so these are evaluated before this shot's pocketed balls are recorded.
+	onEight := !breaking && r.eightOn(shooter)
+	counts := func(ball int) bool { // does pocketing ball keep the turn?
+		if breaking || s.Call.Safety {
+			return false
+		}
+		return r.Phase == PhaseOpen || GroupOf(ball) == r.Groups[shooter]
+	}
 	first := -1
 	firstLegal := false
 
@@ -248,7 +252,9 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 		crossedHead    bool // before the first contact
 		railAfter      bool // a ball reached a rail after the first contact
 		eightPocketed  bool
+		eightPocket    int
 		objectPocketed bool // an object ball other than the 8
+		firstObject    = -1 // the first object ball other than the 8 to drop
 		toRail         [NumBalls]bool
 	)
 	for _, e := range s.Events {
@@ -266,16 +272,19 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 			toRail[e.Ball] = true
 		case BallPocketed:
 			res.Pocketed = append(res.Pocketed, e.Ball)
-			if called && s.Call.made(e.Ball, e.Pocket) {
-				res.CalledMade = true
-			}
 			switch e.Ball {
 			case CueBall:
 				res.CuePocketed = true
 			case EightBall:
-				eightPocketed = true
+				eightPocketed, eightPocket = true, e.Pocket
 			default:
 				objectPocketed = true
+				if firstObject < 0 {
+					firstObject = e.Ball
+				}
+				if counts(e.Ball) {
+					res.Made = true
+				}
 			}
 		}
 	}
@@ -337,21 +346,22 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 	}
 
 	if eightPocketed {
-		// 4.8: the 8-ball must be the called ball, in the called pocket, on a
-		// shot without a foul. CalledMade implies it was a legal target.
+		// 4.8: the 8-ball must be the shooter's legal target and drop in the
+		// called pocket on a shot without a foul; anything else loses (3.8).
 		r.Winner = opponent
-		if legal && res.CalledMade && s.Call.Ball == EightBall {
+		if legal && onEight && !s.Call.Safety && eightPocket == s.Call.Pocket {
 			r.Winner = shooter
+			res.Made = true
 		}
 		r.Phase = PhaseGameOver
 		return res
 	}
 
-	keepTurn := legal && res.CalledMade
+	keepTurn := legal && res.Made
 	if keepTurn && r.Phase == PhaseOpen {
-		// 4.4: legally pocketing the called ball decides the groups.
-		r.Groups[shooter] = GroupOf(s.Call.Ball)
-		r.Groups[opponent] = GroupOf(s.Call.Ball).other()
+		// 4.4 relaxed: the first ball legally pocketed decides the groups.
+		r.Groups[shooter] = GroupOf(firstObject)
+		r.Groups[opponent] = GroupOf(firstObject).other()
 		r.Phase = PhaseAssigned
 	}
 	r.BallInHand = !legal

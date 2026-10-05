@@ -11,10 +11,14 @@ import (
 // In hand-built shots every pocketed ball drops into pot.
 const pot = 2
 
-func call(ball int) Call           { return Call{Ball: ball, Pocket: pot} }
-func callIn(ball, pocket int) Call { return Call{Ball: ball, Pocket: pocket} }
+// Object balls need no call; the 8-ball is shot into a named pocket.
+var (
+	noCall = Call{Pocket: AnyPocket}
+	safety = Call{Safety: true}
+)
 
-var safety = Call{Safety: true}
+// into names the pocket the 8-ball is shot into.
+func into(n int) Call { return Call{Pocket: n} }
 
 // shot builds a settled shot: the call, the first ball the cue ball touched
 // (negative for none, followed by that ball reaching a rail) and the balls
@@ -92,34 +96,34 @@ func TestFouls(t *testing.T) {
 		shot  Shot
 		want  Foul
 	}{
-		{"scratch", openRules(0), shot(call(3), 3, CueBall), FoulScratch},
-		{"scratch beats other fouls", assignedRules(0), shot(call(3), 9, CueBall), FoulScratch},
-		{"no contact", openRules(0), shot(call(3), -1), FoulNoContact},
-		{"wrong group first", assignedRules(0), shot(call(3), 9), FoulWrongBall},
-		{"8-ball first on an open table", openRules(0), shot(call(3), EightBall), FoulWrongBall},
-		{"8-ball first before clearing the group", assignedRules(0), shot(call(3), EightBall), FoulWrongBall},
-		{"group ball first when on the 8", assignedRules(0, allSolids...), shot(call(EightBall), 9), FoulWrongBall},
+		{"scratch", openRules(0), shot(noCall, 3, CueBall), FoulScratch},
+		{"scratch beats other fouls", assignedRules(0), shot(noCall, 9, CueBall), FoulScratch},
+		{"no contact", openRules(0), shot(noCall, -1), FoulNoContact},
+		{"wrong group first", assignedRules(0), shot(noCall, 9), FoulWrongBall},
+		{"8-ball first on an open table", openRules(0), shot(noCall, EightBall), FoulWrongBall},
+		{"8-ball first before clearing the group", assignedRules(0), shot(noCall, EightBall), FoulWrongBall},
+		{"group ball first when on the 8", assignedRules(0, allSolids...), shot(into(pot), 9), FoulWrongBall},
 		{"no rail after contact", assignedRules(0),
-			Shot{Call: call(3), Events: []Event{contact(3, false)}}, FoulNoRail},
+			Shot{Call: noCall, Events: []Event{contact(3, false)}}, FoulNoRail},
 		{"rail only before contact", assignedRules(0),
-			Shot{Call: call(3), Events: []Event{rail(CueBall), contact(3, false)}}, FoulNoRail},
+			Shot{Call: noCall, Events: []Event{rail(CueBall), contact(3, false)}}, FoulNoRail},
 		{"kitchen: ball above the head string hit directly", openRules(0),
-			Shot{Call: call(3), FromKitchen: true, Events: []Event{contact(3, true), rail(3)}}, FoulKitchen},
+			Shot{Call: noCall, FromKitchen: true, Events: []Event{contact(3, true), rail(3)}}, FoulKitchen},
 		{"kitchen: crossing the head string after contact is too late", openRules(0),
-			Shot{Call: call(3), FromKitchen: true, Events: []Event{contact(3, true), crossed, rail(3)}}, FoulKitchen},
+			Shot{Call: noCall, FromKitchen: true, Events: []Event{contact(3, true), crossed, rail(3)}}, FoulKitchen},
 
-		{"legal: own group first", assignedRules(0), shot(call(3), 3), FoulNone},
-		{"legal: any group on an open table", openRules(0), shot(call(3), 12), FoulNone},
-		{"legal: 8-ball first when on the 8", assignedRules(0, allSolids...), shot(call(EightBall), EightBall), FoulNone},
-		{"legal: 8-ball first on an open table with a group cleared", openRules(0, allStripes...), shot(call(EightBall), EightBall), FoulNone},
+		{"legal: own group first", assignedRules(0), shot(noCall, 3), FoulNone},
+		{"legal: any group on an open table", openRules(0), shot(noCall, 12), FoulNone},
+		{"legal: 8-ball first when on the 8", assignedRules(0, allSolids...), shot(into(pot), EightBall), FoulNone},
+		{"legal: 8-ball first on an open table with a group cleared", openRules(0, allStripes...), shot(into(pot), EightBall), FoulNone},
 		{"legal: opponent ball pocketed counts as a rail", assignedRules(0),
-			Shot{Call: call(3), Events: []Event{contact(3, false), {Kind: BallPocketed, Ball: 12, Pocket: pot}}}, FoulNone},
+			Shot{Call: noCall, Events: []Event{contact(3, false), {Kind: BallPocketed, Ball: 12, Pocket: pot}}}, FoulNone},
 		{"legal: kitchen shot crossing the head string first", openRules(0),
-			Shot{Call: call(3), FromKitchen: true, Events: []Event{crossed, rail(CueBall), contact(3, true), rail(3)}}, FoulNone},
+			Shot{Call: noCall, FromKitchen: true, Events: []Event{crossed, rail(CueBall), contact(3, true), rail(3)}}, FoulNone},
 		{"legal: kitchen shot at a ball below the head string", openRules(0),
-			Shot{Call: call(3), FromKitchen: true, Events: []Event{crossed, contact(3, false), rail(3)}}, FoulNone},
+			Shot{Call: noCall, FromKitchen: true, Events: []Event{crossed, contact(3, false), rail(3)}}, FoulNone},
 		{"legal: ball above the head string without ball in hand there", openRules(0),
-			Shot{Call: call(3), Events: []Event{contact(3, true), rail(3)}}, FoulNone},
+			Shot{Call: noCall, Events: []Event{contact(3, true), rail(3)}}, FoulNone},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -157,21 +161,16 @@ func TestCheckCall(t *testing.T) {
 		call  Call
 		ok    bool
 	}{
-		{"open: solid", openRules(0), call(3), true},
-		{"open: stripe", openRules(0), call(12), true},
+		{"open: no call", openRules(0), noCall, true},
 		{"open: safety", openRules(0), safety, true},
-		{"open: 8-ball", openRules(0), call(EightBall), false},
-		{"open: 8-ball once a group is cleared", openRules(0, allStripes...), call(EightBall), true},
-		{"open: cue ball", openRules(0), call(CueBall), false},
-		{"open: ball already pocketed", openRules(0, 3), call(3), false},
-		{"open: ball id out of range", openRules(0), call(16), false},
-		{"open: pocket out of range", openRules(0), callIn(3, NumPockets), false},
-		{"open: no pocket called", openRules(0), callIn(3, AnyPocket), true},
-		{"open: negative pocket", openRules(0), callIn(3, -2), false},
-		{"assigned: own group", assignedRules(0), call(3), true},
-		{"assigned: opponent group", assignedRules(0), call(12), false},
-		{"assigned: 8-ball too early", assignedRules(0), call(EightBall), false},
-		{"assigned: 8-ball when on the 8", assignedRules(0, allSolids...), call(EightBall), true},
+		{"open: a pocket may be named anyway", openRules(0), into(3), true},
+		{"open: pocket out of range", openRules(0), into(NumPockets), false},
+		{"open: negative pocket", openRules(0), into(-2), false},
+		{"open: on the 8 once a group is cleared, no pocket", openRules(0, allStripes...), noCall, false},
+		{"open: on the 8 once a group is cleared, pocket", openRules(0, allStripes...), into(pot), true},
+		{"assigned: no call", assignedRules(0), noCall, true},
+		{"assigned: on the 8 without a pocket", assignedRules(0, allSolids...), noCall, false},
+		{"assigned: on the 8 with a pocket", assignedRules(0, allSolids...), into(pot), true},
 		{"assigned: safety when on the 8", assignedRules(0, allSolids...), safety, true},
 	}
 	for _, tc := range tests {
@@ -188,27 +187,26 @@ func TestCheckCall(t *testing.T) {
 
 	breaking := NewRules()
 	breaking.Start(0)
-	if err := breaking.CheckCall(Call{}); err != nil {
+	if err := breaking.CheckCall(noCall); err != nil {
 		t.Errorf("the break needs no call, got %v", err)
 	}
 }
 
-func TestCallShot(t *testing.T) {
+func TestPocketingKeepsTheTurn(t *testing.T) {
 	tests := []struct {
 		name       string
 		shot       Shot
 		wantTurn   int
-		wantCalled bool
+		wantMade   bool
 		wantSolids int // solids left on the table
 	}{
-		{"called ball in the called pocket keeps the turn", shot(call(3), 3, 3), 0, true, 6},
-		{"called ball plus an opponent ball keeps the turn", shot(call(3), 3, 12, 3), 0, true, 6},
-		{"called ball in another pocket passes the turn", shot(callIn(3, 4), 3, 3), 1, false, 6},
-		{"a different ball of the group passes the turn", shot(call(3), 3, 5), 1, false, 6},
-		{"only an opponent ball passes the turn", shot(call(3), 3, 12), 1, false, 7},
-		{"miss passes the turn", shot(call(3), 3), 1, false, 7},
+		{"own ball keeps the turn", shot(noCall, 3, 3), 0, true, 6},
+		{"own ball plus an opponent ball keeps the turn", shot(noCall, 3, 12, 3), 0, true, 6},
+		{"any ball of the group counts, in any pocket", shot(into(4), 3, 5), 0, true, 6},
+		{"only an opponent ball passes the turn", shot(noCall, 3, 12), 1, false, 7},
+		{"miss passes the turn", shot(noCall, 3), 1, false, 7},
 		{"safety passes the turn and the ball stays down", shot(safety, 3, 3), 1, false, 6},
-		{"called ball made on a foul passes the turn", shot(call(3), 12, 3), 1, true, 6},
+		{"own ball made on a foul passes the turn", shot(noCall, 12, 3), 1, true, 6},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -217,8 +215,8 @@ func TestCallShot(t *testing.T) {
 			if r.Turn != tc.wantTurn {
 				t.Errorf("turn = %d, want %d", r.Turn, tc.wantTurn)
 			}
-			if res.CalledMade != tc.wantCalled {
-				t.Errorf("calledMade = %v, want %v", res.CalledMade, tc.wantCalled)
+			if res.Made != tc.wantMade {
+				t.Errorf("made = %v, want %v", res.Made, tc.wantMade)
 			}
 			if got := r.Remaining(GroupSolids); got != tc.wantSolids {
 				t.Errorf("solids remaining = %d, want %d", got, tc.wantSolids)
@@ -235,15 +233,13 @@ func TestGroupAssignment(t *testing.T) {
 		wantGroups [2]Group // shooter is seat 1
 		wantTurn   int
 	}{
-		{"called solid made", shot(call(3), 3, 3), PhaseAssigned, [2]Group{GroupStripes, GroupSolids}, 1},
-		{"called stripe made", shot(call(12), 12, 12), PhaseAssigned, [2]Group{GroupSolids, GroupStripes}, 1},
-		{"called ball decides, not the first one down", shot(call(3), 3, 11, 3), PhaseAssigned, [2]Group{GroupStripes, GroupSolids}, 1},
-		{"hitting a stripe first to make a called solid", shot(call(3), 12, 3), PhaseAssigned, [2]Group{GroupStripes, GroupSolids}, 1},
-		{"miss leaves the table open", shot(call(3), 3), PhaseOpen, [2]Group{}, 0},
-		{"uncalled ball leaves the table open", shot(call(3), 3, 12), PhaseOpen, [2]Group{}, 0},
-		{"called ball in the wrong pocket leaves the table open", shot(callIn(3, 0), 3, 3), PhaseOpen, [2]Group{}, 0},
+		{"solid made", shot(noCall, 3, 3), PhaseAssigned, [2]Group{GroupStripes, GroupSolids}, 1},
+		{"stripe made", shot(noCall, 12, 12), PhaseAssigned, [2]Group{GroupSolids, GroupStripes}, 1},
+		{"the first ball down decides", shot(noCall, 3, 11, 3), PhaseAssigned, [2]Group{GroupSolids, GroupStripes}, 1},
+		{"hitting a stripe first to make a solid", shot(noCall, 12, 3), PhaseAssigned, [2]Group{GroupStripes, GroupSolids}, 1},
+		{"miss leaves the table open", shot(noCall, 3), PhaseOpen, [2]Group{}, 0},
 		{"safety leaves the table open", shot(safety, 3, 3), PhaseOpen, [2]Group{}, 0},
-		{"called ball made on a foul does not assign", shot(call(3), 3, 3, CueBall), PhaseOpen, [2]Group{}, 0},
+		{"a ball made on a foul does not assign", shot(noCall, 3, 3, CueBall), PhaseOpen, [2]Group{}, 0},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -264,20 +260,20 @@ func TestGroupAssignment(t *testing.T) {
 
 func TestBallInHandTransfer(t *testing.T) {
 	r := assignedRules(0)
-	res := r.Resolve(shot(call(1), 1, CueBall))
+	res := r.Resolve(shot(noCall, 1, CueBall))
 	if !res.CuePocketed || r.Turn != 1 || !r.BallInHand || r.Kitchen {
 		t.Fatalf("after scratch: cuePocketed=%v turn=%d ballInHand=%v kitchen=%v, want true 1 true false",
 			res.CuePocketed, r.Turn, r.BallInHand, r.Kitchen)
 	}
 
 	// Seat 1 (stripes) plays a legal shot: ball in hand is used up.
-	r.Resolve(shot(call(9), 9, 9))
+	r.Resolve(shot(noCall, 9, 9))
 	if r.Turn != 1 || r.BallInHand {
 		t.Fatalf("after legal pot: turn=%d ballInHand=%v, want 1 false", r.Turn, r.BallInHand)
 	}
 
 	// Seat 1 fouls back: ball in hand goes to seat 0.
-	r.Resolve(shot(call(10), -1))
+	r.Resolve(shot(noCall, -1))
 	if r.Turn != 0 || !r.BallInHand {
 		t.Fatalf("after foul: turn=%d ballInHand=%v, want 0 true", r.Turn, r.BallInHand)
 	}
@@ -291,16 +287,16 @@ func TestEightBallEndsTheGame(t *testing.T) {
 		shot       Shot
 		wantWinner int
 	}{
-		{"called 8-ball in the called pocket wins", onEight(0), shot(call(EightBall), EightBall, EightBall), 0},
-		{"seat 1 wins the same way", onEight(1), shot(call(EightBall), EightBall, EightBall), 1},
-		{"open table with a group cleared: 8-ball wins", openRules(0, allStripes...), shot(call(EightBall), EightBall, EightBall), 0},
-		{"8-ball in an uncalled pocket loses", onEight(0), shot(callIn(EightBall, 5), EightBall, EightBall), 1},
+		{"8-ball in the called pocket wins", onEight(0), shot(into(pot), EightBall, EightBall), 0},
+		{"seat 1 wins the same way", onEight(1), shot(into(pot), EightBall, EightBall), 1},
+		{"open table with a group cleared: 8-ball wins", openRules(0, allStripes...), shot(into(pot), EightBall, EightBall), 0},
+		{"8-ball in the wrong pocket loses", onEight(0), shot(into(5), EightBall, EightBall), 1},
 		{"8-ball on a safety loses", onEight(0), shot(safety, EightBall, EightBall), 1},
-		{"8-ball and cue ball together lose", onEight(0), shot(call(EightBall), EightBall, EightBall, CueBall), 1},
-		{"8-ball without contact loses", onEight(0), shot(call(EightBall), -1, EightBall), 1},
-		{"early 8-ball loses", assignedRules(0, 1, 2), shot(call(3), 3, EightBall), 1},
-		{"early 8-ball on an open table loses", openRules(0), shot(call(3), 3, EightBall), 1},
-		{"last group ball and 8-ball in one shot lose", assignedRules(0, 1, 2, 3, 4, 5, 6), shot(call(7), 7, 7, EightBall), 1},
+		{"8-ball and cue ball together lose", onEight(0), shot(into(pot), EightBall, EightBall, CueBall), 1},
+		{"8-ball without contact loses", onEight(0), shot(into(pot), -1, EightBall), 1},
+		{"early 8-ball loses", assignedRules(0, 1, 2), shot(noCall, 3, EightBall), 1},
+		{"early 8-ball on an open table loses", openRules(0), shot(noCall, 3, EightBall), 1},
+		{"last group ball and 8-ball in one shot lose", assignedRules(0, 1, 2, 3, 4, 5, 6), shot(noCall, 7, 7, EightBall), 1},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -318,7 +314,7 @@ func TestEightBallEndsTheGame(t *testing.T) {
 
 			// Nothing changes once the game is over.
 			before := *r
-			r.Resolve(shot(call(3), 3, 3))
+			r.Resolve(shot(noCall, 3, 3))
 			if *r != before {
 				t.Error("Resolve changed a finished game")
 			}
@@ -328,7 +324,7 @@ func TestEightBallEndsTheGame(t *testing.T) {
 
 func TestFoulOnTheEightWithoutPocketingItIsNotALoss(t *testing.T) {
 	r := assignedRules(0, allSolids...)
-	res := r.Resolve(shot(call(EightBall), EightBall, CueBall))
+	res := r.Resolve(shot(into(pot), EightBall, CueBall))
 	if res.Foul != FoulScratch || r.Phase != PhaseAssigned || r.Winner != NoWinner {
 		t.Fatalf("foul=%q phase=%q winner=%d, want scratch, assigned, none", res.Foul, r.Phase, r.Winner)
 	}
@@ -423,7 +419,7 @@ func TestBreakDecisions(t *testing.T) {
 
 			// No shot counts while the decision is pending.
 			before := *r
-			r.Resolve(shot(call(3), 3, 3))
+			r.Resolve(shot(noCall, 3, 3))
 			if *r != before {
 				t.Error("Resolve changed state while a decision was pending")
 			}
@@ -502,7 +498,7 @@ func TestEightOptionsNotOfferedForIllegalBreak(t *testing.T) {
 func TestResolveOutsidePlayIsNoOp(t *testing.T) {
 	r := NewRules()
 	before := *r
-	if res := r.Resolve(shot(call(1), 1, 1)); res.Foul != FoulNone || len(res.Pocketed) != 0 {
+	if res := r.Resolve(shot(noCall, 1, 1)); res.Foul != FoulNone || len(res.Pocketed) != 0 {
 		t.Errorf("unexpected result in lobby: %+v", res)
 	}
 	if *r != before {
@@ -616,27 +612,20 @@ func slicesContains(s []int, v int) bool {
 	return false
 }
 
-func TestGameRequiresACallAfterTheBreak(t *testing.T) {
+func TestGameNeedsNoCallAfterTheBreak(t *testing.T) {
 	cfg := DefaultConfig()
 	g := sparseGame(PhaseOpen, map[int]Vec{
 		CueBall: {cfg.TableWidth / 2, 0.6},
 		3:       {cfg.TableWidth / 2, 0.2},
 		12:      {2.0, 1.0},
 	})
-	if err := g.Shoot(0, up, 0.3, Call{}); !errors.Is(err, ErrBadCall) {
-		t.Fatalf("shot without a call: %v, want ErrBadCall", err)
-	}
-	if g.Moving() {
-		t.Fatal("rejected shot moved the balls")
-	}
-
-	// Called ball 3 into the top-middle pocket (index 1).
-	if err := g.Shoot(0, up, 0.3, callIn(3, 1)); err != nil {
+	// The 3 straight up into the top-middle pocket, nothing called.
+	if err := g.Shoot(0, up, 0.3, noCall); err != nil {
 		t.Fatal(err)
 	}
 	res := tick(t, g)
-	if res.Foul != FoulNone || !res.CalledMade || !reflect.DeepEqual(res.Pocketed, []int{3}) {
-		t.Fatalf("result %+v, want the called ball made", res)
+	if res.Foul != FoulNone || !res.Made || !reflect.DeepEqual(res.Pocketed, []int{3}) {
+		t.Fatalf("result %+v, want the 3 made", res)
 	}
 	if g.Rules.Phase != PhaseAssigned || g.Rules.Groups != [2]Group{GroupSolids, GroupStripes} || g.Rules.Turn != 0 {
 		t.Errorf("phase=%q groups=%v turn=%d, want assigned, seat 0 solids, seat 0 to shoot",
@@ -644,24 +633,43 @@ func TestGameRequiresACallAfterTheBreak(t *testing.T) {
 	}
 }
 
-func TestGameWrongPocketPassesTheTurn(t *testing.T) {
+func TestGameEightNeedsItsPocket(t *testing.T) {
 	cfg := DefaultConfig()
-	g := sparseGame(PhaseOpen, map[int]Vec{
-		CueBall: {cfg.TableWidth / 2, 0.6},
-		3:       {cfg.TableWidth / 2, 0.2},
-	})
-	if err := g.Shoot(0, up, 0.3, callIn(3, 4)); err != nil {
+	onEight := func() *Game {
+		g := sparseGame(PhaseAssigned, map[int]Vec{
+			CueBall:   {cfg.TableWidth / 2, 0.6},
+			EightBall: {cfg.TableWidth / 2, 0.2},
+			12:        {2.0, 1.0},
+		})
+		g.Rules.Groups = [2]Group{GroupSolids, GroupStripes}
+		for _, id := range allSolids {
+			g.Rules.pocketed[id] = true
+		}
+		return g
+	}
+	g := onEight()
+	if err := g.Shoot(0, up, 0.3, noCall); !errors.Is(err, ErrBadCall) {
+		t.Fatalf("shot at the 8-ball without a pocket: %v, want ErrBadCall", err)
+	}
+	if g.Moving() {
+		t.Fatal("rejected shot moved the balls")
+	}
+	// The 8 drops in the top-middle pocket (1); pocket 4 was called: loss.
+	if err := g.Shoot(0, up, 0.3, into(4)); err != nil {
 		t.Fatal(err)
 	}
 	res := tick(t, g)
-	if res.Foul != FoulNone || res.CalledMade {
-		t.Fatalf("result %+v, want a legal shot that missed its call", res)
+	if res.Foul != FoulNone || res.Made || g.Rules.Phase != PhaseGameOver || g.Rules.Winner != 1 {
+		t.Fatalf("wrong pocket: result %+v phase %q winner %d, want a loss", res, g.Rules.Phase, g.Rules.Winner)
 	}
-	if g.Rules.Phase != PhaseOpen || g.Rules.Turn != 1 || g.Rules.BallInHand {
-		t.Errorf("phase=%q turn=%d ballInHand=%v, want open, 1, false", g.Rules.Phase, g.Rules.Turn, g.Rules.BallInHand)
+	// Called correctly: win.
+	g = onEight()
+	if err := g.Shoot(0, up, 0.3, into(1)); err != nil {
+		t.Fatal(err)
 	}
-	if !g.Table.Balls[3].Pocketed {
-		t.Error("the illegally pocketed ball must stay down")
+	res = tick(t, g)
+	if res.Foul != FoulNone || !res.Made || g.Rules.Phase != PhaseGameOver || g.Rules.Winner != 0 {
+		t.Fatalf("called pocket: result %+v phase %q winner %d, want a win", res, g.Rules.Phase, g.Rules.Winner)
 	}
 }
 
@@ -672,7 +680,7 @@ func TestGameScratchGivesBallInHand(t *testing.T) {
 		1:       {2.0, 1.0},
 	})
 	// Cue ball straight into the top side pocket.
-	if err := g.Shoot(0, up, 0.3, call(1)); err != nil {
+	if err := g.Shoot(0, up, 0.3, noCall); err != nil {
 		t.Fatal(err)
 	}
 	res := tick(t, g)
@@ -753,7 +761,7 @@ func TestGameKitchenFoul(t *testing.T) {
 			if err := g.PlaceCue(0, Vec{0.3, cfg.TableHeight / 2}); err != nil {
 				t.Fatal(err)
 			}
-			if err := g.Shoot(0, 0, 0.5, call(3)); err != nil {
+			if err := g.Shoot(0, 0, 0.5, noCall); err != nil {
 				t.Fatal(err)
 			}
 			if res := tick(t, g); res.Foul != tc.want {
@@ -865,7 +873,7 @@ func TestGameOverStopsPlay(t *testing.T) {
 		3:         {2.0, 1.0},
 	})
 	// Seat 0 calls the 3 but sinks the 8-ball.
-	if err := g.Shoot(0, up, 0.3, call(3)); err != nil {
+	if err := g.Shoot(0, up, 0.3, noCall); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, g)
@@ -873,7 +881,7 @@ func TestGameOverStopsPlay(t *testing.T) {
 	if g.Rules.Phase != PhaseGameOver || g.Rules.Winner != 1 {
 		t.Fatalf("phase=%q winner=%d, want game over with seat 1 winning", g.Rules.Phase, g.Rules.Winner)
 	}
-	if err := g.Shoot(1, 0, 0.5, call(3)); !errors.Is(err, ErrWrongPhase) {
+	if err := g.Shoot(1, 0, 0.5, noCall); !errors.Is(err, ErrWrongPhase) {
 		t.Errorf("shoot after game over: %v, want ErrWrongPhase", err)
 	}
 
@@ -895,10 +903,10 @@ func TestGameLegalEightBallWin(t *testing.T) {
 	for _, id := range allSolids {
 		g.Rules.pocketed[id] = true
 	}
-	if err := g.Shoot(0, up, 0.3, call(3)); !errors.Is(err, ErrBadCall) {
-		t.Errorf("calling a pocketed ball: %v, want ErrBadCall", err)
+	if err := g.Shoot(0, up, 0.3, noCall); !errors.Is(err, ErrBadCall) {
+		t.Errorf("shooting at the 8-ball without a pocket: %v, want ErrBadCall", err)
 	}
-	if err := g.Shoot(0, up, 0.3, callIn(EightBall, 1)); err != nil {
+	if err := g.Shoot(0, up, 0.3, into(1)); err != nil {
 		t.Fatal(err)
 	}
 	tick(t, g)
@@ -949,37 +957,26 @@ func TestStateJSON(t *testing.T) {
 		t.Errorf("after choosing: decision=%v phase=%v, want null and open", got["decision"], got["phase"])
 	}
 
-	raw, _ = json.Marshal(Call{Ball: 3, Pocket: 4})
-	if string(raw) != `{"ball":3,"pocket":4}` {
+	raw, _ = json.Marshal(into(4))
+	if string(raw) != `{"pocket":4}` {
 		t.Errorf("call JSON = %s", raw)
 	}
 }
 
-func TestCallWithoutAPocket(t *testing.T) {
+func TestNamedPocketIsIgnoredForObjectBalls(t *testing.T) {
 	r := NewRules()
 	r.Start(0)
 	r.Phase = PhaseOpen
-	any := Call{Ball: 3, Pocket: AnyPocket}
-	if err := r.CheckCall(any); err != nil {
-		t.Fatalf("CheckCall(any pocket) = %v", err)
-	}
-	if err := r.CheckCall(Call{Ball: 3, Pocket: -2}); err == nil {
-		t.Error("CheckCall accepted pocket -2")
-	}
-	if err := r.CheckCall(Call{Ball: 3, Pocket: NumPockets}); err == nil {
-		t.Error("CheckCall accepted a pocket past the last one")
-	}
-
-	// The 3 drops in pocket 5, not the hand-built test pocket: still made.
+	// The 3 drops in pocket 5 although pocket 1 was named: still made.
 	events := []Event{
 		{Kind: FirstContact, Ball: 3},
 		{Kind: BallPocketed, Ball: 3, Pocket: 5},
 	}
-	res := r.Resolve(Shot{Events: events, Call: any})
-	if !res.CalledMade || res.Foul != FoulNone {
-		t.Errorf("result = %+v, want the call made without a foul", res)
+	res := r.Resolve(Shot{Events: events, Call: into(1)})
+	if !res.Made || res.Foul != FoulNone {
+		t.Errorf("result = %+v, want made without a foul", res)
 	}
 	if r.Turn != 0 || r.Groups[0] != GroupSolids {
-		t.Errorf("after the made call: turn %d groups %v", r.Turn, r.Groups)
+		t.Errorf("after the pot: turn %d groups %v", r.Turn, r.Groups)
 	}
 }

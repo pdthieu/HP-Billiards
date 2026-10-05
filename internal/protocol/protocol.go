@@ -45,7 +45,7 @@ const (
 	ErrNoBallInHand = "no_ball_in_hand"
 	ErrBadPlacement = "bad_placement" // place_cue off the table, on a ball or outside the kitchen
 	ErrBadInput     = "bad_input"     // angle or power is not a finite number
-	ErrBadCall      = "bad_call"      // shoot without a legal called ball and pocket (or safety)
+	ErrBadCall      = "bad_call"      // shoot at the 8-ball without a pocket, or a pocket outside 0–5
 	ErrNoDecision   = "no_decision"   // choose with nothing to decide
 	ErrBadOption    = "bad_option"    // choose with an option that was not offered
 )
@@ -64,7 +64,7 @@ type ClientMessage struct {
 	// aim, shoot
 	Angle float64 `json:"angle"` // radians, 0 = +x, y down
 	Power float64 `json:"power"` // clamped to [0,1]
-	// shoot: required on every shot except the break
+	// shoot: optional; required (a pocket) when the 8-ball is the target
 	Call *Call `json:"call"`
 	// shoot: optional english, see Spin
 	Spin *Spin `json:"spin"`
@@ -93,20 +93,21 @@ func (s *Spin) Vec() game.Vec {
 	return game.Vec{X: s.X, Y: s.Y}
 }
 
-// Call is the shooter's declaration: a safety, or a ball and optionally the
-// pocket. Without a pocket the ball counts wherever it drops.
+// Call is the shooter's declaration: a safety, or the pocket the 8-ball is
+// going to. Object balls are not called; a shooter whose target is the 8-ball
+// must name a pocket.
 type Call struct {
 	Safety bool `json:"safety,omitempty"`
-	Ball   int  `json:"ball"`
 	Pocket *int `json:"pocket,omitempty"`
 }
 
-// Game converts the wire call to the rules' representation.
+// Game converts the wire call to the rules' representation; nil is no call.
 func (c *Call) Game() game.Call {
+	out := game.Call{Pocket: game.AnyPocket}
 	if c == nil {
-		return game.Call{} // rejected by the rules on every shot but the break
+		return out
 	}
-	out := game.Call{Safety: c.Safety, Ball: c.Ball, Pocket: game.AnyPocket}
+	out.Safety = c.Safety
 	if c.Pocket != nil {
 		out.Pocket = *c.Pocket
 	}
@@ -169,7 +170,7 @@ type Settled struct {
 	Shooter      int              `json:"shooter"`
 	Pocketed     []int            `json:"pocketed"` // ids in order, cue ball (0) included
 	Foul         game.Foul        `json:"foul,omitempty"`
-	CalledMade   bool             `json:"calledMade"`
+	Made         bool             `json:"made"`
 	IllegalBreak bool             `json:"illegalBreak"`
 	Phase        game.Phase       `json:"phase"`
 	Turn         int              `json:"turn"`

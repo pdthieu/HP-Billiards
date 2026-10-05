@@ -151,11 +151,11 @@ const S = {
   lastPower: 0,          // power of the last shot, shown faintly in the bar
   lefty: false,          // power bar on the left
   hoverBall: null,       // ball under the mouse, for its label
-  call: null,            // {ball} or {safety: true}; no pocket is called
+  call: null,            // {pocket} for the 8-ball, or {safety: true}
   roomsTimer: 0,
   aiming: false,
   dragCue: null,         // {x, y} while placing the cue ball
-  tap: null,             // press on a ball awaiting release: {id, x, y, t, type}
+  tap: null,             // press on a ball or pocket awaiting release: {id, pocket, x, y, t, type}
   cuePlacedAt: null,     // last place_cue we sent, kept until the server confirms
   lastAimSent: 0,
   aimTimer: 0,
@@ -560,12 +560,13 @@ function describeShot(msg) {
   if (msg.illegalBreak) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
   if (msg.foul) parts.push(`${me ? 'Your foul' : `Foul by ${who}`}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
   if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
-  if (msg.calledMade && !msg.foul) parts.push('Called shot made.');
   if (msg.winner !== undefined && msg.winner !== null) {
     parts.push(isMe(msg.winner) ? 'You win!' : `${nameOf(msg.winner)} wins.`);
-    if (msg.winner === msg.shooter) S.resultReason = '8-ball pocketed as called';
+    const g = S.groups[msg.shooter];
+    const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
+    if (msg.winner === msg.shooter) S.resultReason = '8-ball pocketed in the called pocket';
     else if (msg.foul) S.resultReason = `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
-    else S.resultReason = `${who} pocketed the 8-ball early`;
+    else S.resultReason = early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
   } else if (msg.decision) {
     parts.push(`${nameOf(msg.decision.seat)} ${isMe(msg.decision.seat) ? 'choose' : 'chooses'} how to continue.`);
   } else {
@@ -578,7 +579,7 @@ function describeShot(msg) {
   } else if (msg.decision) {
     S.lastDecisionReason = `${me ? 'You' : who} pocketed the 8-ball on the break.`;
   }
-  setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.calledMade ? 'good' : ''));
+  setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
 }
 
 // ---------------------------------------------------------------------------
@@ -590,7 +591,15 @@ const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? '
 const ballName = (id) => (id === 8 ? 'the 8-ball' : `the ${id}`);
 const inPlay = () => !S.decision && (S.phase === 'breaking' || S.phase === 'open' || S.phase === 'assigned');
 const isMyShot = () => S.seat >= 0 && inPlay() && !S.moving && S.turn === S.seat;
-const needsCall = () => S.phase !== 'breaking';
+const canCall = () => S.phase !== 'breaking'; // a safety may be declared
+// eightOn mirrors Rules.eightOn: the 8-ball is my legal target, so it needs
+// a called pocket.
+function eightOn() {
+  if (S.phase === 'open') return remaining('solids') === 0 || remaining('stripes') === 0;
+  if (S.phase === 'assigned') return remaining(S.groups[S.seat]) === 0;
+  return false;
+}
+const needsPocket = () => eightOn() && !(S.call && S.call.safety);
 
 function remaining(group) {
   let n = 0;
@@ -603,13 +612,11 @@ function legalTargets() {
   const out = new Set();
   if (S.phase === 'breaking') return out;
   const mine = S.groups[S.seat];
-  let eightOn = false;
-  if (S.phase === 'open') eightOn = remaining('solids') === 0 || remaining('stripes') === 0;
-  else if (S.phase === 'assigned') eightOn = remaining(mine) === 0;
+  const eight = eightOn();
   for (const id of S.balls.keys()) {
     if (id === 0) continue;
-    if (S.phase === 'open' && (id !== 8 || eightOn)) out.add(id);
-    else if (S.phase === 'assigned' && (eightOn ? id === 8 : groupOf(id) === mine)) out.add(id);
+    if (S.phase === 'open' && (id !== 8 || eight)) out.add(id);
+    else if (S.phase === 'assigned' && (eight ? id === 8 : groupOf(id) === mine)) out.add(id);
   }
   return out;
 }
@@ -651,14 +658,14 @@ function castAim(balls, cue, angle) {
 
 function canShoot() {
   if (!isMyShot() || S.dragCue) return false;
-  if (!needsCall()) return true;
-  return S.call !== null;
+  return !needsPocket() || (S.call !== null && S.call.pocket !== undefined);
 }
 
 function shoot() {
   if (!canShoot()) return;
   const msg = { type: 'shoot', angle: S.angle, power: S.power };
-  if (needsCall()) msg.call = S.call.safety ? { safety: true } : { ball: S.call.ball };
+  if (S.call && S.call.safety) msg.call = { safety: true };
+  else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   if (send(msg)) {
     const cue = displayBalls().get(0);
@@ -759,7 +766,7 @@ function needsCallTip(e) {
   const tip = document.createElement('div');
   tip.className = 'tip' + (S.lefty ? ' tip--right' : '');
   tip.setAttribute('role', 'status');
-  tip.textContent = needsCall() && !S.call ? 'Call a ball first: tap it.' : 'Cannot shoot now.';
+  tip.textContent = needsPocket() && !S.call ? 'Call a pocket for the 8-ball: tap it.' : 'Cannot shoot now.';
   const wrap = $('tableWrap').getBoundingClientRect();
   tip.style.top = `${Math.max(8, (e ? e.clientY : wrap.top + wrap.height / 2) - wrap.top - 20)}px`;
   $('tableWrap').append(tip);
@@ -1129,16 +1136,26 @@ function draw() {
   drawFx('cue', now);
 
   // rings
-  if (myShot && needsCall()) {
+  if (myShot && canCall()) {
     for (const id of legalTargets()) {
       const p = balls.get(id);
-      if (!p) continue;
-      if (S.call && S.call.ball === id) {
-        ring(p, R + 0.020, rgba(PAL.brass, 0.22), 0.008);
-        ring(p, R + 0.012, PAL.brass, 0.005);
-      } else {
-        ring(p, R + 0.010, rgba('#FFFFFF', 0.55), 0.003);
+      if (p) ring(p, R + 0.010, rgba('#FFFFFF', 0.55), 0.003);
+    }
+  }
+  if (myShot && needsPocket()) {
+    // the pockets are tappable; the called one is ringed in brass
+    for (let n = 0; n < POCKETS.length; n++) {
+      const called = S.call && S.call.pocket === n;
+      if (called) {
+        ctx.strokeStyle = rgba(PAL.brass, 0.22);
+        ctx.lineWidth = 0.016;
+        tracePocket(POCKETS[n]);
+        ctx.stroke();
       }
+      ctx.strokeStyle = called ? PAL.brass : rgba('#FFFFFF', 0.45);
+      ctx.lineWidth = called ? 0.006 : 0.003;
+      tracePocket(POCKETS[n]);
+      ctx.stroke();
     }
   }
   if (myShot && S.ballInHand && cue) {
@@ -1564,28 +1581,41 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     return;
   }
-  // A press on a ball may be a tap (call it) or the start of an aiming
-  // drag; decide on release, by distance and time.
-  const id = needsCall() ? hitBall(p, balls, true) : null;
-  S.tap = { id, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
+  // A press on a pocket (when the 8-ball needs one) or, on touch, on a ball
+  // (to name it) may be a tap or the start of an aiming drag; decide on
+  // release, by distance and time.
+  const pocket = needsPocket() ? hitPocket(p) : null;
+  const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true) : null;
+  S.tap = { id, pocket, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
   if (cue) {
     canvas.setPointerCapture(e.pointerId);
-    if (id === null) {
+    if (id === null && pocket === null) {
       S.aiming = true;
       setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
     }
   }
 });
 
-// callBall handles a tap on a ball while a call is needed.
-function callBall(id, pointerType) {
-  if (pointerType !== 'mouse') { S.hoverBall = id; S.hoverUntil = performance.now() + 1500; }
-  if (legalTargets().has(id)) {
-    S.call = { ball: id };
-    refreshShotPanel();
-  } else {
-    toast(`${ballName(id)[0].toUpperCase() + ballName(id).slice(1)} is not a legal target`, true);
-  }
+// hitPocket returns the index of the pocket under p, or null. The target is
+// the hole plus a margin, at least 24 px across on screen.
+function hitPocket(p) {
+  const { d, pk, hole } = nearestPocket(p);
+  return d <= Math.max(hole.r + 0.02, 24 / view.s) ? POCKETS.indexOf(pk) : null;
+}
+
+// callPocket names the pocket for the 8-ball.
+function callPocket(n) {
+  S.call = { pocket: n };
+  refreshShotPanel();
+}
+
+// pocketName describes pocket n as it appears on screen.
+function pocketName(n) {
+  const pk = POCKETS[n];
+  const sp = toScreen(pocketHole(pk));
+  const left = sp.x < view.cssW / 2, top = sp.y < view.cssH / 2;
+  if (pk.side) return view.rotated ? `${left ? 'left' : 'right'} side pocket` : `${top ? 'top' : 'bottom'} side pocket`;
+  return `${top ? 'top' : 'bottom'} ${left ? 'left' : 'right'} pocket`;
 }
 
 canvas.addEventListener('pointermove', (e) => {
@@ -1596,8 +1626,8 @@ canvas.addEventListener('pointermove', (e) => {
   if (!isMyShot()) return;
   if (S.dragCue) {
     S.dragCue = clampCue(p);
-  } else if (S.tap && S.tap.id !== null && !S.aiming) {
-    // moved off the ball: this is an aim drag, not a tap
+  } else if (S.tap && (S.tap.id !== null || S.tap.pocket !== null) && !S.aiming) {
+    // moved off the ball or pocket: this is an aim drag, not a tap
     if (Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) > 8) {
       S.tap = null;
       S.aiming = true;
@@ -1619,9 +1649,10 @@ function endPointer(e) {
   }
   const tap = S.tap;
   S.tap = null;
-  if (tap && tap.id !== null && e.type === 'pointerup' && isMyShot() &&
+  if (tap && e.type === 'pointerup' && isMyShot() &&
       performance.now() - tap.t < 250 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 8) {
-    callBall(tap.id, tap.type);
+    if (tap.pocket !== null) callPocket(tap.pocket);
+    else if (tap.id !== null) { S.hoverBall = tap.id; S.hoverUntil = performance.now() + 1500; }
   }
   S.aiming = false;
   if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
@@ -1644,7 +1675,7 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowDown': setPower(S.power - 0.05); break;
     case 'Escape': if (S.powerDrag) cancelPowerDrag(); else return; break;
     case ' ': case 'Enter': if (canShoot()) { shoot(); S.lastPower = S.power; renderPower(); } break;
-    case 's': case 'S': if (needsCall()) toggleSafety(); break;
+    case 's': case 'S': if (canCall()) toggleSafety(); break;
     default: return;
   }
   e.preventDefault();
@@ -2089,17 +2120,25 @@ function setPanelMsg(id, html) { $(id).innerHTML = html; }
 function refreshShotPanel() {
   const callEl = $('callText');
   let html, called = false;
-  if (!needsCall()) {
+  if (!canCall()) {
     html = 'Break: <span class="muted">no call needed' + (S.ballInHand ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
     called = true;
   } else if (S.call && S.call.safety) {
-    html = 'Safety: <span class="muted">no call needed, the turn passes after the shot.</span>';
+    html = 'Safety: <span class="muted">the turn passes after the shot.</span>';
     called = true;
-  } else if (S.call) {
-    html = `Called: <span class="call__value">${esc(ballName(S.call.ball))}</span>`;
+  } else if (eightOn()) {
+    if (S.call) {
+      html = `Called: <span class="call__value">${esc(pocketName(S.call.pocket))}</span>`;
+      called = true;
+    } else {
+      html = S.ballInHand ? 'Ball in hand: place the cue ball, then tap a pocket for the 8.' : 'On the 8-ball: tap the pocket you are going for.';
+    }
+  } else if (S.phase === 'open') {
+    html = 'Open table: <span class="muted">any ball but the 8 counts.</span>';
     called = true;
   } else {
-    html = S.ballInHand ? 'Ball in hand: drag the cue ball, then tap your ball.' : 'Tap the ball you are going for.';
+    html = `Your group: <span class="call__value">${esc(S.groups[S.seat])}</span> <span class="muted">· any that drops counts.</span>`;
+    called = true;
   }
   if (callEl.dataset.html !== html) {
     callEl.innerHTML = html;
@@ -2110,8 +2149,8 @@ function refreshShotPanel() {
     callEl.classList.add('call__line--enter');
   }
   callEl.classList.toggle('call__line--called', called);
-  $('clearCall').hidden = !(S.call && needsCall());
-  $('safety').hidden = !needsCall();
+  $('clearCall').hidden = !S.call;
+  $('safety').hidden = !canCall();
   $('safety').setAttribute('aria-pressed', String(!!(S.call && S.call.safety)));
   for (const b of document.querySelectorAll('#shotPanel .nudge')) {
     const d = Number(b.dataset.deg);

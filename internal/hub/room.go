@@ -473,7 +473,7 @@ func (r *room) tick() {
 		Shooter:      res.Shooter,
 		Pocketed:     pocketed,
 		Foul:         res.Foul,
-		CalledMade:   res.CalledMade,
+		Made:         res.Made,
 		IllegalBreak: res.IllegalBreak,
 		Phase:        st.Phase,
 		Turn:         st.Turn,

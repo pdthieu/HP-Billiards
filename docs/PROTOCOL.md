@@ -27,15 +27,18 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `join` | `roomCode`, `name`, `token?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
 | `aim` | `angle`, `power` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
-| `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is required on every shot except the break. `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
+| `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is optional; it is required, with a pocket, when the 8-ball is the shooter's legal target. `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
-`call` is `{"ball": 3}`, `{"ball": 3, "pocket": 4}` or `{"safety": true}`. Without `pocket` the called ball counts in whichever pocket it drops (the shipped client never sends a pocket).
+`call` is `{"pocket": 4}` or `{"safety": true}`. Object balls are not called (a house-rule relaxation of WPA 1.7): any ball of the shooter's group that drops counts, and on an open table the first object ball legally pocketed decides the groups. The 8-ball must go into the called pocket.
 
-- The called ball must be a legal target: on an open table any ball but the 8; once groups are assigned a ball of the shooter's group, or the 8-ball when that group is cleared. On an open table the 8-ball may be called once either group is completely pocketed.
+- The first ball the cue ball touches must still be a legal target: on an open table any ball but the 8; once groups are assigned a ball of the shooter's group, or the 8-ball when that group is cleared. On an open table the 8-ball becomes the target once either group is completely pocketed.
+- A shooter whose target is the 8-ball must send a `pocket` (0–5) unless the shot is a safety; otherwise the shot is refused with `bad_call`. A pocket sent on any other shot is ignored.
+- The shooter keeps the turn if a ball that counts for them drops on a shot without a foul. After a safety the turn always passes and whatever dropped stays down.
+- Pocketing the 8-ball wins only when it was the shooter's legal target, it dropped in the called pocket and the shot was not a foul and not a safety; in every other case it loses the game.
 - Balls slide, then roll: a ball keeps 5⁄7 of its speed once cloth friction has matched its spin to its velocity, and only then slows gently under rolling friction. Top/bottom spin sets the cue ball's initial roll, so follow and draw come out of the same model (a cue ball with draw slides on its back spin and comes back after a full hit; the longer the shot, the less draw is left). A cushion scrubs off the spin along its normal, which is why a rolling ball dies after a rail. Side spin kicks the cue ball sideways when it rebounds off a cushion (right english → toward the shooter's right) and halves at each cushion; it fades with the distance rolled. There is no squirt, swerve or throw.
 - The shooter keeps the turn only if the called ball drops (into the called pocket, if one was called) on a shot without a foul. After a safety the turn always passes.
 
@@ -99,7 +102,7 @@ Ends a shot. Positions are exact; clients snap to them.
   "shooter": 0,
   "pocketed": [3],
   "foul": "scratch",
-  "calledMade": true,
+  "made": true,
   "illegalBreak": false,
   "phase": "open",
   "turn": 1,
@@ -113,7 +116,7 @@ Ends a shot. Positions are exact; clients snap to them.
 
 - `pocketed`: ids pocketed by this shot, in order; includes `0` for a scratch.
 - `foul`: omitted for a legal shot, otherwise `scratch`, `no_contact`, `wrong_ball`, `kitchen` (cue ball in hand above the head string hit a ball there without crossing the head string first) or `no_rail` (nothing pocketed and no ball reached a rail after contact).
-- `calledMade`: the called ball dropped (into the called pocket, if one was called).
+- `made`: a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket.
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; a `decision` for the opponent follows.
 - `winner`: present only when the game is over.
 - After a scratch the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
@@ -146,7 +149,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `no_ball_in_hand` | `place_cue` without ball in hand. |
 | `bad_placement` | `place_cue` off the table, in a pocket, on another ball, or outside the kitchen while `kitchen` is true. |
 | `bad_input` | `angle` or `power` is not a finite number. |
-| `bad_call` | `shoot` without a legal `call` (illegal ball, or a `pocket` outside 0–5). |
+| `bad_call` | `shoot` at the 8-ball without a `pocket`, or a `pocket` outside 0–5. |
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
 
