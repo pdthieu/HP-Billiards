@@ -13,10 +13,18 @@ import (
 )
 
 func main() {
+	def := hub.DefaultOptions()
 	addr := flag.String("addr", ":8080", "listen address")
+	hold := flag.Duration("hold", def.ReconnectGrace, "how long a seat is held for a player who drops out while the other is connected")
+	abandon := flag.Duration("abandon", def.AbandonTimeout, "how long a game survives with both players gone")
+	idle := flag.Duration("idle", def.IdleTimeout, "how long an empty room is kept")
 	flag.Parse()
 
-	h := hub.New(hub.DefaultOptions())
+	opts := def
+	opts.ReconnectGrace = *hold
+	opts.AbandonTimeout = *abandon
+	opts.IdleTimeout = *idle
+	h := hub.New(opts)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/rooms", h.HandleCreateRoom)

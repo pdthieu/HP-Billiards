@@ -30,6 +30,7 @@ const (
 	evMessage
 	evLeave
 	evHoldExpired // the reconnect grace of a held seat ran out
+	evAbandon     // both players have been gone for the abandon timeout
 )
 
 // event is one input to a room's goroutine.
@@ -39,18 +40,17 @@ type event struct {
 	msg    protocol.ClientMessage
 	joined chan bool // evJoin: whether the client got a seat
 	seat   int       // evHoldExpired
-	gen    int       // evHoldExpired: the hold this timer belongs to
+	gen    int       // evHoldExpired, evAbandon: see room.timerGen
 }
 
 // seat is one of the two places at the table. Empty: name == "". Held for a
 // reconnect: name != "" and client == nil. Occupied: client != nil.
 type seat struct {
-	client  *ws.Client
-	id      string
-	token   string
-	name    string
-	ready   bool
-	holdGen int // identifies the current hold so stale timers are ignored
+	client *ws.Client
+	id     string
+	token  string
+	name   string
+	ready  bool
 }
 
 func (s *seat) empty() bool { return s.name == "" }
@@ -68,7 +68,9 @@ type room struct {
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
 	lastBreaker int
-	holds       int // hold generations handed out so far
+	// timerGen is bumped whenever the away-timers are re-armed; a timer
+	// event carrying an older generation is stale and ignored.
+	timerGen int
 }
 
 func newRoom(h *Hub, code string) *room {
@@ -176,6 +178,8 @@ func (r *room) handle(ev event) {
 		r.handleLeave(ev.client)
 	case evHoldExpired:
 		r.handleHoldExpired(ev.seat, ev.gen)
+	case evAbandon:
+		r.handleAbandon(ev.gen)
 	case evMessage:
 		if s := r.seatOf(ev.client); s >= 0 {
 			r.handleMessage(s, ev.msg)
@@ -192,8 +196,10 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 			old.Close(websocket.StatusPolicyViolation, "replaced by a new connection")
 		}
 		r.seats[s].client = c
-		r.seats[s].holdGen = 0 // any pending expiry is stale now
 		r.welcome(c, s)
+		if r.game.Rules.Phase != game.PhaseLobby {
+			r.rearmAwayTimers()
+		}
 		return true
 	}
 
@@ -247,8 +253,8 @@ func (r *room) welcome(c *ws.Client, s int) {
 }
 
 // handleLeave runs when a socket closes. In the lobby the seat is freed at
-// once; during a game it is held for ReconnectGrace so the player can come
-// back with their token.
+// once; during a game it is held so the player can come back with their
+// token (see rearmAwayTimers for how long).
 func (r *room) handleLeave(c *ws.Client) {
 	s := r.seatOf(c)
 	if s < 0 {
@@ -259,21 +265,59 @@ func (r *room) handleLeave(c *ws.Client) {
 		return
 	}
 	r.seats[s].client = nil
-	r.holds++
-	gen := r.holds
-	r.seats[s].holdGen = gen
-	time.AfterFunc(r.hub.opts.ReconnectGrace, func() {
-		r.post(event{kind: evHoldExpired, seat: s, gen: gen})
-	})
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	r.rearmAwayTimers()
+}
+
+// rearmAwayTimers restarts the timers that end a game whose players are
+// away, from who is connected right now. It runs after every connectivity
+// change during a game.
+//
+//   - One player connected: the other's seat is held for ReconnectGrace;
+//     someone is waiting, so the absence is short.
+//   - Nobody connected: nobody is waiting; the game survives AbandonTimeout
+//     and is then cancelled with both seats freed.
+//   - Both connected: nothing pending.
+//
+// Earlier timers are not stopped; they become stale through timerGen.
+func (r *room) rearmAwayTimers() {
+	r.timerGen++
+	gen := r.timerGen
+	switch r.connected() {
+	case 1:
+		for i := range r.seats {
+			if st := &r.seats[i]; st.client == nil && !st.empty() {
+				r.after(r.hub.opts.ReconnectGrace, event{kind: evHoldExpired, seat: i, gen: gen})
+			}
+		}
+	case 0:
+		r.after(r.hub.opts.AbandonTimeout, event{kind: evAbandon, gen: gen})
+	}
+}
+
+// after posts ev to the room once d has passed.
+func (r *room) after(d time.Duration, ev event) {
+	time.AfterFunc(d, func() { r.post(ev) })
 }
 
 func (r *room) handleHoldExpired(s, gen int) {
 	st := &r.seats[s]
-	if st.client != nil || st.empty() || st.holdGen != gen {
-		return // reconnected, already vacated, or a newer hold
+	if gen != r.timerGen || st.client != nil || st.empty() {
+		return // re-armed since, reconnected, or already vacated
 	}
 	r.vacate(s)
+}
+
+// handleAbandon cancels a game both players walked away from.
+func (r *room) handleAbandon(gen int) {
+	if gen != r.timerGen || r.game.Rules.Phase == game.PhaseLobby || r.connected() > 0 {
+		return
+	}
+	for i := range r.seats {
+		r.seats[i] = seat{}
+	}
+	r.stopTicker()
+	r.game = game.NewGame(r.hub.opts.Game)
 }
 
 // vacate empties a seat and, if a game was on, abandons it.

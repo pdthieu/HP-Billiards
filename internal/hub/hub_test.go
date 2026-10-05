@@ -25,7 +25,33 @@ func fastOptions() Options {
 	opts.Game.RollingDecel = 6
 	opts.Breaker = func() int { return 0 }
 	opts.ReconnectGrace = 500 * time.Millisecond
+	opts.AbandonTimeout = 1500 * time.Millisecond
 	return opts
+}
+
+// startGameWithTokens is startGame that also returns both seat tokens.
+func startGameWithTokens(t *testing.T, srv *httptest.Server) (c0, c1 *testClient, code string, tokens [2]string) {
+	t.Helper()
+	code = createRoom(t, srv)
+	c0, c1 = dial(t, srv), dial(t, srv)
+	w0, _ := c0.join(code, "Ann")
+	w1, _ := c1.join(code, "Bob")
+	c0.expect("player")
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	for _, c := range []*testClient{c0, c1} {
+		c.waitFor("room_state")
+	}
+	return c0, c1, code, [2]string{w0["token"].(string), w1["token"].(string)}
+}
+
+// rejoin dials and reclaims a seat with its token, returning the room_state.
+func rejoin(t *testing.T, srv *httptest.Server, code, token string) (*testClient, msg, msg) {
+	t.Helper()
+	c := dial(t, srv)
+	c.send(msg{"type": "join", "roomCode": code, "token": token})
+	w := c.expect("welcome")
+	return c, w, c.expect("room_state")
 }
 
 func newServer(t *testing.T, opts Options) (*Hub, *httptest.Server) {
@@ -491,6 +517,65 @@ func TestReconnectWithToken(t *testing.T) {
 	}
 	if !bytes.Equal(settled[0], settled[1]) {
 		t.Fatalf("settled payloads differ after a reconnect:\n%s\n%s", settled[0], settled[1])
+	}
+}
+
+func TestBothGoneKeepsTheGameUntilTheAbandonTimeout(t *testing.T) {
+	opts := fastOptions()
+	_, srv := newServer(t, opts)
+	c0, c1, code, tokens := startGameWithTokens(t, srv)
+
+	c0.conn.Close(websocket.StatusNormalClosure, "")
+	c1.expect("player")
+	c1.conn.Close(websocket.StatusNormalClosure, "")
+
+	// Well past the single-player grace, the game is still there for a
+	// returning player because nobody was waiting.
+	time.Sleep(2 * opts.ReconnectGrace)
+	c1b, w, st := rejoin(t, srv, code, tokens[1])
+	if w["seat"] != 1.0 || st["phase"] != "breaking" {
+		t.Fatalf("after both left for %v: welcome %v, state %v", 2*opts.ReconnectGrace, w, st)
+	}
+	if p := players(st)[0].(msg); p["name"] != "Ann" || p["connected"] != false {
+		t.Errorf("seat 0 should still be held: %v", p)
+	}
+
+	// Now one player is waiting again: the other's grace starts from here.
+	start := time.Now()
+	if p := c1b.expect("player"); p["seat"] != 0.0 || p["name"] != "" {
+		t.Errorf("expected seat 0 to expire, got %v", p)
+	}
+	if since := time.Since(start); since < opts.ReconnectGrace/2 {
+		t.Errorf("seat 0 expired after %v, want about %v after the reconnect", since, opts.ReconnectGrace)
+	}
+	if st := c1b.expect("room_state"); st["phase"] != "lobby" {
+		t.Errorf("state after the hold expired: %v", st)
+	}
+}
+
+func TestBothGoneAbandonsAfterTheTimeout(t *testing.T) {
+	opts := fastOptions()
+	h, srv := newServer(t, opts)
+	c0, c1, code, tokens := startGameWithTokens(t, srv)
+
+	c0.conn.Close(websocket.StatusNormalClosure, "")
+	c1.expect("player")
+	c1.conn.Close(websocket.StatusNormalClosure, "")
+	time.Sleep(opts.AbandonTimeout + opts.ReconnectGrace)
+
+	// The room still exists (idle timeout is long) but the game is gone and
+	// the old token no longer names a seat: this is a plain join.
+	if h.RoomCount() != 1 {
+		t.Fatalf("RoomCount = %d, want 1", h.RoomCount())
+	}
+	_, w, st := rejoin(t, srv, code, tokens[1])
+	if w["seat"] != 0.0 || w["token"] == tokens[1] || st["phase"] != "lobby" {
+		t.Errorf("after the abandon timeout: welcome %v, state %v", w, st)
+	}
+	for i, p := range players(st) {
+		if p.(msg)["ready"] != false || (i == 1 && p.(msg)["name"] != "") {
+			t.Errorf("seat %d after abandon = %v", i, p)
+		}
 	}
 }
 

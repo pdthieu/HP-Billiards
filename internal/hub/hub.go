@@ -31,8 +31,11 @@ type Options struct {
 	// is deleted.
 	IdleTimeout time.Duration
 	// ReconnectGrace is how long a seat is held for a player who drops out
-	// of a game in progress.
+	// of a game in progress while the other player is still connected.
 	ReconnectGrace time.Duration
+	// AbandonTimeout is how long a game survives with both players gone
+	// before it is cancelled and both seats are freed.
+	AbandonTimeout time.Duration
 	// WS tunes the connections (keepalive pings).
 	WS ws.Options
 	// Breaker picks the seat that breaks a room's first rack. Later racks
@@ -46,6 +49,7 @@ func DefaultOptions() Options {
 		Game:           game.DefaultConfig(),
 		IdleTimeout:    10 * time.Minute,
 		ReconnectGrace: 60 * time.Second,
+		AbandonTimeout: 5 * time.Minute,
 		WS:             ws.DefaultOptions(),
 	}
 }
@@ -70,6 +74,9 @@ func New(opts Options) *Hub {
 	}
 	if opts.ReconnectGrace <= 0 {
 		opts.ReconnectGrace = def.ReconnectGrace
+	}
+	if opts.AbandonTimeout <= 0 {
+		opts.AbandonTimeout = def.AbandonTimeout
 	}
 	if opts.WS == (ws.Options{}) {
 		opts.WS = def.WS

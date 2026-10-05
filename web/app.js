@@ -917,6 +917,20 @@ function showLanding(error) {
   $('disconnected').hidden = true;
   $('landingError').hidden = !error;
   $('landingError').textContent = error || '';
+  // An invite link opens straight onto "join this room": the name is the
+  // only thing to fill in.
+  const code = $('code').value.trim().toUpperCase();
+  const invited = /^[A-Z]{5}$/.test(code) && !!new URLSearchParams(location.search).get('room');
+  $('landingTitle').textContent = invited ? `Join room ${code}` : '8-ball';
+  $('landingLead').textContent = invited
+    ? 'Enter your name to take the free seat.'
+    : 'Two players, one table. WPA 8-ball rules: call your shots.';
+  $('createRow').hidden = invited;
+  $('code').hidden = invited;
+  $('join').classList.toggle('primary', invited);
+  $('join').textContent = invited ? 'Join' : 'Join by code';
+  $('switchMode').hidden = !invited;
+  setTimeout(() => $('name').focus(), 0);
 }
 
 function renderSeat(seat) {
@@ -1093,26 +1107,38 @@ $('copyLink').onclick = async () => {
   }
 };
 
+// landingName returns the typed name, or null (with an error shown) if it
+// is empty.
 function landingName() {
-  return $('name').value.trim() || 'Player';
+  const name = $('name').value.trim();
+  if (!name) {
+    showLanding('Please enter your name first.');
+    $('name').focus();
+    return null;
+  }
+  return name;
 }
 $('create').onclick = async () => {
+  const name = landingName();
+  if (!name) return;
   $('landingError').hidden = true;
   try {
     const res = await fetch('/api/rooms', { method: 'POST' });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const { roomCode } = await res.json();
     $('code').value = roomCode;
-    connectAndJoin(roomCode, landingName());
+    connectAndJoin(roomCode, name);
   } catch (err) {
     showLanding(`Could not create a room: ${err.message}`);
   }
 };
 $('landingForm').onsubmit = (e) => {
   e.preventDefault();
+  const name = landingName();
+  if (!name) return;
   const code = $('code').value.trim().toUpperCase();
   if (code.length !== 5) { showLanding('Room codes have 5 letters.'); return; }
-  connectAndJoin(code, landingName());
+  connectAndJoin(code, name);
 };
 $('rejoin').onclick = () => { $('disconnected').hidden = true; connectAndJoin(S.roomCode, S.name, S.token); };
 $('leave').onclick = () => {
@@ -1141,6 +1167,8 @@ $('leave').onclick = () => {
     showDisconnected(`Rejoining room ${room}…`, true);
     S.seat = 0; // pretend we are seated so a failed join is handled as a lost connection
     S.token = saved.token;
-    connectAndJoin(room, saved.name || landingName(), saved.token);
+    connectAndJoin(room, saved.name || 'Player', saved.token);
+  } else {
+    showLanding();
   }
 })();

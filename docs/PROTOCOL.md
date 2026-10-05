@@ -151,9 +151,12 @@ Ends a shot. Positions are exact; clients snap to them.
 ## Reconnecting
 
 - When a socket closes **in the lobby**, its seat is freed immediately.
-- When a socket closes **during a game** (any phase but `lobby`), the seat is held for 60 seconds: the other player gets `player` with `connected` false and the name kept, the game state is untouched, and a third player is refused with `room_full`. A shot in progress keeps running; the absent player simply misses the snapshots and `settled`.
+- When a socket closes **during a game** (any phase but `lobby`), the seat is held: the other player gets `player` with `connected` false and the name kept, the game state is untouched, and a third player is refused with `room_full`. A shot in progress keeps running; the absent player simply misses the snapshots and `settled`.
+- How long a seat is held depends on who is still there, and is re-evaluated at every connect or disconnect during the game:
+  - **One player connected**: the absent player's seat is held for 60 seconds (`-hold`), counted from the moment they became the only absent one.
+  - **Nobody connected**: nobody is waiting, so the game survives 5 minutes (`-abandon`). If one player returns in that time the game continues and the other's 60 seconds start then. Otherwise the game is cancelled and both seats are freed; a later `join` with an old token is a plain join into the lobby (if the room still exists).
 - `join` with the seat's `token` reclaims it at any time while it is held, **and also while its old socket is still open** (a phone that changed networks reconnects long before the dead socket is noticed). The old socket is closed with status 1008 and reason `replaced by a new connection`. The reconnecting client gets `welcome` (same `seat`, `playerId` and `token`; `name` in the join is ignored) and a fresh `room_state`; the other player gets `player` with `connected` true.
-- If the hold expires the seat is emptied (`player` with `name` `""`) and the game is abandoned (`room_state` with phase `lobby`).
+- If a single hold expires the seat is emptied (`player` with `name` `""`) and the game is abandoned (`room_state` with phase `lobby`).
 - A `join` whose `token` matches nothing is treated as a plain join.
 
 ## Keepalive
@@ -163,5 +166,5 @@ Ends a shot. Positions are exact; clients snap to them.
 
 ## Lifetime
 
-- A room with no connected player for 10 minutes is deleted. Held seats do not count as connected.
+- A room with no connected player for 10 minutes (`-idle`) is deleted. Held seats do not count as connected.
 - Each client has an outbound queue of 32 messages. When it is full, the oldest queued `snapshot` or `aim` is discarded to make room (the next one supersedes it). If none can be discarded the client is disconnected with status 1008 and reason `outbound buffer full`.

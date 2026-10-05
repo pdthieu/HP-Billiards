@@ -74,17 +74,18 @@
 
 <div id="landing" class="overlay">
   <form id="landingForm" class="card">
-    <h1>8-ball</h1>
-    <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Player"></label>
-    <div class="row">
+    <h1 id="landingTitle">8-ball</h1>
+    <p id="landingLead" class="muted">Two players, one table. WPA 8-ball rules: call your shots.</p>
+    <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Enter your name" required></label>
+    <div class="row" id="createRow">
       <button type="button" id="create" class="primary">Create a room</button>
     </div>
-    <div class="row">
+    <div class="row" id="joinRow">
       <input id="code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" spellcheck="false">
       <button type="submit" id="join">Join</button>
     </div>
     <p id="landingError" class="error" hidden></p>
-    <p class="muted">Two players, one table. WPA 8-ball rules: call your shots.</p>
+    <p id="switchMode" class="muted" hidden><a href="/">Create your own room instead</a></p>
   </form>
 </div>
 
