@@ -412,6 +412,7 @@ function onRoomState(msg) {
   S.dragCue = null;
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
   if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
+  if (msg.phase === 'breaking' && prevPhase !== 'breaking') resetOrientations(); // a fresh rack
   if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
     setStatus('The game was abandoned.', 'foul');
     const gone = S.players[1 - S.seat];
@@ -1124,6 +1125,7 @@ function draw() {
 
   // shadows, then bodies
   const lift = cue && S.dragCue ? liftAmount(now) : 0;
+  for (const [id, p] of balls) rollBall(id, p);
   for (const [id, p] of balls) drawBallShadow(p, id === 0 ? lift : 0);
   for (const [id, p] of balls) drawBall(id, p, id === 0 && lift ? { scale: 1 + 0.05 * lift } : undefined);
   drawFx('balls', now);
@@ -1324,6 +1326,140 @@ function ring(p, r, color, width) {
 }
 
 // drawBallShadow: the contact shadow, offset toward the screen's bottom-right.
+// --- rolling balls ----------------------------------------------------------
+// Each ball carries a rotation matrix (table ← ball, row-major, its columns
+// are the ball's own axes) in a right-handed table frame: x right, y down, z
+// into the slate, so the viewer sees the z < 0 hemisphere. Rolling over Δp
+// without slipping turns the ball by |Δp| / R about the horizontal axis
+// (Δy, −Δx) / |Δp|. The markings (stripe band, number discs, the cue ball's
+// six dots) are rasterised from that orientation into a small cached canvas;
+// the numbers are drawn on whichever disc faces up, foreshortened.
+const orient = new Map();   // id → Float64Array(9)
+const lastPos = new Map();  // id → {x, y} seen last frame
+const texCache = new Map(); // id → {canvas, n, dirty}
+const BALL_RGB = Object.fromEntries(Object.entries(BALL_COLORS).map(([k, v]) => [k, hexToRgb(v)]));
+const IVORY_RGB = hexToRgb(PAL.ivory), DISC_RGB = hexToRgb(PAL.disc), DOT_RGB = hexToRgb('#B4322A');
+function hexToRgb(h) { return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]; }
+
+// restingOrientation lays a freshly racked ball like the mock-ups: a number
+// facing up, the stripe band horizontal on screen.
+function restingOrientation(id) {
+  if (id <= 8) {
+    // disc at the ball's −z faces the viewer; its "up" (−y) points up the
+    // screen, which in the rotated view is table +x
+    return view.rotated ? Float64Array.of(0, -1, 0, 1, 0, 0, 0, 0, 1) : Float64Array.of(1, 0, 0, 0, 1, 0, 0, 0, 1);
+  }
+  // discs at ±x (one faces the viewer), band around z, up is −z
+  return view.rotated ? Float64Array.of(0, 0, -1, 0, -1, 0, -1, 0, 0) : Float64Array.of(0, -1, 0, 0, 0, 1, -1, 0, 0);
+}
+function orientationOf(id) {
+  let m = orient.get(id);
+  if (!m) { m = restingOrientation(id); orient.set(id, m); }
+  return m;
+}
+// rollBall advances the ball's orientation by its movement since last frame.
+function rollBall(id, p) {
+  const last = lastPos.get(id);
+  lastPos.set(id, { x: p.x, y: p.y });
+  if (!last || (id === 0 && S.dragCue)) return;
+  const dx = p.x - last.x, dy = p.y - last.y;
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-6 || d > 0.3) return; // still, or moved by hand / respotted
+  const m = orientationOf(id);
+  const ax = dy / d, ay = -dx / d; // axis (horizontal)
+  const th = d / R, c = Math.cos(th), sn = Math.sin(th), t = 1 - c;
+  // Rodrigues with az = 0
+  const r00 = c + ax * ax * t, r01 = ax * ay * t, r02 = ay * sn;
+  const r10 = ax * ay * t, r11 = c + ay * ay * t, r12 = -ax * sn;
+  const r20 = -ay * sn, r21 = ax * sn, r22 = c;
+  const o = Float64Array.from(m);
+  for (let j = 0; j < 3; j++) {
+    const a = o[j], b = o[3 + j], e = o[6 + j];
+    m[j] = r00 * a + r01 * b + r02 * e;
+    m[3 + j] = r10 * a + r11 * b + r12 * e;
+    m[6 + j] = r20 * a + r21 * b + r22 * e;
+  }
+  const tex = texCache.get(id);
+  if (tex) tex.dirty = true;
+}
+function resetOrientations() { orient.clear(); lastPos.clear(); texCache.clear(); }
+
+// ballTexture returns the ball's markings for its current orientation as an
+// n × n canvas (n device pixels across the ball), rasterised at 2× when small.
+function ballTexture(id, n) {
+  let tex = texCache.get(id);
+  if (tex && !tex.dirty && tex.n === n) return tex.canvas;
+  if (!tex) { tex = { canvas: document.createElement('canvas'), n: 0, dirty: true }; texCache.set(id, tex); }
+  const ss = n < 64 ? 2 : 1;
+  const N = n * ss;
+  tex.canvas.width = tex.canvas.height = N;
+  tex.n = n;
+  tex.dirty = false;
+  const m = orientationOf(id);
+  const img = tex.canvas.getContext('2d').createImageData(N, N);
+  const px = img.data;
+  const base = id === 0 ? IVORY_RGB : id > 8 ? IVORY_RGB : BALL_RGB[id];
+  const band = id > 8 ? BALL_RGB[id - 8] : null;
+  const cosDisc = 0.877, cosDot = 0.985; // disc r 0.48 R, dot r 0.17 R
+  for (let j = 0; j < N; j++) {
+    const ny = ((j + 0.5) / N) * 2 - 1;
+    for (let i = 0; i < N; i++) {
+      const nx = ((i + 0.5) / N) * 2 - 1;
+      const rr = nx * nx + ny * ny;
+      const k = (j * N + i) * 4;
+      if (rr > 1) { px[k + 3] = 0; continue; }
+      const nz = -Math.sqrt(1 - rr);
+      // ball-local coordinates: dot with each column
+      const lx = nx * m[0] + ny * m[3] + nz * m[6];
+      const ly = nx * m[1] + ny * m[4] + nz * m[7];
+      const lz = nx * m[2] + ny * m[5] + nz * m[8];
+      let col = base;
+      if (id === 0) {
+        if (Math.abs(lx) > cosDot || Math.abs(ly) > cosDot || Math.abs(lz) > cosDot) col = DOT_RGB;
+      } else if (band) {
+        if (Math.abs(lz) <= 0.58) col = band;
+        if (Math.abs(lx) > cosDisc) col = DISC_RGB;
+      } else if (Math.abs(lz) > cosDisc) {
+        col = DISC_RGB;
+      }
+      px[k] = col[0]; px[k + 1] = col[1]; px[k + 2] = col[2]; px[k + 3] = 255;
+    }
+  }
+  tex.canvas.getContext('2d').putImageData(img, 0, 0);
+  return tex.canvas;
+}
+
+// drawBallNumbers writes the number on each disc that faces the viewer, in
+// the table frame (the context is translated to the ball's centre).
+function drawBallNumbers(id) {
+  const m = orientationOf(id);
+  const stripe = id > 8;
+  const discs = stripe ? [[1, 0, 0], [-1, 0, 0]] : [[0, 0, 1], [0, 0, -1]];
+  const up = stripe ? [0, 0, -1] : [0, -1, 0];
+  const world = (l) => [m[0] * l[0] + m[1] * l[1] + m[2] * l[2], m[3] * l[0] + m[4] * l[1] + m[5] * l[2], m[6] * l[0] + m[7] * l[1] + m[8] * l[2]];
+  const u = world(up);
+  ctx.fillStyle = PAL.ink;
+  ctx.font = `700 ${R * 0.62}px "Source Sans 3", system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  for (const dl of discs) {
+    const d = world(dl);
+    const f = -d[2]; // foreshortening: 1 facing the viewer, 0 edge on
+    if (f < 0.35) continue;
+    const phi = Math.atan2(d[1], d[0]);
+    const c = Math.cos(phi), sn = Math.sin(phi);
+    // the disc's up vector, with the foreshortening along the tilt undone
+    const ux = (u[0] * c + u[1] * sn) / f, uy = -u[0] * sn + u[1] * c;
+    ctx.save();
+    ctx.translate(d[0] * R, d[1] * R);
+    ctx.rotate(phi);
+    ctx.scale(f, 1);
+    ctx.rotate(Math.atan2(uy, ux) + Math.PI / 2);
+    ctx.fillText(String(id), 0, R * 0.22);
+    ctx.restore();
+  }
+}
+
 function drawBallShadow(p, lift) {
   const k = 1 + 0.8 * lift;
   const o = screenOffset(0.006 * k, 0.009 * k);
@@ -1338,43 +1474,29 @@ function drawBallShadow(p, lift) {
   ctx.fill();
 }
 
-// drawBall draws one ball in a screen-aligned frame, so the stripe band,
-// number and lighting read the same way whether or not the table is rotated.
+// drawBall draws one ball: its markings in the table frame, as the ball
+// has rolled, then the lighting in a screen-aligned frame so it reads the
+// same way whether or not the table is rotated.
 function drawBall(id, p, opts) {
   const scale = opts && opts.scale ? opts.scale : 1;
   const alpha = opts && opts.alpha !== undefined ? opts.alpha : 1;
   const colour = id === 0 ? PAL.ivory : BALL_COLORS[id > 8 ? id - 8 : id];
-  const stripe = id > 8;
   const diamPx = 2 * R * view.s * scale;
   ctx.save();
   ctx.translate(p.x, p.y);
-  if (view.rotated) ctx.rotate(Math.PI / 2);
   if (scale !== 1) ctx.scale(scale, scale);
   ctx.globalAlpha = alpha;
-  // body
+  // body: a plain fill under the markings so the raster's edge never shows
   ctx.beginPath();
   ctx.arc(0, 0, R, 0, Math.PI * 2);
-  ctx.fillStyle = stripe ? PAL.ivory : colour;
+  ctx.fillStyle = id > 8 ? PAL.ivory : colour;
   ctx.fill();
-  if (stripe) {
-    ctx.save();
-    ctx.clip();
-    ctx.fillStyle = colour;
-    ctx.fillRect(-R, -R * 0.58, 2 * R, R * 1.16);
-    ctx.restore();
-  }
-  // number disc
-  if (id !== 0 && diamPx >= 15) {
-    ctx.fillStyle = PAL.disc;
-    ctx.beginPath();
-    ctx.arc(0, 0, R * 0.48, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = PAL.ink;
-    ctx.font = `700 ${R * 0.62}px "Source Sans 3", system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText(String(id), 0, R * 0.22);
-  }
+  ctx.save();
+  ctx.clip();
+  ctx.drawImage(ballTexture(id, Math.max(8, Math.ceil(diamPx * view.dpr))), -R, -R, 2 * R, 2 * R);
+  ctx.restore();
+  if (id !== 0 && diamPx >= 15) drawBallNumbers(id);
+  if (view.rotated) ctx.rotate(Math.PI / 2);
   // shade
   const g = ctx.createRadialGradient(-0.24 * R, -0.32 * R, 0, -0.24 * R, -0.32 * R, 1.56 * R);
   g.addColorStop(0, rgba('#FFFFFF', 0.5));

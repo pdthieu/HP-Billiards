@@ -93,7 +93,10 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 
 - The table is drawn in meters on a canvas scaled to fit; on a portrait
   screen it is rotated 90° (`view.rotated`), and pointer coordinates are mapped
-  back through the same transform. Ball numbers and labels are counter-rotated.
+  back through the same transform. Labels are counter-rotated; ball markings
+  are not: each ball keeps an orientation that rolls with its movement (see
+  `rollBall`), its stripe, discs and numbers are drawn from that, and only the
+  lighting is screen-aligned.
   Cushions and pocket jaws are drawn from the same WPA dimensions the server
   simulates (constants at the top of `app.js`; keep them in sync with
   `game.DefaultConfig`).

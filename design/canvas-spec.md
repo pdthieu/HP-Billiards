@@ -22,7 +22,7 @@ geometry as `buildTable()`.
 7. Head string and spots
 8. Aim guide (under the balls)
 9. All ball shadows
-10. Balls: body → stripe band → disc → number → shade → specular → edge
+10. Balls: body → markings (rolled: stripe band, discs, cue-ball dots) → numbers → shade → specular → edge
 11. Cue stick (its shadow first) — above the balls
 12. Rings: legal targets, called ball, ball in hand
 13. Hover label
@@ -47,12 +47,12 @@ geometry as `buildTable()`.
 | Colours | 1 `#F2C12E` · 2 `#1F4FB4` · 3 `#CC3326` · 4 `#5B3592` · 5 `#EC7623` · 6 `#128A4C` · 7 `#7E2232` · 8 `#111316` · ivory `#F4EFE2` | Replaces `BALL_COLORS` |
 | Shadow | circle at screen (+6, +9), r 1.08 R; radial `#000` α .5 0 · α .25 .7 · α 0 1 | Lifted cue ball: offset × 1.8, r × 1.05 |
 | Body | circle r R; stripes and cue ball ivory | |
-| Stripe band | clipped to the ball, ±0.58 R about the centre, horizontal **on screen** | Was ±0.55 R |
-| Number disc | r 0.48 R `#FAF7EF`; text 700, 0.62 R, `#111316`, baseline +0.22 R | Counter-rotate text in the rotated view |
+| Stripe band | the zone within ±0.58 R of the ball's own equator; horizontal **on screen** when racked, then it rolls with the ball (orientation integrated from the ball's movement, |Δp| / R about the horizontal axis) | Was ±0.55 R. Markings are rasterised per ball into a cached canvas; the cue ball carries six 0.17 R `#B4322A` dots |
+| Number disc | r 0.48 R `#FAF7EF` at the ball's poles (solids) or on the band (stripes); text 700, 0.62 R, `#111316`, baseline +0.22 R, drawn on every disc that faces up more than 0.35, foreshortened with the disc | The number turns with the ball |
 | Shade | radial in the ball's box, centre (.38, .34), r .78: `#FFF` α .5 0 · α .1 .3 · `#000` α 0 .72 · α .4 1 | Rotated: centre (.66, .38) |
 | Specular | ellipse at screen (−.38 R, −.42 R), 0.2 R × 0.14 R, `#FFF` α .7 | |
 | Edge | circle r R − .75, 1.5 mm `#000` α .35 | |
-| Level of detail | diameter on screen < 15 px: skip disc and number; < 9 px: skip specular | Phone portrait draws balls at ~10 px |
+| Level of detail | diameter on screen < 15 px: skip the numbers; < 9 px: skip specular. Markings are rasterised at 2× below 64 device px | Phone portrait draws balls at ~10 px |
 
 ## Cue stick
 
