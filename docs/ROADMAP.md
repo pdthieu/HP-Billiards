@@ -1,6 +1,6 @@
 # Roadmap
 
-Kế hoạch phát triển sau Phase 5. Mỗi giai đoạn phát hành được độc lập, có test
+Kế hoạch phát triển sau Phase 5 và bản thiết kế lại giao diện (10/2026). Mỗi giai đoạn phát hành được độc lập, có test
 và không phá protocol cũ (thêm field, không đổi nghĩa field). Thứ tự dưới đây
 ưu tiên việc rẻ mà người chơi thấy ngay, rồi mới tới hạ tầng và tính năng lớn.
 
@@ -57,11 +57,11 @@ Mục tiêu: người chưa biết luật đánh được cú đầu trong 1 ph�
    `vi` và `en`, chọn theo `navigator.language`, có nút đổi trong header.
    Các thông báo từ server (`error.message`) giữ tiếng Anh, client dịch theo
    `error.code`.
-2. **Hướng dẫn lần đầu**: overlay 3 bước (đặt bi, gọi bi, kéo lực) hiện ở
+2. **Hướng dẫn lần đầu**: overlay 3 bước (đặt bi, ngắm, kéo lực) hiện ở
    lượt đầu tiên của người mới, nhớ đã xem trong `localStorage`. Nút "?" mở
-   lại và mở trang luật rút gọn (break lỗi, ball in hand, bi 8).
+   lại và mở trang luật rút gọn (break lỗi, ball in hand, bi 8 phải chỉ lỗ).
 3. **Gợi ý theo ngữ cảnh**: dòng trạng thái đã có; bổ sung mũi tên chỉ vào
-   thanh lực khi đã gọi bi mà chưa đánh sau 5 giây.
+   thanh lực khi tới lượt mà chưa đánh sau 5 giây.
 4. **Chia sẻ**: nút mời dùng `navigator.share` nếu có, nếu không thì copy;
    thêm mã QR của link phòng (vẽ bằng canvas, không cần thư viện ngoài hoặc
    dùng một thư viện nhỏ nhúng sẵn).
@@ -122,10 +122,10 @@ gây `error` từ server (test chạy 100 ván bot với bot).
 
 ## Phase 12 · Độ sâu gameplay (L)
 
-1. **Lăn tự nhiên**: thêm pha trượt rồi lăn cho bi (ma sát trượt ≈ 0.2,
-   lăn ≈ 0.01), bi trắng lăn xa sẽ đi tiếp sau cú chạm đầy thay vì dừng.
-   Giữ `Shoot` cũ tương thích; cập nhật test năng lượng và test stun thành
-   test theo khoảng cách. Cần chơi thử nhiều để chỉnh `MaxCueSpeed`.
+1. ~~**Lăn tự nhiên**~~ Đã làm (10/2026): bi trượt rồi lăn, follow/draw sinh
+   ra từ xoáy ban đầu, băng có ma sát ở mũi và hệ số nảy giảm khi đánh mạnh
+   (theo Han 2005 và pooltool). Còn lại: chơi thử để chỉnh
+   `CushionRestitutionFast` và `RollingFriction`.
 2. **Xoáy đầy đủ hơn**: squirt nhỏ theo xoáy ngang (1–2°), throw lên bi mục
    tiêu; cho người chơi bật/tắt "vật lý nâng cao" theo phòng.
 3. **Xem lại cú vừa đánh**: client giữ snapshot của cú gần nhất, nút phát
