@@ -224,7 +224,7 @@ func TestBallAimedAtPocketIsPocketed(t *testing.T) {
 		{"bottom-middle", Vec{w / 2, h}, Vec{w / 2, h - 0.4}},
 		{"bottom-right", Vec{w, h}, Vec{w - diag, h - diag}},
 	}
-	for _, tc := range tests {
+	for i, tc := range tests { // listed in pocket-index order
 		t.Run(tc.name, func(t *testing.T) {
 			tbl := emptyTable(cfg)
 			dir := tc.pocket.Sub(tc.start)
@@ -236,6 +236,11 @@ func TestBallAimedAtPocketIsPocketed(t *testing.T) {
 			}
 			if n := countEvents(tbl.Events, BallPocketed, 3); n != 1 {
 				t.Errorf("got %d BallPocketed{3} events, want 1 (events: %v)", n, tbl.Events)
+			}
+			for _, e := range tbl.Events {
+				if e.Kind == BallPocketed && e.Pocket != i {
+					t.Errorf("pocket index = %d, want %d", e.Pocket, i)
+				}
 			}
 			if len(tbl.Snapshot()) != 0 {
 				t.Errorf("pocketed ball still in snapshot: %v", tbl.Snapshot())
@@ -300,7 +305,7 @@ func TestMaxSpeedDoesNotTunnel(t *testing.T) {
 func TestShootClampsPowerAndResetsEvents(t *testing.T) {
 	cfg := DefaultConfig()
 	tbl := NewTable(cfg)
-	tbl.Events = append(tbl.Events, Event{CushionHit, 3})
+	tbl.Events = append(tbl.Events, Event{Kind: CushionHit, Ball: 3})
 	tbl.Shoot(math.Pi/2, 7)
 	if len(tbl.Events) != 0 {
 		t.Errorf("Shoot kept old events: %v", tbl.Events)
@@ -367,5 +372,53 @@ func TestBreakIsDeterministic(t *testing.T) {
 	}
 	if a, b := run(), run(); a != b {
 		t.Error("two identical breaks produced different results")
+	}
+}
+
+func TestHeadStringEvents(t *testing.T) {
+	cfg := DefaultConfig()
+	mid := cfg.TableHeight / 2
+	tests := []struct {
+		name          string
+		cue, object   Vec
+		wantInKitchen bool // the contacted ball is above the head string
+		wantCrossed   bool // the cue ball crossed the head string before contact
+	}{
+		{"object ball in the kitchen", Vec{0.2, mid}, Vec{0.45, mid}, true, false},
+		{"object ball past the head string", Vec{0.2, mid}, Vec{1.2, mid}, false, true},
+		{"cue ball starting on the head string", cfg.HeadSpot(), Vec{1.2, mid}, false, true},
+		{"cue ball starting past the head string", Vec{0.9, mid}, Vec{1.2, mid}, false, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tbl := emptyTable(cfg)
+			tbl.place(CueBall, tc.cue, Vec{})
+			tbl.place(4, tc.object, Vec{})
+			tbl.Shoot(0, 0.6)
+			runUntilSettled(t, tbl, 60)
+
+			crossed, crossedAt, contactAt := 0, -1, -1
+			for i, e := range tbl.Events {
+				switch e.Kind {
+				case HeadStringCrossed:
+					crossed++
+					crossedAt = i
+				case FirstContact:
+					contactAt = i
+					if e.InKitchen != tc.wantInKitchen {
+						t.Errorf("FirstContact.InKitchen = %v, want %v", e.InKitchen, tc.wantInKitchen)
+					}
+				}
+			}
+			if contactAt < 0 {
+				t.Fatalf("no first contact (events: %v)", tbl.Events)
+			}
+			if crossed > 1 {
+				t.Errorf("got %d HeadStringCrossed events, want at most 1", crossed)
+			}
+			if got := crossedAt >= 0 && crossedAt < contactAt; got != tc.wantCrossed {
+				t.Errorf("crossed before contact = %v, want %v (events: %v)", got, tc.wantCrossed, tbl.Events)
+			}
+		})
 	}
 }

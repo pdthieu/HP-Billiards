@@ -35,6 +35,7 @@ func main() {
 
 	firstContact := "none"
 	cushions := 0
+	railed := map[int]bool{} // object balls driven to a rail
 	var pocketed []int
 	for _, e := range table.Events {
 		switch e.Kind {
@@ -42,11 +43,15 @@ func main() {
 			firstContact = ballName(e.Ball)
 		case game.CushionHit:
 			cushions++
+			if e.Ball != game.CueBall {
+				railed[e.Ball] = true
+			}
 		case game.BallPocketed:
 			pocketed = append(pocketed, e.Ball)
 		}
 	}
 	fmt.Printf("first contact: %s, cushion hits: %d, pocketed: %v\n", firstContact, cushions, pocketed)
+	fmt.Printf("object balls driven to a rail: %d (a break that pockets nothing needs 4)\n", len(railed))
 
 	fmt.Println("final positions (m):")
 	for _, b := range table.Balls {

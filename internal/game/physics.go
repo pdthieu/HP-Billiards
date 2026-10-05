@@ -25,15 +25,16 @@ type Table struct {
 	// Events accumulates what happened since the last Shoot (or ClearEvents).
 	Events []Event
 
-	pockets      [6]pocket
+	pockets      [NumPockets]pocket
 	firstContact bool // the cue ball has already touched an object ball this shot
+	crossedHead  bool // the cue ball has already crossed the head string this shot
 }
 
 // NewTable returns a racked table ready for the break.
 func NewTable(cfg Config) *Table {
 	t := &Table{Cfg: cfg}
 	w, h := cfg.TableWidth, cfg.TableHeight
-	t.pockets = [6]pocket{
+	t.pockets = [NumPockets]pocket{ // order defines the pocket index used in events and calls
 		{Vec{0, 0}, cfg.CornerCaptureRadius},
 		{Vec{w / 2, 0}, cfg.SideCaptureRadius},
 		{Vec{w, 0}, cfg.CornerCaptureRadius},
@@ -71,10 +72,11 @@ func (t *Table) Rack() {
 }
 
 // ClearEvents starts a new shot: it drops recorded events and re-arms
-// first-contact detection.
+// first-contact and head-string detection.
 func (t *Table) ClearEvents() {
 	t.Events = t.Events[:0]
 	t.firstContact = false
+	t.crossedHead = false
 }
 
 // Shoot strikes the cue ball. angle is in radians (0 = +x, y down), power is
@@ -134,7 +136,12 @@ func (t *Table) integrate(dt float64) {
 			continue
 		}
 		b.Vel = b.Vel.Scale(next / speed)
+		prevX := b.Pos.X
 		b.Pos = b.Pos.Add(b.Vel.Scale(dt))
+		if head := t.Cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
+			t.crossedHead = true
+			t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
+		}
 	}
 }
 
@@ -144,11 +151,11 @@ func (t *Table) capturePockets() {
 		if b.Pocketed {
 			continue
 		}
-		for _, p := range t.pockets {
+		for n, p := range t.pockets {
 			if b.Pos.Dist(p.pos) <= p.radius {
 				b.Pocketed = true
 				b.Vel = Vec{}
-				t.Events = append(t.Events, Event{BallPocketed, b.ID})
+				t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 				break
 			}
 		}
@@ -193,7 +200,7 @@ func (t *Table) collideCushions() {
 			}
 		}
 		if hit {
-			t.Events = append(t.Events, Event{CushionHit, b.ID})
+			t.Events = append(t.Events, Event{Kind: CushionHit, Ball: b.ID})
 		}
 	}
 }
@@ -237,8 +244,62 @@ func (t *Table) collideBalls() {
 			// i < j, so the cue ball can only be a.
 			if i == CueBall && !t.firstContact {
 				t.firstContact = true
-				t.Events = append(t.Events, Event{FirstContact, b.ID})
+				t.Events = append(t.Events, Event{
+					Kind:      FirstContact,
+					Ball:      b.ID,
+					InKitchen: b.Pos.X < t.Cfg.HeadString(),
+				})
 			}
 		}
 	}
+}
+
+// canPlace reports whether ball id could rest at pos: inside the rails, clear
+// of every pocket's capture zone and not overlapping another ball.
+func (t *Table) canPlace(id int, pos Vec) bool {
+	r := t.Cfg.BallRadius
+	if !(pos.X >= r && pos.X <= t.Cfg.TableWidth-r && pos.Y >= r && pos.Y <= t.Cfg.TableHeight-r) {
+		return false // also rejects NaN
+	}
+	for _, p := range t.pockets {
+		if pos.Dist(p.pos) <= p.radius {
+			return false
+		}
+	}
+	for i := range t.Balls {
+		b := &t.Balls[i]
+		if b.ID != id && !b.Pocketed && b.Pos.Dist(pos) < 2*r {
+			return false
+		}
+	}
+	return true
+}
+
+// PlaceCue moves the cue ball to pos (ball-in-hand), putting it back in play
+// if it was pocketed. It reports false and changes nothing if pos is illegal.
+func (t *Table) PlaceCue(pos Vec) bool {
+	if !t.canPlace(CueBall, pos) {
+		return false
+	}
+	t.Balls[CueBall] = Ball{ID: CueBall, Pos: pos}
+	return true
+}
+
+// Spot puts ball id back in play at rest on want. If that point is occupied
+// the ball goes on the nearest free point of the long axis through want,
+// searching first in direction dir (+1 toward the foot rail, -1 toward the
+// head rail) and only then the other way.
+func (t *Table) Spot(id int, want Vec, dir float64) {
+	step := t.Cfg.BallRadius / 8
+	pos := want
+search:
+	for _, d := range [2]float64{dir, -dir} {
+		for off := 0.0; off <= t.Cfg.TableWidth; off += step {
+			if p := (Vec{want.X + d*off, want.Y}); t.canPlace(id, p) {
+				pos = p
+				break search
+			}
+		}
+	}
+	t.Balls[id] = Ball{ID: id, Pos: pos}
 }

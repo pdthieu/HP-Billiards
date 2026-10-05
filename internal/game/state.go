@@ -2,7 +2,10 @@
 // no knowledge of networking.
 package game
 
-import "math"
+import (
+	"errors"
+	"math"
+)
 
 const (
 	// NumBalls is the cue ball plus object balls 1–15.
@@ -11,6 +14,9 @@ const (
 	CueBall = 0
 	// EightBall is the id of the 8-ball.
 	EightBall = 8
+	// NumPockets is the number of pockets. Pocket indices run 0–5: top-left,
+	// top-middle, top-right, bottom-left, bottom-middle, bottom-right.
+	NumPockets = 6
 )
 
 // Vec is a 2D vector in meters (or meters/second for velocities).
@@ -44,6 +50,9 @@ const (
 	FirstContact
 	// CushionHit: Ball bounced off a rail.
 	CushionHit
+	// HeadStringCrossed: the cue ball rolled out of the kitchen, across the
+	// head string. Recorded at most once per shot.
+	HeadStringCrossed
 )
 
 func (k EventKind) String() string {
@@ -54,6 +63,8 @@ func (k EventKind) String() string {
 		return "FirstContact"
 	case CushionHit:
 		return "CushionHit"
+	case HeadStringCrossed:
+		return "HeadStringCrossed"
 	}
 	return "Unknown"
 }
@@ -62,6 +73,11 @@ func (k EventKind) String() string {
 type Event struct {
 	Kind EventKind
 	Ball int
+	// Pocket is the pocket index of a BallPocketed event.
+	Pocket int
+	// InKitchen is set on FirstContact when the contacted ball was above the
+	// head string (a ball resting on the head string is not).
+	InKitchen bool
 }
 
 // BallState is the JSON-serializable position of a ball that is on the table.
@@ -120,8 +136,176 @@ func DefaultConfig() Config {
 	}
 }
 
-// HeadSpot is where the cue ball starts.
-func (c Config) HeadSpot() Vec { return Vec{c.TableWidth / 4, c.TableHeight / 2} }
+// HeadString is the x coordinate of the head string. The kitchen, the area
+// "above the head string", is x <= HeadString(): unlike on a real table a cue
+// ball centered exactly on the line counts as inside.
+func (c Config) HeadString() float64 { return c.TableWidth / 4 }
+
+// HeadSpot is where the cue ball starts, in the middle of the head string.
+func (c Config) HeadSpot() Vec { return Vec{c.HeadString(), c.TableHeight / 2} }
 
 // FootSpot is where the apex ball of the rack sits.
 func (c Config) FootSpot() Vec { return Vec{c.TableWidth * 3 / 4, c.TableHeight / 2} }
+
+// State is the JSON-serializable full state of a game.
+type State struct {
+	Balls      []BallState `json:"balls"`
+	Phase      Phase       `json:"phase"`
+	Turn       int         `json:"turn"`
+	Groups     [2]Group    `json:"groups"`     // by seat; "" until assigned
+	BallInHand bool        `json:"ballInHand"` // applies to Turn
+	Kitchen    bool        `json:"kitchen"`    // ball in hand is limited to above the head string
+	Decision   *Decision   `json:"decision"`   // pending post-break choice, or null
+	Winner     int         `json:"winner"`     // seat, or -1
+}
+
+// Errors returned by Game and Rules when an action is not allowed.
+var (
+	ErrWrongPhase   = errors.New("the game is not in play")
+	ErrBallsMoving  = errors.New("balls are still moving")
+	ErrNotYourTurn  = errors.New("not your turn")
+	ErrNoBallInHand = errors.New("you do not have ball in hand")
+	ErrBadPlacement = errors.New("the cue ball cannot be placed there")
+	ErrBadInput     = errors.New("invalid angle or power")
+	ErrBadCall      = errors.New("you must call a legal ball and a pocket, or a safety")
+	ErrNoDecision   = errors.New("there is no decision to make")
+	ErrBadOption    = errors.New("that option is not available")
+)
+
+// Game ties the physics table to the rules. Like Table it must be driven by a
+// single goroutine.
+type Game struct {
+	Table *Table
+	Rules *Rules
+
+	shooting bool // a shot is in progress and has not been resolved yet
+	shot     Shot // the shot in progress
+	// cueInKitchen: the cue ball sits where kitchen ball-in-hand put it, so
+	// the next shot is "played from above the head string" (WPA 3.11).
+	cueInKitchen bool
+}
+
+// NewGame returns a game waiting in the lobby phase.
+func NewGame(cfg Config) *Game {
+	return &Game{Table: NewTable(cfg), Rules: NewRules()}
+}
+
+// Start racks the balls and begins a new game with breaker to shoot first.
+func (g *Game) Start(breaker int) {
+	g.Rules.Start(breaker)
+	g.rack()
+}
+
+func (g *Game) rack() {
+	g.Table.Rack()
+	g.shooting = false
+	g.cueInKitchen = true
+}
+
+// Moving reports whether a shot is in progress, i.e. Tick has work to do.
+func (g *Game) Moving() bool { return g.shooting }
+
+func (g *Game) checkTurn(seat int) error {
+	switch {
+	case !g.Rules.InPlay():
+		return ErrWrongPhase
+	case g.shooting:
+		return ErrBallsMoving
+	case seat != g.Rules.Turn:
+		return ErrNotYourTurn
+	}
+	return nil
+}
+
+// Shoot strikes the cue ball for seat. power is clamped to [0,1]. call is the
+// called ball and pocket (or safety); it is ignored on the break.
+func (g *Game) Shoot(seat int, angle, power float64, call Call) error {
+	if err := g.checkTurn(seat); err != nil {
+		return err
+	}
+	if math.IsNaN(angle) || math.IsInf(angle, 0) || math.IsNaN(power) {
+		return ErrBadInput
+	}
+	if err := g.Rules.CheckCall(call); err != nil {
+		return err
+	}
+	g.shot = Shot{Call: call, FromKitchen: g.Rules.BallInHand && g.Rules.Kitchen && g.cueInKitchen}
+	g.Table.Shoot(angle, power)
+	g.shooting = true
+	return nil
+}
+
+// PlaceCue moves the cue ball for seat, who must have ball in hand. While the
+// kitchen restriction applies, pos must be above the head string.
+func (g *Game) PlaceCue(seat int, pos Vec) error {
+	if err := g.checkTurn(seat); err != nil {
+		return err
+	}
+	if !g.Rules.BallInHand {
+		return ErrNoBallInHand
+	}
+	if g.Rules.Kitchen && !(pos.X <= g.Table.Cfg.HeadString()) {
+		return ErrBadPlacement
+	}
+	if !g.Table.PlaceCue(pos) {
+		return ErrBadPlacement
+	}
+	g.cueInKitchen = g.Rules.Kitchen
+	return nil
+}
+
+// Choose answers the pending post-break decision for seat.
+func (g *Game) Choose(seat int, opt Option) error {
+	res, err := g.Rules.Choose(seat, opt)
+	if err != nil {
+		return err
+	}
+	switch {
+	case res.Rerack:
+		g.rack()
+	case res.RespotEight:
+		g.Table.Spot(EightBall, g.Table.Cfg.FootSpot(), 1)
+	}
+	return nil
+}
+
+// Tick advances a shot in progress by one server tick (Cfg.Substeps physics
+// steps). When the table settles it resolves the shot with the rules and
+// returns the result; otherwise it returns nil.
+func (g *Game) Tick() *ShotResult {
+	if !g.shooting {
+		return nil
+	}
+	for i := 0; i < g.Table.Cfg.Substeps && !g.Table.Settled(); i++ {
+		g.Table.Step(g.Table.Cfg.Dt)
+	}
+	if !g.Table.Settled() {
+		return nil
+	}
+	g.shooting = false
+	g.shot.Events = g.Table.Events
+	res := g.Rules.Resolve(g.shot)
+	g.cueInKitchen = false
+	if res.CuePocketed && g.Rules.Phase != PhaseGameOver {
+		// The incoming player has ball in hand; the head spot is only a
+		// default. It is inside the kitchen, which every scratch on the
+		// break leads to.
+		g.Table.Spot(CueBall, g.Table.Cfg.HeadSpot(), -1)
+		g.cueInKitchen = true
+	}
+	return &res
+}
+
+// State returns the full serializable state.
+func (g *Game) State() State {
+	return State{
+		Balls:      g.Table.Snapshot(),
+		Phase:      g.Rules.Phase,
+		Turn:       g.Rules.Turn,
+		Groups:     g.Rules.Groups,
+		BallInHand: g.Rules.BallInHand,
+		Kitchen:    g.Rules.Kitchen,
+		Decision:   g.Rules.Decision,
+		Winner:     g.Rules.Winner,
+	}
+}
