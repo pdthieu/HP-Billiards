@@ -48,10 +48,10 @@ function buildTable() {
   const d = 1 / Math.SQRT2;
   const pockets = [
     { x: a / 2, y: a / 2, ax: -d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
-    { x: W / 2, y: 0, ax: 0, ay: -1, half: s, shelf: SIDE_SHELF },
+    { x: W / 2, y: 0, ax: 0, ay: -1, half: s, shelf: SIDE_SHELF, side: true },
     { x: W - a / 2, y: a / 2, ax: d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
     { x: a / 2, y: H - a / 2, ax: -d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
-    { x: W / 2, y: H, ax: 0, ay: 1, half: s, shelf: SIDE_SHELF },
+    { x: W / 2, y: H, ax: 0, ay: 1, half: s, shelf: SIDE_SHELF, side: true },
     { x: W - a / 2, y: H - a / 2, ax: d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
   ];
   // jaw direction from a nose: the cushion direction (away from the pocket)
@@ -943,22 +943,50 @@ const FX = {
     const e = EASE.out(p);
     ctx.strokeStyle = rgba(PAL.flash, 0.5 * (1 - e));
     ctx.lineWidth = 0.006;
-    ctx.beginPath();
-    ctx.arc(f.at.x, f.at.y, f.r, 0, Math.PI * 2);
+    tracePocket(f.pk);
     ctx.stroke();
   },
 };
 
+// pocketHole is the dark drop of a pocket as a circle: where the drop
+// animation sinks a ball, where the rim flashes and what a pocket call rings.
+// A corner pocket is a round hole whose near edge is the shelf (a ball drops
+// once its centre is past it, so the felt shows up to 6 mm before); a side
+// pocket has no shelf to speak of: straight jaws for 20 mm from the noses,
+// then a half circle, see tracePocket.
 function pocketHole(pk) {
-  const depth = pk.shelf + 0.012;
-  return { x: pk.x + pk.ax * depth, y: pk.y + pk.ay * depth, r: pk.half + 0.008 };
+  if (pk.side) {
+    const d = 0.02;
+    const r = pk.half + d * Math.tan(SIDE_JAW - Math.PI / 2);
+    return { x: pk.x + pk.ax * d, y: pk.y + pk.ay * d, r };
+  }
+  const r = pk.half;
+  const front = Math.max(0, pk.shelf - 0.006);
+  return { x: pk.x + pk.ax * (front + r), y: pk.y + pk.ay * (front + r), r };
 }
-function nearestPocketHole(p) {
+// tracePocket begins a path outlining the hole of pocket pk and returns it.
+function tracePocket(pk) {
+  const h = pocketHole(pk);
+  ctx.beginPath();
+  if (!pk.side) {
+    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+    return h;
+  }
+  const px = -pk.ay, py = pk.ax; // across the mouth
+  const a1 = Math.atan2(py, px);
+  ctx.moveTo(pk.x + px * pk.half, pk.y + py * pk.half);
+  ctx.lineTo(h.x + px * h.r, h.y + py * h.r);
+  ctx.arc(h.x, h.y, h.r, a1, a1 - Math.PI, true);
+  ctx.lineTo(pk.x - px * pk.half, pk.y - py * pk.half);
+  ctx.closePath();
+  return h;
+}
+function nearestPocket(p) {
   let best = null;
   for (const pk of POCKETS) {
     const h = pocketHole(pk);
     const d = Math.hypot(h.x - p.x, h.y - p.y);
-    if (!best || d < best.d) best = { d, ...h };
+    if (!best || d < best.d) best = { d, pk, hole: h };
   }
   return best;
 }
@@ -968,9 +996,9 @@ function queueDrop(id, from, t) {
   S.pendingDrops.push({ id, from, t });
 }
 function startDrop(id, from) {
-  const hole = nearestPocketHole(from);
+  const { pk, hole } = nearestPocket(from);
   addFx({ type: 'drop', layer: 'balls', dur: 180, id, from, to: hole });
-  addFx({ type: 'rim', layer: 'top', dur: 120, at: hole, r: hole.r });
+  addFx({ type: 'rim', layer: 'top', dur: 120, pk });
 }
 
 // --- geometry helpers -------------------------------------------------------
@@ -1188,14 +1216,12 @@ function drawTableStatic() {
   ctx.fillRect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
   // pocket holes
   for (const pk of POCKETS) {
-    const h = pocketHole(pk);
+    const h = tracePocket(pk);
     const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r);
     g.addColorStop(0, '#000000');
     g.addColorStop(0.78, '#06080A');
     g.addColorStop(1, '#1C1610');
     ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = rgba('#000000', 0.6);
     ctx.lineWidth = 0.004;

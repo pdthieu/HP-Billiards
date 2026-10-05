@@ -34,7 +34,7 @@ geometry as `buildTable()`.
 |---|---|---|
 | Rail | `roundRect(-100, -100, 2740, 1470, 60)`, linear top→bottom `#6A4428` 0 · `#4C2F1B` .5 · `#341F10` 1 | Outer edge 3 mm `#000` α .55. Inner lip `roundRect(-52, -52, 2644, 1374, 10)` stroke 3 mm `#FFE2B4` α .12 |
 | Felt | `rect(-45, -45, 2630, 1360)`, radial at (1270, 635) r 1480: `#36745C` 0 · `#2C614C` .55 · `#1B3F31` 1 | The radial falloff is the vignette; no overlay |
-| Pocket hole | circle at `mouth − axis × (shelf + 12)`, r = half-mouth + 8; radial `#000` 0 · `#06080A` .78 · `#1C1610` 1 | Rim stroke 4 mm `#000` α .6 (corner r 65.9, side r 72.3) |
+| Pocket hole | corner: circle r = half-mouth (57.9) whose near edge sits at `shelf − 6` past the mouth line, i.e. centre at `mouth + axis × (shelf − 6 + r)`; side: straight jaws for 20 mm from the noses, then a half circle (r = half-mouth + 20·tan 14° = 69.3) centred 20 mm behind the rail line. Radial `#000` 0 · `#06080A` .78 · `#1C1610` 1 | Rim stroke 4 mm `#000` α .6. The felt shows up to the hole: on a corner that is the shelf a ball can sit on; a side pocket starts at the nose line |
 | Cushion | existing nose/jaw polygons, fill `#1F4B3A` | Nose line 2.5 mm `#FFF` α .10 from → to |
 | Sights | rhombus 22 × 14 (long axis along the rail), `#E6D7B4` α .9 | Long rails x = W/8 × {1,2,3,5,6,7}, y = −72.5 / H + 72.5. Short rails y = H/4 × {1,2,3}, x = −72.5 / W + 72.5 |
 | Head string | x = 635, 2 mm `#FFF` α .14 | During kitchen placement: 3 mm `#71C99D` α .75, dash 16 / 10 |
