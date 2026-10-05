@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · touch behaviours · phone</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 08). -->
+<div class="pool phone game mk-frame mk-still">
+  <header class="hdr" style="padding: 0 8px 0 12px; gap: 6px">
+    <div class="hdr__room" style="gap: 0"><span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span><button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button></div>
+    <div class="hdr__match" style="gap: 6px">
+      <div class="seat seat--compact seat--turn"><span class="seat__name">Ann</span><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span></div>
+      <div class="score score--compact"><div class="score__nums"><span>2</span><span class="score__sep">–</span><span>1</span></div><span class="score__race">to 5</span></div>
+      <div class="seat seat--compact"><span class="seat__name">Bob</span></div>
+    </div>
+  </header>
+  <div class="stage" style="flex: none; height: 499px">
+    <img class="stage__table" src="../../img/aim-P.svg" alt="" style="height: 487px; width: 261px">
+    <div class="pbar pbar--drag" style="height: 487px">
+      <div class="pbar__track"><div class="pbar__cancel"></div><div class="pbar__fill" style="height: 40%; background: linear-gradient(180deg, var(--power-low) 0px, var(--power-mid) 268px, var(--power-high) 487px)"></div></div>
+    </div>
+  </div>
+
+  <span class="touch" style="left: 124px; top: 242px"></span>
+  <span class="callout" style="left: 150px; top: 196px"><span class="callout__n">1</span>Tap a ball to call it</span>
+
+  <span class="touch-path" style="left: 96px; top: 470px; width: 74px; transform: rotate(-112deg)"></span>
+  <span class="touch" style="left: 96px; top: 470px"></span>
+  <span class="callout" style="left: 52px; top: 506px"><span class="callout__n">2</span>Drag on the felt to aim</span>
+
+  <span class="touch" style="left: 331px; top: 302px"></span>
+  <span class="touch-path" style="left: 331px; top: 302px; width: 90px; transform: rotate(90deg)"></span>
+  <span class="callout" style="right: 70px; top: 360px"><span class="callout__n">3</span>Pull down, release to shoot</span>
+
+  <div class="status">Your turn. Called: the 3.</div>
+  <div class="slot">
+    <section class="panel" style="justify-content: center; gap: 8px">
+      <p class="mk-cap">Touch rules</p>
+      <ul style="display: flex; flex-direction: column; gap: 4px; font-size: 13px; line-height: 18px; color: var(--text-muted)">
+        <li>Tap (under 8 px, 250 ms) calls; anything longer aims.</li>
+        <li>Aim follows the finger’s angle around the cue ball, so the finger never hides the line.</li>
+        <li>Ball in hand: drag the cue ball itself (see Portrait).</li>
+      </ul>
+    </section>
+  </div>
+  <div class="trays"><div class="tray"><span class="tray__label">Hints show once per device; “Got it” dismisses</span></div></div>
+</div>
+</body>
+</html>

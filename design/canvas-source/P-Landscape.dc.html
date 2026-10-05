@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · phone landscape</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool phone phone--land game mk-frame">
+  <header class="hdr" style="gap: 10px">
+    <div class="hdr__room" style="gap: 4px">
+      <span class="hdr__code" style="font-size: 16px; letter-spacing: .12em">QXRTA</span>
+      <button class="icon-btn" type="button" aria-label="Share invite link" style="width: 36px; height: 36px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button>
+    </div>
+    <div class="hdr__match" style="gap: 8px">
+      <div class="seat seat--turn" style="height: 30px; padding: 0 10px; gap: 6px">
+        <span class="seat__name" style="font-size: 14px">Ann</span>
+        <div class="seat__dots"><span class="ball" style="--c: var(--ball-1); --size: 8px"></span><span class="ball ball--gone" style="--c: var(--ball-2); --size: 8px"></span><span class="ball" style="--c: var(--ball-3); --size: 8px"></span><span class="ball" style="--c: var(--ball-4); --size: 8px"></span><span class="ball ball--gone" style="--c: var(--ball-5); --size: 8px"></span><span class="ball" style="--c: var(--ball-6); --size: 8px"></span><span class="ball ball--gone" style="--c: var(--ball-7); --size: 8px"></span></div>
+      </div>
+      <span style="font: 600 20px/24px var(--font-display); font-variant-numeric: tabular-nums">2 <span class="muted">–</span> 1</span>
+      <div class="seat" style="height: 30px; padding: 0 10px; gap: 6px">
+        <span class="seat__name" style="font-size: 14px">Bob</span>
+        <div class="seat__dots"><span class="ball ball--stripe" style="--c: var(--ball-1); --size: 8px"></span><span class="ball ball--stripe" style="--c: var(--ball-2); --size: 8px"></span><span class="ball ball--gone" style="--c: var(--ball-3); --size: 8px"></span><span class="ball ball--stripe" style="--c: var(--ball-4); --size: 8px"></span><span class="ball ball--gone" style="--c: var(--ball-5); --size: 8px"></span><span class="ball ball--stripe" style="--c: var(--ball-6); --size: 8px"></span><span class="ball ball--stripe" style="--c: var(--ball-7); --size: 8px"></span></div>
+      </div>
+    </div>
+  </header>
+
+  <div style="flex: 1; min-height: 0; display: flex; gap: 12px; align-items: stretch">
+    <div style="position: relative; flex: 1; display: flex; align-items: center; justify-content: center">
+      <img src="./img/aim-Ls.svg" alt="Table, landscape, numbers dropped at this size" style="display: block; width: 450px; height: 241px">
+      <div class="status" style="position: absolute; left: 0; right: 0; bottom: 6px; min-height: 0; padding: 0"><span class="status__pill" style="background: rgba(13, 18, 24, .88); font-size: 14px; line-height: 20px; padding: 4px 12px">Bob missed the 12. Your turn.</span></div>
+    </div>
+
+    <aside class="panel" aria-label="Your shot" style="width: 220px; height: auto; flex: none; flex-direction: column; align-items: stretch; justify-content: center; gap: 12px; padding: 12px">
+      <div style="display: flex; align-items: center; gap: 6px">
+        <p class="call__line call__line--called" style="flex: 1; min-width: 0; font-size: 15px">Called: <span class="call__value">the 3</span></p>
+        <button class="toggle" type="button" aria-pressed="false" style="padding: 0 10px"><span class="toggle__box"></span>Safety</button>
+      </div>
+      <div class="angle" style="gap: 6px">
+        <div style="display: flex; align-items: baseline; justify-content: space-between"><span class="field__label">Angle</span><output class="angle__readout" style="min-width: 0; font-size: 20px; line-height: 24px">321.7°</output></div>
+        <div class="angle__row" style="justify-content: space-between"><button class="nudge" type="button" aria-label="Rotate minus 5 degrees">−5</button><button class="nudge" type="button" aria-label="Rotate minus 0.25 degrees">−.25</button><button class="nudge" type="button" aria-label="Rotate plus 0.25 degrees">+.25</button><button class="nudge" type="button" aria-label="Rotate plus 5 degrees">+5</button></div>
+      </div>
+      <div class="spin" style="gap: 12px">
+        <div class="spin__pad" role="slider" tabindex="0" aria-label="Spin" aria-valuetext="left and top" style="--pad: 64px"><span class="spin__cross"></span><span class="spin__limit"></span><span class="spin__dot" style="left: 36%; top: 30%"></span></div>
+        <div class="spin__meta" style="gap: 2px"><span class="spin__label" style="font-size: 14px">left + top</span><button class="btn btn--quiet btn--small" type="button" style="padding: 0 6px; margin-left: -6px">Reset</button></div>
+      </div>
+    </aside>
+
+    <div class="pbar" style="height: auto">
+      <div class="pbar__track" role="slider" tabindex="0" aria-label="Shot power" aria-valuenow="0">
+        <div class="pbar__last" style="height: 35%"></div>
+        <div class="pbar__cancel" aria-hidden="true"></div>
+        <div class="pbar__label" aria-hidden="true"><span>Pull</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":844,"height":390}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

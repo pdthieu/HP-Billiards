@@ -3,17 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="color-scheme" content="dark">
 <title>Pool</title>
+<link rel="preload" href="/fonts/SourceSans3-400-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/SourceSans3-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/tokens.css">
+<link rel="stylesheet" href="/fonts.css">
+<link rel="stylesheet" href="/components.css">
 <link rel="stylesheet" href="/style.css">
 </head>
-<body>
+<body class="pool pool-app">
 
 <header id="top">
   <div class="room">
     <span class="label">Room</span>
     <span id="roomCode" class="code">—</span>
-    <button id="copyLink" class="small" title="Copy an invite link">Copy link</button>
+    <button id="copyLink" class="btn btn--secondary btn--small" title="Copy an invite link">Copy link</button>
   </div>
   <div class="seats">
     <div class="seat" id="seat0"></div>
@@ -36,30 +40,30 @@
   <div id="controls">
     <section id="lobbyPanel" hidden>
       <p id="lobbyText">Waiting for an opponent. Share the room link.</p>
-      <button id="ready" class="primary">I'm ready</button>
+      <button id="ready" class="btn btn--primary btn--lg">I'm ready</button>
     </section>
 
     <section id="shotPanel" hidden>
       <div class="row">
         <span id="callText" class="call"></span>
-        <button id="safety" class="small">Safety</button>
-        <button id="clearCall" class="small" hidden>Clear</button>
+        <button id="safety" class="toggle" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+        <button id="clearCall" class="btn btn--quiet btn--small" hidden>Clear</button>
       </div>
       <div class="row">
         <div class="row">
           <span class="label">Angle</span>
-          <button class="small nudge" data-deg="-5" title="−5°">«</button>
-          <button class="small nudge" data-deg="-0.25" title="−0.25°">‹</button>
+          <button class="nudge" data-deg="-5" title="−5°">«</button>
+          <button class="nudge" data-deg="-0.25" title="−0.25°">‹</button>
           <span id="angleText" class="mono">0.0°</span>
-          <button class="small nudge" data-deg="0.25" title="+0.25°">›</button>
-          <button class="small nudge" data-deg="5" title="+5°">»</button>
+          <button class="nudge" data-deg="0.25" title="+0.25°">›</button>
+          <button class="nudge" data-deg="5" title="+5°">»</button>
         </div>
         <div id="spinPad" title="Where the cue tip strikes the cue ball">
           <canvas id="spinCanvas" width="72" height="72"></canvas>
           <div class="spinText">
             <span class="label">Spin</span>
             <span id="spinText" class="muted">centre</span>
-            <button id="spinReset" class="small">Reset</button>
+            <button id="spinReset" class="btn btn--quiet btn--small">Reset</button>
           </div>
         </div>
       </div>
@@ -72,7 +76,7 @@
 
     <section id="overPanel" hidden>
       <p id="overText"></p>
-      <button id="rematch" class="primary">Rematch</button>
+      <button id="rematch" class="btn btn--primary btn--lg">Rematch</button>
       <span id="rematchNote" class="muted"></span>
     </section>
   </div>
@@ -89,7 +93,7 @@
     <p id="landingLead" class="muted">Two players, one table. WPA 8-ball rules: call your shots.</p>
     <label>Your name <input id="name" maxlength="20" autocomplete="nickname" placeholder="Enter your name" required></label>
     <div class="row" id="createRow">
-      <button type="button" id="create" class="primary">Create a room</button>
+      <button type="button" id="create" class="btn btn--primary btn--lg btn--block">Create a room</button>
       <span id="createNote" class="muted" hidden></span>
     </div>
     <div id="roomsBox">
@@ -98,7 +102,7 @@
     </div>
     <div class="row" id="joinRow">
       <input id="code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" spellcheck="false">
-      <button type="submit" id="join">Join</button>
+      <button type="submit" id="join" class="btn btn--secondary">Join</button>
     </div>
     <p id="landingError" class="error" hidden></p>
     <p id="switchMode" class="muted" hidden><a href="/">Create your own room instead</a></p>
@@ -118,8 +122,8 @@
     <h2>Connection lost</h2>
     <p id="disconnectedText" class="muted"></p>
     <div class="row">
-      <button id="rejoin" class="primary">Rejoin</button>
-      <button id="leave">Leave</button>
+      <button id="rejoin" class="btn btn--primary">Rejoin</button>
+      <button id="leave" class="btn btn--quiet">Leave</button>
     </div>
   </div>
 </div>

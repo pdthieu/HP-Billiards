@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · power bar states</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool mk-still" style="width: 1320px; height: 780px; padding: 40px 48px; display: flex; flex-direction: column; gap: 28px">
+  <div style="display: flex; justify-content: space-between; align-items: baseline; gap: 24px">
+    <h1 style="font: 600 28px/34px var(--font-ui)">Power bar</h1>
+    <p class="muted" style="font-size: 14px; line-height: 20px; max-width: 760px">Press anywhere on the bar, pull down to set power, release to shoot. Releasing in the top 8% cancels. 40 px wide on desktop and phone (hit area 48 px), full table height. Fill colour is the ramp at the fill’s leading edge: --power-low → --power-mid at 55% → --power-high.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 8px; flex: 1">
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar" style="height: 520px">
+        <div class="pbar__track" role="slider" tabindex="0" aria-label="Shot power" aria-valuenow="0">
+          <div class="pbar__last" style="height: 35%"></div>
+          <div class="pbar__cancel" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></div>
+          <div class="pbar__label" aria-hidden="true"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg><span>Pull</span></div>
+        </div>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">1 · Idle</p><p class="caption">Faint fill = last shot’s power (35%). Cursor ns-resize; chevrons say “down”.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--drag" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"></div>
+          <div class="pbar__fill" style="height: 30%; background: linear-gradient(180deg, var(--power-low) 0px, var(--power-mid) 286px, var(--power-high) 520px)"></div>
+        </div>
+        <span class="pbar__readout" style="top: 30%">30%</span>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">2 · Pulling, soft</p><p class="caption">Fill follows the pointer with no easing. Readout pill tracks the fill edge, left of the bar.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--drag" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"></div>
+          <div class="pbar__fill" style="height: 65%; background: linear-gradient(180deg, var(--power-low) 0px, var(--power-mid) 286px, var(--power-high) 520px)"></div>
+        </div>
+        <span class="pbar__readout" style="top: 65%">65%</span>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">3 · Pulling, medium</p><p class="caption">Amber around half power.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--drag" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"></div>
+          <div class="pbar__fill" style="height: 94%; background: linear-gradient(180deg, var(--power-low) 0px, var(--power-mid) 286px, var(--power-high) 520px)"></div>
+        </div>
+        <span class="pbar__readout" style="top: 94%">94%</span>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">4 · Pulling, hard</p><p class="caption">Red at the bottom. 100% sits 8 px above the track end so the thumb can reach it.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--drag pbar--cancel" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></div>
+          <div class="pbar__fill" style="height: 5%; background: var(--surface-3)"></div>
+        </div>
+        <span class="pbar__readout" style="top: 4%; color: #E48A80">Cancel</span>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">5 · In the cancel zone</p><p class="caption">Top 8% turns foul-red; the readout says “Cancel”; releasing here shoots nothing.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--flash" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"></div>
+          <div class="pbar__fill" style="height: 65%; opacity: .5; background: linear-gradient(180deg, var(--power-low) 0px, var(--power-mid) 286px, var(--power-high) 520px)"></div>
+        </div>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">6 · Released: shoot</p><p class="caption">150 ms: brass ring flashes, fill collapses to the top (ease-in). Becomes the faint “last” fill.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__cancel"></div>
+          <div class="pbar__last" style="height: 35%"></div>
+          <div class="pbar__fill" style="height: 12%; opacity: .6; background: var(--text-muted)"></div>
+          <div class="pbar__label"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg><span>Pull</span></div>
+        </div>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">7 · Cancelled</p><p class="caption">Fill springs back up in 250 ms (--ease-spring), greyed. No shot is sent.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 14px; position: relative">
+      <div class="pbar" style="height: 520px">
+        <div class="pbar__track">
+          <div class="pbar__last" style="height: 35%"></div>
+          <div class="pbar__cancel"></div>
+          <div class="pbar__label"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg><span>Pull</span></div>
+        </div>
+        <div class="tip tip--right" role="status" style="left: calc(100% + 14px); top: 200px; width: 104px">Call a ball first: tap it.</div>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">8 · Needs a call</p><p class="caption">Released without a call: no shot, tooltip for 2 s, called ball line pulses once.</p></div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 14px; padding-right: 22px">
+      <div class="pbar pbar--disabled" style="height: 520px" aria-hidden="true">
+        <div class="pbar__track">
+          <div class="pbar__last" style="height: 35%"></div>
+        </div>
+      </div>
+      <div style="align-self: stretch"><p class="mk-cap">9 · Not my turn</p><p class="caption">35% opacity, label hidden, no cursor; removed from the tab order. Hidden in the lobby.</p></div>
+    </div>
+  </div>
+  <p class="muted" style="font-size: 14px; line-height: 20px">Reduced motion: no flash or spring; fill and readout jump. Keyboard: focus the bar, ↓/↑ change power by 5%, Enter shoots, Esc cancels. Left-handed setting mirrors the bar to the left gutter and the readout to its right (phone mock, right).</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1320,"height":780}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · header states · phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool" style="width: 390px; height: 980px; padding: 32px 0; display: flex; flex-direction: column; gap: 26px">
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 12px">Lobby · one ready</span>
+    <header class="hdr" style="height: 56px; padding: 0 8px 0 12px; gap: 6px">
+      <div class="hdr__room" style="gap: 0">
+        <span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span>
+        <button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button>
+      </div>
+      <div class="hdr__match" style="gap: 6px">
+        <div class="seat seat--compact" aria-label="Ann, you, ready">
+          <span class="tag tag--ready tag--icon" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg></span>
+          <span class="seat__name">Ann</span>
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span>
+        </div>
+        <div class="score score--compact score--empty"><div class="score__nums"><span>0</span><span class="score__sep">–</span><span>0</span></div><span class="score__race">to 5</span></div>
+        <div class="seat seat--compact"><span class="seat__name">Trang</span></div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 12px">My turn · ring + pulse</span>
+    <header class="hdr" style="height: 56px; padding: 0 8px 0 12px; gap: 6px">
+      <div class="hdr__room" style="gap: 0">
+        <span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span>
+        <button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button>
+      </div>
+      <div class="hdr__match" style="gap: 6px">
+        <div class="seat seat--compact seat--turn" aria-label="Ann, you, your turn, solids">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span></div>
+            <div class="seat__dots"><span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span></div>
+          </div>
+        </div>
+        <div class="score score--compact"><div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div><span class="score__race">to 5</span></div>
+        <div class="seat seat--compact">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span></div>
+            <div class="seat__dots"><span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 12px">Their turn · half ring</span>
+    <header class="hdr" style="height: 56px; padding: 0 8px 0 12px; gap: 6px">
+      <div class="hdr__room" style="gap: 0">
+        <span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span>
+        <button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button>
+      </div>
+      <div class="hdr__match" style="gap: 6px">
+        <div class="seat seat--compact">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span></div>
+            <div class="seat__dots"><span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span></div>
+          </div>
+        </div>
+        <div class="score score--compact"><div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div><span class="score__race">to 5</span></div>
+        <div class="seat seat--compact seat--theirs" aria-label="Bob, their turn, stripes">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span></div>
+            <div class="seat__dots"><span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span></div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 12px">Opponent offline · tag collapses to the ring</span>
+    <header class="hdr" style="height: 56px; padding: 0 8px 0 12px; gap: 6px">
+      <div class="hdr__room" style="gap: 0">
+        <span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span>
+        <button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button>
+      </div>
+      <div class="hdr__match" style="gap: 6px">
+        <div class="seat seat--compact">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span></div>
+            <div class="seat__dots"><span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span></div>
+          </div>
+        </div>
+        <div class="score score--compact"><div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div><span class="score__race">to 5</span></div>
+        <div class="seat seat--compact seat--offline" aria-label="Bob, offline, seat held 48 seconds">
+          <span class="seat__name">Bob</span>
+          <div class="hold" aria-hidden="true">
+            <svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--hairline-strong)" stroke-width="2.5"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="var(--foul)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="13.8"></circle></svg>
+            <span class="hold__num">48</span>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px; padding: 0 12px">
+    <span class="mk-cap">Phone rules</span>
+    <ul style="display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 20px; color: var(--text-muted)">
+      <li>“vs” drops; the score sits between the seats.</li>
+      <li>“you” becomes a brass dot after the name; “ready” a check; “offline” the countdown ring.</li>
+      <li>Names truncate at 7–8 characters; the full name is the seat’s accessible label.</li>
+      <li>Copy link becomes the system share sheet.</li>
+    </ul>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

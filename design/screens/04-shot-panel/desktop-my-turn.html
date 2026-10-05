@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · my turn · desktop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 04). -->
+<div class="pool game mk-frame" style="width: 1100px; height: 720px">
+  <header class="hdr">
+    <div class="hdr__room">
+      <span class="eyebrow">Room</span>
+      <span class="hdr__code">QXRTA</span>
+      <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+    </div>
+    <div class="hdr__match">
+      <div class="seat seat--turn">
+        <svg class="seat__cue" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>
+        <div class="seat__body">
+          <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+          <div class="seat__dots" aria-label="Solids left: 1, 3, 4, 6"><span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span></div>
+        </div>
+        <span class="seat__state">your turn</span>
+      </div>
+      <div class="score" aria-label="Score 2 to 1, race to 5">
+        <div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+        <span class="score__race">race to 5</span>
+      </div>
+      <div class="seat">
+        <div class="seat__body">
+          <div class="seat__line"><span class="seat__name">Bob</span></div>
+          <div class="seat__dots" aria-label="Stripes left: 9, 10, 12, 14, 15"><span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="stage" style="flex: none; height: 468px">
+    <img class="stage__table" src="../../img/aim-L.svg" alt="Table: the 3 is called, aim guide shown" style="height: 448px; width: 835px">
+    <div class="pbar" style="height: 448px">
+      <div class="pbar__track" role="slider" tabindex="0" aria-label="Shot power: press and pull down, release to shoot" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="pbar__last" style="height: 35%"></div>
+        <div class="pbar__cancel" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></div>
+        <div class="pbar__label" aria-hidden="true">
+          <svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg>
+          <span>Pull</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status" aria-live="polite">
+    <span class="status__pill">Bob pocketed the 10, then missed the 12. Your turn.</span>
+  </div>
+
+  <div class="slot">
+    <section class="panel" aria-label="Your shot">
+      <div class="call">
+        <p class="call__line call__line--called">Called: <span class="call__value">the 3</span></p>
+        <div class="call__actions">
+          <button class="toggle" type="button" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          <button class="btn btn--quiet btn--small" type="button">Clear</button>
+        </div>
+        <p class="hint">Pull the bar to shoot · <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Enter</kbd> shoots
+          <button class="icon-btn" type="button" aria-label="Hide this hint" style="width: 28px; height: 28px; margin: -6px 0"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </p>
+      </div>
+      <div class="panel__sep"></div>
+      <div class="angle">
+        <span class="field__label">Angle</span>
+        <div class="angle__row">
+          <button class="nudge" type="button" aria-label="Rotate minus 5 degrees">−5°</button>
+          <button class="nudge" type="button" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
+          <output class="angle__readout">321.7°</output>
+          <button class="nudge" type="button" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
+          <button class="nudge" type="button" aria-label="Rotate plus 5 degrees">+5°</button>
+        </div>
+      </div>
+      <div class="panel__sep"></div>
+      <div class="spin">
+        <div class="spin__pad" role="slider" tabindex="0" aria-label="Spin: where the tip strikes the cue ball" aria-valuetext="left and top">
+          <span class="spin__cross"></span>
+          <span class="spin__limit"></span>
+          <span class="spin__dot" style="left: 36%; top: 30%"></span>
+        </div>
+        <div class="spin__meta">
+          <span class="field__label">Spin</span>
+          <span class="spin__label">left + top</span>
+          <button class="btn btn--quiet btn--small" type="button" style="padding: 0 8px; margin-left: -8px">Reset</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

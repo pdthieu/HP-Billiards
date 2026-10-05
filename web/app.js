@@ -656,8 +656,9 @@ const view = { s: 1, ox: 0, oy: 0, rotated: false, cssW: 0, cssH: 0 };
 
 function resize() {
   const wrap = $('tableWrap');
-  const availW = Math.max(100, wrap.clientWidth);
-  const availH = Math.max(100, wrap.clientHeight);
+  const cs = getComputedStyle(wrap);
+  const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const fullW = W + 2 * RAIL, fullH = H + 2 * RAIL;
   const sLand = Math.min(availW / fullW, availH / fullH);
   const sPort = Math.min(availW / fullH, availH / fullW);
@@ -1150,10 +1151,9 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'in the lobby' : room.phase === 'game_over' ? 'finished a game' : 'playing';
     who.textContent = names.length ? `${names.join(' vs ')} · ${phase}` : 'empty';
     const btn = document.createElement('button');
-    btn.className = 'small';
+    btn.className = 'btn btn--secondary btn--small';
     if (room.seated < 2) {
       btn.textContent = 'Join';
-      btn.classList.add('primary');
       btn.type = 'button';
       btn.onclick = () => {
         const name = landingName();
@@ -1276,7 +1276,7 @@ function refreshShotPanel() {
   callEl.classList.remove('set');
   $('clearCall').hidden = true;
   $('safety').hidden = !needsCall();
-  $('safety').classList.toggle('active', !!(S.call && S.call.safety));
+  $('safety').setAttribute('aria-pressed', String(!!(S.call && S.call.safety)));
   if (!needsCall()) {
     callEl.textContent = S.ballInHand ? 'Break: drag the cue ball to place it, drag on the felt to aim.' : 'Break: no call needed.';
   } else if (S.call && S.call.safety) {
@@ -1315,6 +1315,7 @@ function refreshDecision() {
   for (const opt of d.options) {
     const [title, desc] = OPTION_TEXT[opt] || [opt, ''];
     const b = document.createElement('button');
+    b.className = 'btn btn--secondary';
     b.append(title);
     if (desc) b.append(Object.assign(document.createElement('small'), { textContent: desc }));
     b.onclick = () => { send({ type: 'choose', option: opt }); $('decision').hidden = true; };
@@ -1387,8 +1388,15 @@ $('leave').onclick = () => {
   resetToLanding();
 };
 
+// Theme: 'dark' | 'light' forces one; anything else follows the system.
+function applyTheme(theme) {
+  if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme;
+  else delete document.documentElement.dataset.theme;
+}
+
 // boot
 (function init() {
+  try { applyTheme(localStorage.getItem('pool:theme')); } catch { /* storage unavailable */ }
   $('name').value = rememberedName() || randomName();
   const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
   if (room) $('code').value = room;

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · status line and toasts</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 06). -->
+<div class="pool mk-still" style="width: 1100px; height: 860px; padding: 36px 40px; display: flex; flex-direction: column; gap: 32px">
+
+  <section style="display: flex; flex-direction: column; gap: 10px">
+    <h2 class="eyebrow">Status line · one sentence after each shot · aria-live polite</h2>
+    <div class="status"><span class="status__pill">Pocketed the 6 and the 10. Your turn.</span></div>
+    <div class="status status--foul"><span class="status__pill"><svg class="status__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>Foul by Bob: scratch. Your turn, ball in hand.</span></div>
+    <div class="status status--ok"><span class="status__pill"><svg class="status__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Pocketed the 3 as called. Shoot again.</span></div>
+    <p class="caption" style="text-align: center">Neutral: surface pill · Foul: --foul-soft + icon in --foul · Success: --ok-soft + icon in --ok. Text stays --text in all three.</p>
+  </section>
+
+  <section style="display: grid; grid-template-columns: 390px 390px minmax(0, 1fr); gap: 24px; align-items: start">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <h2 class="eyebrow">Phone · one line</h2>
+      <div style="width: 390px; outline: 1px dashed var(--hairline-strong)"><div class="status" style="min-height: 40px; line-height: 20px; padding: 0 16px">Bob missed the 12. Your turn.</div></div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <h2 class="eyebrow">Phone · two lines, same height</h2>
+      <div style="width: 390px; outline: 1px dashed var(--hairline-strong)"><div class="status status--foul" style="min-height: 40px; line-height: 20px; padding: 0 16px"><span class="status__pill" style="padding: 0 12px; border-radius: 12px; text-align: left">Foul by Bob: scratch. Your turn, ball in hand anywhere.</span></div></div>
+    </div>
+    <p class="muted" style="font-size: 14px; line-height: 20px; padding-top: 24px">The status row reserves two lines (40 px) on phones and one line (48 px) on desktop, so wrapping never moves the panel or the table. Longer than two lines is cut with an ellipsis; the full sentence stays in the accessible name.</p>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 10px">
+    <h2 class="eyebrow">Change · 200 ms cross-fade, both sentences in the same grid cell</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+      <div class="card" style="padding: 12px; display: flex; flex-direction: column; gap: 8px"><div class="status" style="min-height: 40px"><span class="status__pill">Ann’s turn.</span></div><span class="caption" style="text-align: center">0 ms</span></div>
+      <div class="card" style="padding: 12px; display: flex; flex-direction: column; gap: 8px"><div class="status" style="min-height: 40px; display: grid; place-items: center"><span class="status__pill" style="grid-area: 1 / 1; opacity: .3">Ann’s turn.</span><span class="status__pill" style="grid-area: 1 / 1; opacity: .6; background: var(--foul-soft)">Foul by Bob: scratch.</span></div><span class="caption" style="text-align: center">100 ms · old α ↓ ease-in, new α ↑ ease-out</span></div>
+      <div class="card" style="padding: 12px; display: flex; flex-direction: column; gap: 8px"><div class="status status--foul" style="min-height: 40px"><span class="status__pill">Foul by Bob: scratch.</span></div><span class="caption" style="text-align: center">200 ms</span></div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 10px">
+    <h2 class="eyebrow">Toasts · bottom centre · max 3 · 3.5 s each · newest at the bottom</h2>
+    <div class="card" style="position: relative; height: 220px; overflow: hidden; background: var(--surface-1)">
+      <div class="toasts" style="bottom: 20px">
+        <div class="toast toast--error" role="alert">
+          <svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+          <span>Room ZQWNA no longer exists.</span>
+          <button class="icon-btn toast__close" type="button" aria-label="Dismiss" style="width: 36px; height: 36px; color: var(--toast-text)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+        </div>
+        <div class="toast" role="status">
+          <svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span>Bob is back.</span>
+        </div>
+        <div class="toast" role="status" style="opacity: .55">
+          <svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+          <span>Invite link copied.</span>
+        </div>
+      </div>
+    </div>
+    <p class="caption">Enter: 200 ms, rise 12 px, ease-out. Exit: 160 ms, α → 0 and drop 8 px, ease-in; the rest slide down 320 ms. A 4th toast pushes out the oldest. Errors stay until dismissed or 6 s and use role=alert.</p>
+  </section>
+</div>
+</body>
+</html>

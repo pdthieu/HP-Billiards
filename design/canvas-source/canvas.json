@@ -1,0 +1,500 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "C-Abandoned-Phone.dc.html": {
+      "h": 844,
+      "page": "p7",
+      "title": "7.3 · Hold expired",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "C-Lost-Phone.dc.html": {
+      "h": 844,
+      "page": "p7",
+      "title": "7.1 · Connection lost",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "C-OppOffline-Phone.dc.html": {
+      "h": 844,
+      "page": "p7",
+      "title": "7.3 · Opponent offline",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "C-Rejoin-Phone.dc.html": {
+      "h": 844,
+      "page": "p7",
+      "title": "7.2 · Rejoining after reload",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "C-Taken-Phone.dc.html": {
+      "h": 844,
+      "page": "p7",
+      "title": "7.1 · Seat taken over",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "D-Decision-Desktop.dc.html": {
+      "h": 720,
+      "page": "p6",
+      "title": "6.1 · Decision dialog · desktop",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    },
+    "D-Decision-Phone.dc.html": {
+      "h": 844,
+      "page": "p6",
+      "title": "6.1 · Decision dialog · phone",
+      "w": 390,
+      "x": 0,
+      "y": 840
+    },
+    "D-Lose-Phone.dc.html": {
+      "h": 844,
+      "page": "p6",
+      "title": "6.2 · Game over, loss · phone",
+      "w": 390,
+      "x": 940,
+      "y": 840
+    },
+    "D-Status-Toasts.dc.html": {
+      "h": 860,
+      "page": "p6",
+      "title": "6.3 · Status line + toasts",
+      "w": 1100,
+      "x": 2360,
+      "y": 0
+    },
+    "D-Waiting-Phone.dc.html": {
+      "h": 844,
+      "page": "p6",
+      "title": "6.1 · Other player waits · phone",
+      "w": 390,
+      "x": 470,
+      "y": 840
+    },
+    "D-Win-Desktop.dc.html": {
+      "h": 720,
+      "page": "p6",
+      "title": "6.2 · Game over, win · desktop",
+      "w": 1100,
+      "x": 1180,
+      "y": 0
+    },
+    "H-Desktop.dc.html": {
+      "h": 980,
+      "page": "p2",
+      "title": "2 · Header states · desktop",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    },
+    "H-Phone.dc.html": {
+      "h": 980,
+      "page": "p2",
+      "title": "2 · Header states · 390",
+      "w": 390,
+      "x": 1180,
+      "y": 0
+    },
+    "L-Desktop-Full.dc.html": {
+      "h": 720,
+      "page": "p1",
+      "title": "1A · Home, 3-room limit · desktop",
+      "w": 1100,
+      "x": 1180,
+      "y": 0
+    },
+    "L-Desktop-Home.dc.html": {
+      "h": 720,
+      "page": "p1",
+      "title": "1A · Home · desktop",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    },
+    "L-Desktop-Invited.dc.html": {
+      "h": 720,
+      "page": "p1",
+      "title": "1B · Invited · desktop",
+      "w": 1100,
+      "x": 2360,
+      "y": 0
+    },
+    "L-Phone-Empty.dc.html": {
+      "h": 800,
+      "page": "p1",
+      "title": "1A · Empty list + name error · phone",
+      "w": 390,
+      "x": 470,
+      "y": 840
+    },
+    "L-Phone-Home.dc.html": {
+      "h": 800,
+      "page": "p1",
+      "title": "1A · Home · phone",
+      "w": 390,
+      "x": 0,
+      "y": 840
+    },
+    "L-Phone-Invited.dc.html": {
+      "h": 800,
+      "page": "p1",
+      "title": "1B · Invited · phone",
+      "w": 390,
+      "x": 940,
+      "y": 840
+    },
+    "M-Sheet.dc.html": {
+      "h": 3000,
+      "is_interactive": true,
+      "page": "p9",
+      "title": "9 · Motion sheet",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "Main.dc.html": {
+      "h": 4100,
+      "is_interactive": true,
+      "page": "p0",
+      "title": "00 · Tokens",
+      "w": 1440,
+      "x": 0,
+      "y": 0
+    },
+    "P-Gestures.dc.html": {
+      "h": 844,
+      "page": "p8",
+      "title": "8 · Touch behaviours + first-run hint",
+      "w": 390,
+      "x": 1864,
+      "y": 0
+    },
+    "P-Landscape.dc.html": {
+      "h": 390,
+      "page": "p8",
+      "title": "8 · Landscape 844×390",
+      "w": 844,
+      "x": 940,
+      "y": 0
+    },
+    "P-Portrait.dc.html": {
+      "h": 844,
+      "page": "p8",
+      "title": "8 · Portrait 390×844",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "P-Short.dc.html": {
+      "h": 660,
+      "page": "p8",
+      "title": "8 · Short portrait 390×660",
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "PB-Phone-Drag.dc.html": {
+      "h": 844,
+      "page": "p5",
+      "title": "5 · Pulling, right hand · phone",
+      "w": 390,
+      "x": 1400,
+      "y": 0
+    },
+    "PB-Phone-Left.dc.html": {
+      "h": 844,
+      "page": "p5",
+      "title": "5 · Left-handed + needs a call · phone",
+      "w": 390,
+      "x": 1870,
+      "y": 0
+    },
+    "PB-States.dc.html": {
+      "h": 780,
+      "page": "p5",
+      "title": "5 · Power bar states",
+      "w": 1320,
+      "x": 0,
+      "y": 0
+    },
+    "S-Desktop-Game.dc.html": {
+      "h": 720,
+      "page": "p4",
+      "title": "4 · My turn · desktop",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    },
+    "S-Desktop-Panels.dc.html": {
+      "h": 2200,
+      "page": "p4",
+      "title": "4 · Panel slot states · desktop",
+      "w": 1100,
+      "x": 1180,
+      "y": 0
+    },
+    "S-Phone-Game.dc.html": {
+      "h": 844,
+      "page": "p4",
+      "title": "4 · My turn · phone",
+      "w": 390,
+      "x": 2360,
+      "y": 0
+    },
+    "S-Phone-Panels.dc.html": {
+      "h": 1640,
+      "page": "p4",
+      "title": "4 · Panel slot states · phone",
+      "w": 390,
+      "x": 2830,
+      "y": 0
+    },
+    "StyleTile.dc.html": {
+      "h": 1120,
+      "page": "p0",
+      "title": "00 · Style tile — dark + light",
+      "w": 2400,
+      "x": 1520,
+      "y": 0
+    },
+    "T-Landscape.dc.html": {
+      "h": 560,
+      "page": "p3",
+      "title": "3 · Mid-game · 1100×560",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    },
+    "T-Portrait.dc.html": {
+      "h": 720,
+      "page": "p3",
+      "title": "3 · Mid-game rotated · 360×720",
+      "w": 360,
+      "x": 1180,
+      "y": 0
+    },
+    "T-Spec.dc.html": {
+      "h": 3000,
+      "page": "p3",
+      "title": "3 · Canvas visual spec",
+      "w": 1440,
+      "x": 0,
+      "y": 840
+    },
+    "X-Handoff.dc.html": {
+      "h": 1500,
+      "page": "p10",
+      "title": "10 · Handoff",
+      "w": 1100,
+      "x": 0,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-10-05T13:51:31Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "page": "p0",
+    "view": "canvas"
+  },
+  "notes": {
+    "p0": {
+      "kind": "title1",
+      "maxW": 3920,
+      "page": "p0",
+      "text": "Prompt 0 · Foundation",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p1": {
+      "kind": "title1",
+      "maxW": 3460,
+      "page": "p1",
+      "text": "Prompt 1 · Landing: create, rooms, join by link",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p10": {
+      "kind": "title1",
+      "maxW": 1100,
+      "page": "p10",
+      "text": "Prompt 10 · Handoff",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p2": {
+      "kind": "title1",
+      "maxW": 1570,
+      "page": "p2",
+      "text": "Prompt 2 · Header and seats",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p3": {
+      "kind": "title1",
+      "maxW": 1540,
+      "page": "p3",
+      "text": "Prompt 3 · Table, balls, cue (canvas)",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p4": {
+      "kind": "title1",
+      "maxW": 3220,
+      "page": "p4",
+      "text": "Prompt 4 · Shot panel",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p5": {
+      "kind": "title1",
+      "maxW": 2260,
+      "page": "p5",
+      "text": "Prompt 5 · Power bar",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p6": {
+      "kind": "title1",
+      "maxW": 3460,
+      "page": "p6",
+      "text": "Prompt 6 · Decisions, results, status",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p7": {
+      "kind": "title1",
+      "maxW": 2270,
+      "page": "p7",
+      "text": "Prompt 7 · Connectivity (phone first)",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p8": {
+      "kind": "title1",
+      "maxW": 2254,
+      "page": "p8",
+      "text": "Prompt 8 · Phone portrait and landscape",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    },
+    "p9": {
+      "kind": "title1",
+      "maxW": 1440,
+      "page": "p9",
+      "text": "Prompt 9 · Motion sheet",
+      "w": 240,
+      "x": 0,
+      "y": -260
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "StyleTile.dc.html",
+    "L-Desktop-Home.dc.html",
+    "L-Desktop-Full.dc.html",
+    "L-Desktop-Invited.dc.html",
+    "L-Phone-Home.dc.html",
+    "L-Phone-Empty.dc.html",
+    "L-Phone-Invited.dc.html",
+    "H-Desktop.dc.html",
+    "H-Phone.dc.html",
+    "T-Landscape.dc.html",
+    "T-Portrait.dc.html",
+    "T-Spec.dc.html",
+    "S-Desktop-Game.dc.html",
+    "S-Desktop-Panels.dc.html",
+    "S-Phone-Game.dc.html",
+    "S-Phone-Panels.dc.html",
+    "PB-States.dc.html",
+    "PB-Phone-Drag.dc.html",
+    "PB-Phone-Left.dc.html",
+    "D-Decision-Desktop.dc.html",
+    "D-Win-Desktop.dc.html",
+    "D-Status-Toasts.dc.html",
+    "D-Decision-Phone.dc.html",
+    "D-Waiting-Phone.dc.html",
+    "D-Lose-Phone.dc.html",
+    "C-Lost-Phone.dc.html",
+    "C-Taken-Phone.dc.html",
+    "C-Rejoin-Phone.dc.html",
+    "C-OppOffline-Phone.dc.html",
+    "C-Abandoned-Phone.dc.html",
+    "P-Portrait.dc.html",
+    "P-Short.dc.html",
+    "P-Landscape.dc.html",
+    "P-Gestures.dc.html",
+    "M-Sheet.dc.html",
+    "X-Handoff.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "p0",
+      "name": "0 · Foundation"
+    },
+    {
+      "id": "p1",
+      "name": "1 · Landing"
+    },
+    {
+      "id": "p2",
+      "name": "2 · Header & seats"
+    },
+    {
+      "id": "p3",
+      "name": "3 · Table spec"
+    },
+    {
+      "id": "p4",
+      "name": "4 · Shot panel"
+    },
+    {
+      "id": "p5",
+      "name": "5 · Power bar"
+    },
+    {
+      "id": "p6",
+      "name": "6 · Dialogs & status"
+    },
+    {
+      "id": "p7",
+      "name": "7 · Connectivity"
+    },
+    {
+      "id": "p8",
+      "name": "8 · Phone layouts"
+    },
+    {
+      "id": "p9",
+      "name": "9 · Motion"
+    },
+    {
+      "id": "p10",
+      "name": "10 · Handoff"
+    }
+  ],
+  "title": "Pool · Redesign"
+}

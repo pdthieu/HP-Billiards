@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · rejoining after reload · phone</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool phone mk-frame">
+  <div class="splash" role="status" aria-live="polite">
+    <span class="eyebrow">Rejoining room</span>
+    <span class="splash__code">QXRTA</span>
+    <div class="splash__bar" aria-hidden="true"><span></span></div>
+    <p class="caption" style="position: absolute; bottom: 56px; left: 24px; right: 24px; text-align: center">Appears only if the join takes longer than 150 ms, then fades in over 200 ms. Typical join: under 1 s. After 4 s it turns into the “Connection lost” card.</p>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

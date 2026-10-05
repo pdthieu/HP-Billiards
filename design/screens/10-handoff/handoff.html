@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · handoff</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 10). -->
+<div class="pool" style="width: 1100px; min-height: 1500px; padding: 56px; display: flex; flex-direction: column; gap: 40px">
+  <header style="display: flex; flex-direction: column; gap: 10px; padding-bottom: 28px; border-bottom: 1px solid var(--hairline)">
+    <span class="eyebrow">Prompt 10 · for a plain HTML / CSS / vanilla JS app</span>
+    <h1 style="font: 600 56px/56px var(--font-display)">Handoff</h1>
+    <p style="font: 400 17px/26px var(--font-ui); color: var(--text-muted); max-width: 760px">Everything below is saved in the repo under <code style="font-family: var(--font-mono); color: var(--text)">design/</code>. Selectors are flat BEM, no :has(), no container queries.</p>
+  </header>
+
+  <section style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="font: 600 22px/28px var(--font-ui)">Files</h2>
+      <pre style="margin: 0; padding: 20px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--hairline); font: 400 13px/22px var(--font-mono); white-space: pre-wrap">design/
+  README.md          index, how to use
+  tokens.css         custom properties: colour, type,
+                     space, radius, motion, z-index
+  components.css     header, seats, panels, buttons,
+                     inputs, tags, toasts, dialogs,
+                     power bar, spin pad, rooms, status
+  canvas-spec.md     table, balls, cue, aim (mm + hex)
+  motion.md          every animation, with fallbacks
+  MIGRATION.md       screen-by-screen checklist
+  img/               reference renders of the table
+  screens/01-…/      static HTML of each mock-up
+  canvas-source/     .dc.html sources of this canvas</pre>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <h2 style="font: 600 22px/28px var(--font-ui)">Old → new variables</h2>
+      <div style="display: flex; flex-direction: column">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--bg</span><span>--bg</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--panel</span><span>--surface-1</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--panel-2</span><span>--surface-2</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--muted</span><span>--text-muted</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--accent-text</span><span style="color: var(--accent-text)">--on-accent (renamed)</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--bad</span><span>--foul</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">--border</span><span>--hairline-strong</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">button.primary</span><span>.btn.btn--primary</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">button.small</span><span>.btn.btn--secondary.btn--small</span></div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--hairline); font: 400 14px/20px var(--font-mono)"><span class="muted">button.active</span><span>.toggle[aria-pressed="true"]</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section style="display: flex; flex-direction: column; gap: 14px">
+    <h2 style="font: 600 22px/28px var(--font-ui)">What changes, screen by screen</h2>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">0 · Foundation</span><p style="font-size: 15px; line-height: 22px">Link tokens + components, fonts, map variables, swap button classes.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">1 · Landing</span><p style="font-size: 15px; line-height: 22px">Blurred table backdrop, name shuffle, room rows keyed by code, limit note, empty state, invited mode, shake.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">2 · Header</span><p style="font-size: 15px; line-height: 22px">Seat pills with group dots, your-turn ring + pulse, their-turn ring, offline hold ring, reserved score.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">3 · Table</span><p style="font-size: 15px; line-height: 22px">New colours and gradients, sights, ball LOD, tapered cue above balls, aim styles, effects list.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">4 · Panels</span><p style="font-size: 15px; line-height: 22px">Fixed-height slot, call line + Safety toggle, angle nudges, DOM spin pad, dismissible hint.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">5 · Power bar</span><p style="font-size: 15px; line-height: 22px">Ramp fill, readout, cancel zone, flash, needs-a-call tip, left-handed, keyboard.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">6 · Dialogs</span><p style="font-size: 15px; line-height: 22px">Option buttons with consequences, waiting banner, result banner, status tones, toast stack.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">7 · Connectivity</span><p style="font-size: 15px; line-height: 22px">Honest retry steps, taken-over variant, delayed splash, opponent hold countdown.</p></div>
+      <div class="card" style="padding: 18px 20px; display: flex; flex-direction: column; gap: 6px"><span class="eyebrow">8 · Phone</span><p style="font-size: 15px; line-height: 22px">Portrait stack, short-screen collapse order, landscape sidebar, touch rules, first-run hints.</p></div>
+    </div>
+    <p class="muted" style="font-size: 14px; line-height: 20px">The full checklist with one box per change is design/MIGRATION.md. The “Mockup only” block at the end of components.css (is-hover, is-focus, touch markers, callouts) is for this canvas and is not shipped.</p>
+  </section>
+</div>
+</body>
+</html>

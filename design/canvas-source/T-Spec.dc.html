@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · canvas visual spec</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool" style="width: 1440px; min-height: 3000px; padding: 64px 64px 96px; display: flex; flex-direction: column; gap: 56px">
+
+  <header style="display: flex; justify-content: space-between; align-items: flex-end; gap: 48px; padding-bottom: 32px; border-bottom: 1px solid var(--hairline)">
+    <div style="display: flex; flex-direction: column; gap: 10px; max-width: 760px">
+      <span class="eyebrow">Prompt 3 · drawn by app.js on &lt;canvas&gt;</span>
+      <h1 style="font: 600 64px/64px var(--font-display)">Table, balls, cue</h1>
+      <p style="font: 400 18px/28px var(--font-ui); color: var(--text-muted)">Every number is in table millimetres: playing surface 2540 × 1270, ball Ø 57.15 (R = 28.575), origin at the playing surface’s top-left corner. Light always comes from the screen’s top-left, so in the rotated view the shadow and highlight offsets are rotated back (screen (sx, sy) → table (−sy, sx)).</p>
+    </div>
+    <div style="display: grid; grid-template-columns: auto auto; gap: 6px 16px; font: 400 13px/18px var(--font-mono); color: var(--text-muted)">
+      <span>RAIL</span><span style="color: var(--text)">100 mm beyond cushions</span>
+      <span>CUSHION</span><span style="color: var(--text)">45 mm behind the nose</span>
+      <span>HEAD</span><span style="color: var(--text)">x = 635 (W / 4)</span>
+      <span>FOOT</span><span style="color: var(--text)">(1905, 635)</span>
+      <span>mouths</span><span style="color: var(--text)">corner 115.9 · side 128.6</span>
+    </div>
+  </header>
+
+  <section style="display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 48px; align-items: start">
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="eyebrow">01 · Landscape frame, 1100 × 560</span>
+      <img src="./img/aim-L.svg" alt="Mid-game frame, landscape" style="display: block; width: 100%; border-radius: 8px">
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 14px">
+      <span class="eyebrow">Layer order, back to front</span>
+      <ol style="margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 6px; font-size: 15px; line-height: 22px">
+        <sc-for list="{{layers}}" as="l" hint-placeholder-count="14">
+          <li><span style="font-weight: 600">{{l.name}}</span> <span class="muted">{{l.note}}</span></li>
+        </sc-for>
+      </ol>
+    </div>
+  </section>
+
+  <sc-for list="{{sections}}" as="s" hint-placeholder-count="6">
+    <section style="display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; align-items: baseline; gap: 16px">
+        <span class="eyebrow">{{s.num}}</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">{{s.title}}</h2>
+      </div>
+      <sc-if value="{{s.hasImg}}" hint-placeholder-val="{{false}}">
+        <img src="{{s.img}}" alt="{{s.alt}}" style="display: block; width: {{s.imgW}}px; max-width: 100%; border-radius: 12px">
+      </sc-if>
+      <div style="display: flex; flex-direction: column">
+        <sc-for list="{{s.rows}}" as="r" hint-placeholder-count="6">
+          <div style="display: grid; grid-template-columns: 240px minmax(0, 1.2fr) minmax(0, 1fr); gap: 20px; align-items: baseline; padding: 11px 0; border-top: 1px solid var(--hairline)">
+            <span style="font: 600 15px/22px var(--font-ui)">{{r.k}}</span>
+            <code style="font: 400 13px/20px var(--font-mono); color: var(--text); white-space: pre-wrap">{{r.v}}</code>
+            <span class="muted" style="font-size: 14px; line-height: 20px">{{r.n}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+  </sc-for>
+
+  <section style="display: flex; flex-direction: column; gap: 18px">
+    <div style="display: flex; align-items: baseline; gap: 16px">
+      <span class="eyebrow">08</span>
+      <h2 style="font: 600 28px/34px var(--font-ui)">At real phone size</h2>
+    </div>
+    <div style="display: flex; gap: 40px; align-items: flex-start">
+      <img src="./img/aim-P.svg" alt="Portrait frame at 261 px wide" style="display: block; width: 261px">
+      <img src="./img/opp-P.svg" alt="Opponent's aim preview at 261 px wide" style="display: block; width: 261px">
+      <img src="./img/hand-P.svg" alt="Ball in hand in the kitchen at 261 px wide" style="display: block; width: 261px">
+      <ul style="display: flex; flex-direction: column; gap: 10px; font-size: 15px; line-height: 22px; color: var(--text-muted); max-width: 420px">
+        <li>261 px wide is the table on a 390 × 844 phone (see Prompt 8). Balls draw at about 10 px.</li>
+        <li>Below 15 px the disc and number are skipped: a solid is one colour, a stripe is ivory caps around a band of 58% of R either side of centre. That reads at 10–12 px; a disc would turn every ball into a smudge.</li>
+        <li>Numbers stay available: tapping a ball shows its hover label for 1.5 s and sets the call.</li>
+        <li>Left: my aim, called 3. Middle: Bob’s aim preview, dimmed and cool. Right: ball in hand, kitchen wash.</li>
+      </ul>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":3000}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var row = function (k, v, n) { return { k: k, v: v, n: n || '' }; };
+    var layers = [
+      { name: 'Rail', note: 'rounded rect, inner lip' },
+      { name: 'Felt', note: 'runs under cushions and into mouths' },
+      { name: 'Pocket holes', note: 'behind the cushion gaps' },
+      { name: 'Cushions', note: 'with jaws, then nose line' },
+      { name: 'Sights', note: 'diamonds on the rails' },
+      { name: 'Kitchen wash', note: 'only while placing in the kitchen' },
+      { name: 'Head string, spots', note: '' },
+      { name: 'Aim guide', note: 'under the balls' },
+      { name: 'Ball shadows', note: 'all shadows before any ball' },
+      { name: 'Balls', note: 'body → band → disc → number → shade → specular → edge' },
+      { name: 'Cue stick', note: 'shadow first; above balls' },
+      { name: 'Rings', note: 'legal, called, in hand' },
+      { name: 'Hover label', note: '' },
+      { name: 'Transient FX', note: 'rim flash, strike ring, contact glints' }
+    ];
+    var sections = [
+      { num: '02', title: 'Table', hasImg: false, img: '', alt: '', imgW: 0, rows: [
+        row('Rail', 'roundRect(-100, -100, 2740, 1470, r 60)\nlinear ↓ #6A4428 0 · #4C2F1B .5 · #341F10 1', 'Outer edge 3 mm #000 α .55; inner lip: roundRect(-52, -52, 2644, 1374, r 10) stroke 3 mm #FFE2B4 α .12'),
+        row('Felt', 'rect(-45, -45, 2630, 1360)\nradial at (1270, 635) r 1480\n#36745C 0 · #2C614C .55 · #1B3F31 1', 'The vignette is the radial falloff; no extra overlay. Slightly blue-green so the 6-ball (#128A4C) separates by hue and lightness.'),
+        row('Pocket hole', 'circle at mouth − axis × (shelf + 12)\nr = half-mouth + 8\nradial #000 0 · #06080A .78 · #1C1610 1', 'Rim stroke 4 mm #000 α .6. Corner r 65.9, side r 72.3.'),
+        row('Cushion', 'polygon nose → jaws (existing geometry)\nfill #1F4B3A', 'Nose line 2.5 mm #FFF α .10 along from → to: the one detail that makes the rail read as rubber.'),
+        row('Sights', 'rhombus 22 × 14 (long axis along the rail)\nfill #E6D7B4 α .9', 'Long rails x = W/8 × {1,2,3,5,6,7}, y = −72.5 and H + 72.5. Short rails y = H/4 × {1,2,3}, x = −72.5 and W + 72.5.'),
+        row('Head string', 'x = 635, 0 → 1270, 2 mm #FFF α .14', 'Becomes 3 mm #71C99D α .75, dash 16 / 10 during kitchen placement.'),
+        row('Spots', 'head (635, 635), foot (1905, 635)\nr 4, #FFF α .35', '')
+      ] },
+      { num: '03', title: 'Balls', hasImg: true, img: './img/spec-balls.svg', alt: 'Solid 3, stripe 11, 8-ball and cue ball at 2 px per mm', imgW: 880, rows: [
+        row('Shadow', 'ellipse at + screen (6, 9), r 1.08 R\nradial #000 α .5 0 · α .25 .7 · α 0 1', 'Grows to (11, 16) and r 1.13 R while the cue ball is lifted.'),
+        row('Body', 'circle r R; solids = --ball-n; stripes and cue = #F4EFE2', '1 #F2C12E · 2 #1F4FB4 · 3 #CC3326 · 4 #5B3592 · 5 #EC7623 · 6 #128A4C · 7 #7E2232 · 8 #111316'),
+        row('Stripe band', 'clip to the ball; band ±0.58 R about centre\nhorizontal on screen in both orientations', 'Wider than the old 0.55 R so the ivory caps stay visible at 10 px.'),
+        row('Number disc', 'circle r 0.48 R #FAF7EF\ntext 700 0.62 R #111316, baseline + 0.22 R', 'Counter-rotate the text in the rotated view. Skip disc and number when the ball is under 15 px on screen.'),
+        row('Shade', 'radial, bbox cx .38 cy .34 r .78\n#FFF α .5 0 · α .1 .3 · #000 α 0 .72 · α .4 1', 'Rotated view: cx .66 cy .38.'),
+        row('Specular', 'ellipse at screen (−.38 R, −.42 R)\n0.2 R × 0.14 R, #FFF α .7', 'Skip under 9 px.'),
+        row('Edge', 'circle r R − .75, stroke 1.5 #000 α .35', 'Keeps the cue ball off the ivory-ish felt highlight.')
+      ] },
+      { num: '04', title: 'Cue stick', hasImg: true, img: './img/spec-cue.svg', alt: 'Cue stick close-up with tip, ferrule, shaft, joint, forearm, wrap and butt', imgW: 1300, rows: [
+        row('Placement', 'tip at cue − dir × (R + 20 + power × 120)\nlength 1200 along −dir', 'power 0–1. At 100% the tip sits 168.6 mm behind the ball centre.'),
+        row('Taper', 'width 12 at the tip → 28 at the butt', 'Draw each segment as a quad, not a stroked line, so the taper shows.'),
+        row('Segments from the tip', 'tip 0–10 #2F5F8A · ferrule 10–30 #F2EEE3\nshaft 30–720 linear #EEE1C4 → #C9A56C\njoint 720–735 #D8C59C · forearm 735–900 #6B4325\nwrap 900–1130 #1C1916 · butt 1130–1200 #2A1A0F', ''),
+        row('Highlight', 'centre line 30–1120, 2 mm #FFF α .16', ''),
+        row('Shadow', 'same quad at screen (10, 14), #000 α .28', '')
+      ] },
+      { num: '05', title: 'Aim guide', hasImg: true, img: './img/spec-aim.svg', alt: 'Aim guide: mine above, opponent preview below', imgW: 720, rows: [
+        row('Path to ghost', 'line cue edge → ghost edge, 3 mm #FFF α .78\ndash 20 / 14, round caps', 'Starts and stops at the ball edges so it never crosses a ball.'),
+        row('Ghost ball', 'circle r R, stroke 3 #FFF α .78, fill #FFF α .06', ''),
+        row('Object direction', 'from object edge, 300 mm, 4 mm #E3B25C α .95\nchevron 18 × 24 at the end', 'Brass, because it is the line that matters for the call.'),
+        row('Cue deflection', 'from ghost edge along the tangent, 150 mm\n3 mm #FFF α .5, dash 10 / 10', 'Shorter and dashed so it never competes with the object line.'),
+        row('Opponent preview', 'same geometry, colour #A9C1DD, group α .5\ncue stick α .4, no brass', 'Updates at most 10 × per second; ease positions over 100 ms.')
+      ] },
+      { num: '06', title: 'Highlights and hover label', hasImg: true, img: './img/spec-rings.svg', alt: 'Legal target ring, called ring with halo, ball-in-hand ring, dragged cue ball, hover label', imgW: 1280, rows: [
+        row('Legal target', 'ring r R + 10, 3 mm #FFF α .55', 'Only while a call is needed.'),
+        row('Called ball', 'ring r R + 12, 5 mm #D9A441\n+ halo r R + 20, 8 mm #D9A441 α .22', ''),
+        row('Ball in hand', 'ring r R + 14, 4 mm #71C99D', ''),
+        row('Dragging the cue ball', 'scale 1.05, shadow offset × 1.8\nring r 1.05 R + 14, 5 mm #FFF', 'Settles in 150 ms on release.'),
+        row('Kitchen wash', 'rect(0, 0, 635, 1270) #FFF α .06\n+ head string 3 mm #71C99D α .75, dash 16 / 10', 'Only when placement is restricted to the kitchen.'),
+        row('Hover label', 'pill h 52, r 26, #0D1218 α .92, stroke 1.5 #AABED7 α .22\ntext 600 30 mm Source Sans 3, #E8ECF1', 'Centred R + 46 above the ball on screen. Text: “3 · solids”, “8-ball”, “cue ball”.')
+      ] },
+      { num: '07', title: 'Motion on the canvas', hasImg: false, img: '', alt: '', imgW: 0, rows: [
+        row('Pocket drop', 't 0 → 180 ms, ease-spring\nscale 1 → .6, position → pocket centre × .35, α 1 → 0 over the last 60 ms', 'Starts when the server stops reporting the ball; keep the last known position.'),
+        row('Rim flash', '120 ms ease-out, starts with the drop\npocket rim stroke 6 mm #FFE2B4 α .5 → 0', 'One per pocketed ball, even if two land together.'),
+        row('Cue strike', 'advance: 80 ms ease-in, tip → ball edge\nfade: 200 ms ease-out after contact, α 1 → 0', 'The cue is drawn from local state until the first server frame arrives.'),
+        row('Strike ring', '150 ms ease-out from contact\nring r R → R + 40, stroke 3 → 1 mm #FFF α .6 → 0', ''),
+        row('Contact glint (optional)', '100 ms, ball-ball or ball-cushion\nspecular α .7 → 1 → .7', 'At most one per ball per 100 ms; skip entirely when more than 8 contacts land in a frame (the break).'),
+        row('Cue ball lift / settle', 'press: 120 ms ease-out to scale 1.05 and shadow × 1.8\nrelease: 150 ms ease-out back', ''),
+        row('Aim guide on turn change', 'group α 0 → 1 over 200 ms ease-out', 'Only after balls stop and the turn passes.'),
+        row('Reduced motion', 'drop: α 1 → 0 in 1 frame; no flash, strike ring or glint\ncue: hide on shoot; lift: shadow only', '')
+      ] }
+    ];
+    return { layers: layers, sections: sections };
+  }
+}
+</script>
+</body>
+</html>

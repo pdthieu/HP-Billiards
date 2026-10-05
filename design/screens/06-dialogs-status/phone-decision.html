@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · decision dialog · phone</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 06). -->
+<div class="pool phone game mk-frame">
+  <header class="hdr" style="padding: 0 8px 0 12px; gap: 6px">
+    <div class="hdr__room" style="gap: 0"><span class="hdr__code" style="font-size: 17px; letter-spacing: .12em">QXRTA</span><button class="icon-btn" type="button" aria-label="Share invite link"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M12 3v12"></path><path d="M8 7l4-4 4 4"></path></svg></button></div>
+    <div class="hdr__match" style="gap: 6px">
+      <div class="seat seat--compact seat--turn is-moving"><span class="seat__name">Ann</span><span style="width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none" aria-hidden="true"></span></div>
+      <div class="score score--compact"><div class="score__nums"><span>2</span><span class="score__sep">–</span><span>1</span></div><span class="score__race">to 5</span></div>
+      <div class="seat seat--compact"><span class="seat__name">Bob</span></div>
+    </div>
+  </header>
+  <div class="stage" style="flex: none; height: 499px"><img class="stage__table" src="../../img/rack-P.svg" alt="" style="height: 487px; width: 261px"><div class="pbar pbar--disabled" style="height: 487px" aria-hidden="true"><div class="pbar__track"></div></div></div>
+  <div class="status">Illegal break by Bob.</div>
+
+  <div class="scrim" role="presentation" style="align-items: flex-end; padding: 12px 8px 42px">
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-d" style="padding: 22px 18px 18px; gap: 16px">
+      <div style="display: flex; flex-direction: column; gap: 6px">
+        <span class="eyebrow" style="color: var(--foul)">Your decision</span>
+        <h2 class="dialog__title" id="dlg-t" style="font-size: 22px; line-height: 28px">Illegal break</h2>
+        <p class="dialog__text" id="dlg-d" style="font-size: 15px; line-height: 22px">Bob broke illegally: nothing was pocketed and fewer than four balls reached a rail.</p>
+      </div>
+      <div class="dialog__options">
+        <button class="option option--primary" type="button"><span class="option__text"><span class="option__title">Play from here</span><span class="option__sub">Accept the balls where they lie. You shoot next.</span></span><svg class="option__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+        <button class="option" type="button" style="animation-delay: 40ms"><span class="option__text"><span class="option__title">Re-rack, I break</span><span class="option__sub">Start again with your break.</span></span><svg class="option__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+        <button class="option" type="button" style="animation-delay: 80ms"><span class="option__text"><span class="option__title">Re-rack, Bob breaks again</span><span class="option__sub">He gets another try.</span></span><svg class="option__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

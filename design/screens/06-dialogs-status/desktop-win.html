@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · game over, win · desktop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 06). -->
+<div class="pool game mk-frame" style="width: 1100px; height: 720px">
+  <header class="hdr">
+    <div class="hdr__room">
+      <span class="eyebrow">Room</span>
+      <span class="hdr__code">QXRTA</span>
+      <button class="btn btn--secondary btn--small" type="button">Copy link</button>
+    </div>
+    <div class="hdr__match">
+      <div class="seat"><div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div></div>
+      <div class="score" aria-label="Score 3 to 1, race to 5"><div class="score__nums"><span class="score__slot"><span style="color: var(--accent-text)">3</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div><span class="score__race">race to 5</span></div>
+      <div class="seat"><div class="seat__line"><span class="seat__name">Bob</span></div></div>
+    </div>
+  </header>
+  <div class="stage" style="flex: none; height: 468px">
+    <div class="stage__wrap">
+      <img class="stage__table" src="../../img/plain-L.svg" alt="" style="height: 448px; width: 835px; filter: saturate(.7) brightness(.8)">
+      <div class="result result--win" role="status">
+        <p class="result__title">You win the rack</p>
+        <p class="result__reason">8-ball in the called pocket · 3 – 1, two racks to go</p>
+      </div>
+    </div>
+    <div class="pbar pbar--disabled" style="height: 448px" aria-hidden="true"><div class="pbar__track"></div></div>
+  </div>
+  <div class="status status--ok"><span class="status__pill"><svg class="status__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>Pocketed the 8. Rack to Ann.</span></div>
+  <div class="slot">
+    <section class="panel" style="justify-content: space-between">
+      <div class="panel__group">
+        <p style="font: 600 28px/32px var(--font-display); letter-spacing: .01em">You win the rack · <span class="tnum">3 – 1</span></p>
+        <p class="panel__sub">Bob breaks the next rack; the break alternates.</p>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center">
+        <button class="btn btn--quiet" type="button">Leave</button>
+        <button class="btn btn--primary btn--lg" type="button">Rematch</button>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

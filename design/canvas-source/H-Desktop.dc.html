@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool · header states · desktop</title>
+<script src="./support.js"></script>
+<link rel="stylesheet" href="./tokens.css">
+<link rel="stylesheet" href="./components.css">
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div class="pool" style="width: 1100px; height: 980px; padding: 32px 0; display: flex; flex-direction: column; gap: 26px">
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">Lobby · alone, seat open</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat">
+          <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+        </div>
+        <div class="score score--empty" aria-label="Score not started, race to 5">
+          <div class="score__nums"><span>0</span><span class="score__sep">–</span><span>0</span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat seat--empty"><span class="seat__name" style="font-weight: 400">Open seat</span></div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">Lobby · both seated, one ready</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat">
+          <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span><span class="tag tag--ready">ready</span></div>
+        </div>
+        <div class="score score--empty" aria-label="Score not started, race to 5">
+          <div class="score__nums"><span>0</span><span class="score__sep">–</span><span>0</span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat">
+          <div class="seat__line"><span class="seat__name">Nguyễn Minh Trang</span></div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">My turn · groups assigned · accent ring + 2 s pulse</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat seat--turn">
+          <svg class="seat__cue" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+            <div class="seat__dots" aria-label="Solids left: 1, 3, 4, 6">
+              <span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+          <span class="seat__state">your turn</span>
+        </div>
+        <div class="score" aria-label="Score 2 to 1, race to 5">
+          <div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span></div>
+            <div class="seat__dots" aria-label="Stripes left: 9, 10, 12, 14, 15">
+              <span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">My turn · balls moving · pulse paused, ring stays</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat seat--turn is-moving">
+          <svg class="seat__cue" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+            <div class="seat__dots" aria-label="Solids left: 1, 3, 4, 6">
+              <span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+          <span class="seat__state">rolling…</span>
+        </div>
+        <div class="score" aria-label="Score 2 to 1, race to 5">
+          <div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span></div>
+            <div class="seat__dots" aria-label="Stripes left: 9, 10, 12, 14, 15">
+              <span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">Their turn · calmer: half-strength ring, no fill, no pulse</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+            <div class="seat__dots" aria-label="Solids left: 1, 3, 4, 6">
+              <span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+        </div>
+        <div class="score" aria-label="Score 2 to 1, race to 5">
+          <div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat seat--theirs">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span></div>
+            <div class="seat__dots" aria-label="Stripes left: 9, 10, 12, 14, 15">
+              <span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+          <span class="seat__state">their turn</span>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 8px">
+    <span class="mk-cap" style="padding: 0 20px">Opponent offline · seat held, countdown ring</span>
+    <header class="hdr">
+      <div class="hdr__room">
+        <span class="eyebrow">Room</span>
+        <span class="hdr__code">QXRTA</span>
+        <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button>
+      </div>
+      <div class="hdr__match">
+        <div class="seat">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Ann</span><span class="tag tag--you">you</span></div>
+            <div class="seat__dots" aria-label="Solids left: 1, 3, 4, 6">
+              <span class="ball" style="--c: var(--ball-1)"></span><span class="ball ball--gone" style="--c: var(--ball-2)"></span><span class="ball" style="--c: var(--ball-3)"></span><span class="ball" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball" style="--c: var(--ball-6)"></span><span class="ball ball--gone" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+        </div>
+        <div class="score" aria-label="Score 2 to 1, race to 5">
+          <div class="score__nums"><span class="score__slot"><span>2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+          <span class="score__race">race to 5</span>
+        </div>
+        <div class="seat seat--offline">
+          <div class="seat__body">
+            <div class="seat__line"><span class="seat__name">Bob</span><span class="tag tag--offline">offline</span></div>
+            <div class="seat__dots" aria-label="Stripes left: 9, 10, 12, 14, 15">
+              <span class="ball ball--stripe" style="--c: var(--ball-1)"></span><span class="ball ball--stripe" style="--c: var(--ball-2)"></span><span class="ball ball--gone" style="--c: var(--ball-3)"></span><span class="ball ball--stripe" style="--c: var(--ball-4)"></span><span class="ball ball--gone" style="--c: var(--ball-5)"></span><span class="ball ball--stripe" style="--c: var(--ball-6)"></span><span class="ball ball--stripe" style="--c: var(--ball-7)"></span>
+            </div>
+          </div>
+          <div class="hold" role="timer" aria-label="Seat held for 48 more seconds">
+            <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--hairline-strong)" stroke-width="2.5"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="var(--foul)" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="13.8"></circle></svg>
+            <span class="hold__num">48</span>
+          </div>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 12px; padding: 4px 20px 0">
+    <span class="mk-cap">Score tick · 1 → 2 · old digit slides up and out, new slides in · 240 ms --ease-spring (reduced motion: swap)</span>
+    <div style="display: flex; gap: 16px">
+      <div class="card" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 28px">
+        <div class="score__nums"><span class="score__slot"><span>1</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+        <span class="caption">0 ms</span>
+      </div>
+      <div class="card" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 28px">
+        <div class="score__nums">
+          <span class="score__slot" style="width: 18px"><span style="position: absolute; left: 0; top: 0; transform: translateY(-55%); opacity: .35">1</span><span style="position: absolute; left: 0; top: 0; transform: translateY(45%); opacity: .65">2</span></span>
+          <span class="score__sep">–</span><span class="score__slot"><span>1</span></span>
+        </div>
+        <span class="caption">110 ms</span>
+      </div>
+      <div class="card" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 28px">
+        <div class="score__nums">
+          <span class="score__slot" style="width: 18px"><span style="position: absolute; left: 0; top: 0; transform: translateY(-6%)">2</span></span>
+          <span class="score__sep">–</span><span class="score__slot"><span>1</span></span>
+        </div>
+        <span class="caption">200 ms · 6% overshoot</span>
+      </div>
+      <div class="card" style="display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 28px">
+        <div class="score__nums"><span class="score__slot"><span style="color: var(--accent-text)">2</span></span><span class="score__sep">–</span><span class="score__slot"><span>1</span></span></div>
+        <span class="caption">240 ms · brass for 1.2 s, then fades</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1100,"height":980}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

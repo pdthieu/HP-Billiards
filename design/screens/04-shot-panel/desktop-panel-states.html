@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pool · panel slot states · desktop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<link rel="stylesheet" href="../../tokens.css">
+<link rel="stylesheet" href="../../components.css">
+<style>body{margin:0;background:#0D1218}</style>
+</head>
+<body>
+<!-- Static mock-up exported from the Pool design canvas (Prompt 04). -->
+<div class="pool" style="width: 1100px; height: 2200px; padding: 32px 0; display: flex; flex-direction: column; gap: 20px">
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Shot · no call yet</p>
+    <div class="slot">
+      <section class="panel" aria-label="Your shot">
+        <div class="call">
+          <p class="call__line">Tap the ball you are going for.</p>
+          <div class="call__actions">
+            <button class="toggle" type="button" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          </div>
+          <p class="hint">Pull the bar to shoot · <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Enter</kbd> shoots</p>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="angle">
+          <span class="field__label">Angle</span>
+          <div class="angle__row">
+            <button class="nudge" type="button" aria-label="Rotate minus 5 degrees">−5°</button>
+            <button class="nudge" type="button" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
+            <output class="angle__readout">180.0°</output>
+            <button class="nudge" type="button" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
+            <button class="nudge" type="button" aria-label="Rotate plus 5 degrees">+5°</button>
+          </div>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="spin">
+          <div class="spin__pad" role="slider" tabindex="0" aria-label="Spin" aria-valuetext="centre"><span class="spin__cross"></span><span class="spin__limit"></span><span class="spin__dot" style="left: 50%; top: 50%"></span></div>
+          <div class="spin__meta"><span class="field__label">Spin</span><span class="spin__label">centre</span><button class="btn btn--quiet btn--small" type="button" style="padding: 0 8px; margin-left: -8px" disabled>Reset</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Shot · Safety on (fills from the left, 160 ms) · draw · pad hover</p>
+    <div class="slot">
+      <section class="panel" aria-label="Your shot">
+        <div class="call">
+          <p class="call__line call__line--called" style="transform: translateY(0)">Safety: <span class="muted">no call needed, the turn passes after the shot.</span></p>
+          <div class="call__actions">
+            <button class="toggle" type="button" aria-pressed="true"><span class="toggle__box"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg></span>Safety</button>
+          </div>
+          <p class="hint">Pull the bar to shoot · <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Enter</kbd> shoots</p>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="angle">
+          <span class="field__label">Angle</span>
+          <div class="angle__row">
+            <button class="nudge" type="button" aria-label="Rotate minus 5 degrees">−5°</button>
+            <button class="nudge" type="button" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
+            <output class="angle__readout">94.25°</output>
+            <button class="nudge" type="button" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
+            <button class="nudge" type="button" aria-label="Rotate plus 5 degrees">+5°</button>
+          </div>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="spin">
+          <div class="spin__pad" role="slider" tabindex="0" aria-label="Spin" aria-valuetext="draw" style="box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 0 4px var(--accent-soft), 0 6px 14px -6px rgba(0,0,0,.6)"><span class="spin__cross"></span><span class="spin__limit"></span><span class="spin__dot" style="left: 50%; top: 74%"></span></div>
+          <div class="spin__meta"><span class="field__label">Spin</span><span class="spin__label">draw</span><button class="btn btn--quiet btn--small" type="button" style="padding: 0 8px; margin-left: -8px">Reset</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Shot · break · ball in hand in the kitchen · spin past the miscue limit</p>
+    <div class="slot">
+      <section class="panel" aria-label="Your break">
+        <div class="call">
+          <p class="call__line call__line--called">Break: <span class="muted">no call needed. Drag the cue ball anywhere in the kitchen.</span></p>
+          <div class="call__actions"><span class="tag tag--ready">ball in hand · kitchen</span></div>
+          <p class="hint">Pull the bar to shoot · <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Enter</kbd> shoots</p>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="angle">
+          <span class="field__label">Angle</span>
+          <div class="angle__row">
+            <button class="nudge" type="button" aria-label="Rotate minus 5 degrees">−5°</button>
+            <button class="nudge" type="button" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
+            <output class="angle__readout">0.0°</output>
+            <button class="nudge" type="button" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
+            <button class="nudge" type="button" aria-label="Rotate plus 5 degrees">+5°</button>
+          </div>
+        </div>
+        <div class="panel__sep"></div>
+        <div class="spin">
+          <div class="spin__pad" role="slider" tabindex="0" aria-label="Spin" aria-valuetext="right, at the limit"><span class="spin__cross"></span><span class="spin__limit" style="border-color: var(--ball-3)"></span><span class="spin__dot" style="left: 86%; top: 50%"></span></div>
+          <div class="spin__meta"><span class="field__label">Spin</span><span class="spin__label">right · at limit</span><button class="btn btn--quiet btn--small" type="button" style="padding: 0 8px; margin-left: -8px">Reset</button></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Lobby · opponent seated</p>
+    <div class="slot">
+      <section class="panel panel--center" style="gap: 20px">
+        <div class="panel__group" style="align-items: center">
+          <p class="panel__msg"><strong>Bob is here.</strong> Ready when you are.</p>
+          <p class="panel__sub">You break the first rack; after that the break alternates.</p>
+        </div>
+        <button class="btn btn--primary btn--lg" type="button">I’m ready</button>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Lobby · alone</p>
+    <div class="slot">
+      <section class="panel panel--center" style="gap: 20px">
+        <div class="panel__group" style="align-items: center">
+          <p class="panel__msg">Waiting for an opponent.</p>
+          <p class="panel__sub">Send the link; this room stays open while you are here.</p>
+        </div>
+        <button class="btn btn--secondary btn--lg" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy invite link</button>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Lobby · I’m ready</p>
+    <div class="slot">
+      <section class="panel panel--center" style="gap: 20px">
+        <div class="panel__group" style="align-items: center">
+          <p class="panel__msg"><strong>You’re ready.</strong> Waiting for Bob…</p>
+          <p class="panel__sub">The game starts when both players are ready.</p>
+        </div>
+        <button class="btn btn--quiet" type="button">Not ready</button>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Waiting · their turn</p>
+    <div class="slot">
+      <section class="panel panel--center">
+        <div class="panel__group" style="align-items: center">
+          <p class="panel__msg"><strong>Bob’s turn.</strong></p>
+          <p class="panel__sub">You see his aim as he lines up.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Waiting · balls moving</p>
+    <div class="slot">
+      <section class="panel panel--center">
+        <p class="panel__msg muted">Balls are rolling…</p>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Waiting · opponent deciding</p>
+    <div class="slot">
+      <section class="panel panel--center">
+        <div class="panel__group" style="align-items: center">
+          <p class="panel__msg">Waiting for <strong>Bob</strong> to decide.</p>
+          <p class="panel__sub">You broke illegally; Bob picks how to continue.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Waiting · opponent offline</p>
+    <div class="slot">
+      <section class="panel panel--center" style="gap: 16px">
+        <div class="hold" style="width: 40px; height: 40px" aria-hidden="true">
+          <svg width="40" height="40" viewBox="0 0 26 26"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--hairline-strong)" stroke-width="2"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="var(--foul)" stroke-width="2" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="13.8"></circle></svg>
+          <span class="hold__num" style="font-size: 13px">48</span>
+        </div>
+        <div class="panel__group">
+          <p class="panel__msg">Waiting for <strong>Bob</strong> to reconnect…</p>
+          <p class="panel__sub" role="timer">His seat is held for 48 more seconds.</p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div>
+    <p class="mk-cap" style="padding: 0 20px 8px">Game over</p>
+    <div class="slot">
+      <section class="panel" style="justify-content: space-between">
+        <div class="panel__group">
+          <p style="font: 600 28px/32px var(--font-display); letter-spacing: .01em">You win the rack · <span class="tnum">3 – 1</span></p>
+          <p class="panel__sub">Bob breaks the next rack; the break alternates.</p>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center">
+          <button class="btn btn--quiet" type="button">Leave</button>
+          <button class="btn btn--primary btn--lg" type="button">Rematch</button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool tokens</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.pool{
+--bg:#0D1218;--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;--input-bg:#0D1218;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);--scrim:rgba(6,9,13,.62);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--accent-hover:#E5B55E;--accent-press:#C38E2F;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--foul:#E48A80;--foul-soft:rgba(228,138,128,.14);--ok:#71C99D;--ok-soft:rgba(113,201,157,.14);--focus:#8CBFFF;--focus-halo:rgba(140,191,255,.28);
+--toast-bg:#243040;--toast-text:#E8ECF1;--toast-ok:#71C99D;--toast-foul:#E48A80;
+--felt:#2C614C;--felt-center:#34705A;--felt-edge:#1B3F31;
+--shadow-overlay:0 24px 48px -16px rgba(0,0,0,.6);--shadow-toast:0 12px 28px -12px rgba(0,0,0,.55);
+--r-sm:8px;--r-md:12px;--r-lg:16px;--r-pill:999px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;--font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--dur-1:120ms;--dur-2:160ms;--dur-3:200ms;--dur-4:240ms;--dur-5:320ms;--dur-6:450ms;--dur-7:600ms;--dur-pulse:2000ms;
+--ease-out:cubic-bezier(.2,.8,.2,1);--ease-in:cubic-bezier(.4,0,1,1);--ease-inout:cubic-bezier(.45,0,.25,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);
+--hit:44px;
+color-scheme:dark;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool *{box-sizing:border-box}
+.pool h1,.pool h2,.pool h3,.pool p{margin:0}
+.eyebrow{font:700 12px/16px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.tok{font:500 13px/18px var(--font-mono);color:var(--text)}
+.tok-s{font:400 12px/16px var(--font-mono);color:var(--text-muted)}
+.muted{color:var(--text-muted)}
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border-radius:var(--r-pill);border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer;transition:background-color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out)}
+.btn--secondary{background:var(--surface-2);color:var(--text);border-color:var(--hairline-strong)}
+.btn--secondary:hover{background:var(--surface-3)}
+.btn--secondary:active{background:var(--surface-3);border-color:var(--text-muted);transform:scale(.98)}
+.btn--small{min-height:32px;padding:0 14px;font-size:14px;gap:6px}
+.btn--small::before{content:"";position:absolute;inset:-6px -2px}
+.btn:focus-visible,.btn.is-focus{outline:2px solid var(--focus);outline-offset:2px}
+.seat{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:var(--r-pill);background:var(--surface-2);border:1.5px solid var(--accent);font:600 15px/20px var(--font-ui);color:var(--text)}
+.seat--turn{animation:pool-pulse var(--dur-pulse) var(--ease-inout) infinite}
+@keyframes pool-pulse{0%{box-shadow:0 0 0 0 rgba(217,164,65,.55)}70%{box-shadow:0 0 0 8px rgba(217,164,65,0)}100%{box-shadow:0 0 0 0 rgba(217,164,65,0)}}
+.ball{position:relative;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;box-shadow:inset -5px -7px 12px rgba(0,0,0,.38),inset 3px 4px 8px rgba(255,255,255,.12),0 0 0 1px rgba(0,0,0,.4)}
+.ball::after{content:"";position:absolute;left:20%;top:14%;width:28%;height:20%;border-radius:50%;background:rgba(255,255,255,.5);filter:blur(2px)}
+.ball__num{position:relative;z-index:1;width:20px;height:20px;border-radius:50%;background:#FAF7EF;color:#111316;font:700 11px/20px var(--font-ui);text-align:center}
+.row{display:grid;align-items:center;border-top:1px solid var(--hairline)}
+.track{position:relative;width:280px;height:24px;border-radius:var(--r-pill);background:var(--surface-1);border:1px solid var(--hairline)}
+.track__dot{position:absolute;left:4px;top:4px;width:14px;height:14px;border-radius:50%;background:var(--accent)}
+@media (prefers-reduced-motion: reduce){.pool *,.pool *::before,.pool *::after{transition-duration:1ms!important;animation:none!important}}
+</style>
+</helmet>
+<div class="pool" style="width: 1440px; min-height: 4100px; padding: 72px 64px 96px; display: flex; flex-direction: column; gap: 72px">
+
+  <header style="display: flex; justify-content: space-between; align-items: flex-end; gap: 48px; padding-bottom: 40px; border-bottom: 1px solid var(--hairline)">
+    <div style="display: flex; flex-direction: column; gap: 12px; max-width: 760px">
+      <span class="eyebrow">Pool · Design tokens v0.1 · “Night hall”</span>
+      <h1 style="font: 600 72px/72px var(--font-display); letter-spacing: .01em">Tokens</h1>
+      <p style="font: 400 18px/28px var(--font-ui); color: var(--text-muted)">A calm pool hall at night: a deep charcoal-blue room, brass for whatever matters right now, real cloth on the table. Dark is the default; light overrides the same names.</p>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end; text-align: right">
+      <span class="tok-s">:root → dark</span>
+      <span class="tok-s">:root[data-theme="light"] → light</span>
+      <span class="tok-s">@media (prefers-color-scheme: light) → light</span>
+    </div>
+  </header>
+
+  <section style="display: flex; flex-direction: column; gap: 20px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px">
+      <div style="display: flex; align-items: baseline; gap: 16px">
+        <span class="eyebrow">01</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">Color</h2>
+      </div>
+      <span class="muted" style="font-size: 14px; line-height: 20px">Contrast column: worst case over bg and surfaces 1–3 (text), or text-on-fill (fills) · dark · light</span>
+    </div>
+    <div class="row" style="grid-template-columns: 220px minmax(0, 1fr) 210px 210px 150px; gap: 16px; min-height: 36px; border-top: none">
+      <span class="eyebrow">Token</span>
+      <span class="eyebrow">Role</span>
+      <span class="eyebrow">Dark</span>
+      <span class="eyebrow">Light</span>
+      <span class="eyebrow">Contrast</span>
+    </div>
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="6">
+      <div style="display: flex; flex-direction: column">
+        <h3 style="font: 600 16px/24px var(--font-ui); color: var(--accent-text); padding: 20px 0 8px">{{g.name}}</h3>
+        <sc-for list="{{g.rows}}" as="r" hint-placeholder-count="4">
+          <div class="row" style="grid-template-columns: 220px minmax(0, 1fr) 210px 210px 150px; gap: 16px; min-height: 52px">
+            <code class="tok">{{r.name}}</code>
+            <span class="muted" style="font-size: 15px; line-height: 22px">{{r.role}}</span>
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="position: relative; display: flex; align-items: center; justify-content: center; width: 64px; height: 36px; border-radius: 8px; border: 1px solid var(--hairline); background: {{r.swD}}">
+                <sc-if value="{{r.isFill}}" hint-placeholder-val="{{true}}">
+                  <span style="position: absolute; inset: 5px; border-radius: 5px; background: {{r.dark}}"></span>
+                </sc-if>
+                <sc-if value="{{r.isText}}" hint-placeholder-val="{{false}}">
+                  <span style="font: 700 17px/20px var(--font-ui); color: {{r.dark}}">Aa</span>
+                </sc-if>
+              </span>
+              <span class="tok-s">{{r.dark}}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px">
+              <span style="position: relative; display: flex; align-items: center; justify-content: center; width: 64px; height: 36px; border-radius: 8px; border: 1px solid var(--hairline); background: {{r.swL}}">
+                <sc-if value="{{r.isFill}}" hint-placeholder-val="{{true}}">
+                  <span style="position: absolute; inset: 5px; border-radius: 5px; background: {{r.light}}"></span>
+                </sc-if>
+                <sc-if value="{{r.isText}}" hint-placeholder-val="{{false}}">
+                  <span style="font: 700 17px/20px var(--font-ui); color: {{r.light}}">Aa</span>
+                </sc-if>
+              </span>
+              <span class="tok-s">{{r.light}}</span>
+            </div>
+            <span style="font: 600 14px/20px var(--font-ui); font-variant-numeric: tabular-nums; color: var(--text)">{{r.cr}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </section>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 64px">
+    <section style="display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; align-items: baseline; gap: 16px">
+        <span class="eyebrow">02</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">Balls</h2>
+      </div>
+      <p class="muted" style="font-size: 15px; line-height: 22px">Standard set, identical in both themes. Stripes are ivory with a centre band of 52% height. Final rendering lives in the canvas spec (Prompt 3).</p>
+      <div style="display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 20px 8px; padding: 28px 24px; border-radius: 16px; background: radial-gradient(120% 140% at 50% 45%, #34705A 0%, #2C614C 55%, #1B3F31 100%)">
+        <sc-for list="{{balls}}" as="b" hint-placeholder-count="16">
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+            <div class="ball" style="background: {{b.bg}}">
+              <sc-if value="{{b.hasNum}}" hint-placeholder-val="{{true}}">
+                <span class="ball__num">{{b.n}}</span>
+              </sc-if>
+            </div>
+            <span style="font: 500 11px/14px var(--font-mono); color: #E9F0EC">{{b.cap}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 24px">
+      <div style="display: flex; align-items: baseline; gap: 16px">
+        <span class="eyebrow">03</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">Shape &amp; depth</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="height: 72px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--hairline-strong)"></div>
+          <code class="tok">--r-sm · 8</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">swatches, spin-pad inner</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="height: 72px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--hairline-strong)"></div>
+          <code class="tok">--r-md · 12</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">inputs, toasts, room rows</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="height: 72px; border-radius: 16px; background: var(--surface-2); border: 1px solid var(--hairline-strong)"></div>
+          <code class="tok">--r-lg · 16</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">panels, cards, dialogs</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div style="height: 72px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--hairline-strong)"></div>
+          <code class="tok">--r-pill</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">buttons, tags, seats</span>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 24px; border-radius: 16px; background: var(--surface-1); border: 1px solid var(--hairline)">
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 56px; border-radius: 12px; border: 1px solid var(--hairline)"></div>
+          <code class="tok-s">1px --hairline</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">default edge</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 56px; border-radius: 12px; border: 1px solid var(--hairline-strong)"></div>
+          <code class="tok-s">1px --hairline-strong</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">controls, inputs</span>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="height: 56px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--hairline); box-shadow: var(--shadow-overlay)"></div>
+          <code class="tok-s">--shadow-overlay</code>
+          <span class="muted" style="font-size: 13px; line-height: 18px">dialogs, overlays only</span>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 20px">
+        <button class="btn btn--secondary is-focus" type="button">Focus ring</button>
+        <span class="muted" style="font-size: 14px; line-height: 20px">2px <code class="tok">--focus</code>, offset 2px, on :focus-visible only. Inputs swap the border to <code class="tok">--focus</code> and add a 3px <code class="tok">--focus-halo</code>.</span>
+      </div>
+    </section>
+  </div>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 64px">
+    <section style="display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; align-items: baseline; gap: 16px; padding-bottom: 8px">
+        <span class="eyebrow">04</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">Type</h2>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; padding-bottom: 8px">
+        <div style="padding: 16px 20px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--hairline)">
+          <span class="eyebrow">UI · humanist sans</span>
+          <p style="font: 600 24px/32px var(--font-ui); margin-top: 6px">Source Sans 3</p>
+          <span class="tok-s">400 · 600 · 700 · tnum · Vietnamese subset</span>
+        </div>
+        <div style="padding: 16px 20px; border-radius: 12px; background: var(--surface-1); border: 1px solid var(--hairline)">
+          <span class="eyebrow">Display · codes &amp; score only</span>
+          <p style="font: 600 26px/32px var(--font-display); letter-spacing: .02em; margin-top: 6px">Barlow Semi Condensed</p>
+          <span class="tok-s">500 · 600 · 700 · tnum · Vietnamese subset</span>
+        </div>
+      </div>
+      <sc-for list="{{type}}" as="t" hint-placeholder-count="10">
+        <div class="row" style="grid-template-columns: 170px 200px minmax(0, 1fr); gap: 16px; min-height: 60px; padding: 8px 0">
+          <code class="tok">{{t.name}}</code>
+          <span class="tok-s">{{t.spec}}</span>
+          <span style="font: {{t.font}}; letter-spacing: {{t.ls}}; color: {{t.color}}; font-variant-numeric: {{t.num}}">{{t.sample}}</span>
+        </div>
+      </sc-for>
+      <div class="row" style="grid-template-columns: 170px minmax(0, 1fr); gap: 16px; min-height: 60px; padding: 8px 0" lang="vi">
+        <code class="tok">vi check</code>
+        <span style="font: 400 16px/24px var(--font-ui)">Lượt của bạn. Bi số 3 đã vào lỗ — <span style="font: 600 20px/24px var(--font-display); letter-spacing: .08em">PHÒNG QXRTA</span></span>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 40px">
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; align-items: baseline; gap: 16px; padding-bottom: 8px">
+          <span class="eyebrow">05</span>
+          <h2 style="font: 600 28px/34px var(--font-ui)">Space</h2>
+        </div>
+        <sc-for list="{{space}}" as="s" hint-placeholder-count="9">
+          <div style="display: grid; grid-template-columns: 110px 40px minmax(0, 1fr); gap: 12px; align-items: center; min-height: 28px">
+            <code class="tok">{{s.name}}</code>
+            <span class="tok-s">{{s.px}}</span>
+            <span style="display: block; height: 12px; border-radius: 3px; background: var(--accent-soft); border: 1px solid var(--accent-ring); width: {{s.w}}px"></span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div style="display: flex; align-items: baseline; gap: 16px; padding-bottom: 8px">
+          <span class="eyebrow">06</span>
+          <h2 style="font: 600 28px/34px var(--font-ui)">Layers &amp; touch</h2>
+        </div>
+        <sc-for list="{{z}}" as="l" hint-placeholder-count="8">
+          <div class="row" style="grid-template-columns: 160px 48px minmax(0, 1fr); gap: 12px; min-height: 40px">
+            <code class="tok">{{l.name}}</code>
+            <span style="font: 600 14px/20px var(--font-ui); font-variant-numeric: tabular-nums">{{l.v}}</span>
+            <span class="muted" style="font-size: 14px; line-height: 20px">{{l.use}}</span>
+          </div>
+        </sc-for>
+        <div class="row" style="grid-template-columns: 160px 48px minmax(0, 1fr); gap: 12px; min-height: 40px">
+          <code class="tok">--hit</code>
+          <span style="font: 600 14px/20px var(--font-ui)">44</span>
+          <span class="muted" style="font-size: 14px; line-height: 20px">minimum touch target; small buttons draw 32px and extend the hit area with ::before</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section style="display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 24px; padding-bottom: 8px">
+      <div style="display: flex; align-items: baseline; gap: 16px">
+        <span class="eyebrow">07</span>
+        <h2 style="font: 600 28px/34px var(--font-ui)">Motion</h2>
+      </div>
+      <span class="muted" style="font-size: 14px; line-height: 20px">Enter with --ease-out, leave with --ease-in. Spring only for the pocket drop and the score tick. Nothing over 600 ms. Reduced motion: transitions 1 ms, animations off.</span>
+    </div>
+    <sc-for list="{{motion}}" as="m" hint-placeholder-count="11">
+      <div class="row" style="grid-template-columns: 150px 210px minmax(0, 1fr) 280px 96px; gap: 20px; min-height: 56px">
+        <code class="tok">{{m.name}}</code>
+        <span class="tok-s">{{m.value}}</span>
+        <span class="muted" style="font-size: 15px; line-height: 22px">{{m.use}}</span>
+        <div class="track"><span class="track__dot" style="transform: translateX({{m.x}}px); transition: transform {{m.dur}} {{m.ease}}"></span></div>
+        <button class="btn btn--secondary btn--small" type="button" onClick="{{m.toggle}}" aria-label="{{m.aria}}">{{m.label}}</button>
+      </div>
+    </sc-for>
+    <div class="row" style="grid-template-columns: 150px 210px minmax(0, 1fr) 280px 96px; gap: 20px; min-height: 72px">
+      <code class="tok">--dur-pulse</code>
+      <span class="tok-s">2000ms · --ease-inout · ∞</span>
+      <span class="muted" style="font-size: 15px; line-height: 22px">Your-turn ring on the active seat. The only loop; paused while balls are moving.</span>
+      <div style="display: flex; align-items: center; padding-left: 8px">
+        <span class="seat seat--turn">Ann <span style="font: 600 12px/16px var(--font-ui); color: var(--accent-text)">your turn</span></span>
+      </div>
+      <span></span>
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":4100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var D = { bg: '#0D1218', s1: '#141B23', s2: '#1B242F', s3: '#243040' };
+    var L = { bg: '#F1EFEA', s1: '#F9F8F5', s2: '#FFFFFF', s3: '#E6E2DA' };
+    var lum = function (h) {
+      var n = h.replace('#', '');
+      var c = [0, 2, 4].map(function (i) { var v = parseInt(n.slice(i, i + 2), 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    var ratio = function (a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    var minOver = function (c, set) { return Math.min.apply(null, Object.keys(set).map(function (k) { return ratio(c, set[k]); })); };
+    var f = function (v) { return v.toFixed(1); };
+    var row = function (name, role, dark, light, o) {
+      o = o || {};
+      var cr = '—';
+      if (o.text) cr = f(minOver(dark, D)) + ' · ' + f(minOver(light, L));
+      if (o.on) cr = f(ratio(o.on[0], dark)) + ' · ' + f(ratio(o.on[1], light));
+      if (o.note) cr = o.note;
+      var isText = !!(o.text || o.sample);
+      return { name: name, role: role, dark: dark, light: light, cr: cr, isText: isText, isFill: !isText,
+        swD: o.sw ? o.sw[0] : D.bg, swL: o.sw ? o.sw[1] : L.bg };
+    };
+    var groups = [
+      { name: 'Surfaces', rows: [
+        row('--bg', 'Page background, behind the table', '#0D1218', '#F1EFEA', { sw: ['#2A3542', '#C9C4BA'] }),
+        row('--surface-1', 'Header, panels, cards', '#141B23', '#F9F8F5'),
+        row('--surface-2', 'Controls, secondary buttons, seats', '#1B242F', '#FFFFFF'),
+        row('--surface-3', 'Hover and pressed fills, neutral tags', '#243040', '#E6E2DA'),
+        row('--input-bg', 'Text fields (inset in dark, raised in light)', '#0D1218', '#FFFFFF', { sw: ['#2A3542', '#F1EFEA'] }),
+        row('--hairline', 'Default 1px edge', 'rgba(170,190,215,.14)', 'rgba(22,32,43,.12)'),
+        row('--hairline-strong', 'Control and input edge', 'rgba(170,190,215,.26)', 'rgba(22,32,43,.22)'),
+        row('--scrim', 'Backdrop under dialogs, with 8px blur', 'rgba(6,9,13,.62)', 'rgba(22,32,43,.38)')
+      ] },
+      { name: 'Text', rows: [
+        row('--text', 'Primary text and icons', '#E8ECF1', '#16202B', { text: true }),
+        row('--text-muted', 'Labels, hints, secondary lines', '#9BA8B7', '#566270', { text: true }),
+        row('--text-disabled', 'Disabled controls only', '#5E6B7A', '#A3ABB4', { sample: true, note: 'exempt' })
+      ] },
+      { name: 'Brass accent', rows: [
+        row('--accent', 'Primary fill, active seat ring, called ball', '#D9A441', '#D9A441', { on: ['#1A1206', '#1A1206'] }),
+        row('--accent-hover', 'Primary hover', '#E5B55E', '#E2AE4E', { on: ['#1A1206', '#1A1206'] }),
+        row('--accent-press', 'Primary pressed', '#C38E2F', '#C38E2F', { on: ['#1A1206', '#1A1206'] }),
+        row('--on-accent', 'Text on any brass fill', '#1A1206', '#1A1206', { sw: ['#D9A441', '#D9A441'], sample: true, note: 'see above' }),
+        row('--accent-text', 'Brass as text: the current call, “you”', '#E3B25C', '#87590F', { text: true }),
+        row('--accent-soft', 'Tint behind “you” tag, selected rows', 'rgba(217,164,65,.14)', 'rgba(176,122,30,.12)'),
+        row('--accent-ring', 'Pulse and ring edges', 'rgba(217,164,65,.55)', 'rgba(176,122,30,.55)')
+      ] },
+      { name: 'Status', rows: [
+        row('--foul', 'Fouls, errors, offline', '#E48A80', '#AE3A32', { text: true }),
+        row('--foul-soft', 'Foul status line, error field tint', 'rgba(228,138,128,.14)', 'rgba(174,58,50,.10)'),
+        row('--ok', 'Pocketed, ready, reconnected', '#71C99D', '#1A6B43', { text: true }),
+        row('--ok-soft', 'Success status line tint', 'rgba(113,201,157,.14)', 'rgba(26,107,67,.10)'),
+        row('--focus', 'Focus ring (non-text, needs 3:1)', '#8CBFFF', '#2F6FD0', { text: true }),
+        row('--focus-halo', 'Input focus halo', 'rgba(140,191,255,.28)', 'rgba(47,111,208,.22)')
+      ] },
+      { name: 'Toast (dark in both themes)', rows: [
+        row('--toast-bg', 'Toast surface', '#243040', '#1E2833', { on: ['#E8ECF1', '#F1F3F6'] }),
+        row('--toast-text', 'Toast text', '#E8ECF1', '#F1F3F6', { sw: ['#243040', '#1E2833'], sample: true, note: 'see above' }),
+        row('--toast-ok', 'Toast success icon', '#71C99D', '#71C99D', { sw: ['#243040', '#1E2833'], sample: true, on: ['#243040', '#1E2833'] }),
+        row('--toast-foul', 'Toast error icon', '#E48A80', '#E48A80', { sw: ['#243040', '#1E2833'], sample: true, on: ['#243040', '#1E2833'] })
+      ] },
+      { name: 'Felt (canvas, same in both themes)', rows: [
+        row('--felt-center', 'Cloth under the lamp', '#34705A', '#34705A'),
+        row('--felt', 'Cloth', '#2C614C', '#2C614C'),
+        row('--felt-edge', 'Vignette toward the cushions', '#1B3F31', '#1B3F31')
+      ] }
+    ];
+
+    var BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#138A4E', 7: '#7E2232', 8: '#111316' };
+    var IV = '#F4EFE2';
+    var balls = [];
+    for (var n = 1; n <= 15; n++) {
+      var c = BALL[n > 8 ? n - 8 : n];
+      var stripe = n > 8;
+      balls.push({ n: n, hasNum: true,
+        bg: stripe ? 'linear-gradient(180deg, ' + IV + ' 0 24%, ' + c + ' 24% 76%, ' + IV + ' 76% 100%)' : c,
+        cap: stripe ? String(n) : c.toLowerCase() });
+    }
+    balls.push({ n: '', hasNum: false, bg: IV, cap: 'cue ' + IV.toLowerCase() });
+
+    var type = [
+      { name: '--type-score', spec: 'Display 600 · 44/44 · tnum', sample: '2 – 1', style: 'font: 600 44px/44px var(--font-display); font-variant-numeric: tabular-nums' },
+      { name: '--type-code', spec: 'Display 600 · 24/28 · +.16em', sample: 'QXRTA', style: 'font: 600 24px/28px var(--font-display); letter-spacing: .16em' },
+      { name: '--type-title', spec: 'UI 600 · 24/30', sample: 'Join room ABCDE', style: 'font: 600 24px/30px var(--font-ui)' },
+      { name: '--type-title-s', spec: 'UI 600 · 18/24', sample: 'Illegal break', style: 'font: 600 18px/24px var(--font-ui)' },
+      { name: '--type-body', spec: 'UI 400 · 16/24', sample: 'Foul by Bob: scratch. Your turn, ball in hand.', style: 'font: 400 16px/24px var(--font-ui)' },
+      { name: '--type-button', spec: 'UI 600 · 15/20', sample: 'Create a room', style: 'font: 600 15px/20px var(--font-ui)' },
+      { name: '--type-numeric', spec: 'UI 600 · 20/24 · tnum', sample: '321.7°', style: 'font: 600 20px/24px var(--font-ui); font-variant-numeric: tabular-nums' },
+      { name: '--type-label', spec: 'UI 600 · 13/18', sample: 'Angle', style: 'font: 600 13px/18px var(--font-ui); color: var(--text-muted)' },
+      { name: '--type-eyebrow', spec: 'UI 700 · 12/16 · +.08em · caps', sample: 'ROOMS', style: 'font: 700 12px/16px var(--font-ui); letter-spacing: .08em; color: var(--text-muted)' },
+      { name: '--type-caption', spec: 'UI 400 · 12/16', sample: 'Seat held for 60 s', style: 'font: 400 12px/16px var(--font-ui); color: var(--text-muted)' }
+    ].map(function (t) {
+      var d = { font: '', ls: 'normal', color: 'var(--text)', num: 'normal' };
+      t.style.split(';').forEach(function (part) {
+        var i = part.indexOf(':');
+        if (i < 0) return;
+        var k = part.slice(0, i).trim(), v = part.slice(i + 1).trim();
+        if (k === 'font') d.font = v;
+        if (k === 'letter-spacing') d.ls = v;
+        if (k === 'color') d.color = v;
+        if (k === 'font-variant-numeric') d.num = v;
+      });
+      return { name: t.name, spec: t.spec, sample: t.sample, font: d.font, ls: d.ls, color: d.color, num: d.num };
+    });
+
+    var space =[4, 8, 12, 16, 20, 24, 32, 40, 48].map(function (p, i) {
+      var names = ['--space-1', '--space-2', '--space-3', '--space-4', '--space-5', '--space-6', '--space-8', '--space-10', '--space-12'];
+      return { name: names[i], px: String(p), w: p * 4 };
+    });
+
+    var z = [
+      { name: '--z-table', v: '0', use: 'table canvas' },
+      { name: '--z-powerbar', v: '10', use: 'power bar, hover labels' },
+      { name: '--z-panel', v: '20', use: 'shot / lobby / waiting panels' },
+      { name: '--z-header', v: '30', use: 'header and seats' },
+      { name: '--z-banner', v: '40', use: 'game-over banner, status pill' },
+      { name: '--z-overlay', v: '50', use: 'landing card, reconnect card' },
+      { name: '--z-dialog', v: '60', use: 'decision dialog' },
+      { name: '--z-toast', v: '70', use: 'toast stack' }
+    ];
+
+    var on = (this.state && this.state.on) || {};
+    var self = this;
+    var toggle = function (id) {
+      return function () {
+        var cur = (self.state && self.state.on) || {};
+        var next = Object.assign({}, cur);
+        next[id] = !cur[id];
+        self.setState({ on: next });
+      };
+    };
+    var mk = function (id, name, value, use, dur, ease) {
+      return { name: name, value: value, use: use, dur: dur, ease: ease, x: on[id] ? 252 : 0,
+        label: on[id] ? 'Back' : 'Play', aria: (on[id] ? 'Reverse ' : 'Play ') + name, toggle: toggle(id) };
+    };
+    var motion = [
+      mk('d1', '--dur-1', '120ms', 'Press, hover, field focus', '120ms', 'var(--ease-out)'),
+      mk('d2', '--dur-2', '160ms', 'Toggles: Safety fill, tags, chips', '160ms', 'var(--ease-out)'),
+      mk('d3', '--dur-3', '200ms', 'Cross-fades: panels, status line, toasts', '200ms', 'var(--ease-out)'),
+      mk('d4', '--dur-4', '240ms', 'Enter: cards, dialogs; score tick', '240ms', 'var(--ease-out)'),
+      mk('d5', '--dur-5', '320ms', 'Layout changes', '320ms', 'var(--ease-out)'),
+      mk('d6', '--dur-6', '450ms', 'Largest layout move (panel swap on phones)', '450ms', 'var(--ease-out)'),
+      mk('d7', '--dur-7', '600ms', 'Ceiling: game-over light sweep only', '600ms', 'var(--ease-inout)'),
+      mk('e1', '--ease-out', 'cubic-bezier(.2,.8,.2,1)', 'Anything entering or responding', '450ms', 'var(--ease-out)'),
+      mk('e2', '--ease-in', 'cubic-bezier(.4,0,1,1)', 'Anything leaving', '450ms', 'var(--ease-in)'),
+      mk('e3', '--ease-inout', 'cubic-bezier(.45,0,.25,1)', 'Moves within the screen, the pulse', '450ms', 'var(--ease-inout)'),
+      mk('e4', '--ease-spring', 'cubic-bezier(.34,1.56,.64,1)', 'Pocket drop and score tick only', '450ms', 'var(--ease-spring)')
+    ];
+
+    return { groups: groups, balls: balls, type: type, space: space, z: z, motion: motion };
+  }
+}
+</script>
+</body>
+</html>

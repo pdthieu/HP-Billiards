@@ -32,7 +32,9 @@ func main() {
 	mux.HandleFunc("POST /api/rooms", h.HandleCreateRoom)
 	mux.HandleFunc("GET /api/rooms", h.HandleListRooms)
 	mux.HandleFunc("GET /ws", h.ServeWS)
-	mux.Handle("GET /", noCache(http.FileServerFS(web.Files)))
+	static := http.FileServerFS(web.Files)
+	mux.Handle("GET /fonts/", immutable(static))
+	mux.Handle("GET /", noCache(static))
 
 	srv := &http.Server{
 		Addr:              *addr,
@@ -41,6 +43,16 @@ func main() {
 	}
 	log.Printf("listening on %s", *addr)
 	log.Fatal(srv.ListenAndServe())
+}
+
+// immutable lets browsers keep the fonts: they never change without a new
+// file name, and embed.FS gives the file server no validator to revalidate
+// with, so no-cache would mean a full download on every visit.
+func immutable(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		next.ServeHTTP(w, r)
+	})
 }
 
 // noCache makes browsers revalidate static files so a restarted server is

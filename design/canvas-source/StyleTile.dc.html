@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool style tile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0}
+.pool{
+--bg:#0D1218;--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;--input-bg:#0D1218;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);--scrim:rgba(6,9,13,.62);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--accent-hover:#E5B55E;--accent-press:#C38E2F;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--foul:#E48A80;--foul-soft:rgba(228,138,128,.14);--ok:#71C99D;--ok-soft:rgba(113,201,157,.14);--focus:#8CBFFF;--focus-halo:rgba(140,191,255,.28);
+--toast-bg:#243040;--toast-text:#E8ECF1;--toast-ok:#71C99D;--toast-foul:#E48A80;
+--shadow-overlay:0 24px 48px -16px rgba(0,0,0,.6);--shadow-toast:0 12px 28px -12px rgba(0,0,0,.55);
+--r-sm:8px;--r-md:12px;--r-lg:16px;--r-pill:999px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;--font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+--dur-1:120ms;--dur-2:160ms;--dur-3:200ms;--dur-4:240ms;
+--ease-out:cubic-bezier(.2,.8,.2,1);--ease-in:cubic-bezier(.4,0,1,1);
+color-scheme:dark;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool[data-theme="light"]{
+--bg:#F1EFEA;--surface-1:#F9F8F5;--surface-2:#FFFFFF;--surface-3:#E6E2DA;--input-bg:#FFFFFF;
+--hairline:rgba(22,32,43,.12);--hairline-strong:rgba(22,32,43,.22);--scrim:rgba(22,32,43,.38);
+--text:#16202B;--text-muted:#566270;--text-disabled:#A3ABB4;
+--accent-hover:#E2AE4E;--accent-text:#87590F;--accent-soft:rgba(176,122,30,.12);--accent-ring:rgba(176,122,30,.55);
+--foul:#AE3A32;--foul-soft:rgba(174,58,50,.10);--ok:#1A6B43;--ok-soft:rgba(26,107,67,.10);--focus:#2F6FD0;--focus-halo:rgba(47,111,208,.22);
+--toast-bg:#1E2833;--toast-text:#F1F3F6;
+--shadow-overlay:0 24px 48px -16px rgba(22,32,43,.28);--shadow-toast:0 12px 28px -12px rgba(22,32,43,.35);
+color-scheme:light;
+}
+.pool *{box-sizing:border-box}
+.pool h1,.pool h2,.pool h3,.pool p{margin:0}
+.eyebrow{font:700 12px/16px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.state{font:400 12px/16px var(--font-ui);color:var(--text-muted)}
+.tok-s{font:400 12px/16px var(--font-mono);color:var(--text-muted)}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border-radius:var(--r-pill);border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer;transition:background-color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out)}
+.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--primary:hover,.btn--primary.is-hover{background:var(--accent-hover)}
+.btn--primary:active,.btn--primary.is-press{background:var(--accent-press);transform:scale(.98)}
+.btn--secondary{background:var(--surface-2);color:var(--text);border-color:var(--hairline-strong)}
+.btn--secondary:hover,.btn--secondary.is-hover{background:var(--surface-3)}
+.btn--secondary:active,.btn--secondary.is-press{background:var(--surface-3);border-color:var(--text-muted);transform:scale(.98)}
+.btn--small{min-height:32px;padding:0 14px;font-size:14px;gap:6px}
+.btn--small::before{content:"";position:absolute;inset:-6px -2px}
+.btn:focus-visible,.btn.is-focus{outline:2px solid var(--focus);outline-offset:2px}
+.btn:disabled{background:var(--surface-2);color:var(--text-disabled);border-color:var(--hairline);cursor:not-allowed;transform:none}
+.btn svg{flex:none}
+
+.icon-btn{position:absolute;right:0;top:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;border-radius:var(--r-md);background:transparent;color:var(--text-muted);cursor:pointer;transition:color var(--dur-1) var(--ease-out),background-color var(--dur-1) var(--ease-out)}
+.icon-btn:hover{color:var(--text);background:var(--surface-3)}
+.icon-btn:focus-visible{outline:2px solid var(--focus);outline-offset:-4px}
+
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field__label{font:600 13px/18px var(--font-ui);color:var(--text-muted)}
+.field__msg{display:flex;align-items:center;gap:6px;font:400 13px/18px var(--font-ui);color:var(--foul)}
+.input-group{position:relative}
+.input{display:block;width:100%;height:44px;padding:0 14px;border-radius:var(--r-md);border:1px solid var(--hairline-strong);background:var(--input-bg);color:var(--text);font:400 16px/24px var(--font-ui);transition:border-color var(--dur-1) var(--ease-out),box-shadow var(--dur-1) var(--ease-out)}
+.input-group .input{padding-right:48px}
+.input::placeholder{color:var(--text-muted);opacity:1}
+.input:focus,.input.is-focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-halo)}
+.input--error,.input--error:focus{border-color:var(--foul);box-shadow:0 0 0 3px var(--foul-soft)}
+.input--code{width:148px;font:600 22px/24px var(--font-display);letter-spacing:.18em;text-transform:uppercase;text-align:center;padding:0 10px}
+
+.tag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:var(--r-pill);border:1px solid transparent;background:var(--surface-3);color:var(--text);font:600 12px/16px var(--font-ui);letter-spacing:.02em;white-space:nowrap}
+.tag--you{background:var(--accent-soft);color:var(--accent-text);border-color:var(--accent-ring)}
+.tag--ready{background:var(--ok-soft);color:var(--ok)}
+.tag--offline{background:transparent;color:var(--foul);border:1px dashed var(--foul)}
+.chip{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 11px;border-radius:var(--r-pill);border:1px solid var(--hairline);background:var(--surface-2);font:600 12px/16px var(--font-ui);letter-spacing:.02em;white-space:nowrap}
+.chip__dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+.chip--lobby{color:var(--text-muted)}
+.chip--playing{color:var(--accent-text);border-color:var(--accent-ring)}
+.chip--finished{color:var(--text-muted)}
+.chip--finished .chip__dot{background:transparent;box-shadow:inset 0 0 0 1.5px currentColor}
+
+.toast{display:flex;align-items:flex-start;gap:10px;max-width:340px;padding:12px 16px;border-radius:var(--r-md);background:var(--toast-bg);color:var(--toast-text);box-shadow:var(--shadow-toast);font:400 15px/22px var(--font-ui)}
+.toast__icon{flex:none;margin-top:3px;color:var(--toast-ok)}
+.toast--error .toast__icon{color:var(--toast-foul)}
+
+.card{background:var(--surface-1);border:1px solid var(--hairline);border-radius:var(--r-lg);padding:20px 20px 8px}
+.room-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:14px 0;border-top:1px solid var(--hairline)}
+.room-code{font:600 24px/28px var(--font-display);letter-spacing:.16em}
+
+.spec{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--hairline)}
+@media (prefers-reduced-motion: reduce){.pool *,.pool *::before{transition-duration:1ms!important;animation:none!important}}
+</style>
+</helmet>
+<div style="display: flex; width: 2400px; min-height: 1120px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="2">
+<div class="pool" data-theme="{{t.id}}" style="width: 1200px; min-height: 1120px; padding: 40px 48px 48px; display: flex; flex-direction: column; gap: 32px">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 20px; border-bottom: 1px solid var(--hairline)">
+    <div style="display: flex; align-items: baseline; gap: 14px">
+      <span style="font: 700 30px/32px var(--font-display); letter-spacing: .04em">POOL</span>
+      <span style="font: 400 16px/24px var(--font-ui); color: var(--text-muted)">Style tile</span>
+    </div>
+    <span class="tag">{{t.label}}</span>
+  </header>
+
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 48px; align-items: start">
+
+    <div style="display: flex; flex-direction: column; gap: 40px">
+
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <h2 class="eyebrow">Buttons</h2>
+        <div style="display: grid; grid-template-columns: 76px repeat(3, minmax(0, 1fr)); gap: 12px 16px; align-items: center">
+          <span></span>
+          <span class="state">Primary</span>
+          <span class="state">Secondary</span>
+          <span class="state">Small</span>
+
+          <span class="state">Default</span>
+          <div><button class="btn btn--primary" type="button">Create a room</button></div>
+          <div><button class="btn btn--secondary" type="button">Join by code</button></div>
+          <div><button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button></div>
+
+          <span class="state">Hover</span>
+          <div><button class="btn btn--primary is-hover" type="button">Create a room</button></div>
+          <div><button class="btn btn--secondary is-hover" type="button">Join by code</button></div>
+          <div><button class="btn btn--secondary btn--small is-hover" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button></div>
+
+          <span class="state">Pressed</span>
+          <div><button class="btn btn--primary is-press" type="button">Create a room</button></div>
+          <div><button class="btn btn--secondary is-press" type="button">Join by code</button></div>
+          <div><button class="btn btn--secondary btn--small is-press" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button></div>
+
+          <span class="state">Focus</span>
+          <div><button class="btn btn--primary is-focus" type="button">Create a room</button></div>
+          <div><button class="btn btn--secondary is-focus" type="button">Join by code</button></div>
+          <div><button class="btn btn--secondary btn--small is-focus" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy link</button></div>
+
+          <span class="state">Disabled</span>
+          <div><button class="btn btn--primary" type="button" disabled>Create a room</button></div>
+          <div><button class="btn btn--secondary" type="button" disabled>Full</button></div>
+          <div><button class="btn btn--secondary btn--small" type="button" disabled>Clear</button></div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <h2 class="eyebrow">Inputs</h2>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 32px">
+          <div class="field">
+            <label class="field__label" for="name-{{t.id}}">Your name</label>
+            <div class="input-group">
+              <input class="input" id="name-{{t.id}}" value="Keen Osprey" maxlength="20" autocomplete="nickname">
+              <button class="icon-btn" type="button" aria-label="Suggest another name"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg></button>
+            </div>
+            <span class="state">Default · suggested name with shuffle</span>
+          </div>
+          <div class="field">
+            <label class="field__label" for="name2-{{t.id}}">Your name</label>
+            <input class="input is-focus" id="name2-{{t.id}}" value="Ann" maxlength="20">
+            <span class="state">Focus</span>
+          </div>
+          <div class="field">
+            <label class="field__label" for="name3-{{t.id}}">Your name</label>
+            <input class="input input--error" id="name3-{{t.id}}" placeholder="Enter your name" aria-invalid="true" aria-describedby="err-{{t.id}}">
+            <span class="field__msg" id="err-{{t.id}}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>Enter a name to continue.</span>
+          </div>
+          <div class="field">
+            <label class="field__label" for="code-{{t.id}}">Room code</label>
+            <div style="display: flex; gap: 10px; align-items: center">
+              <input class="input input--code" id="code-{{t.id}}" value="ABCDE" maxlength="5" autocapitalize="characters" spellcheck="false">
+              <button class="btn btn--secondary" type="button">Join</button>
+            </div>
+            <span class="state">Display face, tracked caps</span>
+          </div>
+        </div>
+      </section>
+
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px">
+        <section style="display: flex; flex-direction: column; gap: 16px">
+          <h2 class="eyebrow">Tags &amp; status</h2>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <span class="tag tag--you">you</span>
+            <span class="tag tag--ready">ready</span>
+            <span class="tag tag--offline">offline · 60 s</span>
+            <span class="tag">solids</span>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px">
+            <span class="chip chip--lobby"><span class="chip__dot"></span>lobby</span>
+            <span class="chip chip--playing"><span class="chip__dot"></span>playing</span>
+            <span class="chip chip--finished"><span class="chip__dot"></span>finished</span>
+          </div>
+        </section>
+        <section style="display: flex; flex-direction: column; gap: 12px">
+          <h2 class="eyebrow">Toast</h2>
+          <div class="toast" role="status">
+            <svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>
+            <span>Invite link copied.</span>
+          </div>
+          <div class="toast toast--error" role="alert">
+            <svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
+            <span>Room QXRTA is full. Pick another or create one.</span>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 40px">
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <h2 class="eyebrow">Card</h2>
+        <div class="card">
+          <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 12px">
+            <h3 style="font: 600 18px/24px var(--font-ui)">Rooms</h3>
+            <span class="state">2 of 3 in use</span>
+          </div>
+          <div class="room-row">
+            <span class="room-code">QXRTA</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0">
+              <span style="font: 400 15px/20px var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">Ann <span style="color: var(--text-muted)">vs</span> Bob</span>
+              <span class="chip chip--playing"><span class="chip__dot"></span>playing</span>
+            </div>
+            <button class="btn btn--secondary btn--small" type="button" disabled>Full</button>
+          </div>
+          <div class="room-row">
+            <span class="room-code">MBWEK</span>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0">
+              <span style="font: 400 15px/20px var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">Keen Osprey</span>
+              <span class="chip chip--lobby"><span class="chip__dot"></span>lobby</span>
+            </div>
+            <button class="btn btn--secondary btn--small" type="button">Join</button>
+          </div>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 4px">
+        <h2 class="eyebrow" style="padding-bottom: 12px">Type</h2>
+        <div class="spec">
+          <span style="font: 600 44px/44px var(--font-display); font-variant-numeric: tabular-nums">2 – 1</span>
+          <span class="tok-s">score</span>
+        </div>
+        <div class="spec">
+          <span style="font: 600 24px/28px var(--font-display); letter-spacing: .16em">QXRTA</span>
+          <span class="tok-s">code</span>
+        </div>
+        <div class="spec">
+          <span style="font: 600 24px/30px var(--font-ui)">Join room ABCDE</span>
+          <span class="tok-s">title</span>
+        </div>
+        <div class="spec">
+          <span style="font: 600 18px/24px var(--font-ui)">Illegal break</span>
+          <span class="tok-s">title-s</span>
+        </div>
+        <div class="spec">
+          <span style="font: 400 16px/24px var(--font-ui)">Pocketed the 6, the 10. Your turn.</span>
+          <span class="tok-s">body</span>
+        </div>
+        <div class="spec">
+          <span style="font: 600 20px/24px var(--font-ui); font-variant-numeric: tabular-nums">321.7°</span>
+          <span class="tok-s">numeric</span>
+        </div>
+        <div class="spec">
+          <span style="font: 600 13px/18px var(--font-ui); color: var(--text-muted)">Angle</span>
+          <span class="tok-s">label</span>
+        </div>
+        <div class="spec">
+          <span style="font: 400 12px/16px var(--font-ui); color: var(--text-muted)">Seat held for 60 s</span>
+          <span class="tok-s">caption</span>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":1120}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      themes: [
+        { id: 'dark', label: 'Dark · default' },
+        { id: 'light', label: 'Light · token overrides' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

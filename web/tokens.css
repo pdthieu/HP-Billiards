@@ -1,0 +1,187 @@
+/* Pool · design tokens v0.1 ("Night hall")
+   Dark is the default on :root. Light overrides the same names under
+   :root[data-theme="light"] and, when no theme is forced, under
+   prefers-color-scheme: light. `.pool` mirrors :root so mockups can show
+   both themes side by side; the app itself only needs :root. */
+
+:root, .pool {
+  /* surfaces */
+  --bg: #0D1218;
+  --surface-1: #141B23;
+  --surface-2: #1B242F;
+  --surface-3: #243040;
+  --input-bg: #0D1218;
+  --hairline: rgba(170, 190, 215, .14);
+  --hairline-strong: rgba(170, 190, 215, .26);
+  --scrim: rgba(6, 9, 13, .62);
+  --scrim-blur: 8px;
+
+  /* text */
+  --text: #E8ECF1;
+  --text-muted: #9BA8B7;
+  --text-disabled: #5E6B7A;
+
+  /* brass accent */
+  --accent: #D9A441;
+  --accent-hover: #E5B55E;
+  --accent-press: #C38E2F;
+  --on-accent: #1A1206;
+  --accent-text: #E3B25C;
+  --accent-soft: rgba(217, 164, 65, .14);
+  --accent-ring: rgba(217, 164, 65, .55);
+
+  /* status */
+  --foul: #E48A80;
+  --foul-soft: rgba(228, 138, 128, .14);
+  --ok: #71C99D;
+  --ok-soft: rgba(113, 201, 157, .14);
+  --focus: #8CBFFF;
+  --focus-halo: rgba(140, 191, 255, .28);
+
+  /* toast: dark in both themes */
+  --toast-bg: #243040;
+  --toast-text: #E8ECF1;
+  --toast-ok: #71C99D;
+  --toast-foul: #E48A80;
+
+  /* power bar ramp */
+  --power-low: #71C99D;
+  --power-mid: #D9A441;
+  --power-high: #E48A80;
+
+  /* table (canvas; identical in both themes) */
+  --felt-center: #36745C;
+  --felt: #2C614C;
+  --felt-edge: #1B3F31;
+  --cushion: #1F4B3A;
+  --rail-top: #6A4428;
+  --rail: #4C2F1B;
+  --rail-bottom: #341F10;
+  --pocket: #06080A;
+  --sight: #E6D7B4;
+  --ball-ivory: #F4EFE2;
+  --ball-disc: #FAF7EF;
+  --ball-1: #F2C12E;
+  --ball-2: #1F4FB4;
+  --ball-3: #CC3326;
+  --ball-4: #5B3592;
+  --ball-5: #EC7623;
+  --ball-6: #128A4C;
+  --ball-7: #7E2232;
+  --ball-8: #111316;
+
+  /* depth */
+  --shadow-overlay: 0 24px 48px -16px rgba(0, 0, 0, .6);
+  --shadow-toast: 0 12px 28px -12px rgba(0, 0, 0, .55);
+
+  /* shape */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* space */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* type */
+  --font-ui: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* motion */
+  --dur-1: 120ms;   /* press, hover, focus */
+  --dur-2: 160ms;   /* toggles */
+  --dur-3: 200ms;   /* cross-fades */
+  --dur-4: 240ms;   /* enter: cards, dialogs, score tick */
+  --dur-5: 320ms;   /* layout */
+  --dur-6: 450ms;   /* largest layout move */
+  --dur-7: 600ms;   /* ceiling: game-over sweep */
+  --dur-pulse: 2000ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+  --ease-inout: cubic-bezier(.45, 0, .25, 1);
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+
+  /* layers */
+  --z-table: 0;
+  --z-powerbar: 10;
+  --z-panel: 20;
+  --z-header: 30;
+  --z-banner: 40;
+  --z-overlay: 50;
+  --z-dialog: 60;
+  --z-toast: 70;
+
+  /* touch */
+  --hit: 44px;
+
+  color-scheme: dark;
+}
+
+:root[data-theme="light"], .pool[data-theme="light"] {
+  --bg: #F1EFEA;
+  --surface-1: #F9F8F5;
+  --surface-2: #FFFFFF;
+  --surface-3: #E6E2DA;
+  --input-bg: #FFFFFF;
+  --hairline: rgba(22, 32, 43, .12);
+  --hairline-strong: rgba(22, 32, 43, .22);
+  --scrim: rgba(22, 32, 43, .38);
+  --text: #16202B;
+  --text-muted: #566270;
+  --text-disabled: #A3ABB4;
+  --accent-hover: #E2AE4E;
+  --accent-text: #87590F;
+  --accent-soft: rgba(176, 122, 30, .12);
+  --accent-ring: rgba(176, 122, 30, .55);
+  --foul: #AE3A32;
+  --foul-soft: rgba(174, 58, 50, .10);
+  --ok: #1A6B43;
+  --ok-soft: rgba(26, 107, 67, .10);
+  --focus: #2F6FD0;
+  --focus-halo: rgba(47, 111, 208, .22);
+  --toast-bg: #1E2833;
+  --toast-text: #F1F3F6;
+  --shadow-overlay: 0 24px 48px -16px rgba(22, 32, 43, .28);
+  --shadow-toast: 0 12px 28px -12px rgba(22, 32, 43, .35);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F1EFEA;
+    --surface-1: #F9F8F5;
+    --surface-2: #FFFFFF;
+    --surface-3: #E6E2DA;
+    --input-bg: #FFFFFF;
+    --hairline: rgba(22, 32, 43, .12);
+    --hairline-strong: rgba(22, 32, 43, .22);
+    --scrim: rgba(22, 32, 43, .38);
+    --text: #16202B;
+    --text-muted: #566270;
+    --text-disabled: #A3ABB4;
+    --accent-hover: #E2AE4E;
+    --accent-text: #87590F;
+    --accent-soft: rgba(176, 122, 30, .12);
+    --accent-ring: rgba(176, 122, 30, .55);
+    --foul: #AE3A32;
+    --foul-soft: rgba(174, 58, 50, .10);
+    --ok: #1A6B43;
+    --ok-soft: rgba(26, 107, 67, .10);
+    --focus: #2F6FD0;
+    --focus-halo: rgba(47, 111, 208, .22);
+    --toast-bg: #1E2833;
+    --toast-text: #F1F3F6;
+    --shadow-overlay: 0 24px 48px -16px rgba(22, 32, 43, .28);
+    --shadow-toast: 0 12px 28px -12px rgba(22, 32, 43, .35);
+    color-scheme: light;
+  }
+}
