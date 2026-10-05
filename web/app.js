@@ -144,10 +144,10 @@ const S = {
 
   // my shot
   angle: 0,
-  power: 0.6,
+  power: 0.3,            // fraction of MAX_CUE_SPEED sent with the shot; the bar maps to it quadratically
   spin: { x: 0, y: 0 },  // cue tip offset, unit disc; y > 0 is top spin
   powerDrag: false,      // the power bar is being pulled
-  powerBefore: 0.6,      // power before the current pull, restored on cancel
+  powerBefore: 0.3,      // power before the current pull, restored on cancel
   lastPower: 0,          // power of the last shot, shown faintly in the bar
   lefty: false,          // power bar on the left
   hoverBall: null,       // ball under the mouse, for its label
@@ -683,18 +683,25 @@ function shoot() {
 const powerBar = $('powerBar');
 const powerTrack = $('powerTrack');
 const CANCEL_ZONE = 0.08;
+// The bar is quadratic: pulling it to f gives power f², so the lower half of
+// the bar covers the soft and medium shots that make up most of a game
+// (under 2 m/s) and only the top end reaches break speed. See CLIENT.md.
+const MAX_CUE_SPEED = 8; // m/s at power 1; mirrors game.DefaultConfig
+const barToPower = (f) => f * f;
+const powerToBar = (p) => Math.sqrt(p);
 
 function renderPower() {
-  const pct = Math.round(S.power * 100);
+  const frac = powerToBar(S.power);
+  const pct = Math.round(frac * 100);
   $('powerFill').style.setProperty('--fill', `${pct}%`);
-  $('powerLast').style.height = `${Math.round(S.lastPower * 100)}%`;
+  $('powerLast').style.height = `${Math.round(powerToBar(S.lastPower) * 100)}%`;
   powerTrack.setAttribute('aria-valuenow', String(pct));
   const readout = $('powerReadout');
-  const cancel = S.powerDrag && S.power <= CANCEL_ZONE;
+  const cancel = S.powerDrag && frac <= CANCEL_ZONE;
   powerBar.classList.toggle('pbar--cancel', cancel);
   readout.hidden = !S.powerDrag;
   if (S.powerDrag) {
-    readout.textContent = cancel ? 'Cancel' : `${pct}%`;
+    readout.textContent = cancel ? 'Cancel' : `${(S.power * MAX_CUE_SPEED).toFixed(1)} m/s`;
     readout.style.top = `${Math.max(4, pct)}%`;
   }
 }
@@ -717,19 +724,19 @@ powerBar.addEventListener('pointerdown', (e) => {
   S.powerDrag = true;
   S.powerBefore = S.power;
   powerClasses('pbar--drag');
-  setPower(barPower(e), true);
+  setPower(barToPower(barPower(e)), true);
 });
 powerBar.addEventListener('pointermove', (e) => {
-  if (S.powerDrag) setPower(barPower(e), true);
+  if (S.powerDrag) setPower(barToPower(barPower(e)), true);
 });
 // endPowerDrag finishes a pull: a release below the cancel zone shoots (if a
 // call has been made), anything else restores the previous power.
 function endPowerDrag(e, fire) {
   if (!S.powerDrag) return;
   S.powerDrag = false;
-  const p = e ? barPower(e) : 0;
-  if (fire && p > CANCEL_ZONE) {
-    setPower(p);
+  const f = e ? barPower(e) : 0;
+  if (fire && f > CANCEL_ZONE) {
+    setPower(barToPower(f));
     if (canShoot()) {
       shoot();
       S.lastPower = S.power;
@@ -862,7 +869,7 @@ function setAngle(a) {
 }
 
 function setPower(p) {
-  S.power = Math.max(0.05, Math.min(1, p));
+  S.power = Math.max(0.02, Math.min(1, p)); // 0.02 is a 1.1 m/s touch
   renderPower();
   queueAim();
 }
@@ -925,7 +932,7 @@ const FX = {
   strike(f, p) {
     const hit = 80 / f.dur;
     let back, alpha;
-    if (p < hit) { back = R + (0.02 + f.power * 0.12) * (1 - EASE.in(p / hit)); alpha = 1; }
+    if (p < hit) { back = R + (0.02 + powerToBar(f.power) * 0.12) * (1 - EASE.in(p / hit)); alpha = 1; }
     else { back = R; alpha = 1 - EASE.out((p - hit) / (1 - hit)); }
     drawCue(f.cue, f.dir, back, alpha);
   },
@@ -1133,7 +1140,7 @@ function draw() {
   // cue stick above the balls
   if (aim && !striking) {
     const dir = { x: Math.cos(aim.angle), y: Math.sin(aim.angle) };
-    drawCue(cue, dir, R + 0.02 + aim.power * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha);
+    drawCue(cue, dir, R + 0.02 + powerToBar(aim.power) * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha);
   }
   drawFx('cue', now);
 
@@ -1807,8 +1814,8 @@ document.addEventListener('keydown', (e) => {
   switch (e.key) {
     case 'ArrowLeft': setAngle(S.angle - step); break;
     case 'ArrowRight': setAngle(S.angle + step); break;
-    case 'ArrowUp': setPower(S.power + 0.05); break;
-    case 'ArrowDown': setPower(S.power - 0.05); break;
+    case 'ArrowUp': setPower(barToPower(powerToBar(S.power) + 0.05)); break;
+    case 'ArrowDown': setPower(barToPower(powerToBar(S.power) - 0.05)); break;
     case 'Escape': if (S.powerDrag) cancelPowerDrag(); else return; break;
     case ' ': case 'Enter': if (canShoot()) { shoot(); S.lastPower = S.power; renderPower(); } break;
     case 's': case 'S': if (canCall()) toggleSafety(); break;

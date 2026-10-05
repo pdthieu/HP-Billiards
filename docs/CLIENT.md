@@ -50,9 +50,12 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
      0.25°.
    - *Power and shooting*: the bar beside the table. Press it, pull down to
      set the power (the cue draws back on the table) and release to shoot;
-     releasing in the top 8 % cancels. Arrow up/down also change the power
-     and Enter or Space shoots with it. A shot at the 8-ball without a
-     called pocket is refused with a hint.
+     releasing in the top 8 % cancels. The bar is quadratic: a pull to f
+     sends `power` f², so half the bar is about 2 m/s (a medium-firm shot),
+     70 % about 4 m/s (a power shot) and the bottom is the 8 m/s break; the
+     readout shows the speed. Arrow up/down move the bar by 5 % and Enter or
+     Space shoots with it. A shot at the 8-ball without a called pocket is
+     refused with a hint.
    - *Spin*: the small cue ball in the shot panel. Tap or drag where the tip
      should strike (limited to the dashed circle, the no-miscue zone); above
      centre is top spin, below is draw, left and right are english. Reset
