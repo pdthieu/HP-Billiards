@@ -980,3 +980,42 @@ func TestNamedPocketIsIgnoredForObjectBalls(t *testing.T) {
 		t.Errorf("after the pot: turn %d groups %v", r.Turn, r.Groups)
 	}
 }
+
+func TestTickReportsTheFirstCollision(t *testing.T) {
+	cfg := DefaultConfig()
+	g := sparseGame(PhaseOpen, map[int]Vec{
+		CueBall: {0.5, 0.635},
+		3:       {0.5 + 0.1, 0.635},
+	})
+	if err := g.Shoot(0, 0, 0.5, noCall); err != nil {
+		t.Fatal(err)
+	}
+	// 4 m/s over 0.1 − 2R ≈ 43 mm: contact in the first tick, a few steps in.
+	if g.Tick() != nil {
+		t.Fatal("settled at once")
+	}
+	ct, balls, ok := g.Collision()
+	if !ok {
+		t.Fatal("no collision reported in the first tick")
+	}
+	if ct <= 0 || ct > float64(cfg.Substeps)*cfg.Dt {
+		t.Errorf("collision at %.4f s, want within the tick", ct)
+	}
+	var cue, obj BallState
+	for _, b := range balls {
+		if b.ID == CueBall {
+			cue = b
+		} else if b.ID == 3 {
+			obj = b
+		}
+	}
+	if d := obj.X - cue.X; !near(d, 2*cfg.BallRadius, 0.005) {
+		t.Errorf("snapshot taken %.4f m apart, want the balls touching (%.4f)", d, 2*cfg.BallRadius)
+	}
+	// Nothing collides in the next tick (the object ball is rolling away), so
+	// no second extra snapshot is offered.
+	g.Tick()
+	if _, _, ok := g.Collision(); ok {
+		t.Error("collision reported in a tick without one")
+	}
+}

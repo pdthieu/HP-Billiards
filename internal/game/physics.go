@@ -36,6 +36,9 @@ type Table struct {
 	Balls [NumBalls]Ball // indexed by ball id
 	// Events accumulates what happened since the last Shoot (or ClearEvents).
 	Events []Event
+	// Collided reports whether the last Step had a ball bounce off a ball or
+	// a cushion: a corner in some ball's path worth a snapshot of its own.
+	Collided bool
 
 	pockets      [NumPockets]pocket
 	segments     []segment // 6 cushions and 12 jaws
@@ -208,8 +211,10 @@ func (t *Table) Snapshot() []BallState {
 	return out
 }
 
-// Step advances the simulation by dt seconds and appends to Events.
+// Step advances the simulation by dt seconds and appends to Events. It sets
+// Collided when a ball bounced off anything during this step.
 func (t *Table) Step(dt float64) {
+	t.Collided = false
 	t.integrate(dt)
 	t.capturePockets()
 	t.collideCushions()
@@ -338,6 +343,7 @@ func (t *Table) collideCushions() {
 			if b.Vel.Dot(n) < 0 {
 				t.bounce(b, n)
 				hit = true
+				t.Collided = true
 			}
 		}
 		if hit {
@@ -447,6 +453,7 @@ func (t *Table) collideBalls() {
 			impulse := n.Scale(-(1 + e) / 2 * vn)
 			a.Vel = a.Vel.Sub(impulse)
 			b.Vel = b.Vel.Add(impulse)
+			t.Collided = true
 			// Spin is untouched by the collision (ball–ball friction is
 			// negligible): a cue ball with follow or draw leaves the contact
 			// nearly stopped but still spinning, and the cloth then carries

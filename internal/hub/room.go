@@ -71,6 +71,7 @@ type room struct {
 	seats       [2]seat
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
+	lastSnapT   int          // simulated ms of the last snapshot sent
 	lastBreaker int
 	// timerGen is bumped whenever the away-timers are re-armed; a timer
 	// event carrying an older generation is stale and ignored.
@@ -444,6 +445,7 @@ func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 		return err
 	}
 	r.ticks = 0
+	r.lastSnapT = -1
 	r.ticker = time.NewTicker(time.Second / tickRate)
 	r.broadcastDroppable(r.snapshot())
 	return nil
@@ -454,6 +456,14 @@ func (r *room) tick() {
 	res := r.game.Tick()
 	r.ticks++
 	if res == nil {
+		// A bounce inside this tick gets its own snapshot, so the client
+		// does not cut the corner; then the regular cadence.
+		if t, balls, ok := r.game.Collision(); ok {
+			ms := int(math.Round(float64(r.ticks-1)*1000/tickRate + t*1000))
+			if ms > r.lastSnapT {
+				r.broadcastDroppable(r.snapshotOf(balls, ms))
+			}
+		}
 		if r.ticks%snapshotEvery == 0 {
 			r.broadcastDroppable(r.snapshot())
 		}
@@ -493,16 +503,18 @@ func (r *room) stopTicker() {
 }
 
 func (r *room) snapshot() protocol.Snapshot {
-	balls := r.game.Table.Snapshot()
+	return r.snapshotOf(r.game.Table.Snapshot(), r.ticks*1000/tickRate)
+}
+
+// snapshotOf wraps balls (modified in place) as the snapshot for simulated
+// time ms.
+func (r *room) snapshotOf(balls []game.BallState, ms int) protocol.Snapshot {
 	for i := range balls {
 		balls[i].X = round4(balls[i].X)
 		balls[i].Y = round4(balls[i].Y)
 	}
-	return protocol.Snapshot{
-		Type:  protocol.TypeSnapshot,
-		T:     r.ticks * 1000 / tickRate,
-		Balls: balls,
-	}
+	r.lastSnapT = ms
+	return protocol.Snapshot{Type: protocol.TypeSnapshot, T: ms, Balls: balls}
 }
 
 func (r *room) roomState() protocol.RoomState {

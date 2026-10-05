@@ -252,6 +252,10 @@ type Game struct {
 
 	shooting bool // a shot is in progress and has not been resolved yet
 	shot     Shot // the shot in progress
+	// The first collision of the last Tick, for an extra snapshot: when it
+	// happened (seconds into the tick) and where every ball was then.
+	collisionT     float64
+	collisionBalls []BallState
 	// cueInKitchen: the cue ball sits where kitchen ball-in-hand put it, so
 	// the next shot is "played from above the head string" (WPA 3.11).
 	cueInKitchen bool
@@ -356,8 +360,13 @@ func (g *Game) Tick() *ShotResult {
 	if !g.shooting {
 		return nil
 	}
+	g.collisionBalls = nil
 	for i := 0; i < g.Table.Cfg.Substeps && !g.Table.Settled(); i++ {
 		g.Table.Step(g.Table.Cfg.Dt)
+		if g.Table.Collided && g.collisionBalls == nil {
+			g.collisionT = float64(i+1) * g.Table.Cfg.Dt
+			g.collisionBalls = g.Table.Snapshot()
+		}
 	}
 	if !g.Table.Settled() {
 		return nil
@@ -374,6 +383,14 @@ func (g *Game) Tick() *ShotResult {
 		g.cueInKitchen = true
 	}
 	return &res
+}
+
+// Collision returns the positions right after the first collision of the
+// last Tick and when it happened, in seconds into that tick, or ok = false
+// if nothing collided. Linear interpolation between regular snapshots would
+// cut the corner of such a bounce; a snapshot at that moment keeps it.
+func (g *Game) Collision() (t float64, balls []BallState, ok bool) {
+	return g.collisionT, g.collisionBalls, g.collisionBalls != nil
 }
 
 // State returns the full serializable state.
