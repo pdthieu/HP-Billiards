@@ -87,21 +87,24 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 #roomList { max-height: 40vh; overflow-y: auto; }
 .rooms__empty-title { font: 600 16px/22px var(--font-ui); }
 
-/* overlays still on the old markup (decision, disconnected; steps 6 and 7) */
+/* overlays: the design positions them for mock-up frames; the app covers
+   the viewport */
+.scrim { position: fixed; -webkit-backdrop-filter: blur(4px); }
+.dialog__head { display: flex; flex-direction: column; gap: 8px; }
+.dialog__eyebrow { color: var(--foul); }
+.banner, .result { position: absolute; }
+.result { -webkit-backdrop-filter: blur(6px); }
+.toasts { position: fixed; pointer-events: none; }
+.toast { pointer-events: none; } /* notices never block the controls beneath them */
+.toast__close { pointer-events: auto; }
+.toast__close { width: 36px; height: 36px; color: var(--toast-text); }
+
+/* still on the old markup (disconnected; step 7) */
 .overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: var(--z-dialog); }
 .overlay .card { padding: 20px; width: min(100%, 380px); display: flex; flex-direction: column; gap: 12px; }
 .overlay .card h2 { margin: 0; }
-.options { display: flex; flex-direction: column; gap: 8px; }
-.options button { text-align: left; padding: 10px 14px; min-height: 0; border-radius: var(--r-md); flex-direction: column; align-items: flex-start; white-space: normal; }
-.options button small { display: block; color: var(--text-muted); font-weight: normal; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .error { color: var(--foul); }
-
-/* toasts (restyled in step 6) */
-#toasts { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 6px; align-items: center; z-index: var(--z-toast); pointer-events: none; width: min(92vw, 420px); }
-#toasts .toast { animation: oldtoast 3.5s forwards; }
-#toasts .toast.error { border: 1px solid var(--foul); }
-@keyframes oldtoast { 0% { opacity: 0; transform: translateY(8px); } 8%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; } }
 
 /* phone (the full phone layout comes in step 8) */
 @media (max-width: 600px) {

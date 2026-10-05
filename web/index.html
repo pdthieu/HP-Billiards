@@ -161,12 +161,15 @@
   </form>
 </div>
 
-<div id="decision" class="overlay" hidden>
-  <div class="card">
-    <h2 id="decisionTitle"></h2>
-    <p id="decisionText" class="muted"></p>
-    <div id="decisionOptions" class="options"></div>
-  </div>
+<div id="decision" class="scrim" role="presentation" hidden>
+  <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="decisionTitle" aria-describedby="decisionText">
+    <div class="dialog__head">
+      <span class="eyebrow dialog__eyebrow">Your decision</span>
+      <h2 id="decisionTitle" class="dialog__title"></h2>
+      <p id="decisionText" class="dialog__text"></p>
+    </div>
+    <div id="decisionOptions" class="dialog__options"></div>
+  </section>
 </div>
 
 <div id="disconnected" class="overlay" hidden>
@@ -180,7 +183,7 @@
   </div>
 </div>
 
-<div id="toasts"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="/app.js"></script>
 </body>

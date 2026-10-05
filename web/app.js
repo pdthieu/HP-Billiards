@@ -80,13 +80,18 @@ function buildTable() {
 }
 const DEG = Math.PI / 180;
 
-const OPTION_TEXT = {
-  accept_table: ['Play from here', 'Accept the balls where they lie.'],
-  rerack_break: ['Re-rack, I break', 'Rack again and take the break yourself.'],
-  rerack_opponent_breaks: ['Re-rack, they break again', 'Rack again and make the opponent break once more.'],
-  spot_eight: ['Spot the 8-ball', 'Put the 8 back on the foot spot and play on.'],
-  rebreak: ['Re-rack, I break', 'Rack again and take the break yourself.'],
-};
+// optionText returns [title, consequence] for a post-break option; opp is
+// the other player's name.
+function optionText(opt, opp) {
+  switch (opt) {
+    case 'accept_table': return ['Play from here', 'Accept the balls where they lie. You shoot next.'];
+    case 'rerack_break': return ['Re-rack, I break', 'Start the rack again with your break.'];
+    case 'rerack_opponent_breaks': return [`Re-rack, ${opp} breaks again`, 'They get another try at a legal break.'];
+    case 'spot_eight': return ['Spot the 8-ball', 'Put the 8 back on the foot spot and play on.'];
+    case 'rebreak': return ['Re-rack, I break', 'Start the rack again with your break.'];
+    default: return [opt, ''];
+  }
+}
 const FOUL_TEXT = {
   scratch: 'scratch',
   no_contact: 'no ball contacted',
@@ -159,6 +164,7 @@ const S = {
   hoverUntil: 0,         // touch: hide the hover label after this time
   statusTimer: 0,
   lastBreaker: -1,       // who broke the current rack, for the game-over note
+  resultReason: '',      // why the rack ended, for the result banner
 };
 
 // ---------------------------------------------------------------------------
@@ -468,6 +474,9 @@ function describeShot(msg) {
   if (msg.calledMade && !msg.foul) parts.push('Called shot made.');
   if (msg.winner !== undefined && msg.winner !== null) {
     parts.push(isMe(msg.winner) ? 'You win!' : `${nameOf(msg.winner)} wins.`);
+    if (msg.winner === msg.shooter) S.resultReason = '8-ball pocketed as called';
+    else if (msg.foul) S.resultReason = `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
+    else S.resultReason = `${who} pocketed the 8-ball early`;
   } else if (msg.decision) {
     parts.push(`${nameOf(msg.decision.seat)} ${isMe(msg.decision.seat) ? 'choose' : 'chooses'} how to continue.`);
   } else {
@@ -1537,12 +1546,40 @@ function setStatus(text, tone) {
   }, reduceMotion.matches ? 0 : 200);
 }
 
+const TOAST_ICONS = {
+  ok: '<svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>',
+  error: '<svg class="toast__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+  close: '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>',
+};
+
+// toast shows a short notice at the bottom: at most three at a time, 3.5 s
+// (errors 6 s, with a close button).
 function toast(text, isError) {
+  const box = $('toasts');
   const el = document.createElement('div');
-  el.className = `toast${isError ? ' error' : ''}`;
-  el.textContent = text;
-  $('toasts').append(el);
-  setTimeout(() => el.remove(), 3600);
+  el.className = `toast${isError ? ' toast--error' : ''}`;
+  el.setAttribute('role', isError ? 'alert' : 'status');
+  el.innerHTML = TOAST_ICONS[isError ? 'error' : 'ok'];
+  el.append(Object.assign(document.createElement('span'), { textContent: text }));
+  const dismiss = () => {
+    if (el.classList.contains('is-leaving')) return;
+    el.classList.add('is-leaving');
+    setTimeout(() => el.remove(), reduceMotion.matches ? 0 : 160);
+  };
+  if (isError) {
+    const close = document.createElement('button');
+    close.className = 'icon-btn toast__close';
+    close.type = 'button';
+    close.setAttribute('aria-label', 'Dismiss');
+    close.innerHTML = TOAST_ICONS.close;
+    close.onclick = dismiss;
+    el.append(close);
+  }
+  box.append(el);
+  const live = [...box.querySelectorAll('.toast:not(.is-leaving)')];
+  if (live.length > 3) live[0].dispatchEvent(new Event('dismiss'));
+  el.addEventListener('dismiss', dismiss);
+  setTimeout(dismiss, isError ? 6000 : 3500);
 }
 
 // Names: the last one used is kept; the first time a random one is offered.
@@ -1961,25 +1998,83 @@ function toggleSafety() {
   refreshShotPanel();
 }
 
+const CHEV_SVG = '<svg class="option__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>';
+const CLOCK_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>';
+
 function refreshDecision() {
   const d = S.decision;
   const show = d && isMe(d.seat) && !S.moving;
-  $('decision').hidden = !show;
+  const dlg = $('decision');
+  const wasShown = !dlg.hidden;
+  dlg.hidden = !show;
+  renderBanner(d && !isMe(d.seat) && !S.moving ? `Waiting for ${nameOf(d.seat)} to decide` : '');
+  renderResult();
   if (!show) return;
+  if (wasShown && dlg.dataset.key === JSON.stringify(d)) return; // already built
+  dlg.dataset.key = JSON.stringify(d);
   const eight = d.options.includes('spot_eight');
   $('decisionTitle').textContent = eight ? '8-ball on the break' : 'Illegal break';
   $('decisionText').textContent = S.lastDecisionReason || '';
   const box = $('decisionOptions');
   box.replaceChildren();
-  for (const opt of d.options) {
-    const [title, desc] = OPTION_TEXT[opt] || [opt, ''];
+  const opp = S.players[1 - S.seat].name || 'your opponent';
+  d.options.forEach((opt, i) => {
+    const [title, desc] = optionText(opt, opp);
     const b = document.createElement('button');
-    b.className = 'btn btn--secondary';
-    b.append(title);
-    if (desc) b.append(Object.assign(document.createElement('small'), { textContent: desc }));
-    b.onclick = () => { send({ type: 'choose', option: opt }); $('decision').hidden = true; };
+    b.type = 'button';
+    b.className = 'option' + (i === 0 ? ' option--primary' : '');
+    b.style.animationDelay = `${40 * i}ms`;
+    b.innerHTML = `<span class="option__text"><span class="option__title"></span><span class="option__sub"></span></span>${CHEV_SVG}`;
+    b.querySelector('.option__title').textContent = title;
+    b.querySelector('.option__sub').textContent = desc;
+    b.onclick = () => { send({ type: 'choose', option: opt }); dlg.hidden = true; };
     box.append(b);
+  });
+  setTimeout(() => { const first = box.querySelector('.option'); if (first) first.focus(); }, 0);
+}
+// A choice is required: Tab stays inside the dialog and Esc does nothing.
+$('decision').addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const opts = [...$('decisionOptions').querySelectorAll('.option')];
+  if (!opts.length) return;
+  const i = opts.indexOf(document.activeElement);
+  e.preventDefault();
+  opts[(i + (e.shiftKey ? -1 : 1) + opts.length) % opts.length].focus();
+});
+
+// renderBanner shows a short notice over the table (or removes it).
+function renderBanner(text) {
+  let el = $('tableWrap').querySelector('.banner');
+  if (!text) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.className = 'banner';
+    el.setAttribute('role', 'status');
+    $('tableWrap').append(el);
   }
+  if (el.dataset.text !== text) {
+    el.innerHTML = CLOCK_SVG;
+    el.append(document.createTextNode(text));
+    el.dataset.text = text;
+  }
+}
+
+// renderResult shows who won the rack over the table while the game is over.
+function renderResult() {
+  let el = $('tableWrap').querySelector('.result');
+  if (S.phase !== 'game_over' || S.winner === null) { if (el) el.remove(); return; }
+  const win = isMe(S.winner);
+  const title = win ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`;
+  if (el && el.dataset.title === title) return;
+  if (el) el.remove();
+  el = document.createElement('div');
+  el.className = 'result' + (win ? ' result--win' : '');
+  el.setAttribute('role', 'status');
+  el.dataset.title = title;
+  el.innerHTML = '<p class="result__title"></p><p class="result__reason"></p>';
+  el.querySelector('.result__title').textContent = title;
+  el.querySelector('.result__reason').textContent = S.resultReason;
+  $('tableWrap').append(el);
 }
 
 // ---------------------------------------------------------------------------
