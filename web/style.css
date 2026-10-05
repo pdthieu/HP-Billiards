@@ -107,38 +107,88 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .splash__bar span { animation: pool-splash 1.2s var(--ease-inout) infinite alternate; }
 @keyframes pool-splash { from { transform: translateX(-40%); } to { transform: translateX(110%); } }
 
-/* phone (the full phone layout comes in step 8) */
-@media (max-width: 600px) {
-  .hdr { height: 52px; padding: 0 10px 0 14px; gap: 8px; }
-  .hdr .eyebrow { display: none; }
-  .hdr__code { font-size: 18px; letter-spacing: .14em; }
-  #copyLink span { display: none; }
-  #copyLink { padding: 0 10px; }
-  .hdr__match { gap: 8px; }
-  .score__vs { font-size: 11px; }
-  .stage { padding: 8px 12px 4px 16px; gap: 8px; }
-  .status { height: 40px; padding: 0 16px; font-size: 15px; line-height: 20px; }
-  .status__layer { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding: 0 12px; border-radius: 12px; text-align: left; }
-  .slot { height: 150px; padding: 0 16px 8px; }
+/* settings */
+.dialog--settings { max-width: 400px; gap: 18px; }
+.setting { display: flex; flex-direction: column; gap: 8px; }
+.seg { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---------- compact layouts ---------- */
+
+/* shared by portrait phones and landscape phones: the panel stacks */
+@media (max-width: 600px), ((orientation: landscape) and (max-height: 500px)) {
   .panel { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
   .panel--center { align-items: center; justify-content: center; }
   .panel__sep, .hint { display: none; }
   .call { flex-direction: row; align-items: center; gap: 8px; min-height: 36px; }
   .call__line { flex: 1; }
+  #shotPanel .nudge { min-width: 0; flex: 1; padding: 0 2px; font-size: 12px; }
+  #shotPanel .angle__readout { min-width: 0; font-size: 17px; padding: 0 2px; }
+  .spin__pad { --pad: 64px; }
+  .spin__meta { gap: 2px; align-items: flex-end; text-align: right; width: 58px; }
+  .spin__meta .field__label { display: none; }
+  .spin__label { font-size: 13px; line-height: 18px; }
+  .panel__title { font-size: 22px; line-height: 26px; }
+  #overPanel { flex-direction: row; align-items: center; }
+  #settingsBtn { width: 36px; height: 36px; }
+}
+
+/* portrait phones */
+@media (max-width: 600px) {
+  .hdr { height: 52px; padding: 0 8px 0 12px; gap: 6px; }
+  .hdr .eyebrow { display: none; }
+  .hdr__room { flex: none; gap: 2px; }
+  .hdr__code { font-size: 17px; letter-spacing: .12em; }
+  #copyLink span { display: none; }
+  #copyLink { padding: 0 8px; min-height: 32px; }
+  #settingsBtn { width: 32px; height: 32px; }
+  .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; gap: 6px; }
+  .seat { flex: 0 1 auto; min-width: 0; }
+  .seat--compact { max-width: 124px; padding: 0 8px; }
+  .seat--compact .seat__name { max-width: 7ch; }
+  .score__vs { font-size: 11px; }
+  .stage { padding: 8px 12px 4px 16px; gap: 8px; }
+  .status { height: 40px; padding: 0 16px; font-size: 15px; line-height: 20px; }
+  .status__layer { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding: 0 12px; border-radius: 12px; text-align: left; }
+  .slot { height: 150px; padding: 0 16px 8px; }
   #shotPanel { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; gap: 10px 8px; align-content: start; }
   #shotPanel .call { grid-column: 1 / -1; }
   #shotPanel .angle { grid-row: 2; grid-column: 1; min-width: 0; gap: 4px; }
   #shotPanel .angle > .field__label { display: none; }
   #shotPanel .angle__row { gap: 4px; }
-  #shotPanel .nudge { min-width: 0; flex: 1; padding: 0 2px; font-size: 12px; }
-  #shotPanel .angle__readout { min-width: 0; font-size: 17px; padding: 0 2px; }
   #shotPanel .spin { grid-row: 2; grid-column: 2; flex-direction: row-reverse; gap: 8px; }
-  .spin__pad { --pad: 64px; }
-  .spin__meta { gap: 2px; align-items: flex-end; text-align: right; width: 58px; }
-  .spin__meta .field__label { display: none; }
-  .spin__label { font-size: 13px; line-height: 18px; }
   .trays { height: 22px; padding: 0 16px; align-items: center; }
   .trays .ball { --size: 14px; }
-  .panel__title { font-size: 22px; line-height: 26px; }
-  #overPanel { flex-direction: row; align-items: center; }
+}
+
+/* short screens: give the table room; trays go first, the hint is already gone */
+@media (max-height: 700px) and (max-width: 600px) {
+  .trays { display: none; }
+  .stage { min-height: 340px; }
+}
+
+/* landscape phones: table | bar on the left, the shot panel as a sidebar */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hdr { height: 36px; padding: 0 4px; border-bottom: 0; background: transparent; gap: 10px; }
+  .hdr .eyebrow { display: none; }
+  .hdr__code { font-size: 16px; letter-spacing: .12em; }
+  #copyLink span { display: none; }
+  #copyLink { padding: 0 8px; min-height: 30px; }
+  .seat { height: 30px; padding: 0 10px; gap: 6px; border-radius: var(--r-md); }
+  .seat__name { font-size: 14px; }
+  .seat__state, .seat__cue { display: none; }
+  .seat__dots .ball { --size: 8px; }
+  main.game { display: grid; grid-template-columns: minmax(0, 1fr) 220px; grid-template-rows: minmax(0, 1fr); gap: 0 12px; position: relative; padding: 0 8px 6px 0; }
+  .stage { grid-row: 1; grid-column: 1; padding: 4px 0 4px 8px; gap: 10px; }
+  .status { position: absolute; left: 8px; right: 232px; bottom: 10px; height: auto; min-height: 0; padding: 0; z-index: 2; pointer-events: none; }
+  .status__layer { font-size: 14px; line-height: 20px; padding: 4px 12px; background: rgba(13, 18, 24, .88); }
+  .slot { grid-row: 1; grid-column: 2; height: auto; padding: 4px 0; }
+  .slot .panel { height: 100%; justify-content: center; gap: 14px; }
+  .slot .panel .call { flex: none; }
+  .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; }
+  .seat { flex: 0 1 auto; min-width: 0; }
+  #shotPanel .angle > .field__label { display: none; }
+  #shotPanel .angle__row { justify-content: space-between; gap: 4px; }
+  #shotPanel .spin { gap: 10px; }
+  .trays { display: none; }
+  .landing__card { max-height: 100%; overflow-y: auto; }
 }

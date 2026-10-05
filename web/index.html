@@ -17,6 +17,7 @@
   <div class="hdr__room">
     <span class="eyebrow">Room</span>
     <span id="roomCode" class="hdr__code">—</span>
+    <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
     <button id="copyLink" class="btn btn--secondary btn--small" title="Copy an invite link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg><span>Copy link</span></button>
   </div>
   <div class="hdr__match">
@@ -193,6 +194,33 @@
       <button id="rejoin" class="btn btn--secondary"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"></path><path d="M20 4v7h-7"></path></svg><span>Retry now</span></button>
     </div>
     <p id="connNote" class="caption" hidden>No automatic retry: rejoining here disconnects the other one.</p>
+  </section>
+</div>
+
+<div id="settings" class="scrim" role="presentation" hidden>
+  <section class="dialog dialog--settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="dialog__head">
+      <h2 id="settingsTitle" class="dialog__title">Settings</h2>
+    </div>
+    <div class="setting">
+      <span class="field__label">Theme</span>
+      <div class="seg" role="radiogroup" aria-label="Theme">
+        <button class="toggle" data-theme="system" aria-pressed="true"><span class="toggle__box"></span>System</button>
+        <button class="toggle" data-theme="dark" aria-pressed="false"><span class="toggle__box"></span>Dark</button>
+        <button class="toggle" data-theme="light" aria-pressed="false"><span class="toggle__box"></span>Light</button>
+      </div>
+    </div>
+    <div class="setting">
+      <span class="field__label">Power bar</span>
+      <button id="leftyToggle" class="toggle" aria-pressed="false"><span class="toggle__box"></span>On the left (left-handed)</button>
+    </div>
+    <div class="setting">
+      <span class="field__label">Hints</span>
+      <button id="hintsReset" class="btn btn--secondary btn--small">Show hints again</button>
+    </div>
+    <div class="conn__actions">
+      <button id="settingsClose" class="btn btn--primary">Done</button>
+    </div>
   </section>
 </div>
 

@@ -155,6 +155,7 @@ const S = {
   roomsTimer: 0,
   aiming: false,
   dragCue: null,         // {x, y} while placing the cue ball
+  tap: null,             // press on a ball awaiting release: {id, x, y, t, type}
   cuePlacedAt: null,     // last place_cue we sent, kept until the server confirms
   lastAimSent: 0,
   aimTimer: 0,
@@ -1536,25 +1537,29 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     return;
   }
-  if (needsCall()) {
-    const id = hitBall(p, balls, true);
-    if (id !== null) {
-      if (e.pointerType !== 'mouse') { S.hoverBall = id; S.hoverUntil = performance.now() + 1500; }
-      if (legalTargets().has(id)) {
-        S.call = { ball: id };
-        refreshShotPanel();
-      } else {
-        toast(`${ballName(id)[0].toUpperCase() + ballName(id).slice(1)} is not a legal target`, true);
-      }
-      return;
+  // A press on a ball may be a tap (call it) or the start of an aiming
+  // drag; decide on release, by distance and time.
+  const id = needsCall() ? hitBall(p, balls, true) : null;
+  S.tap = { id, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
+  if (cue) {
+    canvas.setPointerCapture(e.pointerId);
+    if (id === null) {
+      S.aiming = true;
+      setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
     }
   }
-  if (cue) {
-    S.aiming = true;
-    canvas.setPointerCapture(e.pointerId);
-    setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
-  }
 });
+
+// callBall handles a tap on a ball while a call is needed.
+function callBall(id, pointerType) {
+  if (pointerType !== 'mouse') { S.hoverBall = id; S.hoverUntil = performance.now() + 1500; }
+  if (legalTargets().has(id)) {
+    S.call = { ball: id };
+    refreshShotPanel();
+  } else {
+    toast(`${ballName(id)[0].toUpperCase() + ballName(id).slice(1)} is not a legal target`, true);
+  }
+}
 
 canvas.addEventListener('pointermove', (e) => {
   const p = pointerPos(e);
@@ -1564,6 +1569,14 @@ canvas.addEventListener('pointermove', (e) => {
   if (!isMyShot()) return;
   if (S.dragCue) {
     S.dragCue = clampCue(p);
+  } else if (S.tap && S.tap.id !== null && !S.aiming) {
+    // moved off the ball: this is an aim drag, not a tap
+    if (Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) > 8) {
+      S.tap = null;
+      S.aiming = true;
+      const cue = displayBalls().get(0);
+      if (cue) setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+    }
   } else if (S.aiming) {
     const cue = displayBalls().get(0);
     if (cue) setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
@@ -1576,6 +1589,12 @@ function endPointer(e) {
     S.dragCue = null;
     S.cuePlacedAt = pos;
     send({ type: 'place_cue', x: pos.x, y: pos.y });
+  }
+  const tap = S.tap;
+  S.tap = null;
+  if (tap && tap.id !== null && e.type === 'pointerup' && isMyShot() &&
+      performance.now() - tap.t < 250 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 8) {
+    callBall(tap.id, tap.type);
   }
   S.aiming = false;
   if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
@@ -2075,6 +2094,10 @@ function refreshShotPanel() {
   }
   $('handTag').hidden = !S.ballInHand;
   $('handTag').textContent = S.kitchen ? 'ball in hand · kitchen' : 'ball in hand';
+  if (S.ballInHand && readSetting('pool:hint:hand') !== 'off') {
+    writeSetting('pool:hint:hand', 'off');
+    toast(S.kitchen ? 'Drag the cue ball anywhere in the kitchen, then pull the bar to shoot' : 'Drag the cue ball anywhere on the table');
+  }
   setAngle(S.angle);
   renderPower();
   renderSpin();
@@ -2176,6 +2199,9 @@ for (const b of document.querySelectorAll('.nudge')) {
 }
 $('copyLink').onclick = async () => {
   const url = `${location.origin}/?room=${S.roomCode}`;
+  if (navigator.share && compactMedia.matches) {
+    try { await navigator.share({ title: 'Pool', text: `Join my pool room ${S.roomCode}`, url }); return; } catch { /* cancelled or unsupported: fall back to copying */ }
+  }
   try {
     await navigator.clipboard.writeText(url);
     toast('Invite link copied');
@@ -2242,6 +2268,39 @@ $('rejoin').onclick = () => {
   $('retryTry').textContent = 'Connecting…';
   connectAndJoin(S.roomCode, S.name, S.token);
 };
+// --- settings ----------------------------------------------------------------
+function readSetting(key) { try { return localStorage.getItem(key); } catch { return null; } }
+function writeSetting(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* unavailable */ } }
+
+function renderSettings() {
+  const theme = readSetting('pool:theme') || 'system';
+  for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
+  $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
+}
+$('settingsBtn').onclick = () => { renderSettings(); $('settings').hidden = false; $('settingsClose').focus(); };
+$('settingsClose').onclick = () => { $('settings').hidden = true; };
+$('settings').addEventListener('click', (e) => { if (e.target === $('settings')) $('settings').hidden = true; });
+$('settings').addEventListener('keydown', (e) => { if (e.key === 'Escape') $('settings').hidden = true; });
+for (const b of document.querySelectorAll('#settings .seg .toggle')) {
+  b.onclick = () => {
+    const t = b.dataset.theme;
+    writeSetting('pool:theme', t === 'system' ? null : t);
+    applyTheme(t);
+    renderSettings();
+  };
+}
+$('leftyToggle').onclick = () => {
+  applyLefty(!S.lefty);
+  writeSetting('pool:lefty', S.lefty ? '1' : null);
+  renderSettings();
+};
+$('hintsReset').onclick = () => {
+  writeSetting('pool:hint', null);
+  writeSetting('pool:hint:hand', null);
+  $('powerHint').hidden = false;
+  toast('Hints will show again');
+};
+
 function leaveRoom() {
   S.intentionalClose = true;
   if (S.ws) S.ws.close();
