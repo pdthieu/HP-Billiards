@@ -86,7 +86,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 
 ### `snapshot`
 
-`{type, t, balls}` — sent when a shot starts (`t` = 0) and then at 20 Hz while balls move. `t` is simulated milliseconds since the shot; positions are rounded to 3 decimals. Clients interpolate between snapshots.
+`{type, t, balls}` — sent when a shot starts (`t` = 0) and then at 20 Hz while balls move. `t` is simulated milliseconds since the shot; positions are rounded to 4 decimals (0.1 mm). Clients interpolate between snapshots.
 
 ### `settled`
 

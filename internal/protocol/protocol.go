@@ -159,7 +159,7 @@ type RoomState struct {
 type Snapshot struct {
 	Type  string           `json:"type"`
 	T     int              `json:"t"`     // milliseconds of simulated time since the shot
-	Balls []game.BallState `json:"balls"` // rounded to 3 decimals
+	Balls []game.BallState `json:"balls"` // rounded to 0.1 mm
 }
 
 // Settled ends a shot: exact positions plus what the rules decided.

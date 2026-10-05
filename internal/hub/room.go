@@ -495,8 +495,8 @@ func (r *room) stopTicker() {
 func (r *room) snapshot() protocol.Snapshot {
 	balls := r.game.Table.Snapshot()
 	for i := range balls {
-		balls[i].X = round3(balls[i].X)
-		balls[i].Y = round3(balls[i].Y)
+		balls[i].X = round4(balls[i].X)
+		balls[i].Y = round4(balls[i].Y)
 	}
 	return protocol.Snapshot{
 		Type:  protocol.TypeSnapshot,
@@ -581,7 +581,11 @@ func winner(seat int) *int {
 	return &seat
 }
 
-func round3(v float64) float64 { return math.Round(v*1000) / 1000 }
+// round4 keeps 0.1 mm. Whole millimetres were visibly coarse: a ball
+// creeping at 5 cm/s moves 2.5 mm between snapshots, so rounding each end
+// made the interpolated speed jump by up to 40 % from one snapshot to the
+// next.
+func round4(v float64) float64 { return math.Round(v*10000) / 10000 }
 
 // cleanName trims a player-supplied name to something safe to display.
 func cleanName(name string, s int) string {

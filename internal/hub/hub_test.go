@@ -383,9 +383,9 @@ func TestShotSettlesIdenticallyForBothPlayers(t *testing.T) {
 			lastT = tm
 			snapshots++
 			for _, b := range m["balls"].([]any) {
-				x := b.(msg)["x"].(float64) * 1000
+				x := b.(msg)["x"].(float64) * 10000
 				if math.Abs(x-math.Round(x)) > 1e-6 {
-					t.Fatalf("snapshot x=%v is not rounded to 3 decimals", b.(msg)["x"])
+					t.Fatalf("snapshot x=%v is not rounded to 0.1 mm", b.(msg)["x"])
 				}
 			}
 		}
