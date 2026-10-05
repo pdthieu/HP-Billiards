@@ -38,11 +38,16 @@ type Ball struct {
 	Pos      Vec
 	Vel      Vec
 	Pocketed bool
-	// Spin is the english on the ball, as the cue tip offset that produced
-	// it, each component in [-1, 1]: X > 0 right english (tip right of
-	// centre as the shooter sees it), Y > 0 top spin. It fades with the
-	// distance rolled and is spent by collisions; see physics.go.
-	Spin Vec
+	// Roll is the velocity the ball's spin about horizontal axes would give
+	// it if it rolled without slipping: Roll == Vel is natural roll, Roll
+	// ahead of Vel is top spin (follow), Roll behind or against Vel is back
+	// spin (draw). While Roll != Vel the ball slides and cloth friction pulls
+	// the two together; see Table.integrate.
+	Roll Vec
+	// Side is the english about the vertical axis, as the cue tip offset that
+	// produced it in [-1, 1] (> 0: tip right of centre as the shooter sees
+	// it). It fades with the distance rolled and halves at each cushion.
+	Side float64
 }
 
 // EventKind identifies what happened in an Event.
@@ -119,17 +124,23 @@ type Config struct {
 	CornerShelf    float64 // from the mouth line to where a ball drops, along the pocket axis
 	SideShelf      float64
 
-	RollingDecel float64 // constant rolling deceleration, m/s²
-	StopSpeed    float64 // a ball slower than this is stopped dead
+	// Cloth friction. A ball slides until its spin matches its speed and
+	// then rolls: SlidingFriction (μ) decelerates a sliding ball at μg while
+	// its spin catches up, RollingFriction a rolling one. A rolling ball
+	// slower than StopSpeed is stopped dead.
+	SlidingFriction float64
+	RollingFriction float64
+	StopSpeed       float64
 
-	// Spin model (deliberately simple, see Table.collideBalls and
-	// Table.collideCushions). SpinDecayLength is the distance over which
-	// spin fades by a factor e; FollowGain scales the follow/draw a full hit
-	// with full top/bottom spin adds to the cue ball, as a fraction of its
-	// speed; SideGain scales the sideways kick full side spin adds off a
-	// cushion, as a fraction of the normal speed.
+	// Spin. TipOffset is where the rim of the client's spin pad lands on the
+	// cue ball, as a fraction of the radius (the miscue limit is about ½ R);
+	// a tip offset of b·R starts the ball with a surface speed 2.5·b times
+	// its speed. SpinDecayLength is the distance over which side spin fades
+	// by a factor e and SideGain scales the sideways kick full side spin adds
+	// off a cushion, as a fraction of the normal speed. Side spin has no
+	// squirt, swerve or throw.
+	TipOffset       float64
 	SpinDecayLength float64
-	FollowGain      float64
 	SideGain        float64
 
 	// RackGap is the space left between neighbouring balls in the rack so a
@@ -137,7 +148,10 @@ type Config struct {
 	RackGap float64
 }
 
-const inch = 0.0254
+const (
+	inch    = 0.0254
+	gravity = 9.81 // m/s²
+)
 
 // DefaultConfig returns a WPA-specification 9 ft table: 100 × 50 in playing
 // surface between the cushion noses, 2¼ in balls, corner pockets 4 9⁄16 in
@@ -145,8 +159,10 @@ const inch = 0.0254
 // 104° jaws and a ¼ in shelf (the middle of each permitted range). 600 Hz
 // physics, 60 Hz ticks.
 //
-// Restitution is not in the specification; 0.95 ball–ball and 0.8
-// ball–cushion are typical measured values for tournament equipment.
+// Restitution and friction are not in the specification; 0.95 ball–ball,
+// 0.8 ball–cushion, μ 0.2 sliding and 0.015 rolling are typical measured
+// values for tournament equipment (rolling is a little on the slow side so a
+// shot does not outlast the players' patience).
 func DefaultConfig() Config {
 	return Config{
 		TableWidth:         100 * inch,
@@ -163,10 +179,11 @@ func DefaultConfig() Config {
 		SideJawAngle:       104 * math.Pi / 180,
 		CornerShelf:        1.75 * inch,
 		SideShelf:          0.25 * inch,
-		RollingDecel:       0.4,
+		SlidingFriction:    0.2,
+		RollingFriction:    0.015,
 		StopSpeed:          0.01,
+		TipOffset:          0.5,
 		SpinDecayLength:    2.5,
-		FollowGain:         0.6,
 		SideGain:           0.6,
 		RackGap:            0.0005,
 	}

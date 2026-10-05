@@ -22,7 +22,8 @@ const readTimeout = 10 * time.Second
 // held seats expire quickly.
 func fastOptions() Options {
 	opts := DefaultOptions()
-	opts.Game.RollingDecel = 6
+	opts.Game.SlidingFriction = 2
+	opts.Game.RollingFriction = 0.6
 	opts.Breaker = func() int { return 0 }
 	opts.ReconnectGrace = 500 * time.Millisecond
 	opts.AbandonTimeout = 1500 * time.Millisecond

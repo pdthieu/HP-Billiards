@@ -161,13 +161,15 @@ func (t *Table) ClearEvents() {
 	t.crossedHead = false
 }
 
-// Shoot strikes the cue ball dead centre. angle is in radians (0 = +x, y
-// down), power is clamped to [0,1] and scales MaxCueSpeed. It starts a new
-// shot's event list.
+// Shoot strikes the cue ball dead centre: it starts sliding with no spin and
+// rolls naturally once the cloth has taken 2⁄7 of its speed. angle is in
+// radians (0 = +x, y down), power is clamped to [0,1] and scales MaxCueSpeed.
+// It starts a new shot's event list.
 func (t *Table) Shoot(angle, power float64) { t.ShootSpin(angle, power, Vec{}) }
 
-// ShootSpin is Shoot with english: spin is the cue tip offset (see
-// Ball.Spin), clamped to the unit disc.
+// ShootSpin is Shoot with english: spin is the cue tip offset in units of
+// Cfg.TipOffset·R (x right, y up as the shooter sees it), clamped to the unit
+// disc. Top or bottom spin becomes Ball.Roll, side spin Ball.Side.
 func (t *Table) ShootSpin(angle, power float64, spin Vec) {
 	power = math.Max(0, math.Min(1, power))
 	speed := power * t.Cfg.MaxCueSpeed
@@ -176,15 +178,18 @@ func (t *Table) ShootSpin(angle, power float64, spin Vec) {
 	}
 	t.ClearEvents()
 	cue := &t.Balls[CueBall]
-	cue.Vel = Vec{math.Cos(angle) * speed, math.Sin(angle) * speed}
-	cue.Spin = spin
+	dir := Vec{math.Cos(angle), math.Sin(angle)}
+	cue.Vel = dir.Scale(speed)
+	cue.Roll = dir.Scale(2.5 * t.Cfg.TipOffset * spin.Y * speed)
+	cue.Side = spin.X
 }
 
-// Settled reports whether every ball on the table has zero speed.
+// Settled reports whether every ball on the table is at rest: neither
+// moving nor spinning in place.
 func (t *Table) Settled() bool {
 	for i := range t.Balls {
 		b := &t.Balls[i]
-		if !b.Pocketed && (b.Vel.X != 0 || b.Vel.Y != 0) {
+		if !b.Pocketed && (b.Vel != (Vec{}) || b.Roll != (Vec{})) {
 			return false
 		}
 	}
@@ -211,33 +216,56 @@ func (t *Table) Step(dt float64) {
 	t.collideBalls()
 }
 
-// integrate applies rolling friction and moves the balls.
+// integrate applies cloth friction and moves the balls.
+//
+// A ball whose spin does not match its velocity slides: friction μg at the
+// contact point opposes the slip, slowing the ball at μg and spinning it up
+// at 5⁄2 μg (a solid sphere), so the slip closes at 7⁄2 μg and a ball struck
+// dead centre keeps 5⁄7 of its speed once it rolls. A rolling ball loses
+// speed to rolling resistance alone. Follow, draw and the way a ball dies
+// after a cushion all come out of this.
 func (t *Table) integrate(dt float64) {
+	cfg := &t.Cfg
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if b.Pocketed {
 			continue
 		}
+		if slip := b.Vel.Sub(b.Roll); slip != (Vec{}) {
+			sl := slip.Len()
+			d := math.Min(sl, 3.5*cfg.SlidingFriction*gravity*dt)
+			u := slip.Scale(1 / sl)
+			b.Vel = b.Vel.Sub(u.Scale(2.0 / 7 * d))
+			if d == sl {
+				b.Roll = b.Vel
+			} else {
+				b.Roll = b.Roll.Add(u.Scale(5.0 / 7 * d))
+			}
+		} else {
+			speed := b.Vel.Len()
+			if speed == 0 {
+				continue
+			}
+			next := speed - cfg.RollingFriction*gravity*dt
+			if next < cfg.StopSpeed {
+				b.Vel, b.Roll = Vec{}, Vec{}
+				continue
+			}
+			b.Vel = b.Vel.Scale(next / speed)
+			b.Roll = b.Vel
+		}
 		speed := b.Vel.Len()
 		if speed == 0 {
 			continue
 		}
-		next := speed - t.Cfg.RollingDecel*dt
-		if next < t.Cfg.StopSpeed {
-			b.Vel = Vec{}
-			continue
-		}
-		b.Vel = b.Vel.Scale(next / speed)
 		prevX := b.Pos.X
 		b.Pos = b.Pos.Add(b.Vel.Scale(dt))
-		if b.Spin != (Vec{}) {
-			// Cloth friction turns english back into plain rolling; side
-			// spin lasts about twice as long as top/bottom spin.
-			dist := next * dt
-			b.Spin.Y *= math.Exp(-dist / t.Cfg.SpinDecayLength)
-			b.Spin.X *= math.Exp(-dist / (2 * t.Cfg.SpinDecayLength))
+		if b.Side != 0 {
+			// Cloth friction grinds side spin away; it lasts about twice
+			// as long as follow or draw would.
+			b.Side *= math.Exp(-speed * dt / (2 * cfg.SpinDecayLength))
 		}
-		if head := t.Cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
+		if head := cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
 			t.crossedHead = true
 			t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
 		}
@@ -277,7 +305,7 @@ func (t *Table) capturePockets() {
 		}
 		if n := t.pocketAt(b.Pos); n >= 0 {
 			b.Pocketed = true
-			b.Vel = Vec{}
+			b.Vel, b.Roll, b.Side = Vec{}, Vec{}, 0
 			t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 		}
 	}
@@ -310,17 +338,21 @@ func (t *Table) collideCushions() {
 			if vn := b.Vel.Dot(n); vn < 0 {
 				before := b.Vel
 				b.Vel = b.Vel.Sub(n.Scale((1 + e) * vn))
+				// The rubber scrubs off the spin along its normal: a
+				// rolling ball comes back sliding, with its roll now
+				// against it, and dies down over the next few decimetres.
+				b.Roll = b.Roll.Sub(n.Scale(b.Roll.Dot(n)))
 				// Side spin grips the cushion and kicks the ball toward
 				// the side the tip struck: right english sends a ball
 				// that hits a rail square off to the shooter's right.
-				if b.Spin.X != 0 {
+				if b.Side != 0 {
 					if sp := before.Len(); sp > 0 {
 						d := before.Scale(1 / sp)
 						right := Vec{-d.Y, d.X} // y is down, so this is the shooter's right
 						right = right.Sub(n.Scale(right.Dot(n)))
-						b.Vel = b.Vel.Add(right.Scale(b.Spin.X * t.Cfg.SideGain * -vn))
+						b.Vel = b.Vel.Add(right.Scale(b.Side * t.Cfg.SideGain * -vn))
 					}
-					b.Spin.X *= 0.5
+					b.Side *= 0.5
 				}
 				hit = true
 			}
@@ -376,16 +408,14 @@ func (t *Table) collideBalls() {
 			if vn >= 0 {
 				continue // already separating
 			}
-			aBefore, bBefore := a.Vel, b.Vel
 			impulse := n.Scale(-(1 + e) / 2 * vn)
 			a.Vel = a.Vel.Sub(impulse)
 			b.Vel = b.Vel.Add(impulse)
-			// Top or bottom spin carries the striking ball on (follow) or
-			// back (draw) along its original line, in proportion to how
-			// full the hit was; the spin is spent accordingly.
-			fullness := -vn / rel.Len()
-			t.applyFollow(a, aBefore, fullness)
-			t.applyFollow(b, bBefore, fullness)
+			// Spin is untouched by the collision (ball–ball friction is
+			// negligible): a cue ball with follow or draw leaves the contact
+			// nearly stopped but still spinning, and the cloth then carries
+			// it forward or back. Each ball slides again until its spin
+			// matches its new velocity.
 
 			// i < j, so the cue ball can only be a.
 			if i == CueBall && !t.firstContact {
@@ -398,22 +428,6 @@ func (t *Table) collideBalls() {
 			}
 		}
 	}
-}
-
-// applyFollow converts a ball's vertical spin into follow or draw after it
-// struck another ball. before is its velocity going into the collision and
-// fullness the fraction of the approach that was head on (1 = full hit).
-func (t *Table) applyFollow(b *Ball, before Vec, fullness float64) {
-	if b.Spin.Y == 0 {
-		return
-	}
-	sp := before.Len()
-	if sp == 0 {
-		return
-	}
-	dir := before.Scale(1 / sp)
-	b.Vel = b.Vel.Add(dir.Scale(b.Spin.Y * t.Cfg.FollowGain * sp * fullness))
-	b.Spin.Y *= 1 - 0.7*fullness
 }
 
 // canPlace reports whether ball id could rest at pos: on the playing surface

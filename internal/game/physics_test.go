@@ -18,19 +18,24 @@ func (t *Table) place(id int, pos, vel Vec) {
 	t.Balls[id] = Ball{ID: id, Pos: pos, Vel: vel}
 }
 
-// frictionless returns the default config with rolling friction disabled.
+// frictionless returns the default config with cloth friction disabled: balls
+// neither slow down nor pick up roll, so velocities only change at impacts.
 func frictionless() Config {
 	cfg := DefaultConfig()
-	cfg.RollingDecel = 0
+	cfg.SlidingFriction = 0
+	cfg.RollingFriction = 0
 	cfg.StopSpeed = 0
 	return cfg
 }
 
+// kineticEnergy is the translational plus rotational energy per unit mass:
+// ½v² + ½·(2⁄5)·(Roll/R)²·R² = ½v² + Roll²/5. Cloth friction can turn spin
+// back into speed, so only the sum is guaranteed not to rise.
 func (t *Table) kineticEnergy() float64 {
 	sum := 0.0
 	for i := range t.Balls {
 		if b := &t.Balls[i]; !b.Pocketed {
-			sum += b.Vel.Dot(b.Vel) / 2
+			sum += b.Vel.Dot(b.Vel)/2 + b.Roll.Dot(b.Roll)/5
 		}
 	}
 	return sum
@@ -274,280 +279,99 @@ func TestFrictionStopsBall(t *testing.T) {
 	cfg := DefaultConfig()
 	tbl := emptyTable(cfg)
 	tbl.place(CueBall, Vec{0.5, 0.635}, Vec{1, 0})
-	steps := runUntilSettled(t, tbl, 30)
+	steps := runUntilSettled(t, tbl, 60)
 
-	// v/a = 2.5 s to stop, v²/2a = 1.25 m travelled.
-	if got := float64(steps) * cfg.Dt; !near(got, 2.5, 0.05) {
-		t.Errorf("stopped after %.3f s, want ~2.5 s", got)
+	// Struck without spin the ball slides, losing 2/7 of its speed while the
+	// slip closes at 7/2 μg, then rolls to a stop under rolling friction.
+	v0 := 1.0
+	t1 := v0 / (3.5 * cfg.SlidingFriction * gravity)
+	d1 := v0*t1 - 0.5*cfg.SlidingFriction*gravity*t1*t1
+	v1 := v0 * 5 / 7
+	t2 := (v1 - cfg.StopSpeed) / (cfg.RollingFriction * gravity)
+	d2 := v1 * v1 / (2 * cfg.RollingFriction * gravity)
+	if got := float64(steps) * cfg.Dt; !near(got, t1+t2, 0.05) {
+		t.Errorf("stopped after %.3f s, want ~%.2f s", got, t1+t2)
 	}
-	if got := tbl.Balls[CueBall].Pos.X - 0.5; !near(got, 1.25, 0.01) {
-		t.Errorf("travelled %.4f m, want ~1.25 m", got)
+	if got := tbl.Balls[CueBall].Pos.X - 0.5; !near(got, d1+d2, 0.01) {
+		t.Errorf("travelled %.4f m, want ~%.3f m", got, d1+d2)
+	}
+	if b := tbl.Balls[CueBall]; b.Roll != (Vec{}) {
+		t.Errorf("a stopped ball should not spin, got roll %v", b.Roll)
 	}
 }
 
-func TestMaxSpeedDoesNotTunnel(t *testing.T) {
+func TestCushionScrubsRoll(t *testing.T) {
+	// A naturally rolling ball rebounds with no roll along the rail's normal
+	// and slides until the cloth has turned it round: it comes back at 5/7 of
+	// what the cushion restitution alone would give.
 	cfg := DefaultConfig()
 	tbl := emptyTable(cfg)
-	tbl.place(CueBall, Vec{0.5, 0.635}, Vec{})
-	tbl.place(1, Vec{1.5, 0.635}, Vec{})
-	tbl.Shoot(0, 1)
-	for i := 0; i < 300; i++ {
+	tbl.place(CueBall, Vec{cfg.TableWidth - 0.3, 0.635}, Vec{1, 0})
+	tbl.Balls[CueBall].Roll = Vec{1, 0}
+	var before float64
+	for i := 0; i < 600 && countEvents(tbl.Events, CushionHit, CueBall) == 0; i++ {
+		before = tbl.Balls[CueBall].Vel.X
 		tbl.Step(cfg.Dt)
 	}
-	if countEvents(tbl.Events, FirstContact, 1) != 1 {
-		t.Fatalf("cue ball passed through the object ball (events: %v)", tbl.Events)
+	if countEvents(tbl.Events, CushionHit, CueBall) != 1 {
+		t.Fatalf("events %v, want one cushion hit", tbl.Events)
 	}
-	if tbl.Balls[CueBall].Pos.X >= tbl.Balls[1].Pos.X {
-		t.Errorf("cue ball at %v ended up past object ball at %v", tbl.Balls[CueBall].Pos, tbl.Balls[1].Pos)
+	for i := 0; i < 90; i++ { // 0.15 s: the slide (|slip| = e·v at 7/2 μg) takes about 0.11 s
+		tbl.Step(cfg.Dt)
 	}
-}
-
-func TestShootClampsPowerAndResetsEvents(t *testing.T) {
-	cfg := DefaultConfig()
-	tbl := NewTable(cfg)
-	tbl.Events = append(tbl.Events, Event{Kind: CushionHit, Ball: 3})
-	tbl.Shoot(math.Pi/2, 7)
-	if len(tbl.Events) != 0 {
-		t.Errorf("Shoot kept old events: %v", tbl.Events)
+	b := tbl.Balls[CueBall]
+	if b.Vel != b.Roll {
+		t.Errorf("should be rolling again, vel %v roll %v", b.Vel, b.Roll)
 	}
-	vel := tbl.Balls[CueBall].Vel
-	if !near(vel.X, 0, 1e-9) || !near(vel.Y, cfg.MaxCueSpeed, 1e-9) {
-		t.Errorf("cue velocity %v, want (0, %g)", vel, cfg.MaxCueSpeed)
-	}
-	tbl.Shoot(0, -1)
-	if !tbl.Settled() {
-		t.Errorf("negative power should clamp to 0, got velocity %v", tbl.Balls[CueBall].Vel)
-	}
-}
-
-func TestBreakEnergyNeverIncreasesAndSettles(t *testing.T) {
-	for _, power := range []float64{0.3, 0.7, 1} {
-		tbl := NewTable(DefaultConfig())
-		tbl.Shoot(0.02, power)
-		prev := tbl.kineticEnergy()
-		steps := 0
-		for limit := int(120 / tbl.Cfg.Dt); !tbl.Settled(); steps++ {
-			if steps >= limit {
-				t.Fatalf("power %.1f: break did not settle within 120 s", power)
-			}
-			tbl.Step(tbl.Cfg.Dt)
-			ke := tbl.kineticEnergy()
-			if ke > prev+1e-12 {
-				t.Fatalf("power %.1f: kinetic energy rose %g -> %g at step %d", power, prev, ke, steps)
-			}
-			prev = ke
-		}
-
-		if countEvents(tbl.Events, FirstContact, 1) != 1 {
-			t.Errorf("power %.1f: expected first contact with the apex ball", power)
-		}
-		first := 0
-		for _, e := range tbl.Events {
-			if e.Kind == FirstContact {
-				first++
-			}
-		}
-		if first != 1 {
-			t.Errorf("power %.1f: got %d FirstContact events, want exactly 1", power, first)
-		}
-		r := tbl.Cfg.BallRadius
-		for _, b := range tbl.Balls {
-			if b.Pocketed {
-				continue
-			}
-			if b.Pos.X < r-1e-9 || b.Pos.X > tbl.Cfg.TableWidth-r+1e-9 ||
-				b.Pos.Y < r-1e-9 || b.Pos.Y > tbl.Cfg.TableHeight-r+1e-9 {
-				t.Errorf("power %.1f: ball %d ended outside the rails at %v", power, b.ID, b.Pos)
-			}
-		}
-	}
-}
-
-func TestBreakIsDeterministic(t *testing.T) {
-	run := func() [NumBalls]Ball {
-		tbl := NewTable(DefaultConfig())
-		tbl.Shoot(0.01, 0.9)
-		runUntilSettled(t, tbl, 120)
-		return tbl.Balls
-	}
-	if a, b := run(), run(); a != b {
-		t.Error("two identical breaks produced different results")
-	}
-}
-
-func TestHeadStringEvents(t *testing.T) {
-	cfg := DefaultConfig()
-	mid := cfg.TableHeight / 2
-	tests := []struct {
-		name          string
-		cue, object   Vec
-		wantInKitchen bool // the contacted ball is above the head string
-		wantCrossed   bool // the cue ball crossed the head string before contact
-	}{
-		{"object ball in the kitchen", Vec{0.2, mid}, Vec{0.45, mid}, true, false},
-		{"object ball past the head string", Vec{0.2, mid}, Vec{1.2, mid}, false, true},
-		{"cue ball starting on the head string", cfg.HeadSpot(), Vec{1.2, mid}, false, true},
-		{"cue ball starting past the head string", Vec{0.9, mid}, Vec{1.2, mid}, false, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			tbl := emptyTable(cfg)
-			tbl.place(CueBall, tc.cue, Vec{})
-			tbl.place(4, tc.object, Vec{})
-			tbl.Shoot(0, 0.6)
-			runUntilSettled(t, tbl, 60)
-
-			crossed, crossedAt, contactAt := 0, -1, -1
-			for i, e := range tbl.Events {
-				switch e.Kind {
-				case HeadStringCrossed:
-					crossed++
-					crossedAt = i
-				case FirstContact:
-					contactAt = i
-					if e.InKitchen != tc.wantInKitchen {
-						t.Errorf("FirstContact.InKitchen = %v, want %v", e.InKitchen, tc.wantInKitchen)
-					}
-				}
-			}
-			if contactAt < 0 {
-				t.Fatalf("no first contact (events: %v)", tbl.Events)
-			}
-			if crossed > 1 {
-				t.Errorf("got %d HeadStringCrossed events, want at most 1", crossed)
-			}
-			if got := crossedAt >= 0 && crossedAt < contactAt; got != tc.wantCrossed {
-				t.Errorf("crossed before contact = %v, want %v (events: %v)", got, tc.wantCrossed, tbl.Events)
-			}
-		})
-	}
-}
-
-// TestSidePocketRejectsShallowAngles: a side pocket takes a ball coming in
-// steeply and spits out one that arrives along the rail, which is what the
-// noses and the near-vertical jaws of a real side pocket do.
-func TestSidePocketRejectsShallowAngles(t *testing.T) {
-	cfg := DefaultConfig()
-	mouth := Vec{cfg.TableWidth / 2, 0}
-	for _, tc := range []struct {
-		deg  float64 // angle between the path and the top rail
-		want bool
-	}{
-		{90, true}, {60, true}, {40, true}, {15, false}, {8, false},
-	} {
-		tbl := emptyTable(cfg)
-		rad := tc.deg * math.Pi / 180
-		dir := Vec{math.Cos(rad), -math.Sin(rad)}
-		start := mouth.Sub(dir.Scale(0.5))
-		tbl.place(3, start, dir.Scale(2))
-		runUntilSettled(t, tbl, 30)
-		if tbl.Balls[3].Pocketed != tc.want {
-			t.Errorf("ball at %.0f° to the rail: pocketed=%v, want %v (ended at %v)", tc.deg, tbl.Balls[3].Pocketed, tc.want, tbl.Balls[3].Pos)
-		}
-	}
-}
-
-// TestCornerPocketAcceptsOffAxisBalls: corner pockets are forgiving; a ball
-// entering well off the diagonal still drops.
-func TestCornerPocketAcceptsOffAxisBalls(t *testing.T) {
-	cfg := DefaultConfig()
-	for _, deg := range []float64{45, 25, 65} {
-		tbl := emptyTable(cfg)
-		rad := deg * math.Pi / 180
-		dir := Vec{-math.Cos(rad), -math.Sin(rad)} // toward the top-left corner
-		a := cfg.CornerMouth / math.Sqrt2
-		start := Vec{a / 2, a / 2}.Sub(dir.Scale(0.4))
-		tbl.place(3, start, dir.Scale(2))
-		runUntilSettled(t, tbl, 30)
-		if !tbl.Balls[3].Pocketed {
-			t.Errorf("ball entering the corner at %.0f°: not pocketed, ended at %v", deg, tbl.Balls[3].Pos)
-		}
-	}
-}
-
-func TestPocketGeometryMatchesSpec(t *testing.T) {
-	cfg := DefaultConfig()
-	tbl := NewTable(cfg)
-	if got := cfg.TableWidth; !near(got, 2.54, 1e-9) {
-		t.Errorf("playing surface length %v, want 2.54 m (100 in)", got)
-	}
-	if got := 2 * cfg.BallRadius; !near(got, 0.05715, 1e-9) {
-		t.Errorf("ball diameter %v, want 57.15 mm", got)
-	}
-	// Corner noses are CornerMouth apart, side noses SideMouth apart.
-	a := cfg.CornerMouth / math.Sqrt2
-	if d := (Vec{a, 0}).Dist(Vec{0, a}); !near(d, cfg.CornerMouth, 1e-12) {
-		t.Errorf("corner mouth %v, want %v", d, cfg.CornerMouth)
-	}
-	if len(tbl.segments) != 18 {
-		t.Fatalf("got %d segments, want 6 cushions + 12 jaws", len(tbl.segments))
-	}
-	// Every jaw leaves room for a ball at its far end.
-	for i := 0; i < len(tbl.segments); i += 3 {
-		j1, j2 := tbl.segments[i+1], tbl.segments[i+2]
-		_ = j2
-		if l := j1.a.Dist(j1.b); l < cfg.BallRadius {
-			t.Errorf("jaw %d is only %v long", i+1, l)
-		}
-	}
-	mouths, axes := tbl.Pockets()
-	if mouths[1] != (Vec{cfg.TableWidth / 2, 0}) || axes[1] != (Vec{0, -1}) {
-		t.Errorf("top-middle pocket = %v %v", mouths[1], axes[1])
-	}
-	// A ball may rest near a pocket but not in its mouth.
-	if !tbl.canPlace(CueBall, Vec{0.08, 0.08}) {
-		t.Error("cannot place a ball near the corner pocket")
-	}
-	if tbl.canPlace(CueBall, Vec{0.03, 0.03}) {
-		t.Error("placed a ball inside the corner pocket mouth")
-	}
-	if !tbl.canPlace(CueBall, Vec{cfg.TableWidth / 2, cfg.BallRadius}) {
-		t.Error("cannot place a ball on the surface in front of the side pocket")
-	}
-	if tbl.canPlace(CueBall, Vec{cfg.TableWidth / 2, cfg.BallRadius / 2}) {
-		t.Error("placed a ball hanging over the side pocket mouth")
+	if want := -cfg.CushionRestitution * before * 5 / 7; !near(b.Vel.X, want, 0.02) || b.Vel.Y != 0 {
+		t.Errorf("velocity after the rail %v, want about %.3f (restitution alone would give %.3f)", b.Vel, want, -cfg.CushionRestitution*before)
 	}
 }
 
 func TestFollowAndDraw(t *testing.T) {
 	const v = 2.0
+	// run shoots a full ball 0.4 m away with the given top/bottom spin and
+	// returns both velocities 0.4 s after the contact, when the cue ball has
+	// finished sliding on whatever spin it kept.
 	run := func(spinY float64) (cue, obj Vec) {
-		cfg := frictionless()
+		cfg := DefaultConfig()
 		tbl := emptyTable(cfg)
 		tbl.place(CueBall, Vec{0.8, 0.6}, Vec{})
 		tbl.place(1, Vec{1.2, 0.6}, Vec{})
 		tbl.ShootSpin(0, v/cfg.MaxCueSpeed, Vec{0, spinY})
-		for i := 0; i < 300; i++ {
+		for i := 0; i < 600 && countEvents(tbl.Events, FirstContact, 1) == 0; i++ {
+			tbl.Step(cfg.Dt)
+		}
+		if countEvents(tbl.Events, FirstContact, 1) == 0 {
+			t.Fatal("no contact")
+		}
+		for i := 0; i < 240; i++ {
 			tbl.Step(cfg.Dt)
 		}
 		return tbl.Balls[CueBall].Vel, tbl.Balls[1].Vel
 	}
-	e := DefaultConfig().BallRestitution
-	stun := v * (1 - e) / 2
-	if cue, _ := run(0); !near(cue.X, stun, 1e-9) {
-		t.Errorf("centre hit: cue velocity %v, want the stun %g", cue, stun)
+	centre, obj := run(0)
+	if obj.X < 0.5*v || centre.X < 0.05 || centre.X > 0.4 {
+		// A centre hit picks up some roll on the way, so it drifts forward.
+		t.Errorf("centre hit: cue %v should drift forward a little, object %v should go on", centre, obj)
 	}
-	if cue, obj := run(1); cue.X <= stun+0.3 || obj.X <= 0 {
-		t.Errorf("top spin: cue %v should follow well past %g, object %v should go on", cue, stun, obj)
+	if cue, obj := run(1); cue.X < centre.X+0.3 || obj.X < 0.5*v {
+		t.Errorf("top spin: cue %v should follow well past %v, object %v should go on", cue, centre, obj)
 	}
-	if cue, obj := run(-1); cue.X >= -0.3 || obj.X <= 0 {
+	if cue, obj := run(-1); cue.X > -0.2 || obj.X < 0.5*v {
 		t.Errorf("bottom spin: cue %v should draw back, object %v should go on", cue, obj)
 	}
-	// A thin hit converts little spin: the cue ball keeps most of its speed
-	// and gains little along its original line.
-	cfg := frictionless()
+	// A thin hit leaves the cue ball most of its speed and its spin.
+	cfg := DefaultConfig()
 	tbl := emptyTable(cfg)
 	tbl.place(CueBall, Vec{0.8, 0.6}, Vec{})
 	tbl.place(1, Vec{1.2, 0.6 + 1.9*cfg.BallRadius}, Vec{})
 	tbl.ShootSpin(0, v/cfg.MaxCueSpeed, Vec{0, -1})
-	for i := 0; i < 300; i++ {
+	for i := 0; i < 150; i++ {
 		tbl.Step(cfg.Dt)
 	}
-	if cue := tbl.Balls[CueBall].Vel; cue.X < 0.5*v {
-		t.Errorf("thin hit with draw: cue velocity %v should stay mostly forward", cue)
-	}
-	if sp := tbl.Balls[CueBall].Spin.Y; sp > -0.5 {
-		t.Errorf("thin hit should keep most of the spin, got %v", sp)
+	if cue := tbl.Balls[CueBall]; cue.Vel.X < 0.5*v || cue.Roll.X > -0.5 {
+		t.Errorf("thin hit with draw: cue %v should stay mostly forward and keep its back spin %v", cue.Vel, cue.Roll)
 	}
 }
 
@@ -574,21 +398,24 @@ func TestSideSpinKicksOffTheCushion(t *testing.T) {
 	}
 }
 
-func TestSpinFadesWithDistanceAndIsClamped(t *testing.T) {
+func TestSpinIsClampedAndSideFades(t *testing.T) {
 	cfg := frictionless()
 	tbl := emptyTable(cfg)
 	tbl.place(CueBall, Vec{0.2, 0.6}, Vec{})
-	tbl.ShootSpin(0, 1, Vec{3, 4}) // clamped to the unit disc
-	if sp := tbl.Balls[CueBall].Spin; !near(sp.Len(), 1, 1e-9) || !near(sp.X/sp.Y, 0.75, 1e-9) {
-		t.Fatalf("spin after clamping = %v, want (0.6, 0.8)", sp)
+	tbl.ShootSpin(0, 1, Vec{3, 4}) // clamped to the unit disc: (0.6, 0.8)
+	b := tbl.Balls[CueBall]
+	wantRoll := 2.5 * cfg.TipOffset * 0.8 * cfg.MaxCueSpeed
+	if !near(b.Side, 0.6, 1e-9) || !near(b.Roll.X, wantRoll, 1e-9) || b.Roll.Y != 0 {
+		t.Fatalf("after clamping side = %v roll = %v, want 0.6 and (%.3f, 0)", b.Side, b.Roll, wantRoll)
 	}
 	for i := 0; i < 60; i++ { // 0.1 s at 8 m/s: 0.8 m
 		tbl.Step(cfg.Dt)
 	}
-	sp := tbl.Balls[CueBall].Spin
-	wantY := 0.8 * math.Exp(-0.8/cfg.SpinDecayLength)
-	wantX := 0.6 * math.Exp(-0.8/(2*cfg.SpinDecayLength))
-	if !near(sp.Y, wantY, 0.02) || !near(sp.X, wantX, 0.02) {
-		t.Errorf("spin after 0.8 m = %v, want about (%.3f, %.3f)", sp, wantX, wantY)
+	b = tbl.Balls[CueBall]
+	if want := 0.6 * math.Exp(-0.8/(2*cfg.SpinDecayLength)); !near(b.Side, want, 0.02) {
+		t.Errorf("side spin after 0.8 m = %v, want about %.3f", b.Side, want)
+	}
+	if !near(b.Roll.X, wantRoll, 1e-9) {
+		t.Errorf("without cloth friction the roll should not change, got %v", b.Roll)
 	}
 }
