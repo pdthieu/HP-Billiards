@@ -13,15 +13,15 @@
 </head>
 <body class="pool pool-app">
 
-<header id="top">
-  <div class="room">
-    <span class="label">Room</span>
-    <span id="roomCode" class="code">—</span>
-    <button id="copyLink" class="btn btn--secondary btn--small" title="Copy an invite link">Copy link</button>
+<header id="top" class="hdr">
+  <div class="hdr__room">
+    <span class="eyebrow">Room</span>
+    <span id="roomCode" class="hdr__code">—</span>
+    <button id="copyLink" class="btn btn--secondary btn--small" title="Copy an invite link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg><span>Copy link</span></button>
   </div>
-  <div class="seats">
+  <div class="hdr__match">
     <div class="seat" id="seat0"></div>
-    <div class="vs">vs</div>
+    <div class="score score--empty" id="score" aria-label="No score yet"><span class="score__vs">vs</span></div>
     <div class="seat" id="seat1"></div>
   </div>
 </header>

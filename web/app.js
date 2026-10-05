@@ -144,6 +144,8 @@ const S = {
 
   oppAim: null,          // {angle, power}
   lastDecisionReason: '',
+  offlineSince: [0, 0],  // performance.now() when a seat dropped, per seat; 0 = unknown
+  holdTimer: 0,
 };
 
 // ---------------------------------------------------------------------------
@@ -341,6 +343,7 @@ function onSettled(msg) {
 function onPlayer(msg) {
   const was = S.players[msg.seat];
   S.players[msg.seat] = { seat: msg.seat, name: msg.name, connected: msg.connected, ready: msg.ready };
+  S.offlineSince[msg.seat] = msg.name && !msg.connected ? performance.now() : 0;
   if (msg.seat !== S.seat) {
     if (msg.connected && !was.connected) {
       toast(was.name ? `${msg.name} is back` : `${msg.name} joined`);
@@ -1222,45 +1225,110 @@ function renderRooms(list) {
   $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one below.` : '';
 }
 
+const CUE_SVG = '<svg class="seat__cue" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>';
+const compactMedia = matchMedia('(max-width: 600px)');
+compactMedia.addEventListener('change', () => refreshPanels());
+
+// renderSeat draws one header seat: name and tags, the remaining balls of
+// the player's group, whose turn it is, and the hold ring while offline.
 function renderSeat(seat) {
   const el = $(`seat${seat}`);
   const p = S.players[seat];
-  el.className = 'seat';
+  const compact = compactMedia.matches;
+  el.className = 'seat' + (compact ? ' seat--compact' : '');
   el.replaceChildren();
   if (!p.connected && !p.name) {
-    el.classList.add('empty');
-    el.append(Object.assign(document.createElement('span'), { className: 'name', textContent: 'waiting…' }));
+    el.classList.add('seat--empty');
+    el.append(Object.assign(document.createElement('span'), { className: 'seat__name', textContent: 'Open seat' }));
     return;
   }
-  if (!p.connected) el.classList.add('held');
-  if ((inPlay() || S.moving) && S.turn === seat) el.classList.add('turn');
+  const onTurn = (inPlay() || S.moving) && S.turn === seat;
+  let state = '';
+  if (onTurn && isMe(seat)) {
+    el.classList.add('seat--turn');
+    if (S.moving) el.classList.add('is-moving');
+    el.insertAdjacentHTML('beforeend', CUE_SVG);
+    state = S.moving ? 'rolling…' : 'your turn';
+  } else if (onTurn) {
+    el.classList.add('seat--theirs');
+    state = S.moving ? 'rolling…' : 'their turn';
+  }
+  if (!p.connected) el.classList.add('seat--offline');
+
+  const body = document.createElement('div');
+  body.className = 'seat__body';
+  const line = document.createElement('div');
+  line.className = 'seat__line';
   const name = document.createElement('span');
-  name.className = 'name';
+  name.className = 'seat__name';
   name.textContent = p.name;
-  el.append(name);
-  if (isMe(seat)) el.append(tag('you', 'you'));
-  if (!p.connected) el.append(tag('offline', 'offline'));
-  if (S.phase === 'lobby' && p.ready) el.append(tag('ready', 'ready'));
+  name.title = p.name;
+  line.append(name);
+  if (isMe(seat)) line.append(tag('you', 'you'));
+  if (!p.connected) line.append(tag('offline', 'offline'));
+  if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
+  body.append(line);
   const g = S.groups[seat];
   if (g) {
-    const group = document.createElement('span');
-    group.className = 'group';
-    group.title = g;
+    const dots = document.createElement('div');
+    dots.className = 'seat__dots';
+    const left = [];
     for (let i = 1; i <= 7; i++) {
       const id = g === 'solids' ? i : i + 8;
-      const dot = document.createElement('i');
-      dot.style.background = S.balls.has(id) ? BALL_COLORS[i] : '#0000';
-      group.append(dot);
+      const dot = document.createElement('span');
+      dot.className = 'ball' + (g === 'stripes' ? ' ball--stripe' : '') + (S.balls.has(id) ? '' : ' ball--gone');
+      dot.style.setProperty('--c', `var(--ball-${i})`);
+      dots.append(dot);
+      if (S.balls.has(id)) left.push(id);
     }
-    el.append(group);
+    dots.setAttribute('aria-label', `${g} left: ${left.join(', ') || 'none'}`);
+    body.append(dots);
+  }
+  el.append(body);
+  if (!p.connected) el.append(holdRing(seat));
+  else if (state && !compact) {
+    el.append(Object.assign(document.createElement('span'), { className: 'seat__state', textContent: state }));
   }
 }
 
 function tag(text, cls) {
   const t = document.createElement('span');
-  t.className = `tag ${cls}`;
+  t.className = `tag tag--${cls}`;
   t.textContent = text;
   return t;
+}
+
+// holdRing shows how much of the 60 s seat hold is left. Without a known
+// drop time (joined after the drop) the ring is shown without a number.
+function holdRing(seat) {
+  const wrap = document.createElement('span');
+  wrap.className = 'hold';
+  wrap.dataset.seat = seat;
+  wrap.setAttribute('role', 'timer');
+  wrap.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--hairline-strong)" stroke-width="2"></circle><circle class="hold__arc" cx="13" cy="13" r="11" fill="none" stroke="var(--foul)" stroke-width="2" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="0"></circle></svg><span class="hold__num"></span>';
+  updateHold(wrap);
+  return wrap;
+}
+
+function holdRemaining(seat) {
+  const since = S.offlineSince[seat];
+  if (!since) return null;
+  return Math.max(0, SEAT_HOLD_S - (performance.now() - since) / 1000);
+}
+
+function updateHold(wrap) {
+  const remaining = holdRemaining(Number(wrap.dataset.seat));
+  const arc = wrap.querySelector('.hold__arc');
+  const num = wrap.querySelector('.hold__num');
+  if (remaining === null) { arc.style.strokeDashoffset = '0'; num.textContent = ''; return; }
+  arc.style.strokeDashoffset = String(69.1 * (1 - remaining / SEAT_HOLD_S));
+  num.textContent = String(Math.ceil(remaining));
+}
+
+function tickHolds() {
+  const rings = document.querySelectorAll('.hold');
+  if (!rings.length) { clearInterval(S.holdTimer); S.holdTimer = 0; return; }
+  rings.forEach(updateHold);
 }
 
 function renderTrays() {
@@ -1285,6 +1353,7 @@ function renderTrays() {
 function refreshPanels() {
   renderSeat(0);
   renderSeat(1);
+  if (document.querySelector('.hold') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   renderTrays();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;

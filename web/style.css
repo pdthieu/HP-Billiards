@@ -26,39 +26,10 @@ body {
 .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 18px; letter-spacing: 2px; font-weight: 600; }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
-/* header */
-#top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--surface-1);
-  border-bottom: 1px solid var(--hairline-strong);
-  flex-wrap: wrap;
-}
-#top .room { display: flex; align-items: center; gap: 8px; }
-.seats { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-end; min-width: 0; }
-.vs { color: var(--text-muted); font-size: 12px; }
-.seat {
-  display: flex; align-items: center; gap: 8px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid var(--hairline-strong);
-  background: var(--surface-2);
-  min-width: 0;
-  max-width: 48%;
-}
-.seat.turn { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
-.seat.empty { opacity: 0.5; font-style: italic; }
-.seat .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.seat .tag { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--hairline-strong); color: var(--text); white-space: nowrap; }
-.seat .tag.ready { background: var(--ok); color: #03200f; }
-.seat .tag.you { background: var(--accent); color: var(--on-accent); }
-.seat .tag.offline { background: var(--foul); color: #fff; }
-.seat.held { border-style: dashed; opacity: 0.8; }
-.seat .group { display: inline-flex; gap: 2px; }
-.seat .group i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid #0006; }
+/* header: the design's .hdr; the score block is a placeholder until a
+   match score exists */
+.score__vs { font: 600 13px/16px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-disabled); }
+.hold__arc { transition: stroke-dashoffset 1s linear; }
 
 /* table */
 main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; gap: 8px; min-height: 0; }
@@ -171,9 +142,6 @@ main { flex: 1; display: flex; flex-direction: column; padding: 8px 12px 12px; g
 @media (max-width: 520px) {
   body { font-size: 14px; }
   main { padding: 6px 8px 8px; }
-  #top { padding: 6px 8px; }
-  .seat { max-width: 46%; padding: 3px 8px; }
-  .vs { display: none; }
 }
 
 /* landing: the design's overlay is absolute (for mock-up frames); the app
