@@ -30,8 +30,8 @@ const CORNER_SHELF = 1.75 * INCH;
 const SIDE_SHELF = 0.25 * INCH;
 const TABLE = buildTable();
 const POCKETS = TABLE.pockets; // {x, y}: middle of each mouth, pocket-index order
-const BALL_COLORS = {
-  1: '#f2c230', 2: '#2457c5', 3: '#d8322c', 4: '#6b2fa0', 5: '#ee7b1d', 6: '#1f8a4c', 7: '#8b1a2b', 8: '#111',
+const BALL_COLORS = { // design tokens --ball-1 … --ball-8
+  1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316',
 };
 const RENDER_DELAY_MS = 100;  // how far behind the newest snapshot we draw
 const AIM_SEND_MS = 100;      // at most 10 aim messages per second
@@ -146,6 +146,14 @@ const S = {
   lastDecisionReason: '',
   offlineSince: [0, 0],  // performance.now() when a seat dropped, per seat; 0 = unknown
   holdTimer: 0,
+
+  // canvas motion
+  pendingDrops: [],      // balls that vanished from a snapshot, awaiting their drop animation
+  liftStart: 0,          // when the cue ball was picked up
+  aimShownAt: 0,         // when the aim guide started fading in
+  oppAimPrev: null,      // previous opponent aim, eased toward S.oppAim
+  oppAimAt: 0,
+  hoverUntil: 0,         // touch: hide the hover label after this time
 };
 
 // ---------------------------------------------------------------------------
@@ -255,7 +263,13 @@ function handle(msg) {
     case 'room_state': onRoomState(msg); break;
     case 'snapshot': onSnapshot(msg); break;
     case 'settled': onSettled(msg); break;
-    case 'aim': if (msg.seat !== S.seat) S.oppAim = { angle: msg.angle, power: msg.power }; break;
+    case 'aim':
+      if (msg.seat !== S.seat) {
+        S.oppAimPrev = S.oppAim;
+        S.oppAimAt = performance.now();
+        S.oppAim = { angle: msg.angle, power: msg.power };
+      }
+      break;
     case 'player': onPlayer(msg); break;
     case 'pong': clearTimeout(S.pongTimer); S.pongTimer = 0; break;
     case 'error': onError(msg); break;
@@ -298,6 +312,7 @@ function onRoomState(msg) {
   S.moving = msg.moving;
   setBalls(msg.balls);
   S.snaps = []; // a shot in progress resumes from the next snapshot
+  S.pendingDrops = [];
   const hadDecision = !!S.decision;
   const turnChanged = applyRules(msg);
   S.cuePlacedAt = null;
@@ -315,9 +330,16 @@ function onRoomState(msg) {
 
 function onSnapshot(msg) {
   const balls = new Map(msg.balls.map((b) => [b.id, { x: b.x, y: b.y }]));
+  if (msg.t > 0 && S.moving && S.snaps.length) {
+    // A ball missing from this snapshot was pocketed: animate it dropping
+    // once the render clock reaches this snapshot.
+    const prev = S.snaps[S.snaps.length - 1];
+    for (const [id, p] of prev.balls) if (!balls.has(id)) queueDrop(id, p, msg.t);
+  }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
     S.snaps = [];
+    S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
     S.moving = true;
     S.oppAim = null;
@@ -330,6 +352,14 @@ function onSnapshot(msg) {
 }
 
 function onSettled(msg) {
+  // Anything still on the table in our last snapshot but gone now drops;
+  // queued drops start at once.
+  const last = S.snaps.length ? S.snaps[S.snaps.length - 1].balls : S.balls;
+  const now = new Set(msg.balls.map((b) => b.id));
+  const queued = new Set(S.pendingDrops.map((d) => d.id));
+  for (const d of S.pendingDrops) startDrop(d.id, d.from);
+  S.pendingDrops = [];
+  for (const [id, p] of last) if (!now.has(id) && !queued.has(id)) startDrop(id, p);
   S.moving = false;
   S.snaps = [];
   setBalls(msg.balls);
@@ -398,6 +428,7 @@ function resetToLanding(error) {
 
 // newTurn resets the per-shot UI when the shooter or phase changes.
 function newTurn() {
+  S.aimShownAt = performance.now();
   S.call = null;
   S.aiming = false;
   S.dragCue = null;
@@ -524,7 +555,14 @@ function shoot() {
   const msg = { type: 'shoot', angle: S.angle, power: S.power };
   if (needsCall()) msg.call = S.call.safety ? { safety: true } : { ball: S.call.ball };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
-  send(msg);
+  if (send(msg)) {
+    const cue = displayBalls().get(0);
+    if (cue) {
+      const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
+      addFx({ type: 'strike', layer: 'cue', dur: 280, cue: { ...cue }, dir, power: S.power });
+      addFx({ type: 'ring', layer: 'top', dur: 150, delay: 80, at: { ...cue } });
+    }
+  }
 }
 
 // --- power bar: pull down, release to shoot -------------------------------
@@ -651,10 +689,119 @@ function setPower(p) {
 
 // ---------------------------------------------------------------------------
 // 4. rendering
+//
+// Everything here follows design/canvas-spec.md. Units are table metres
+// (the spec's millimetres / 1000). Static table layers are drawn once into
+// tableCache on resize; balls, cue, guide, rings and effects every frame.
 
 const canvas = $('table');
-const ctx = canvas.getContext('2d');
-const view = { s: 1, ox: 0, oy: 0, rotated: false, cssW: 0, cssH: 0 };
+let ctx = canvas.getContext('2d');
+let tableCache = null;
+const view = { s: 1, ox: 0, oy: 0, rotated: false, cssW: 0, cssH: 0, dpr: 1 };
+
+const PAL = {
+  railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', railLip: '#FFE2B4',
+  feltCenter: '#36745C', felt: '#2C614C', feltEdge: '#1B3F31', cushion: '#1F4B3A',
+  sight: '#E6D7B4', ivory: '#F4EFE2', disc: '#FAF7EF', ink: '#111316',
+  brass: '#D9A441', brassLine: '#E3B25C', ok: '#71C99D', oppAim: '#A9C1DD',
+  labelBg: '#0D1218', labelText: '#E8ECF1', labelStroke: '#AABED7', flash: '#FFE2B4',
+};
+
+// Easings from the spec (polynomial approximations of the CSS curves).
+const EASE = {
+  out: (t) => 1 - (1 - t) ** 3,
+  in: (t) => t ** 3,
+  inout: (t) => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2),
+  spring: (t) => 1 + 2.7 * (t - 1) ** 3 + 1.7 * (t - 1) ** 2,
+};
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
+const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${a})`;
+
+// screenOffset converts an offset given in screen space (light from the
+// screen's top-left) to table space, so shadows stay put when the table is
+// rotated.
+const screenOffset = (sx, sy) => (view.rotated ? { x: -sy, y: sx } : { x: sx, y: sy });
+
+// --- transient effects ------------------------------------------------------
+// fx entries: {type, layer: 'balls' | 'cue' | 'top', t0, delay, dur, ...}.
+const fx = [];
+function addFx(f) {
+  fx.push({ t0: performance.now(), delay: 0, ...f, dur: reduceMotion.matches ? 0 : f.dur });
+}
+function drawFx(layer, now) {
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    if (f.layer !== layer) continue;
+    const el = now - f.t0 - f.delay;
+    if (el < 0) continue;
+    const p = f.dur > 0 ? clamp01(el / f.dur) : 1;
+    FX[f.type](f, p);
+    if (p >= 1) fx.splice(i, 1);
+  }
+}
+const FX = {
+  // the cue advances to the ball, then fades
+  strike(f, p) {
+    const hit = 80 / f.dur;
+    let back, alpha;
+    if (p < hit) { back = R + (0.02 + f.power * 0.12) * (1 - EASE.in(p / hit)); alpha = 1; }
+    else { back = R; alpha = 1 - EASE.out((p - hit) / (1 - hit)); }
+    drawCue(f.cue, f.dir, back, alpha);
+  },
+  ring(f, p) {
+    const e = EASE.out(p);
+    ctx.strokeStyle = rgba('#FFFFFF', 0.6 * (1 - e));
+    ctx.lineWidth = 0.003 - 0.002 * e;
+    ctx.beginPath();
+    ctx.arc(f.at.x, f.at.y, R + 0.04 * e, 0, Math.PI * 2);
+    ctx.stroke();
+  },
+  // a pocketed ball sinks toward the pocket
+  drop(f, p) {
+    const e = EASE.spring(p);
+    const x = f.from.x + (f.to.x - f.from.x) * 0.35 * e;
+    const y = f.from.y + (f.to.y - f.from.y) * 0.35 * e;
+    const fadeStart = 1 - 60 / Math.max(f.dur, 60);
+    const alpha = p < fadeStart ? 1 : 1 - (p - fadeStart) / (1 - fadeStart);
+    if (alpha <= 0) return;
+    drawBall(f.id, { x, y }, { scale: 1 - 0.4 * e, alpha });
+  },
+  rim(f, p) {
+    const e = EASE.out(p);
+    ctx.strokeStyle = rgba(PAL.flash, 0.5 * (1 - e));
+    ctx.lineWidth = 0.006;
+    ctx.beginPath();
+    ctx.arc(f.at.x, f.at.y, f.r, 0, Math.PI * 2);
+    ctx.stroke();
+  },
+};
+
+function pocketHole(pk) {
+  const depth = pk.shelf + 0.012;
+  return { x: pk.x + pk.ax * depth, y: pk.y + pk.ay * depth, r: pk.half + 0.008 };
+}
+function nearestPocketHole(p) {
+  let best = null;
+  for (const pk of POCKETS) {
+    const h = pocketHole(pk);
+    const d = Math.hypot(h.x - p.x, h.y - p.y);
+    if (!best || d < best.d) best = { d, ...h };
+  }
+  return best;
+}
+// queueDrop schedules the pocket animation of a ball that disappeared
+// between two snapshots; it starts when the render clock reaches that snapshot.
+function queueDrop(id, from, t) {
+  S.pendingDrops.push({ id, from, t });
+}
+function startDrop(id, from) {
+  const hole = nearestPocketHole(from);
+  addFx({ type: 'drop', layer: 'balls', dur: 180, id, from, to: hole });
+  addFx({ type: 'rim', layer: 'top', dur: 120, at: hole, r: hole.r });
+}
+
+// --- geometry helpers -------------------------------------------------------
 
 function resize() {
   const wrap = $('tableWrap');
@@ -676,12 +823,18 @@ function resize() {
   canvas.style.width = `${view.cssW}px`;
   canvas.style.height = `${view.cssH}px`;
   view.dpr = dpr;
+  renderTableCache();
 }
 
 // toTable converts a pointer position (CSS px within the canvas) to meters.
 function toTable(px, py) {
   if (!view.rotated) return { x: (px - view.ox) / view.s, y: (py - view.oy) / view.s };
   return { x: W - (py - view.oy) / view.s, y: (px - view.ox) / view.s };
+}
+// toScreen is the inverse: meters to CSS px within the canvas.
+function toScreen(p) {
+  if (!view.rotated) return { x: view.ox + p.x * view.s, y: view.oy + p.y * view.s };
+  return { x: view.ox + p.y * view.s, y: view.oy + (W - p.x) * view.s };
 }
 
 // applyTableTransform sets ctx so that drawing happens in meters.
@@ -705,7 +858,7 @@ function displayBalls() {
     }
     return S.balls;
   }
-  const t = performance.now() - S.shotWall0 - RENDER_DELAY_MS;
+  const t = renderClock();
   const snaps = S.snaps;
   if (t <= snaps[0].t) return snaps[0].balls;
   let i = snaps.length - 1;
@@ -720,40 +873,100 @@ function displayBalls() {
   }
   return out;
 }
+function renderClock() { return performance.now() - S.shotWall0 - RENDER_DELAY_MS; }
+
+// --- the frame --------------------------------------------------------------
 
 function draw() {
   requestAnimationFrame(draw);
   if (!view.cssW) return;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  applyTableTransform();
+  const now = performance.now();
 
-  drawTable();
-  const balls = displayBalls();
-  const myShot = isMyShot();
-  const targets = myShot && needsCall() ? legalTargets() : null;
-
-  // aim lines go under the balls
-  const cue = balls.get(0);
-  if (cue && myShot && !S.dragCue) drawAim(balls, cue, S.angle, S.power, true);
-  else if (cue && S.oppAim && inPlay() && !S.moving && S.turn !== S.seat) {
-    drawAim(balls, cue, S.oppAim.angle, S.oppAim.power, false);
+  // pending pocket drops whose snapshot time has been reached
+  if (S.pendingDrops.length) {
+    const t = renderClock();
+    while (S.pendingDrops.length && S.pendingDrops[0].t <= t) {
+      const d = S.pendingDrops.shift();
+      startDrop(d.id, d.from);
+    }
   }
 
-  for (const [id, p] of balls) drawBall(id, p);
-  if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (tableCache) ctx.drawImage(tableCache, 0, 0);
+  applyTableTransform();
 
-  if (targets) {
-    for (const id of targets) {
+  const balls = displayBalls();
+  const myShot = isMyShot();
+  const cue = balls.get(0);
+  const placingInKitchen = myShot && S.ballInHand && S.kitchen;
+  if (placingInKitchen) drawKitchenWash();
+
+  // aim guide goes under the balls
+  const striking = fx.some((f) => f.type === 'strike');
+  let aim = null; // {angle, power, mine, alpha}
+  if (cue && myShot && !S.dragCue) {
+    const a = S.aimShownAt ? EASE.out(clamp01((now - S.aimShownAt) / 200)) : 1;
+    aim = { angle: S.angle, power: S.power, mine: true, alpha: reduceMotion.matches ? 1 : a };
+  } else if (cue && S.oppAim && inPlay() && !S.moving && S.turn !== S.seat) {
+    aim = { angle: oppAimAngle(now), power: S.oppAim.power, mine: false, alpha: 1 };
+  }
+  if (aim) drawAim(balls, cue, aim.angle, aim.mine, aim.alpha);
+
+  // shadows, then bodies
+  const lift = cue && S.dragCue ? liftAmount(now) : 0;
+  for (const [id, p] of balls) drawBallShadow(p, id === 0 ? lift : 0);
+  for (const [id, p] of balls) drawBall(id, p, id === 0 && lift ? { scale: 1 + 0.05 * lift } : undefined);
+  drawFx('balls', now);
+
+  // cue stick above the balls
+  if (aim && !striking) {
+    const dir = { x: Math.cos(aim.angle), y: Math.sin(aim.angle) };
+    drawCue(cue, dir, R + 0.02 + aim.power * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha);
+  }
+  drawFx('cue', now);
+
+  // rings
+  if (myShot && needsCall()) {
+    for (const id of legalTargets()) {
       const p = balls.get(id);
       if (!p) continue;
-      ring(p, R + 0.012, S.call && S.call.ball === id ? '#f0b429' : '#ffffff88', 0.006);
+      if (S.call && S.call.ball === id) {
+        ring(p, R + 0.020, rgba(PAL.brass, 0.22), 0.008);
+        ring(p, R + 0.012, PAL.brass, 0.005);
+      } else {
+        ring(p, R + 0.010, rgba('#FFFFFF', 0.55), 0.003);
+      }
     }
   }
   if (myShot && S.ballInHand && cue) {
-    ring(cue, R + 0.016, S.dragCue ? '#ffffff' : '#4cc38a', 0.006);
+    if (S.dragCue) ring(cue, 1.05 * R + 0.014, '#FFFFFF', 0.005);
+    else ring(cue, R + 0.014, PAL.ok, 0.004);
   }
+
+  if (S.hoverUntil && now > S.hoverUntil) { S.hoverBall = null; S.hoverUntil = 0; }
+  if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
+  drawFx('top', now);
 }
+
+// liftAmount eases the cue ball up over 120 ms while it is being dragged.
+function liftAmount(now) {
+  if (reduceMotion.matches) return 1;
+  return EASE.out(clamp01((now - S.liftStart) / 120));
+}
+
+// oppAimAngle eases the opponent's aim toward its latest value over 100 ms.
+function oppAimAngle(now) {
+  const cur = S.oppAim.angle;
+  if (!S.oppAimPrev || reduceMotion.matches) return cur;
+  const p = clamp01((now - S.oppAimAt) / 100);
+  if (p >= 1) return cur;
+  let d = cur - S.oppAimPrev.angle;
+  d = Math.atan2(Math.sin(d), Math.cos(d)); // shortest arc
+  return S.oppAimPrev.angle + d * EASE.out(p);
+}
+
+// --- static table -----------------------------------------------------------
 
 function roundRect(x, y, w, h, r) {
   ctx.beginPath();
@@ -765,25 +978,57 @@ function roundRect(x, y, w, h, r) {
   ctx.closePath();
 }
 
-function drawTable() {
-  // wooden rails
+// renderTableCache draws the rails, felt, pockets, cushions, sights and
+// markings once at the current size.
+function renderTableCache() {
+  if (!view.cssW) return;
+  const off = document.createElement('canvas');
+  off.width = canvas.width;
+  off.height = canvas.height;
+  const live = ctx;
+  ctx = off.getContext('2d');
+  applyTableTransform();
+  drawTableStatic();
+  ctx = live;
+  tableCache = off;
+}
+
+function drawTableStatic() {
+  // rail
+  const railG = ctx.createLinearGradient(0, -RAIL, 0, H + RAIL);
+  railG.addColorStop(0, PAL.railTop);
+  railG.addColorStop(0.5, PAL.rail);
+  railG.addColorStop(1, PAL.railBottom);
   roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 0.06);
-  ctx.fillStyle = '#5a3a1e';
+  ctx.fillStyle = railG;
   ctx.fill();
+  ctx.strokeStyle = rgba('#000000', 0.55);
+  ctx.lineWidth = 0.003;
+  ctx.stroke();
   // felt, running under the cushions and into the pocket mouths
-  ctx.fillStyle = '#2b8a4a';
+  const feltG = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 1.48);
+  feltG.addColorStop(0, PAL.feltCenter);
+  feltG.addColorStop(0.55, PAL.felt);
+  feltG.addColorStop(1, PAL.feltEdge);
+  ctx.fillStyle = feltG;
   ctx.fillRect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
-  // pocket holes: a circle behind each mouth, reaching the drop line
+  // pocket holes
   for (const pk of POCKETS) {
-    const r = pk.half + 0.008;
-    const depth = pk.shelf + 0.012;
-    ctx.fillStyle = '#0b0b0b';
+    const h = pocketHole(pk);
+    const g = ctx.createRadialGradient(h.x, h.y, 0, h.x, h.y, h.r);
+    g.addColorStop(0, '#000000');
+    g.addColorStop(0.78, '#06080A');
+    g.addColorStop(1, '#1C1610');
+    ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(pk.x + pk.ax * depth, pk.y + pk.ay * depth, r, 0, Math.PI * 2);
+    ctx.arc(h.x, h.y, h.r, 0, Math.PI * 2);
     ctx.fill();
+    ctx.strokeStyle = rgba('#000000', 0.6);
+    ctx.lineWidth = 0.004;
+    ctx.stroke();
   }
-  // cushions: the nose line, with the jaws angled into the pockets
-  ctx.fillStyle = '#1e6b3a';
+  // cushions with their jaws, then the nose line
+  ctx.fillStyle = PAL.cushion;
   for (const c of TABLE.cushions) {
     const lf = CUSHION / Math.abs(c.jawFrom.x * c.inward.x + c.jawFrom.y * c.inward.y);
     const lt = CUSHION / Math.abs(c.jawTo.x * c.inward.x + c.jawTo.y * c.inward.y);
@@ -795,160 +1040,288 @@ function drawTable() {
     ctx.closePath();
     ctx.fill();
   }
-  // kitchen highlight while placing there
-  if (isMyShot() && S.ballInHand && S.kitchen) {
-    ctx.fillStyle = '#ffffff18';
-    ctx.fillRect(0, 0, HEAD, H);
+  ctx.strokeStyle = rgba('#FFFFFF', 0.10);
+  ctx.lineWidth = 0.0025;
+  for (const c of TABLE.cushions) {
+    ctx.beginPath();
+    ctx.moveTo(c.from.x, c.from.y);
+    ctx.lineTo(c.to.x, c.to.y);
+    ctx.stroke();
   }
-  // head string and foot spot
-  ctx.strokeStyle = '#ffffff40';
+  // inner lip of the rail
+  roundRect(-0.052, -0.052, W + 0.104, H + 0.104, 0.01);
+  ctx.strokeStyle = rgba(PAL.railLip, 0.12);
   ctx.lineWidth = 0.003;
+  ctx.stroke();
+  // sights
+  ctx.fillStyle = rgba(PAL.sight, 0.9);
+  const sight = (x, y, alongX) => {
+    const a = alongX ? 0.011 : 0.007, b = alongX ? 0.007 : 0.011;
+    ctx.beginPath();
+    ctx.moveTo(x - a, y);
+    ctx.lineTo(x, y - b);
+    ctx.lineTo(x + a, y);
+    ctx.lineTo(x, y + b);
+    ctx.closePath();
+    ctx.fill();
+  };
+  for (const i of [1, 2, 3, 5, 6, 7]) { sight(W / 8 * i, -0.0725, true); sight(W / 8 * i, H + 0.0725, true); }
+  for (const i of [1, 2, 3]) { sight(-0.0725, H / 4 * i, false); sight(W + 0.0725, H / 4 * i, false); }
+  // head string and spots
+  ctx.strokeStyle = rgba('#FFFFFF', 0.14);
+  ctx.lineWidth = 0.002;
   ctx.beginPath();
   ctx.moveTo(HEAD, 0);
   ctx.lineTo(HEAD, H);
   ctx.stroke();
-  ctx.fillStyle = '#ffffff50';
-  ctx.beginPath();
-  ctx.arc(FOOT.x, FOOT.y, 0.006, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = rgba('#FFFFFF', 0.35);
+  for (const p of [{ x: HEAD, y: H / 2 }, FOOT]) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 0.004, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
-function ring(p, r, color, width, label) {
+// drawKitchenWash marks the kitchen while the cue ball must be placed there.
+function drawKitchenWash() {
+  ctx.fillStyle = rgba('#FFFFFF', 0.06);
+  ctx.fillRect(0, 0, HEAD, H);
+  ctx.strokeStyle = rgba(PAL.ok, 0.75);
+  ctx.lineWidth = 0.003;
+  ctx.setLineDash([0.016, 0.010]);
+  ctx.beginPath();
+  ctx.moveTo(HEAD, 0);
+  ctx.lineTo(HEAD, H);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// --- balls ------------------------------------------------------------------
+
+function ring(p, r, color, width) {
   ctx.strokeStyle = color;
   ctx.lineWidth = width;
   ctx.beginPath();
   ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
   ctx.stroke();
-  if (label !== undefined) {
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    if (view.rotated) ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = color;
-    ctx.font = `bold ${0.05}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(label + 1), 0, 0);
-    ctx.restore();
-  }
 }
 
-function drawBall(id, p) {
-  const color = id === 0 ? '#f4f1e6' : BALL_COLORS[id > 8 ? id - 8 : id];
+// drawBallShadow: the contact shadow, offset toward the screen's bottom-right.
+function drawBallShadow(p, lift) {
+  const k = 1 + 0.8 * lift;
+  const o = screenOffset(0.006 * k, 0.009 * k);
+  const r = R * 1.08 * (1 + 0.05 * lift);
+  const g = ctx.createRadialGradient(p.x + o.x, p.y + o.y, 0, p.x + o.x, p.y + o.y, r);
+  g.addColorStop(0, rgba('#000000', 0.5));
+  g.addColorStop(0.7, rgba('#000000', 0.25));
+  g.addColorStop(1, rgba('#000000', 0));
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(p.x + o.x, p.y + o.y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// drawBall draws one ball in a screen-aligned frame, so the stripe band,
+// number and lighting read the same way whether or not the table is rotated.
+function drawBall(id, p, opts) {
+  const scale = opts && opts.scale ? opts.scale : 1;
+  const alpha = opts && opts.alpha !== undefined ? opts.alpha : 1;
+  const colour = id === 0 ? PAL.ivory : BALL_COLORS[id > 8 ? id - 8 : id];
+  const stripe = id > 8;
+  const diamPx = 2 * R * view.s * scale;
   ctx.save();
   ctx.translate(p.x, p.y);
-  // shadow
-  ctx.fillStyle = '#00000040';
-  ctx.beginPath();
-  ctx.arc(0.004, 0.005, R, 0, Math.PI * 2);
-  ctx.fill();
+  if (view.rotated) ctx.rotate(Math.PI / 2);
+  if (scale !== 1) ctx.scale(scale, scale);
+  ctx.globalAlpha = alpha;
   // body
   ctx.beginPath();
   ctx.arc(0, 0, R, 0, Math.PI * 2);
-  ctx.fillStyle = id > 8 ? '#f4f1e6' : color;
+  ctx.fillStyle = stripe ? PAL.ivory : colour;
   ctx.fill();
-  if (id > 8) {
+  if (stripe) {
     ctx.save();
     ctx.clip();
-    if (view.rotated) ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = color;
-    ctx.fillRect(-R, -R * 0.55, 2 * R, R * 1.1);
+    ctx.fillStyle = colour;
+    ctx.fillRect(-R, -R * 0.58, 2 * R, R * 1.16);
     ctx.restore();
   }
-  // highlight
-  const g = ctx.createRadialGradient(-R * 0.35, -R * 0.35, R * 0.1, 0, 0, R);
-  g.addColorStop(0, '#ffffff66');
-  g.addColorStop(0.5, '#ffffff10');
-  g.addColorStop(1, '#00000033');
+  // number disc
+  if (id !== 0 && diamPx >= 15) {
+    ctx.fillStyle = PAL.disc;
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.48, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = PAL.ink;
+    ctx.font = `700 ${R * 0.62}px "Source Sans 3", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText(String(id), 0, R * 0.22);
+  }
+  // shade
+  const g = ctx.createRadialGradient(-0.24 * R, -0.32 * R, 0, -0.24 * R, -0.32 * R, 1.56 * R);
+  g.addColorStop(0, rgba('#FFFFFF', 0.5));
+  g.addColorStop(0.3, rgba('#FFFFFF', 0.1));
+  g.addColorStop(0.72, rgba('#000000', 0));
+  g.addColorStop(1, rgba('#000000', 0.4));
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(0, 0, R, 0, Math.PI * 2);
   ctx.fill();
-  // number
-  if (id !== 0) {
-    if (view.rotated) ctx.rotate(Math.PI / 2);
-    ctx.fillStyle = '#fff';
+  // specular
+  if (diamPx >= 9) {
+    ctx.fillStyle = rgba('#FFFFFF', 0.7);
     ctx.beginPath();
-    ctx.arc(0, 0, R * 0.5, 0, Math.PI * 2);
+    ctx.ellipse(-0.38 * R, -0.42 * R, 0.2 * R, 0.14 * R, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = '#111';
-    ctx.font = `bold ${R * 0.7}px system-ui, sans-serif`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(id), 0, R * 0.03);
   }
+  // edge
+  ctx.strokeStyle = rgba('#000000', 0.35);
+  ctx.lineWidth = 0.0015;
+  ctx.beginPath();
+  ctx.arc(0, 0, R - 0.00075, 0, Math.PI * 2);
+  ctx.stroke();
   ctx.restore();
 }
 
-// drawBallLabel names the ball under the mouse, just above it.
+// drawBallLabel names the ball under the pointer, in screen pixels so it
+// stays readable at any table size.
 function drawBallLabel(id, p) {
   const text = id === 0 ? 'cue ball' : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
+  const sp = toScreen(p);
   ctx.save();
-  ctx.translate(p.x, p.y);
-  if (view.rotated) ctx.rotate(Math.PI / 2);
-  ctx.font = `600 ${0.038}px system-ui, sans-serif`;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.font = '600 13px "Source Sans 3", system-ui, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  const w = ctx.measureText(text).width + 0.03;
-  const h = 0.055;
-  const y = -(R + 0.05);
-  roundRect(-w / 2, y - h / 2, w, h, 0.012);
-  ctx.fillStyle = '#15181cee';
+  const w = ctx.measureText(text).width + 22;
+  const h = 26;
+  const cx = Math.max(w / 2 + 4, Math.min(view.cssW - w / 2 - 4, sp.x));
+  const cy = sp.y - R * view.s - 23;
+  roundRect(cx - w / 2, cy - h / 2, w, h, 13);
+  ctx.fillStyle = rgba(PAL.labelBg, 0.92);
   ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillText(text, 0, y + 0.002);
+  ctx.strokeStyle = rgba(PAL.labelStroke, 0.22);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = PAL.labelText;
+  ctx.fillText(text, cx, cy + 1);
+  ctx.restore();
+  applyTableTransform();
+}
+
+// --- cue and guide ----------------------------------------------------------
+
+const CUE_SEGMENTS = [
+  [0, 0.010, '#2F5F8A'], [0.010, 0.030, '#F2EEE3'], [0.030, 0.720, ['#EEE1C4', '#C9A56C']],
+  [0.720, 0.735, '#D8C59C'], [0.735, 0.900, '#6B4325'], [0.900, 1.130, '#1C1916'], [1.130, 1.200, '#2A1A0F'],
+];
+const CUE_LEN = 1.2;
+const cueWidth = (t) => 0.012 + (0.028 - 0.012) * (t / CUE_LEN);
+
+// drawCue draws the stick with its tip `back` metres behind the cue ball's
+// centre, pointing along dir.
+function drawCue(cue, dir, back, alpha) {
+  if (alpha <= 0) return;
+  const u = { x: -dir.x, y: -dir.y }; // tip → butt
+  const n = { x: -u.y, y: u.x };
+  const tip = { x: cue.x + u.x * back, y: cue.y + u.y * back };
+  const at = (t, side) => ({ x: tip.x + u.x * t + n.x * side * cueWidth(t) / 2, y: tip.y + u.y * t + n.y * side * cueWidth(t) / 2 });
+  const outline = () => {
+    ctx.beginPath();
+    const a0 = at(0, 1), a1 = at(CUE_LEN, 1), b1 = at(CUE_LEN, -1), b0 = at(0, -1);
+    ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b0.x, b0.y);
+    ctx.closePath();
+  };
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // shadow
+  const o = screenOffset(0.010, 0.014);
+  ctx.translate(o.x, o.y);
+  outline();
+  ctx.fillStyle = rgba('#000000', 0.28);
+  ctx.fill();
+  ctx.translate(-o.x, -o.y);
+  // segments as tapered quads
+  for (const [a, b, colour] of CUE_SEGMENTS) {
+    const a0 = at(a, 1), a1 = at(b, 1), b1 = at(b, -1), b0 = at(a, -1);
+    ctx.beginPath();
+    ctx.moveTo(a0.x, a0.y); ctx.lineTo(a1.x, a1.y); ctx.lineTo(b1.x, b1.y); ctx.lineTo(b0.x, b0.y);
+    ctx.closePath();
+    if (Array.isArray(colour)) {
+      const g = ctx.createLinearGradient(tip.x + u.x * a, tip.y + u.y * a, tip.x + u.x * b, tip.y + u.y * b);
+      g.addColorStop(0, colour[0]);
+      g.addColorStop(1, colour[1]);
+      ctx.fillStyle = g;
+    } else {
+      ctx.fillStyle = colour;
+    }
+    ctx.fill();
+  }
+  // centre highlight
+  ctx.strokeStyle = rgba('#FFFFFF', 0.16);
+  ctx.lineWidth = 0.002;
+  ctx.beginPath();
+  ctx.moveTo(tip.x + u.x * 0.03, tip.y + u.y * 0.03);
+  ctx.lineTo(tip.x + u.x * 1.12, tip.y + u.y * 1.12);
+  ctx.stroke();
   ctx.restore();
 }
 
-function drawAim(balls, cue, angle, power, mine) {
+// drawAim draws the guide: path to the ghost ball, the ghost ball, the
+// object ball's direction and the cue ball's deflection.
+function drawAim(balls, cue, angle, mine, alpha) {
   const cast = castAim(balls, cue, angle);
-  const alpha = mine ? 1 : 0.55;
+  const d = cast.dir;
+  const line = mine ? '#FFFFFF' : PAL.oppAim;
+  const brass = mine ? PAL.brassLine : PAL.oppAim;
   ctx.save();
-  ctx.globalAlpha = alpha;
-  // path to the ghost ball
-  ctx.strokeStyle = '#ffffffcc';
-  ctx.lineWidth = 0.004;
-  ctx.setLineDash([0.02, 0.015]);
+  ctx.globalAlpha = (mine ? 1 : 0.5) * alpha;
+  ctx.lineCap = 'round';
+  // path from the cue-ball edge to the ghost edge
+  ctx.strokeStyle = rgba(line, 0.78);
+  ctx.lineWidth = 0.003;
+  ctx.setLineDash([0.020, 0.014]);
   ctx.beginPath();
-  ctx.moveTo(cue.x, cue.y);
-  ctx.lineTo(cast.ghost.x, cast.ghost.y);
+  ctx.moveTo(cue.x + d.x * R, cue.y + d.y * R);
+  ctx.lineTo(cast.ghost.x - d.x * R, cast.ghost.y - d.y * R);
   ctx.stroke();
   ctx.setLineDash([]);
   // ghost ball
   ctx.beginPath();
   ctx.arc(cast.ghost.x, cast.ghost.y, R, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(line, 0.06);
+  ctx.fill();
   ctx.stroke();
   if (cast.objDir) {
     const b = balls.get(cast.hit);
-    ctx.strokeStyle = '#f0b429cc';
+    const od = cast.objDir;
+    const x0 = b.x + od.x * R, y0 = b.y + od.y * R;
+    const x1 = x0 + od.x * 0.3, y1 = y0 + od.y * 0.3;
+    ctx.strokeStyle = rgba(brass, 0.95);
+    ctx.lineWidth = 0.004;
     ctx.beginPath();
-    ctx.moveTo(b.x, b.y);
-    ctx.lineTo(b.x + cast.objDir.x * 0.3, b.y + cast.objDir.y * 0.3);
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    // chevron 18 × 24 at the end
+    const nx = -od.y, ny = od.x;
+    ctx.beginPath();
+    ctx.moveTo(x1 - od.x * 0.024 + nx * 0.009, y1 - od.y * 0.024 + ny * 0.009);
+    ctx.lineTo(x1, y1);
+    ctx.lineTo(x1 - od.x * 0.024 - nx * 0.009, y1 - od.y * 0.024 - ny * 0.009);
     ctx.stroke();
     if (cast.cueDir) {
-      ctx.strokeStyle = '#ffffff88';
+      ctx.strokeStyle = rgba(line, 0.5);
+      ctx.lineWidth = 0.003;
+      ctx.setLineDash([0.010, 0.010]);
       ctx.beginPath();
-      ctx.moveTo(cast.ghost.x, cast.ghost.y);
-      ctx.lineTo(cast.ghost.x + cast.cueDir.x * 0.15, cast.ghost.y + cast.cueDir.y * 0.15);
+      ctx.moveTo(cast.ghost.x + cast.cueDir.x * R, cast.ghost.y + cast.cueDir.y * R);
+      ctx.lineTo(cast.ghost.x + cast.cueDir.x * (R + 0.15), cast.ghost.y + cast.cueDir.y * (R + 0.15));
       ctx.stroke();
+      ctx.setLineDash([]);
     }
   }
-  // cue stick behind the cue ball, pulled back with power
-  const back = R + 0.02 + power * 0.12;
-  const len = 1.2;
-  const d = cast.dir;
-  const x0 = cue.x - d.x * back, y0 = cue.y - d.y * back;
-  const x1 = cue.x - d.x * (back + len), y1 = cue.y - d.y * (back + len);
-  const grad = ctx.createLinearGradient(x0, y0, x1, y1);
-  grad.addColorStop(0, '#e8d7b0');
-  grad.addColorStop(0.2, '#b07a3c');
-  grad.addColorStop(1, '#3b2412');
-  ctx.strokeStyle = grad;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 0.014;
-  ctx.beginPath();
-  ctx.moveTo(x0, y0);
-  ctx.lineTo(x1, y1);
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -987,12 +1360,14 @@ canvas.addEventListener('pointerdown', (e) => {
 
   if (S.ballInHand && cue && Math.hypot(cue.x - p.x, cue.y - p.y) < R * 2.5) {
     S.dragCue = clampCue(p);
+    S.liftStart = performance.now();
     canvas.setPointerCapture(e.pointerId);
     return;
   }
   if (needsCall()) {
     const id = hitBall(p, balls, true);
     if (id !== null) {
+      if (e.pointerType !== 'mouse') { S.hoverBall = id; S.hoverUntil = performance.now() + 1500; }
       if (legalTargets().has(id)) {
         S.call = { ball: id };
         refreshShotPanel();
@@ -1540,6 +1915,9 @@ function applyTheme(theme) {
   window.addEventListener('orientationchange', () => setTimeout(resize, 100));
   resize();
   refreshPanels();
+  if (document.fonts && document.fonts.load) {
+    document.fonts.load('600 13px "Source Sans 3"').then(() => renderTableCache()).catch(() => {});
+  }
   requestAnimationFrame(draw);
   // A reloaded tab goes straight back to its seat.
   const saved = room ? loadSession(room) : null;

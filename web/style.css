@@ -158,3 +158,14 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
 #roomList { max-height: 40vh; overflow-y: auto; }
 .rooms__empty-title { font: 600 16px/22px var(--font-ui); }
+
+/* phone header (full phone layout comes in step 8) */
+@media (max-width: 600px) {
+  .hdr { height: 52px; padding: 0 10px 0 14px; gap: 8px; }
+  .hdr .eyebrow { display: none; }
+  .hdr__code { font-size: 18px; letter-spacing: .14em; }
+  #copyLink span { display: none; }
+  #copyLink { padding: 0 10px; }
+  .hdr__match { gap: 8px; }
+  .score__vs { font-size: 11px; }
+}
