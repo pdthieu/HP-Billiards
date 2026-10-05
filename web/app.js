@@ -133,6 +133,9 @@ const S = {
   power: 0.6,
   spin: { x: 0, y: 0 },  // cue tip offset, unit disc; y > 0 is top spin
   powerDrag: false,      // the power bar is being pulled
+  powerBefore: 0.6,      // power before the current pull, restored on cancel
+  lastPower: 0,          // power of the last shot, shown faintly in the bar
+  lefty: false,          // power bar on the left
   hoverBall: null,       // ball under the mouse, for its label
   call: null,            // {ball} or {safety: true}; no pocket is called
   roomsTimer: 0,
@@ -572,15 +575,33 @@ function shoot() {
 // --- power bar: pull down, release to shoot -------------------------------
 
 const powerBar = $('powerBar');
+const powerTrack = $('powerTrack');
+const CANCEL_ZONE = 0.08;
 
 function renderPower() {
-  $('powerFill').style.height = `${Math.round(S.power * 100)}%`;
-  $('powerLabel').textContent = S.powerDrag ? `${Math.round(S.power * 100)}%` : `${Math.round(S.power * 100)}% · pull`;
+  const pct = Math.round(S.power * 100);
+  $('powerFill').style.setProperty('--fill', `${pct}%`);
+  $('powerLast').style.height = `${Math.round(S.lastPower * 100)}%`;
+  powerTrack.setAttribute('aria-valuenow', String(pct));
+  const readout = $('powerReadout');
+  const cancel = S.powerDrag && S.power <= CANCEL_ZONE;
+  powerBar.classList.toggle('pbar--cancel', cancel);
+  readout.hidden = !S.powerDrag;
+  if (S.powerDrag) {
+    readout.textContent = cancel ? 'Cancel' : `${pct}%`;
+    readout.style.top = `${Math.max(4, pct)}%`;
+  }
 }
 
 function barPower(e) {
-  const rect = powerBar.getBoundingClientRect();
-  return Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+  const rect = powerTrack.getBoundingClientRect();
+  return Math.max(0, Math.min(1, (e.clientY - rect.top) / (rect.height - 8))); // 100 % sits 8 px above the end
+}
+
+function powerClasses(...keep) {
+  for (const c of ['pbar--drag', 'pbar--cancel', 'pbar--flash', 'pbar--settle', 'pbar--spring']) {
+    powerBar.classList.toggle(c, keep.includes(c));
+  }
 }
 
 powerBar.addEventListener('pointerdown', (e) => {
@@ -588,28 +609,74 @@ powerBar.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   powerBar.setPointerCapture(e.pointerId);
   S.powerDrag = true;
-  powerBar.classList.add('dragging');
+  S.powerBefore = S.power;
+  powerClasses('pbar--drag');
   setPower(barPower(e), true);
 });
 powerBar.addEventListener('pointermove', (e) => {
   if (S.powerDrag) setPower(barPower(e), true);
 });
+// endPowerDrag finishes a pull: a release below the cancel zone shoots (if a
+// call has been made), anything else restores the previous power.
 function endPowerDrag(e, fire) {
   if (!S.powerDrag) return;
   S.powerDrag = false;
-  powerBar.classList.remove('dragging');
-  const p = barPower(e);
-  if (fire && p >= 0.08) {
+  const p = e ? barPower(e) : 0;
+  if (fire && p > CANCEL_ZONE) {
     setPower(p);
-    if (canShoot()) shoot();
-    else toast(needsCall() && !S.call ? 'Tap the ball you are going for first' : 'Cannot shoot now', true);
+    if (canShoot()) {
+      shoot();
+      S.lastPower = S.power;
+      powerClasses('pbar--flash', 'pbar--settle');
+      setTimeout(() => powerClasses(), 160);
+    } else {
+      powerClasses();
+      needsCallTip(e);
+    }
   } else {
+    S.power = S.powerBefore;
+    powerClasses('pbar--spring');
+    setTimeout(() => powerClasses(), 260);
     renderPower();
-    if (fire) toast('Shot cancelled');
   }
 }
 powerBar.addEventListener('pointerup', (e) => endPowerDrag(e, true));
 powerBar.addEventListener('pointercancel', (e) => endPowerDrag(e, false));
+
+// cancelPowerDrag is Esc during a pull.
+function cancelPowerDrag() {
+  if (!S.powerDrag) return;
+  S.powerDrag = false;
+  S.power = S.powerBefore;
+  powerClasses('pbar--spring');
+  setTimeout(() => powerClasses(), 260);
+  renderPower();
+}
+
+// needsCallTip explains a refused release beside the bar for two seconds and
+// nudges the call line.
+function needsCallTip(e) {
+  const old = $('tableWrap').querySelector('.tip');
+  if (old) old.remove();
+  const tip = document.createElement('div');
+  tip.className = 'tip' + (S.lefty ? ' tip--right' : '');
+  tip.setAttribute('role', 'status');
+  tip.textContent = needsCall() && !S.call ? 'Call a ball first: tap it.' : 'Cannot shoot now.';
+  const wrap = $('tableWrap').getBoundingClientRect();
+  tip.style.top = `${Math.max(8, (e ? e.clientY : wrap.top + wrap.height / 2) - wrap.top - 20)}px`;
+  $('tableWrap').append(tip);
+  setTimeout(() => tip.remove(), 2000);
+  const line = $('callText');
+  line.classList.remove('call__line--pulse');
+  void line.offsetWidth;
+  line.classList.add('call__line--pulse');
+}
+
+function applyLefty(on) {
+  S.lefty = !!on;
+  powerBar.classList.toggle('pbar--left', S.lefty);
+  resize();
+}
 
 // --- spin pad: where the tip strikes the cue ball --------------------------
 
@@ -813,7 +880,9 @@ function startDrop(id, from) {
 function resize() {
   const wrap = $('tableWrap');
   const cs = getComputedStyle(wrap);
-  const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  const bar = $('powerBar');
+  const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + parseFloat(cs.columnGap || cs.gap || '12') || 0;
+  const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const fullW = W + 2 * RAIL, fullH = H + 2 * RAIL;
   const sLand = Math.min(availW / fullW, availH / fullH);
@@ -1431,7 +1500,8 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowRight': setAngle(S.angle + step); break;
     case 'ArrowUp': setPower(S.power + 0.05); break;
     case 'ArrowDown': setPower(S.power - 0.05); break;
-    case ' ': case 'Enter': if (canShoot()) shoot(); break;
+    case 'Escape': if (S.powerDrag) cancelPowerDrag(); else return; break;
+    case ' ': case 'Enter': if (canShoot()) { shoot(); S.lastPower = S.power; renderPower(); } break;
     case 's': case 'S': if (needsCall()) toggleSafety(); break;
     default: return;
   }
@@ -1784,8 +1854,12 @@ function refreshPanels() {
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;
 
   const myShot = isMyShot();
-  $('powerBar').hidden = !myShot;
-  if (!myShot && S.powerDrag) { S.powerDrag = false; powerBar.classList.remove('dragging'); }
+  const barHidden = S.phase === 'lobby' || S.phase === 'game_over' || S.seat < 0;
+  if (powerBar.hidden !== barHidden) { powerBar.hidden = barHidden; resize(); }
+  powerBar.classList.toggle('pbar--disabled', !myShot);
+  powerTrack.tabIndex = myShot ? 0 : -1;
+  if (!myShot && S.powerDrag) { S.powerDrag = false; powerClasses(); }
+  if (!barHidden) renderPower();
   const panel = S.phase === 'lobby' ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
   showPanel(panel);
 
@@ -2008,6 +2082,7 @@ function applyTheme(theme) {
 // boot
 (function init() {
   try { applyTheme(localStorage.getItem('pool:theme')); } catch { /* storage unavailable */ }
+  try { if (localStorage.getItem('pool:lefty') === '1') powerBar.classList.add('pbar--left'), S.lefty = true; } catch { /* storage unavailable */ }
   $('name').value = rememberedName() || randomName();
   const room = (new URLSearchParams(location.search).get('room') || '').toUpperCase();
   if (room) $('code').value = room;

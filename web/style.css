@@ -24,16 +24,28 @@ button { cursor: pointer; }
 
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }
-.stage { padding-right: 44px; /* gutter for the power bar (restyled in step 5) */ }
 .stage__table { touch-action: none; user-select: none; }
-#powerBar {
-  position: absolute; right: 8px; top: 12px; bottom: 8px; width: 34px;
-  border-radius: 17px; border: 1px solid var(--hairline-strong); background: var(--surface-2);
-  overflow: hidden; touch-action: none; user-select: none; cursor: ns-resize;
+
+/* power bar: a flex sibling of the table; the fill is full height and
+   clipped, so the colour at its edge always matches the power */
+.pbar { align-self: stretch; height: auto; }
+.pbar--left { order: -1; }
+.pbar__track:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pbar__fill {
+  height: 100%;
+  background: linear-gradient(180deg, var(--power-low) 0%, var(--power-mid) 55%, var(--power-high) 100%);
+  clip-path: inset(0 0 calc(100% - var(--fill, 0%)) 0);
 }
-#powerFill { position: absolute; left: 0; right: 0; top: 0; height: 0%; background: linear-gradient(to bottom, var(--power-low), var(--power-mid) 60%, var(--power-high)); }
-#powerLabel { position: absolute; left: 0; right: 0; bottom: 8px; height: 60%; display: flex; align-items: center; justify-content: center;
-  font: 700 11px/14px var(--font-ui); color: var(--text); writing-mode: vertical-rl; transform: rotate(180deg); pointer-events: none; }
+.pbar:not(.pbar--drag) .pbar__fill { background: var(--text-muted); opacity: .6; }
+.pbar--settle .pbar__fill { transition: clip-path var(--dur-2) var(--ease-in); }
+.pbar--spring .pbar__fill { transition: clip-path 250ms var(--ease-spring); }
+.pbar--drag .pbar__label, .pbar--disabled .pbar__label { display: none; }
+.pbar--cancel .pbar__readout { color: var(--foul); }
+.pbar--disabled .pbar__track { pointer-events: none; }
+.pbar--flash .pbar__track { transition: box-shadow var(--dur-2) var(--ease-in); }
+.stage .tip { right: 66px; }
+.stage .tip.tip--right { right: auto; left: 66px; }
+.call__line--pulse { animation: pool-row-in var(--dur-4) var(--ease-out) 2; }
 
 /* status: two layers in one cell cross-fade; the row never changes height */
 .status { height: 48px; display: grid; place-items: center; }
@@ -100,7 +112,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   #copyLink { padding: 0 10px; }
   .hdr__match { gap: 8px; }
   .score__vs { font-size: 11px; }
-  .stage { padding: 8px 12px 4px 16px; padding-right: 44px; }
+  .stage { padding: 8px 12px 4px 16px; gap: 8px; }
   .status { height: 40px; padding: 0 16px; font-size: 15px; line-height: 20px; }
   .status__layer { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding: 0 12px; border-radius: 12px; text-align: left; }
   .slot { height: 150px; padding: 0 16px 8px; }
