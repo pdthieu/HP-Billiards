@@ -26,64 +26,90 @@
   </div>
 </header>
 
-<main>
-  <div id="tableWrap">
-    <canvas id="table"></canvas>
+<main class="game">
+  <div id="tableWrap" class="stage">
+    <canvas id="table" class="stage__table"></canvas>
     <div id="powerBar" hidden title="Drag down to set the power, release to shoot">
       <div id="powerFill"></div>
       <span id="powerLabel">pull</span>
     </div>
   </div>
 
-  <div id="status" aria-live="polite"></div>
+  <div id="status" class="status" aria-live="polite">
+    <span class="status__pill status__layer is-active" hidden></span>
+    <span class="status__pill status__layer" hidden></span>
+  </div>
 
-  <div id="controls">
-    <section id="lobbyPanel" hidden>
-      <p id="lobbyText">Waiting for an opponent. Share the room link.</p>
-      <button id="ready" class="btn btn--primary btn--lg">I'm ready</button>
-    </section>
-
-    <section id="shotPanel" hidden>
-      <div class="row">
-        <span id="callText" class="call"></span>
-        <button id="safety" class="toggle" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
-        <button id="clearCall" class="btn btn--quiet btn--small" hidden>Clear</button>
+  <div id="controls" class="slot">
+    <section id="lobbyPanel" class="panel panel--center" aria-label="Lobby" hidden>
+      <div class="panel__group panel__group--center">
+        <p id="lobbyText" class="panel__msg"></p>
+        <p id="lobbySub" class="panel__sub"></p>
       </div>
-      <div class="row">
-        <div class="row">
-          <span class="label">Angle</span>
-          <button class="nudge" data-deg="-5" title="−5°">«</button>
-          <button class="nudge" data-deg="-0.25" title="−0.25°">‹</button>
-          <span id="angleText" class="mono">0.0°</span>
-          <button class="nudge" data-deg="0.25" title="+0.25°">›</button>
-          <button class="nudge" data-deg="5" title="+5°">»</button>
+      <button id="ready" class="btn btn--primary btn--lg">I’m ready</button>
+      <button id="lobbyCopy" class="btn btn--secondary btn--lg" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy invite link</button>
+    </section>
+
+    <section id="shotPanel" class="panel" aria-label="Your shot" hidden>
+      <div class="call">
+        <p id="callText" class="call__line"></p>
+        <div class="call__actions">
+          <button id="safety" class="toggle" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          <button id="clearCall" class="btn btn--quiet btn--small" hidden>Clear</button>
+          <span id="handTag" class="tag tag--ready" hidden>ball in hand</span>
         </div>
-        <div id="spinPad" title="Where the cue tip strikes the cue ball">
-          <canvas id="spinCanvas" width="72" height="72"></canvas>
-          <div class="spinText">
-            <span class="label">Spin</span>
-            <span id="spinText" class="muted">centre</span>
-            <button id="spinReset" class="btn btn--quiet btn--small">Reset</button>
-          </div>
+        <p id="powerHint" class="hint">Pull the bar to shoot · <kbd>←</kbd> <kbd>→</kbd> aim · <kbd>Enter</kbd> shoots
+          <button class="icon-btn hint__close" id="hintClose" type="button" aria-label="Hide this hint"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button></p>
+      </div>
+      <div class="panel__sep"></div>
+      <div class="angle">
+        <span class="field__label">Angle</span>
+        <div class="angle__row">
+          <button class="nudge" data-deg="-5" aria-label="Rotate minus 5 degrees">−5°</button>
+          <button class="nudge" data-deg="-0.25" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
+          <output id="angleText" class="angle__readout">0.0°</output>
+          <button class="nudge" data-deg="0.25" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
+          <button class="nudge" data-deg="5" aria-label="Rotate plus 5 degrees">+5°</button>
         </div>
       </div>
-      <p id="powerHint" class="muted">Drag the bar beside the table down and release to shoot. Arrow keys fine-tune, Enter shoots.</p>
+      <div class="panel__sep"></div>
+      <div class="spin">
+        <div id="spinPad" class="spin__pad" role="slider" tabindex="0" aria-label="Spin: where the tip strikes the cue ball" aria-valuetext="centre">
+          <span class="spin__cross"></span>
+          <span id="spinLimit" class="spin__limit"></span>
+          <span id="spinDot" class="spin__dot"></span>
+        </div>
+        <div class="spin__meta">
+          <span class="field__label">Spin</span>
+          <span id="spinText" class="spin__label">centre</span>
+          <button id="spinReset" class="btn btn--quiet btn--small">Reset</button>
+        </div>
+      </div>
     </section>
 
-    <section id="waitPanel" hidden>
-      <p id="waitText"></p>
+    <section id="waitPanel" class="panel panel--center" aria-label="Waiting" hidden>
+      <span id="waitHold" class="hold hold--big" hidden></span>
+      <div class="panel__group panel__group--center">
+        <p id="waitText" class="panel__msg"></p>
+        <p id="waitSub" class="panel__sub"></p>
+      </div>
     </section>
 
-    <section id="overPanel" hidden>
-      <p id="overText"></p>
-      <button id="rematch" class="btn btn--primary btn--lg">Rematch</button>
-      <span id="rematchNote" class="muted"></span>
+    <section id="overPanel" class="panel panel--between" aria-label="Game over" hidden>
+      <div class="panel__group">
+        <p id="overText" class="panel__title"></p>
+        <p id="rematchNote" class="panel__sub"></p>
+      </div>
+      <div class="panel__actions">
+        <button id="leaveGame" class="btn btn--quiet">Leave</button>
+        <button id="rematch" class="btn btn--primary btn--lg">Rematch</button>
+      </div>
     </section>
   </div>
 
-  <div id="trays">
+  <div id="trays" class="trays" aria-label="Pocketed balls">
     <div class="tray" id="traySolids"></div>
-    <div class="tray" id="trayStripes"></div>
+    <div class="tray tray--right" id="trayStripes"></div>
   </div>
 </main>
 

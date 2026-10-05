@@ -154,6 +154,8 @@ const S = {
   oppAimPrev: null,      // previous opponent aim, eased toward S.oppAim
   oppAimAt: 0,
   hoverUntil: 0,         // touch: hide the hover label after this time
+  statusTimer: 0,
+  lastBreaker: -1,       // who broke the current rack, for the game-over note
 };
 
 // ---------------------------------------------------------------------------
@@ -318,6 +320,7 @@ function onRoomState(msg) {
   S.cuePlacedAt = null;
   S.dragCue = null;
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
+  if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
   if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
     setStatus('The game was abandoned. Back to the lobby.', 'foul');
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
@@ -416,6 +419,7 @@ function resetToLanding(error) {
   S.moving = false;
   S.snaps = [];
   S.decision = null;
+  S.lastBreaker = -1;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
     { seat: 1, name: '', connected: false, ready: false },
@@ -609,59 +613,62 @@ powerBar.addEventListener('pointercancel', (e) => endPowerDrag(e, false));
 
 // --- spin pad: where the tip strikes the cue ball --------------------------
 
-const spinCanvas = $('spinCanvas');
-const SPIN_LIMIT = 0.72; // of the drawn ball radius: beyond this a real shot miscues
+const spinPad = $('spinPad');
+const SPIN_LIMIT = 0.72; // of the ball radius: beyond this a real shot miscues (.spin__limit inset 14%)
+const SPIN_RANGE = 36;   // the dot travels ±36% of the pad for a full offset
 
-function renderSpin() {
-  const c = spinCanvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const size = 72;
-  if (spinCanvas.width !== size * dpr) { spinCanvas.width = size * dpr; spinCanvas.height = size * dpr; }
-  c.setTransform(dpr, 0, 0, dpr, 0, 0);
-  c.clearRect(0, 0, size, size);
-  const cx = size / 2, cy = size / 2, r = size / 2 - 2;
-  const g = c.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
-  g.addColorStop(0, '#ffffff');
-  g.addColorStop(1, '#cfc9b8');
-  c.fillStyle = g;
-  c.beginPath(); c.arc(cx, cy, r, 0, Math.PI * 2); c.fill();
-  c.strokeStyle = '#00000033';
-  c.setLineDash([3, 3]);
-  c.beginPath(); c.arc(cx, cy, r * SPIN_LIMIT, 0, Math.PI * 2); c.stroke();
-  c.setLineDash([]);
-  c.beginPath(); c.moveTo(cx - r, cy); c.lineTo(cx + r, cy); c.moveTo(cx, cy - r); c.lineTo(cx, cy + r); c.stroke();
-  const px = cx + S.spin.x * r * SPIN_LIMIT, py = cy - S.spin.y * r * SPIN_LIMIT;
-  c.fillStyle = '#d8322c';
-  c.beginPath(); c.arc(px, py, 5, 0, Math.PI * 2); c.fill();
-  c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.stroke();
+function spinWords() {
   const parts = [];
   if (S.spin.y > 0.15) parts.push('top'); else if (S.spin.y < -0.15) parts.push('draw');
   if (S.spin.x > 0.15) parts.push('right'); else if (S.spin.x < -0.15) parts.push('left');
-  $('spinText').textContent = parts.length ? parts.join(' + ') : 'centre';
+  return parts.length ? parts.join(' + ') : 'centre';
 }
 
-function setSpinFromEvent(e) {
-  const rect = spinCanvas.getBoundingClientRect();
-  const r = rect.width / 2;
-  let x = (e.clientX - rect.left - r) / (r * SPIN_LIMIT);
-  let y = -(e.clientY - rect.top - r) / (r * SPIN_LIMIT);
+function renderSpin(spring) {
+  const dot = $('spinDot');
+  dot.classList.toggle('spin__dot--reset', !!spring);
+  dot.style.left = `${50 + S.spin.x * SPIN_RANGE}%`;
+  dot.style.top = `${50 - S.spin.y * SPIN_RANGE}%`;
+  const atLimit = Math.hypot(S.spin.x, S.spin.y) >= 0.999;
+  $('spinLimit').classList.toggle('spin__limit--max', atLimit);
+  const words = spinWords();
+  $('spinText').textContent = atLimit ? `${words} · at limit` : words;
+  spinPad.setAttribute('aria-valuetext', words);
+  $('spinReset').disabled = !S.spin.x && !S.spin.y;
+}
+
+function setSpin(x, y, spring) {
   const l = Math.hypot(x, y);
   if (l > 1) { x /= l; y /= l; }
   S.spin = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
-  renderSpin();
+  renderSpin(spring);
+}
+
+function setSpinFromEvent(e) {
+  const rect = spinPad.getBoundingClientRect();
+  const r = rect.width / 2;
+  setSpin((e.clientX - rect.left - r) / (r * SPIN_LIMIT), -(e.clientY - rect.top - r) / (r * SPIN_LIMIT));
 }
 let spinDrag = false;
-spinCanvas.addEventListener('pointerdown', (e) => {
+spinPad.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   spinDrag = true;
-  spinCanvas.setPointerCapture(e.pointerId);
+  spinPad.setPointerCapture(e.pointerId);
   setSpinFromEvent(e);
 });
-spinCanvas.addEventListener('pointermove', (e) => { if (spinDrag) setSpinFromEvent(e); });
+spinPad.addEventListener('pointermove', (e) => { if (spinDrag) setSpinFromEvent(e); });
 const endSpin = () => { spinDrag = false; };
-spinCanvas.addEventListener('pointerup', endSpin);
-spinCanvas.addEventListener('pointercancel', endSpin);
-$('spinReset').onclick = () => { S.spin = { x: 0, y: 0 }; renderSpin(); };
+spinPad.addEventListener('pointerup', endSpin);
+spinPad.addEventListener('pointercancel', endSpin);
+spinPad.addEventListener('keydown', (e) => {
+  const step = 0.1;
+  const k = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+  if (!k) return;
+  e.preventDefault();
+  e.stopPropagation();
+  setSpin(S.spin.x + k[0], S.spin.y + k[1]);
+});
+$('spinReset').onclick = () => setSpin(0, 0, true);
 
 function queueAim() {
   if (!isMyShot()) return;
@@ -1434,10 +1441,30 @@ document.addEventListener('keydown', (e) => {
 // ---------------------------------------------------------------------------
 // 6. panels
 
-function setStatus(text, cls) {
-  const el = $('status');
-  el.textContent = text;
-  el.className = cls || '';
+const STATUS_ICONS = {
+  foul: '<svg class="status__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>',
+  ok: '<svg class="status__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"></path></svg>',
+};
+
+// setStatus cross-fades the status sentence: the new text goes into the
+// inactive layer, the layers swap, and the old text is cleared once faded.
+function setStatus(text, tone) {
+  const [a, b] = $('status').querySelectorAll('.status__layer');
+  const active = a.classList.contains('is-active') ? a : b;
+  const next = active === a ? b : a;
+  if (active.dataset.text === text && (active.dataset.tone || '') === (tone || '')) return;
+  clearTimeout(S.statusTimer);
+  next.innerHTML = (tone && STATUS_ICONS[tone]) || '';
+  next.append(document.createTextNode(text));
+  next.dataset.text = text;
+  next.dataset.tone = tone || '';
+  next.title = text;
+  next.hidden = !text;
+  next.classList.add('is-active');
+  active.classList.remove('is-active');
+  S.statusTimer = setTimeout(() => {
+    if (!active.classList.contains('is-active')) { active.textContent = ''; active.dataset.text = ''; active.hidden = true; }
+  }, reduceMotion.matches ? 0 : 200);
 }
 
 function toast(text, isError) {
@@ -1692,35 +1719,58 @@ function holdRemaining(seat) {
 }
 
 function updateHold(wrap) {
-  const remaining = holdRemaining(Number(wrap.dataset.seat));
   const arc = wrap.querySelector('.hold__arc');
   const num = wrap.querySelector('.hold__num');
+  if (!arc || !num || wrap.hidden) return;
+  const remaining = holdRemaining(Number(wrap.dataset.seat));
   if (remaining === null) { arc.style.strokeDashoffset = '0'; num.textContent = ''; return; }
   arc.style.strokeDashoffset = String(69.1 * (1 - remaining / SEAT_HOLD_S));
   num.textContent = String(Math.ceil(remaining));
 }
 
 function tickHolds() {
-  const rings = document.querySelectorAll('.hold');
+  const rings = [...document.querySelectorAll('.hold')].filter((r) => !r.hidden && r.querySelector('.hold__arc'));
   if (!rings.length) { clearInterval(S.holdTimer); S.holdTimer = 0; return; }
   rings.forEach(updateHold);
+  // the waiting panel's sentence counts down too
+  const left = S.seat >= 0 ? holdRemaining(1 - S.seat) : null;
+  if (left !== null && !$('waitPanel').hidden && !$('waitHold').hidden) {
+    $('waitSub').textContent = `Their seat is held for ${Math.ceil(left)} more seconds.`;
+  }
 }
 
+// renderTrays lists the pocketed balls of each group under the table.
 function renderTrays() {
-  for (const [elId, first] of [['traySolids', 1], ['trayStripes', 9]]) {
+  $('trays').hidden = S.phase === 'lobby';
+  for (const [elId, first, label] of [['traySolids', 1, 'Solids'], ['trayStripes', 9, 'Stripes']]) {
     const el = $(elId);
     el.replaceChildren();
     if (S.phase === 'lobby') continue;
+    const balls = [];
     for (let id = first; id < first + 7; id++) {
-      const i = document.createElement('i');
-      const c = BALL_COLORS[id > 8 ? id - 8 : id];
-      i.style.setProperty('--c', c);
-      if (id > 8) i.classList.add('stripe'); else i.style.background = c;
-      if (!S.balls.has(id)) i.classList.add('down');
-      const n = document.createElement('span');
-      n.textContent = id;
-      i.append(n);
-      el.append(i);
+      if (S.balls.has(id)) continue;
+      const b = document.createElement('span');
+      b.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
+      b.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
+      b.title = String(id);
+      balls.push(b);
+    }
+    const lab = Object.assign(document.createElement('span'), { className: 'tray__label', textContent: label });
+    if (first === 1) el.append(lab, ...balls); else el.append(...balls, lab);
+  }
+}
+
+// showPanel makes one panel of the slot visible and fades the others out.
+function showPanel(id) {
+  for (const sec of $('controls').children) {
+    const on = sec.id === id;
+    if (on) {
+      sec.classList.remove('is-leaving');
+      clearTimeout(sec._leave);
+      sec.hidden = false;
+    } else if (!sec.hidden && !sec.classList.contains('is-leaving')) {
+      sec.classList.add('is-leaving');
+      sec._leave = setTimeout(() => { sec.hidden = true; sec.classList.remove('is-leaving'); }, reduceMotion.matches ? 0 : 120);
     }
   }
 }
@@ -1728,63 +1778,105 @@ function renderTrays() {
 function refreshPanels() {
   renderSeat(0);
   renderSeat(1);
-  if (document.querySelector('.hold') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
+  if (document.querySelector('.seat .hold') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   renderTrays();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;
 
-  $('lobbyPanel').hidden = S.phase !== 'lobby';
-  $('overPanel').hidden = S.phase !== 'game_over';
   const myShot = isMyShot();
-  $('shotPanel').hidden = !myShot;
   $('powerBar').hidden = !myShot;
   if (!myShot && S.powerDrag) { S.powerDrag = false; powerBar.classList.remove('dragging'); }
-  $('waitPanel').hidden = S.phase === 'lobby' || S.phase === 'game_over' || myShot;
+  const panel = S.phase === 'lobby' ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
+  showPanel(panel);
 
-  if (S.phase === 'lobby' && me) {
-    $('ready').disabled = me.ready;
-    $('ready').textContent = me.ready ? 'Ready ✓' : "I'm ready";
-    $('lobbyText').textContent = !opp.connected
-      ? (opp.name ? `${opp.name} is offline; their seat is held for a moment.` : 'Waiting for an opponent. Share the room link.')
-      : me.ready ? `Waiting for ${opp.name} to be ready.` : `${opp.name} is here. Ready when you are.`;
+  if (panel === 'lobbyPanel' && me) {
+    const alone = !opp.connected && !opp.name;
+    $('ready').hidden = alone || me.ready;
+    $('lobbyCopy').hidden = !alone;
+    if (alone) {
+      setPanelMsg('lobbyText', 'Waiting for an opponent.');
+      $('lobbySub').textContent = 'Send the link; this room stays open while you are here.';
+    } else if (!opp.connected) {
+      setPanelMsg('lobbyText', `<strong>${esc(opp.name)}</strong> is offline.`);
+      $('lobbySub').textContent = 'Their seat is held for a moment.';
+    } else if (me.ready) {
+      setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
+      $('lobbySub').textContent = 'The game starts when both players are ready.';
+    } else {
+      setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
+      $('lobbySub').textContent = 'After the first rack the break alternates.';
+    }
   }
-  if (myShot) refreshShotPanel();
-  if (!$('waitPanel').hidden) {
-    let t;
-    if (S.moving) t = 'Balls are rolling…';
-    else if (opp && opp.name && !opp.connected) t = `Waiting for ${opp.name} to reconnect…`;
-    else if (S.decision) t = isMe(S.decision.seat) ? 'Your decision.' : `Waiting for ${nameOf(S.decision.seat)} to decide.`;
-    else t = `${nameOf(S.turn)}'s turn.${S.ballInHand ? ' Ball in hand.' : ''}`;
-    $('waitText').textContent = t;
+  if (panel === 'shotPanel') refreshShotPanel();
+  if (panel === 'waitPanel') {
+    const hold = $('waitHold');
+    hold.hidden = true;
+    let msg, sub = '';
+    if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
+    else if (opp && opp.name && !opp.connected) {
+      msg = `Waiting for <strong>${esc(opp.name)}</strong> to reconnect…`;
+      const left = holdRemaining(1 - S.seat);
+      sub = left === null ? 'Their seat is held for a moment.' : `Their seat is held for ${Math.ceil(left)} more seconds.`;
+      hold.hidden = false;
+      hold.replaceChildren(...holdRing(1 - S.seat).childNodes);
+      hold.dataset.seat = String(1 - S.seat);
+      if (!S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
+    } else if (S.decision) {
+      msg = isMe(S.decision.seat) ? 'Your decision.' : `Waiting for <strong>${esc(nameOf(S.decision.seat))}</strong> to decide.`;
+      sub = S.lastDecisionReason;
+    } else {
+      msg = `<strong>${esc(nameOf(S.turn))}’s turn.</strong>${S.ballInHand ? ' Ball in hand.' : ''}`;
+      sub = 'You see their aim as they line up.';
+    }
+    setPanelMsg('waitText', msg);
+    $('waitSub').textContent = sub;
   }
-  if (S.phase === 'game_over') {
-    $('overText').textContent = S.winner === null ? 'Game over.' : (isMe(S.winner) ? 'You win! 🎉' : `${nameOf(S.winner)} wins.`);
-    $('rematchNote').textContent = 'Either player can start the next rack; the break alternates.';
+  if (panel === 'overPanel') {
+    $('overText').textContent = S.winner === null ? 'Game over' : (isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`);
+    const next = S.lastBreaker >= 0 ? 1 - S.lastBreaker : -1;
+    $('rematchNote').textContent = next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`;
   }
   refreshDecision();
 }
 
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function setPanelMsg(id, html) { $(id).innerHTML = html; }
+
 function refreshShotPanel() {
   const callEl = $('callText');
-  callEl.classList.remove('set');
-  $('clearCall').hidden = true;
+  let html, called = false;
+  if (!needsCall()) {
+    html = 'Break: <span class="muted">no call needed' + (S.ballInHand ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
+    called = true;
+  } else if (S.call && S.call.safety) {
+    html = 'Safety: <span class="muted">no call needed, the turn passes after the shot.</span>';
+    called = true;
+  } else if (S.call) {
+    html = `Called: <span class="call__value">${esc(ballName(S.call.ball))}</span>`;
+    called = true;
+  } else {
+    html = S.ballInHand ? 'Ball in hand: drag the cue ball, then tap your ball.' : 'Tap the ball you are going for.';
+  }
+  if (callEl.dataset.html !== html) {
+    callEl.innerHTML = html;
+    callEl.dataset.html = html;
+    callEl.title = callEl.textContent;
+    callEl.classList.remove('call__line--enter');
+    void callEl.offsetWidth;
+    callEl.classList.add('call__line--enter');
+  }
+  callEl.classList.toggle('call__line--called', called);
+  $('clearCall').hidden = !(S.call && needsCall());
   $('safety').hidden = !needsCall();
   $('safety').setAttribute('aria-pressed', String(!!(S.call && S.call.safety)));
-  if (!needsCall()) {
-    callEl.textContent = S.ballInHand ? 'Break: drag the cue ball to place it, drag on the felt to aim.' : 'Break: no call needed.';
-  } else if (S.call && S.call.safety) {
-    callEl.textContent = 'Safety: the turn passes after this shot.';
-    callEl.classList.add('set');
-    $('clearCall').hidden = false;
-  } else if (S.call) {
-    callEl.textContent = `Called: ${ballName(S.call.ball)}`;
-    callEl.classList.add('set');
-    $('clearCall').hidden = false;
-  } else {
-    callEl.textContent = S.ballInHand
-      ? 'Ball in hand: drag the cue ball, then tap the ball you are going for.'
-      : 'Tap the ball you are going for to call it.';
+  for (const b of document.querySelectorAll('#shotPanel .nudge')) {
+    const d = Number(b.dataset.deg);
+    const sign = d < 0 ? '−' : '+';
+    const mag = Math.abs(d);
+    b.textContent = compactMedia.matches ? `${sign}${mag < 1 ? String(mag).slice(1) : mag}` : `${sign}${mag}°`;
   }
+  $('handTag').hidden = !S.ballInHand;
+  $('handTag').textContent = S.kitchen ? 'ball in hand · kitchen' : 'ball in hand';
   setAngle(S.angle);
   renderPower();
   renderSpin();
@@ -1890,14 +1982,22 @@ $('landingForm').onsubmit = (e) => {
   connectAndJoin(code, name);
 };
 $('rejoin').onclick = () => { $('disconnected').hidden = true; connectAndJoin(S.roomCode, S.name, S.token); };
-$('leave').onclick = () => {
+function leaveRoom() {
   S.intentionalClose = true;
   if (S.ws) S.ws.close();
   S.ws = null;
   stopHeartbeat();
   clearSession(S.roomCode);
   resetToLanding();
+}
+$('leave').onclick = leaveRoom;
+$('leaveGame').onclick = leaveRoom;
+$('lobbyCopy').onclick = () => $('copyLink').click();
+$('hintClose').onclick = () => {
+  $('powerHint').hidden = true;
+  try { localStorage.setItem('pool:hint', 'off'); } catch { /* storage unavailable */ }
 };
+try { if (localStorage.getItem('pool:hint') === 'off') $('powerHint').hidden = true; } catch { /* storage unavailable */ }
 
 // Theme: 'dark' | 'light' forces one; anything else follows the system.
 function applyTheme(theme) {
