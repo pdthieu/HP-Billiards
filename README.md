@@ -58,8 +58,19 @@ fresh lobby).
 ## Test
 
 ```sh
-go vet ./... && go test -race ./...
+make test   # gofmt check, go vet, go test -race ./...
+make e2e    # browser scenarios against a freshly built server
 ```
 
-The client has no automated tests in the repo; `go test ./web` only checks the
-files are embedded.
+The browser scenarios live in `e2e/` (plain Node scripts on Playwright, no
+test framework): `landing` (invite mode, name validation, room limit), `smoke`
+(a full game between a desktop and a phone-sized client), `decision` (illegal
+break dialog) and `reconnect` (seat hold, mid-shot rejoin, takeover).
+`e2e/run.js` builds the server, starts two instances on free ports (one with
+`-max-rooms 1`) and runs every scenario, or only the ones named:
+`cd e2e && node run.js smoke`. Install the dependencies once with
+`make e2e-deps` (Node 20+). Screenshots land in `e2e/shots/`. `e2e/motion.js`
+is a measuring tool, not a test: it records on-screen ball speed frame by
+frame and snapshot timing for a shot of the given power.
+
+CI (`.github/workflows/ci.yml`) runs both on every push and pull request.

@@ -1,0 +1,11 @@
+{
+  "name": "billiards-e2e",
+  "private": true,
+  "description": "Browser tests for the pool client, run against a freshly built server",
+  "scripts": {
+    "test": "node run.js"
+  },
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}
