@@ -52,6 +52,11 @@ button { cursor: pointer; }
 .practice .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 body.is-practice .trays { display: none; }
 
+/* settings: sound */
+.sound-row { display: flex; align-items: center; gap: 12px; }
+.volume { flex: 1; min-width: 0; height: 44px; accent-color: var(--accent); }
+.volume:disabled { opacity: .4; }
+
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }
 .stage__table { touch-action: none; user-select: none; }

@@ -126,6 +126,8 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 
 `{type, t, balls}` — sent when a shot starts (`t` = 0), then at 20 Hz while balls move, plus one at the moment of the first bounce (ball or cushion) inside any 60 Hz server tick, so that interpolating clients do not cut the corner of a bounce. `t` is simulated milliseconds since the shot, strictly increasing but not evenly spaced; positions are rounded to 4 decimals (0.1 mm). Clients interpolate between snapshots.
 
+`impacts` (omitted when empty) lists the contacts since the previous snapshot, for sound: `{"t": 412, "k": "ball", "v": 1.85}` with `t` on the same clock as the snapshot's, `k` one of `ball` (two balls), `rail` (a cushion or jaw) or `pocket` (a ball dropping), and `v` the closing speed along the contact normal (for `pocket`, the ball's speed) in m/s. Contacts slower than 0.02 m/s are left out. Each impact is sent once; those after the last snapshot come with `settled`. A dropped snapshot loses its impacts, which only costs a sound.
+
 ### `settled`
 
 Ends a shot. Positions are exact; clients snap to them.
@@ -151,6 +153,7 @@ Ends a shot. Positions are exact; clients snap to them.
 ```
 
 - `pocketed`: ids pocketed by this shot, in order; includes `0` for a scratch.
+- `impacts`: the shot's last contacts, as in `snapshot`.
 - `foul`: omitted for a legal shot, otherwise `scratch`, `no_contact`, `wrong_ball`, `kitchen` (cue ball in hand above the head string hit a ball there without crossing the head string first) or `no_rail` (nothing pocketed and no ball reached a rail after contact).
 - `made`: a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket.
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; in 8-ball a `decision` for the opponent follows, in 9-ball it is the foul `bad_break`.

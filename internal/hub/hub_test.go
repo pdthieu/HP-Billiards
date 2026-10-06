@@ -1160,3 +1160,37 @@ func TestPracticeMessagesOutsidePractice(t *testing.T) {
 		c0.expectError("not_practice")
 	}
 }
+
+func TestShotImpactsAreSentOnceInOrder(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	c0, _, _ := startGame(t, srv)
+	c0.send(msg{"type": "shoot", "angle": 0, "power": 1})
+	var got []msg
+	for {
+		_, m := c0.read()
+		if im, ok := m["impacts"].([]any); ok {
+			for _, x := range im {
+				got = append(got, x.(msg))
+			}
+		}
+		if m["type"] == "settled" {
+			break
+		}
+	}
+	if len(got) < 10 {
+		t.Fatalf("only %d impacts for a break", len(got))
+	}
+	last := -1.0
+	for _, im := range got {
+		if im["t"].(float64) < last {
+			t.Fatalf("impacts out of order: %v", got)
+		}
+		last = im["t"].(float64)
+		if k := im["k"]; k != "ball" && k != "rail" && k != "pocket" {
+			t.Errorf("impact kind %v", k)
+		}
+	}
+	if got[0]["k"] != "ball" || got[0]["v"].(float64) < 5 {
+		t.Errorf("first impact %v, want the cue ball into the rack", got[0])
+	}
+}

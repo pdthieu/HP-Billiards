@@ -470,6 +470,10 @@ function onSnapshot(msg) {
   }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
+    // Somebody else's shot gets its cue strike now, as the cue moves.
+    if (msg.t === 0 && performance.now() - SND.ownStrike > 1500) {
+      playStrike(S.oppAim ? S.oppAim.power : 0.4, RENDER_DELAY_MS);
+    }
     S.snaps = [];
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
@@ -482,6 +486,7 @@ function onSnapshot(msg) {
     S.placedAt = null;
   }
   S.snaps.push({ t: msg.t, balls });
+  playImpacts(msg.impacts);
   refreshPanels();
 }
 
@@ -494,6 +499,7 @@ function onSettled(msg) {
   for (const d of S.pendingDrops) startDrop(d.id, d.from);
   S.pendingDrops = [];
   for (const [id, p] of last) if (!now.has(id) && !queued.has(id)) startDrop(id, p);
+  playImpacts(msg.impacts);
   S.moving = false;
   S.snaps = [];
   setBalls(msg.balls);
@@ -787,6 +793,8 @@ function shoot() {
   else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   if (send(msg)) {
+    playStrike(S.power);
+    SND.ownStrike = performance.now();
     const cue = displayBalls().get(0);
     if (cue) {
       const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
@@ -1805,6 +1813,161 @@ function drawAim(balls, cue, angle, mine, alpha) {
     }
   }
   ctx.restore();
+}
+
+// ---------------------------------------------------------------------------
+// 4b. sound
+//
+// Synthesized with Web Audio, no files: a short bright clack for ball on
+// ball, a dull thump for a cushion, a knock and rattle for a pocket and a
+// leather "tock" for the cue. The server sends each contact of a shot with
+// its time and closing speed (snapshot.impacts); it is played when the
+// render clock reaches it, so the sound lands on the frame that shows it,
+// louder for harder contacts.
+
+const SND = {
+  ctx: null,
+  master: null,
+  noise: null,
+  on: readSetting('pool:sound') !== 'off',
+  volume: Math.min(1, Math.max(0, Number(readSetting('pool:volume') ?? 0.8))),
+  played: 0,     // sounds scheduled so far, for tests
+  ownStrike: 0,  // when we last played our own cue strike
+};
+
+// audio returns the running AudioContext, creating it on first use, or
+// null when sound is off or unsupported. Browsers only let it start from a
+// user gesture, hence the listeners below.
+function audio() {
+  if (!SND.on) return null;
+  if (!SND.ctx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return null;
+    const ctx = new AC();
+    SND.master = ctx.createGain();
+    SND.master.gain.value = SND.volume;
+    // a gentle limiter: the clacks of a break pile up
+    const limit = ctx.createDynamicsCompressor();
+    limit.threshold.value = -12;
+    limit.ratio.value = 8;
+    SND.master.connect(limit).connect(ctx.destination);
+    SND.noise = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = SND.noise.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    SND.ctx = ctx;
+  }
+  if (SND.ctx.state === 'suspended') SND.ctx.resume();
+  return SND.ctx;
+}
+for (const ev of ['pointerdown', 'keydown']) document.addEventListener(ev, () => { audio(); }, { passive: true });
+
+// tone is one decaying sine partial.
+function tone(ctx, at, freq, gain, decay) {
+  const o = ctx.createOscillator();
+  o.frequency.value = freq;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, at);
+  g.gain.exponentialRampToValueAtTime(1e-4, at + decay);
+  o.connect(g).connect(SND.master);
+  o.start(at);
+  o.stop(at + decay + 0.02);
+}
+
+// burst is a filtered puff of noise: the contact transient.
+function burst(ctx, at, type, freq, q, gain, decay) {
+  const src = ctx.createBufferSource();
+  src.buffer = SND.noise;
+  const f = ctx.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(gain, at);
+  g.gain.exponentialRampToValueAtTime(1e-4, at + decay);
+  src.connect(f).connect(g).connect(SND.master);
+  src.start(at, Math.random() * 0.8);
+  src.stop(at + decay + 0.02);
+}
+
+// loudness maps a closing speed to a gain: a soft kiss is faint, a break
+// shot near full, with a cube-root-ish curve like the ear's.
+const loudness = (v, full) => Math.min(1, Math.pow(v / full, 0.6));
+
+// Phenolic balls: very short, bright, a little different every time.
+function clack(ctx, at, v) {
+  const g = loudness(v, 4);
+  const k = 0.96 + 0.08 * Math.random() + 0.04 * g;
+  tone(ctx, at, 2650 * k, 0.55 * g, 0.035);
+  tone(ctx, at, 4150 * k, 0.35 * g, 0.022);
+  tone(ctx, at, 6900 * k, 0.18 * g, 0.012);
+  burst(ctx, at, 'bandpass', 3800, 1.2, 0.6 * g, 0.008);
+}
+
+// Rubber cushion behind cloth: a dull thump, a hint of the wooden rail.
+function thump(ctx, at, v) {
+  const g = loudness(v, 3);
+  burst(ctx, at, 'lowpass', 520, 0.7, 0.9 * g, 0.07);
+  tone(ctx, at, 130 + 20 * Math.random(), 0.6 * g, 0.09);
+  tone(ctx, at, 950, 0.06 * g, 0.02);
+}
+
+// Into a pocket: a knock on the jaw, a low leather thud, a short rattle.
+function drop(ctx, at, v) {
+  const g = 0.35 + 0.65 * loudness(v, 3);
+  tone(ctx, at, 1900, 0.18 * g, 0.03);
+  burst(ctx, at, 'lowpass', 1100, 0.8, 0.5 * g, 0.05);
+  tone(ctx, at + 0.03, 170, 0.55 * g, 0.12);
+  tone(ctx, at + 0.04, 92, 0.6 * g, 0.2);
+  tone(ctx, at + 0.09, 2100, 0.08 * g, 0.02);
+  tone(ctx, at + 0.15, 1800, 0.05 * g, 0.02);
+}
+
+// The tip on the cue ball: a woody tock, sharper for a hard stroke.
+function tock(ctx, at, power) {
+  const g = 0.25 + 0.6 * Math.sqrt(Math.max(0, Math.min(1, power)));
+  tone(ctx, at, 1150, 0.35 * g, 0.025);
+  tone(ctx, at, 520, 0.4 * g, 0.045);
+  burst(ctx, at, 'bandpass', 2200, 0.9, 0.5 * g, 0.012);
+}
+
+// playStrike sounds the cue now, or delay ms from now.
+function playStrike(power, delay = 0) {
+  const ctx = audio();
+  if (!ctx) return;
+  tock(ctx, ctx.currentTime + delay / 1000, power);
+  SND.played++;
+}
+
+// playImpacts schedules a shot's contacts at the moment the animation shows
+// them; one that is already well past is skipped rather than played late.
+function playImpacts(list) {
+  const ctx = audio();
+  if (!ctx || !list || !list.length) return;
+  const now = performance.now();
+  let n = 0;
+  for (const im of list) {
+    const due = S.shotWall0 + im.t + RENDER_DELAY_MS - now;
+    if (due < -120) continue;
+    if (++n > 48) break; // a break's first instants: enough is enough
+    const at = ctx.currentTime + Math.max(0, due) / 1000;
+    if (im.k === 'ball') clack(ctx, at, im.v);
+    else if (im.k === 'rail') thump(ctx, at, im.v);
+    else if (im.k === 'pocket') drop(ctx, at, im.v);
+    SND.played++;
+  }
+}
+
+function setSound(on) {
+  SND.on = on;
+  writeSetting('pool:sound', on ? null : 'off');
+  if (!on && SND.ctx) SND.ctx.suspend();
+  if (on) playStrike(0.4);
+}
+
+function setVolume(v) {
+  SND.volume = v;
+  writeSetting('pool:volume', String(v));
+  if (SND.master) SND.master.gain.value = v;
 }
 
 // ---------------------------------------------------------------------------
@@ -2827,6 +2990,9 @@ function renderSettings() {
   const theme = readSetting('pool:theme') || 'system';
   for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
+  $('soundToggle').setAttribute('aria-pressed', String(SND.on));
+  $('volume').value = String(Math.round(SND.volume * 100));
+  $('volume').disabled = !SND.on;
 }
 $('settingsBtn').onclick = () => { renderSettings(); $('settings').hidden = false; $('settingsClose').focus(); };
 $('settingsClose').onclick = () => { $('settings').hidden = true; };
@@ -2845,6 +3011,9 @@ $('leftyToggle').onclick = () => {
   writeSetting('pool:lefty', S.lefty ? '1' : null);
   renderSettings();
 };
+$('soundToggle').onclick = () => { setSound(!SND.on); renderSettings(); };
+$('volume').addEventListener('input', () => setVolume(Number($('volume').value) / 100));
+$('volume').addEventListener('change', () => { const ctx = audio(); if (ctx) { clack(ctx, ctx.currentTime, 2.5); } });
 $('hintsReset').onclick = () => {
   writeSetting('pool:hint', null);
   writeSetting('pool:hint:hand', null);

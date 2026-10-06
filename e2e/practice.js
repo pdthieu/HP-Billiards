@@ -86,6 +86,9 @@ async function shootAndSettle(page, angle, power) {
     const before = await balls(A);
     await shootAndSettle(A, Math.atan2(0.635 - 0.4, 1.905 - 1.0), 0.9);
     if (await A.isDisabled('#undoBtn')) fail('undo disabled after a shot');
+    const played = await A.evaluate(() => SND.played);
+    if (played < 5) fail(`only ${played} sounds scheduled for a shot into the rack`);
+    console.log('sounds scheduled:', played);
     const st = await A.evaluate(() => ({ seat: S.seat, turn: S.turn, decision: S.decision, phase: S.phase }));
     const side = st.decision ? st.decision.seat : st.turn;
     if (st.seat !== side) fail(`playing seat ${st.seat}, side to play ${side}`);
@@ -104,6 +107,16 @@ async function shootAndSettle(page, angle, power) {
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10 && S.phase === 'breaking');
     await A.screenshot({ path: path.join(shots, 'practice-A.png') });
     console.log('rack ok');
+
+    // Settings: sound on by default, a volume slider.
+    await A.click('#settingsBtn');
+    if ((await A.getAttribute('#soundToggle', 'aria-pressed')) !== 'true') fail('sound off by default');
+    await A.waitForTimeout(500); // the dialog fades in
+    await A.screenshot({ path: path.join(shots, 'settings-sound.png') });
+    await A.click('#soundToggle');
+    if (await A.evaluate(() => SND.on)) fail('sound toggle did not turn it off');
+    await A.click('#soundToggle');
+    await A.click('#settingsClose');
 
     // Phone layout.
     const P = await mk({ width: 390, height: 800 });

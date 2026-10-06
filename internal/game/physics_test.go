@@ -452,3 +452,35 @@ func TestSpinIsClampedAndSideFades(t *testing.T) {
 		t.Errorf("without cloth friction the roll should not change, got %v", b.Roll)
 	}
 }
+
+func TestImpactsAreRecordedInOrder(t *testing.T) {
+	g := NewGame(DefaultConfig())
+	g.Start(0)
+	if err := g.Shoot(0, 0, 1, Call{Pocket: AnyPocket}); err != nil {
+		t.Fatal(err)
+	}
+	for g.Moving() {
+		g.Tick()
+	}
+	var kinds [3]int
+	last := 0.0
+	for _, im := range g.Table.Impacts {
+		if im.T < last {
+			t.Fatalf("impacts out of order: %v after %v", im.T, last)
+		}
+		last = im.T
+		if im.Speed < minImpact {
+			t.Errorf("inaudible impact recorded: %+v", im)
+		}
+		kinds[im.Kind]++
+	}
+	if kinds[ImpactBall] < 10 || kinds[ImpactCushion] < 4 {
+		t.Errorf("a full break gave %d ball and %d cushion impacts", kinds[ImpactBall], kinds[ImpactCushion])
+	}
+	if first := g.Table.Impacts[0]; first.Kind != ImpactBall || first.Speed < 5 {
+		t.Errorf("first impact %+v, want the cue ball into the rack at speed", first)
+	}
+	if last > g.Table.Clock {
+		t.Errorf("an impact at %v after the clock %v", last, g.Table.Clock)
+	}
+}

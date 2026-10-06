@@ -94,6 +94,28 @@ type Event struct {
 	InKitchen bool
 }
 
+// ImpactKind says what made an Impact.
+type ImpactKind uint8
+
+const (
+	ImpactBall    ImpactKind = iota // two balls
+	ImpactCushion                   // a ball on a cushion or jaw
+	ImpactPocket                    // a ball dropping into a pocket
+)
+
+// Impact is a contact loud enough to hear, for the clients' sound: when it
+// happened (seconds since the shot was struck) and how hard (the closing
+// speed along the contact normal, or the ball's speed into a pocket, m/s).
+type Impact struct {
+	T     float64
+	Kind  ImpactKind
+	Speed float64
+}
+
+// minImpact is the slowest contact recorded as an Impact; balls resting
+// against each other or a cushion nudge at less than this.
+const minImpact = 0.02 // m/s
+
 // BallState is the JSON-serializable position of a ball that is on the table.
 type BallState struct {
 	ID int     `json:"id"`

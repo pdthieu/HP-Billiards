@@ -104,6 +104,7 @@ type room struct {
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
 	lastSnapT   int          // simulated ms of the last snapshot sent
+	impactsSent int          // Table.Impacts already sent this shot
 	lastBreaker int
 	clock       clock
 	extended    [2]bool // by seat: the extension of this game is used
@@ -615,6 +616,7 @@ func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 	r.stopClock()
 	r.ticks = 0
 	r.lastSnapT = -1
+	r.impactsSent = 0
 	r.ticker = time.NewTicker(time.Second / tickRate)
 	r.broadcastDroppable(r.snapshot())
 	return nil
@@ -659,6 +661,7 @@ func (r *room) tick() {
 		Foul:         res.Foul,
 		Made:         res.Made,
 		IllegalBreak: res.IllegalBreak,
+		Impacts:      r.newImpacts(),
 		PushedOut:    res.PushOut,
 		Phase:        st.Phase,
 		Turn:         st.Turn,
@@ -830,7 +833,26 @@ func (r *room) snapshotOf(balls []game.BallState, ms int) protocol.Snapshot {
 		balls[i].Y = round4(balls[i].Y)
 	}
 	r.lastSnapT = ms
-	return protocol.Snapshot{Type: protocol.TypeSnapshot, T: ms, Balls: balls}
+	return protocol.Snapshot{Type: protocol.TypeSnapshot, T: ms, Balls: balls, Impacts: r.newImpacts()}
+}
+
+// newImpacts returns the impacts of the shot not sent yet and marks them
+// sent.
+func (r *room) newImpacts() []protocol.Impact {
+	all := r.game.Table.Impacts
+	if r.impactsSent >= len(all) {
+		return nil
+	}
+	out := make([]protocol.Impact, 0, len(all)-r.impactsSent)
+	for _, im := range all[r.impactsSent:] {
+		out = append(out, protocol.Impact{
+			T: int(math.Round(im.T * 1000)),
+			K: protocol.ImpactKinds[im.Kind],
+			V: math.Round(im.Speed*100) / 100,
+		})
+	}
+	r.impactsSent = len(all)
+	return out
 }
 
 func (r *room) roomState() protocol.RoomState {

@@ -43,6 +43,10 @@ type Table struct {
 	// Collided reports whether the last Step had a ball bounce off a ball or
 	// a cushion: a corner in some ball's path worth a snapshot of its own.
 	Collided bool
+	// Clock is the simulated time since the last Shoot (or ClearEvents) and
+	// Impacts the audible contacts since then, in order.
+	Clock   float64
+	Impacts []Impact
 
 	pockets      [NumPockets]pocket
 	segments     []segment // 6 cushions and 12 jaws
@@ -187,6 +191,8 @@ func (t *Table) RackNine() {
 // first-contact and head-string detection.
 func (t *Table) ClearEvents() {
 	t.Events = t.Events[:0]
+	t.Impacts = t.Impacts[:0]
+	t.Clock = 0
 	t.firstContact = false
 	t.crossedHead = false
 }
@@ -242,6 +248,7 @@ func (t *Table) Snapshot() []BallState {
 // Collided when a ball bounced off anything during this step.
 func (t *Table) Step(dt float64) {
 	t.Collided = false
+	t.Clock += dt
 	t.integrate(dt)
 	t.capturePockets()
 	t.collideCushions()
@@ -336,6 +343,7 @@ func (t *Table) capturePockets() {
 			continue
 		}
 		if n := t.pocketAt(b.Pos); n >= 0 {
+			t.impact(ImpactPocket, b.Vel.Len())
 			b.Pocketed = true
 			b.Vel, b.Roll, b.Spin = Vec{}, Vec{}, 0
 			t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
@@ -367,7 +375,8 @@ func (t *Table) collideCushions() {
 				n = delta.Scale(1 / dist)
 			}
 			b.Pos = closest.Add(n.Scale(r))
-			if b.Vel.Dot(n) < 0 {
+			if vn := b.Vel.Dot(n); vn < 0 {
+				t.impact(ImpactCushion, -vn)
 				t.bounce(b, n)
 				hit = true
 				t.Collided = true
@@ -446,6 +455,13 @@ func (s segment) closest(p Vec) Vec {
 
 // collideBalls resolves every overlapping pair: the balls are pushed apart
 // along the contact normal and, if approaching, exchange an equal-mass impulse.
+// impact records a contact of the given closing speed, if audible.
+func (t *Table) impact(k ImpactKind, speed float64) {
+	if speed >= minImpact {
+		t.Impacts = append(t.Impacts, Impact{T: t.Clock, Kind: k, Speed: speed})
+	}
+}
+
 func (t *Table) collideBalls() {
 	minDist := 2 * t.Cfg.BallRadius
 	e := t.Cfg.BallRestitution
@@ -477,6 +493,7 @@ func (t *Table) collideBalls() {
 			if vn >= 0 {
 				continue // already separating
 			}
+			t.impact(ImpactBall, -vn)
 			impulse := n.Scale(-(1 + e) / 2 * vn)
 			a.Vel = a.Vel.Sub(impulse)
 			b.Vel = b.Vel.Add(impulse)

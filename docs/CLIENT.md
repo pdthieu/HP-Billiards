@@ -138,6 +138,21 @@ with *Rack again*.
    connection card appears only after 300 ms offline, with the retry backoff
    drawn as steps; a reload inside a room shows a splash after 150 ms.
 
+## Sound
+
+Sound effects are synthesized with the Web Audio API (no audio files): a
+short bright clack for ball on ball, a dull thump for a cushion, a knock and
+rattle for a pocket and a leather "tock" for the cue. Volume follows the
+closing speed the server reports in `impacts`, and each sound is scheduled
+for the moment the render clock (100 ms behind the snapshots) reaches it, so
+it lands on the frame that shows the contact; one that would play over
+120 ms late is dropped. The cue strike plays at once for your own shot and
+with the first snapshot for the other player's. A limiter keeps a break's
+pile of clacks from clipping. Browsers only start audio after a click or key
+press, so the context is created on the first one. Settings has *Sound
+effects* (on by default) and a volume slider, kept in `localStorage` as
+`pool:sound` and `pool:volume`.
+
 ## Rendering
 
 - The table is drawn in meters on a canvas scaled to fit; on a portrait

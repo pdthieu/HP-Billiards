@@ -224,7 +224,19 @@ type Snapshot struct {
 	Type  string           `json:"type"`
 	T     int              `json:"t"`     // milliseconds of simulated time since the shot
 	Balls []game.BallState `json:"balls"` // rounded to 0.1 mm
+	// Impacts since the previous snapshot, for sound; each is sent once.
+	Impacts []Impact `json:"impacts,omitempty"`
 }
+
+// Impact is a contact for the client to play a sound for.
+type Impact struct {
+	T int     `json:"t"` // milliseconds since the shot, on the snapshot clock
+	K string  `json:"k"` // "ball", "rail" or "pocket"
+	V float64 `json:"v"` // closing speed, m/s
+}
+
+// ImpactKinds maps game.ImpactKind to Impact.K.
+var ImpactKinds = [...]string{game.ImpactBall: "ball", game.ImpactCushion: "rail", game.ImpactPocket: "pocket"}
 
 // Settled ends a shot: exact positions plus what the rules decided.
 type Settled struct {
@@ -243,6 +255,7 @@ type Settled struct {
 	Kitchen      bool             `json:"kitchen"`
 	Decision     *game.Decision   `json:"decision"`
 	Winner       *int             `json:"winner,omitempty"`
+	Impacts      []Impact         `json:"impacts,omitempty"` // the last ones of the shot
 	Clock        *Clock           `json:"clock"`
 	Fouls        [2]int           `json:"fouls"`
 	PushOut      bool             `json:"pushOut"`
