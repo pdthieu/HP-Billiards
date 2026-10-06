@@ -176,9 +176,10 @@ const (
 //
 // Restitution and friction are not in the specification. The values are
 // measured ones (Alciatore's property table, Mathavan 2010, pooltool): 0.95
-// ball–ball (0.92–0.98), μ 0.2 sliding, 0.012 rolling (0.005–0.015, a
-// typical cloth is 0.01; slightly slow so a shot does not outlast the
-// players' patience), and a cushion that, with μ 0.2 at the nose, sends a
+// ball–ball (0.92–0.98), μ 0.2 sliding, 0.015 rolling (0.005–0.015: the
+// slow end, like napped or worn cloth on a humid day, which is what players
+// here are used to; fast worsted tournament cloth is nearer 0.01), and a
+// cushion that, with μ 0.2 at the nose, sends a
 // rolling ball back with about half its speed as high-speed video shows.
 func DefaultConfig() Config {
 	return Config{
@@ -203,7 +204,7 @@ func DefaultConfig() Config {
 		CornerShelf:     1.75 * inch,
 		SideShelf:       0.25 * inch,
 		SlidingFriction: 0.2,
-		RollingFriction: 0.012,
+		RollingFriction: 0.015,
 		StopSpeed:       0.01,
 		TipOffset:       0.5,
 		SpinDecayLength: 2.5,

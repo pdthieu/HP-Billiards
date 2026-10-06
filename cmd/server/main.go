@@ -42,7 +42,10 @@ func main() {
 	}
 	aimLine := flag.Int("aim-line", defAim, "length in mm of the aim guide's object-ball line after contact, 0 hides it (default from $AIM_LINE_MM)")
 	var physics physicsFlag
-	flag.Var(&physics, "physics", "override a physics constant, Name=value (repeatable, or comma-separated); -physics list prints them")
+	if v := os.Getenv("PHYSICS"); v != "" {
+		physics.Set(v) // applied first, so -physics on the command line wins
+	}
+	flag.Var(&physics, "physics", "override a physics constant, Name=value (repeatable, or comma-separated; also $PHYSICS); -physics list prints them")
 	flag.Parse()
 
 	opts := def

@@ -56,6 +56,7 @@ Những điều cần biết:
 | biến | mặc định | ý nghĩa |
 |---|---|---|
 | `AIM_LINE_MM` | `100` | độ dài (mm) vạch chỉ hướng bi mục tiêu sau khi chạm, vạch đường đi bi trắng bằng một nửa; `0` là không hiện |
+| `PHYSICS` | trống | chỉnh hằng số vật lý, cùng cú pháp với `-physics`, ví dụ `RollingFriction=0.017` cho bàn chậm hơn, `0.012` cho bàn nhanh hơn (mặc định 0.015); nhiều giá trị cách nhau bằng dấu phẩy |
 | `PORT` | do Render đặt | đừng tự đặt |
 
 Đặt hoặc đổi: Dashboard → service **pool** → **Environment** → **Add
@@ -63,7 +64,7 @@ Environment Variable** (hoặc sửa giá trị) → **Save and deploy** (server
 đọc biến lúc khởi động nên không cần build lại; nếu không thấy nút này thì
 chọn **Save, rebuild, and deploy**). Không cần push code; phòng đang chơi sẽ
 mất vì server khởi động lại. `render.yaml` cố ý không ghi biến này, để giá trị trên
-Dashboard không bị Blueprint ghi đè.
+Dashboard không bị Blueprint ghi đè; `PHYSICS` cũng vậy.
 - Để không bị cold start có thể nâng lên gói Starter (7 USD/tháng) hoặc dùng
   Cách 2.
 
