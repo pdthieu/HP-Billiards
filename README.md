@@ -82,3 +82,13 @@ is a measuring tool, not a test: it records on-screen ball speed frame by
 frame and snapshot timing for a shot of the given power.
 
 CI (`.github/workflows/ci.yml`) runs both on every push and pull request.
+
+To keep build caches off a small system disk, point the tools elsewhere before
+running anything (a `.envrc` with [direnv](https://direnv.net) is convenient):
+
+```sh
+export GOCACHE=/Volumes/HieuPhan/.cache/be-billiards/go-build
+export GOMODCACHE=/Volumes/HieuPhan/.cache/be-billiards/go-mod
+export PLAYWRIGHT_BROWSERS_PATH=/Volumes/HieuPhan/.cache/be-billiards/playwright
+export npm_config_cache=/Volumes/HieuPhan/.cache/be-billiards/npm
+```
