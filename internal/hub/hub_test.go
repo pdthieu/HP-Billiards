@@ -1114,9 +1114,14 @@ func TestPracticeUndoPlaceAndRerack(t *testing.T) {
 	c.expectError("bad_placement") // on the cue ball
 
 	c.send(msg{"type": "shoot", "angle": 0.2, "power": 0.6})
-	c.waitFor("settled")
+	if _, settled := c.waitFor("settled"); settled["undos"] != 1.0 {
+		t.Errorf("undos after a shot = %v", settled["undos"])
+	}
 	c.send(msg{"type": "undo"})
 	back := c.expect("room_state")
+	if back["undos"] != 0.0 {
+		t.Errorf("undos after undo = %v", back["undos"])
+	}
 	if !sameBalls(back["balls"], st["balls"]) || back["turn"] != st["turn"] || back["phase"] != st["phase"] {
 		t.Errorf("after undo:\n%v\nwant\n%v", back, st)
 	}

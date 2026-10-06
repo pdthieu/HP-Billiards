@@ -138,6 +138,10 @@ const S = {
   mode: '8ball',         // the room's game: '8ball' or '9ball'
   fouls: [0, 0],         // 9-ball: consecutive fouls by seat
   pushOut: false,        // 9-ball: the player on turn may push out
+  practice: false,       // one player plays both sides; S.seat follows the side to play
+  undos: 0,              // practice: shots the server can take back
+  moveTool: false,       // practice: dragging a ball moves it instead of aiming
+  rackMode: '8ball',     // practice: the game the Rack button sets up
   groups: ['', ''],
   ballInHand: false,
   kitchen: false,
@@ -162,9 +166,9 @@ const S = {
   call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
   roomsTimer: 0,
   aiming: false,
-  dragCue: null,         // {x, y} while placing the cue ball
+  drag: null,            // {id, x, y} while a ball is carried: the cue ball in hand, any ball in practice
   tap: null,             // press on a ball or pocket awaiting release: {id, pocket, x, y, t, type}
-  cuePlacedAt: null,     // last place_cue we sent, kept until the server confirms
+  placedAt: null,        // {id, x, y}: last placement we sent, kept until the server confirms
   lastAimSent: 0,
   aimTimer: 0,
 
@@ -178,7 +182,7 @@ const S = {
 
   // canvas motion
   pendingDrops: [],      // balls that vanished from a snapshot, awaiting their drop animation
-  liftStart: 0,          // when the cue ball was picked up
+  liftStart: 0,          // when the carried ball was picked up
   aimShownAt: 0,         // when the aim guide started fading in
   oppAimPrev: null,      // previous opponent aim, eased toward S.oppAim
   oppAimAt: 0,
@@ -404,6 +408,9 @@ function applyRules(msg) {
   S.phase = msg.phase;
   S.turn = msg.turn;
   if (msg.mode) S.mode = msg.mode; // settled carries no mode: it cannot change mid-game
+  if (msg.practice !== undefined) S.practice = msg.practice; // likewise
+  if (S.practice) S.seat = msg.decision ? msg.decision.seat : msg.turn; // play the side to play
+  S.undos = msg.undos || 0;
   S.fouls = msg.fouls || [0, 0];
   S.pushOut = !!msg.pushOut;
   S.groups = msg.groups;
@@ -428,11 +435,14 @@ function onRoomState(msg) {
   const hadDecision = !!S.decision;
   const turnChanged = applyRules(msg);
   setClock(msg.clock);
-  S.cuePlacedAt = null;
-  S.dragCue = null;
+  S.placedAt = null;
+  S.drag = null;
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
   if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
-  if (msg.phase === 'breaking' && prevPhase !== 'breaking') resetOrientations(); // a fresh rack
+  if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
+    resetOrientations(); // a fresh rack
+    if (S.practice) S.rackMode = msg.mode; // the Rack picker starts on the game being played
+  }
   if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
     // Not by a shot (that comes as settled): a third foul on the clock.
     const loser = 1 - S.winner;
@@ -468,8 +478,8 @@ function onSnapshot(msg) {
     S.clock = null;
     S.oppAim = null;
     S.aiming = false;
-    S.dragCue = null;
-    S.cuePlacedAt = null;
+    S.drag = null;
+    S.placedAt = null;
   }
   S.snaps.push({ t: msg.t, balls });
   refreshPanels();
@@ -516,9 +526,9 @@ function onPlayer(msg) {
 
 function onError(msg) {
   toast(msg.message || msg.code, true);
-  if (msg.code === 'bad_placement' || msg.code === 'no_ball_in_hand') {
-    S.dragCue = null;
-    S.cuePlacedAt = null;
+  if (msg.code === 'bad_placement' || msg.code === 'no_ball_in_hand' || msg.code === 'balls_moving') {
+    S.drag = null;
+    S.placedAt = null;
   }
   if (msg.code === 'room_not_found' || msg.code === 'room_full') {
     // The join failed: the room is gone or our held seat expired and was
@@ -582,6 +592,9 @@ function resetToLanding(error) {
   S.decision = null;
   S.clock = null;
   S.mode = '8ball';
+  S.practice = false;
+  S.undos = 0;
+  S.moveTool = false;
   S.fouls = [0, 0];
   S.pushOut = false;
   S.lastBreaker = -1;
@@ -600,8 +613,8 @@ function newTurn() {
   S.aimShownAt = performance.now();
   S.call = null;
   S.aiming = false;
-  S.dragCue = null;
-  S.cuePlacedAt = null;
+  S.drag = null;
+  S.placedAt = null;
   S.spin = { x: 0, y: 0 };
   if (isMyShot()) {
     const cue = S.balls.get(0);
@@ -675,7 +688,8 @@ function eightResultReason(msg, who, made) {
 // 3. shot logic
 
 const isMe = (seat) => seat === S.seat;
-const nameOf = (seat) => (isMe(seat) ? 'You' : (S.players[seat].name || `Player ${seat + 1}`));
+const sideName = (seat) => (seat ? 'Side B' : 'Side A');
+const nameOf = (seat) => (isMe(seat) ? 'You' : S.practice ? sideName(seat) : (S.players[seat].name || `Player ${seat + 1}`));
 const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? 'stripes' : '');
 const isNine = () => S.mode === '9ball';
 const ballName = (id) => (id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
@@ -761,7 +775,7 @@ function castAim(balls, cue, angle) {
 }
 
 function canShoot() {
-  if (!isMyShot() || S.dragCue) return false;
+  if (!isMyShot() || S.drag) return false;
   return !needsPocket() || (S.call !== null && S.call.pocket !== undefined);
 }
 
@@ -1172,9 +1186,10 @@ function applyTableTransform() {
 // displayBalls returns the positions to draw this frame.
 function displayBalls() {
   if (S.snaps.length === 0) {
-    if (S.dragCue || S.cuePlacedAt) {
+    const held = S.drag || S.placedAt;
+    if (held) {
       const m = new Map(S.balls);
-      m.set(0, S.dragCue || S.cuePlacedAt);
+      m.set(held.id, { x: held.x, y: held.y });
       return m;
     }
     return S.balls;
@@ -1226,7 +1241,7 @@ function draw() {
   // aim guide goes under the balls
   const striking = fx.some((f) => f.type === 'strike');
   let aim = null; // {angle, power, mine, alpha}
-  if (cue && myShot && !S.dragCue) {
+  if (cue && myShot && !S.drag) {
     const a = S.aimShownAt ? EASE.out(clamp01((now - S.aimShownAt) / 200)) : 1;
     aim = { angle: S.angle, power: S.power, mine: true, alpha: reduceMotion.matches ? 1 : a };
   } else if (cue && S.oppAim && inPlay() && !S.moving && S.turn !== S.seat) {
@@ -1235,10 +1250,11 @@ function draw() {
   if (aim) drawAim(balls, cue, aim.angle, aim.mine, aim.alpha);
 
   // shadows, then bodies
-  const lift = cue && S.dragCue ? liftAmount(now) : 0;
+  const lifted = S.drag ? S.drag.id : -1;
+  const lift = S.drag ? liftAmount(now) : 0;
   for (const [id, p] of balls) rollBall(id, p);
-  for (const [id, p] of balls) drawBallShadow(p, id === 0 ? lift : 0);
-  for (const [id, p] of balls) drawBall(id, p, id === 0 && lift ? { scale: 1 + 0.05 * lift } : undefined);
+  for (const [id, p] of balls) drawBallShadow(p, id === lifted ? lift : 0);
+  for (const [id, p] of balls) drawBall(id, p, id === lifted && lift ? { scale: 1 + 0.05 * lift } : undefined);
   drawFx('balls', now);
 
   // cue stick above the balls
@@ -1271,17 +1287,15 @@ function draw() {
       ctx.stroke();
     }
   }
-  if (myShot && S.ballInHand && cue) {
-    if (S.dragCue) ring(cue, 1.05 * R + 0.014, '#FFFFFF', 0.005);
-    else ring(cue, R + 0.014, PAL.ok, 0.004);
-  }
+  if (S.drag && balls.has(S.drag.id)) ring(balls.get(S.drag.id), 1.05 * R + 0.014, '#FFFFFF', 0.005);
+  else if (myShot && S.ballInHand && cue) ring(cue, R + 0.014, PAL.ok, 0.004);
 
   if (S.hoverUntil && now > S.hoverUntil) { S.hoverBall = null; S.hoverUntil = 0; }
   if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
   drawFx('top', now);
 }
 
-// liftAmount eases the cue ball up over 120 ms while it is being dragged.
+// liftAmount eases the carried ball up over 120 ms.
 function liftAmount(now) {
   if (reduceMotion.matches) return 1;
   return EASE.out(clamp01((now - S.liftStart) / 120));
@@ -1472,7 +1486,7 @@ function orientationOf(id) {
 function rollBall(id, p) {
   const last = lastPos.get(id);
   lastPos.set(id, { x: p.x, y: p.y });
-  if (!last || (id === 0 && S.dragCue)) return;
+  if (!last || (S.drag && S.drag.id === id)) return;
   const dx = p.x - last.x, dy = p.y - last.y;
   const d = Math.hypot(dx, dy);
   if (d < 1e-6 || d > 0.3) return; // still, or moved by hand / respotted
@@ -1811,8 +1825,10 @@ function hitBall(p, balls, skipCue) {
   return best ? best.id : null;
 }
 
-function clampCue(p) {
-  const maxX = S.kitchen ? HEAD : W - R;
+// clampBall keeps a carried ball on the table, and the cue ball in the
+// kitchen while ball in hand is limited to it (not in practice).
+function clampBall(id, p) {
+  const maxX = id === 0 && S.kitchen && !S.practice ? HEAD : W - R;
   return {
     x: Math.min(maxX, Math.max(R, p.x)),
     y: Math.min(H - R, Math.max(R, p.y)),
@@ -1826,8 +1842,9 @@ canvas.addEventListener('pointerdown', (e) => {
   const balls = displayBalls();
   const cue = balls.get(0);
 
-  if (S.ballInHand && cue && Math.hypot(cue.x - p.x, cue.y - p.y) < R * 2.5) {
-    S.dragCue = clampCue(p);
+  const grab = grabbable(p, balls);
+  if (grab !== null) {
+    S.drag = { id: grab, ...clampBall(grab, p) };
     S.liftStart = performance.now();
     canvas.setPointerCapture(e.pointerId);
     return;
@@ -1846,6 +1863,16 @@ canvas.addEventListener('pointerdown', (e) => {
     }
   }
 });
+
+// grabbable returns the ball a press at p picks up, or null: in practice
+// with Move on any ball, otherwise the cue ball when it may be placed (ball
+// in hand, or always in practice).
+function grabbable(p, balls) {
+  if (S.practice && S.moveTool) return hitBall(p, balls, false);
+  const cue = balls.get(0);
+  if ((S.ballInHand || S.practice) && cue && Math.hypot(cue.x - p.x, cue.y - p.y) < R * 2.5) return 0;
+  return null;
+}
 
 // hitPocket returns the index of the pocket under p, or null. The target is
 // the hole plus a margin, at least 24 px across on screen.
@@ -1871,12 +1898,12 @@ function pocketName(n) {
 
 canvas.addEventListener('pointermove', (e) => {
   const p = pointerPos(e);
-  if (e.pointerType === 'mouse' && !S.dragCue && !S.aiming) {
+  if (e.pointerType === 'mouse' && !S.drag && !S.aiming) {
     S.hoverBall = hitBall(p, displayBalls(), false);
   }
   if (!isMyShot()) return;
-  if (S.dragCue) {
-    S.dragCue = clampCue(p);
+  if (S.drag) {
+    S.drag = { id: S.drag.id, ...clampBall(S.drag.id, p) };
   } else if (S.tap && (S.tap.id !== null || S.tap.pocket !== null) && !S.aiming) {
     // moved off the ball or pocket: this is an aim drag, not a tap
     if (Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) > 8) {
@@ -1892,11 +1919,12 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 function endPointer(e) {
-  if (S.dragCue) {
-    const pos = S.dragCue;
-    S.dragCue = null;
-    S.cuePlacedAt = pos;
-    send({ type: 'place_cue', x: pos.x, y: pos.y });
+  if (S.drag) {
+    const d = S.drag;
+    S.drag = null;
+    S.placedAt = d;
+    if (d.id === 0) send({ type: 'place_cue', x: d.x, y: d.y });
+    else send({ type: 'place_ball', id: d.id, x: d.x, y: d.y });
   }
   const tap = S.tap;
   S.tap = null;
@@ -1917,6 +1945,10 @@ canvas.addEventListener('pointerleave', () => { S.hoverBall = null; });
 document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
+  if (S.practice && S.seat >= 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+    if (e.key === 'z' || e.key === 'Z') { undo(); e.preventDefault(); return; }
+    if (e.key === 'm' || e.key === 'M') { toggleMoveTool(); e.preventDefault(); return; }
+  }
   if (!isMyShot()) return;
   const step = e.shiftKey ? 0.05 * DEG : 0.5 * DEG;
   switch (e.key) {
@@ -2144,9 +2176,11 @@ function renderRooms(list) {
     li.classList.add('is-leaving');
     setTimeout(() => li.remove(), 160);
   }
-  $('roomsCount').textContent = `${list.rooms.length} of ${list.max} in use`;
-  const full = list.rooms.length >= list.max;
+  const used = list.used ?? list.rooms.length; // practice rooms are not listed but count
+  $('roomsCount').textContent = `${used} of ${list.max} in use`;
+  const full = used >= list.max;
   $('create').disabled = full;
+  $('practice').disabled = full;
   $('createNote').hidden = !full;
   $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one below.` : '';
 }
@@ -2187,8 +2221,8 @@ function renderSeat(seat) {
   line.className = 'seat__line';
   const name = document.createElement('span');
   name.className = 'seat__name';
-  name.textContent = p.name;
-  name.title = p.name;
+  name.textContent = S.practice ? sideName(seat) : p.name;
+  name.title = name.textContent;
   line.append(name);
   if (isMe(seat)) line.append(tag('you', 'you'));
   if (!p.connected) line.append(tag('offline', 'offline'));
@@ -2380,7 +2414,8 @@ function refreshPanels() {
   powerTrack.tabIndex = myShot ? 0 : -1;
   if (!myShot && S.powerDrag) { S.powerDrag = false; powerClasses(); }
   if (!barHidden) renderPower();
-  const panel = S.phase === 'lobby' ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
+  const panel = S.phase === 'lobby' && !S.practice ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
+  renderPracticeBar();
   showPanel(panel);
 
   if (panel === 'lobbyPanel' && me) {
@@ -2407,6 +2442,7 @@ function refreshPanels() {
     hold.hidden = true;
     let msg, sub = '';
     if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
+    else if (S.practice) { msg = '<span class="muted">Setting up the table…</span>'; }
     else if (opp && opp.name && !opp.connected) {
       msg = `Waiting for <strong>${esc(opp.name)}</strong> to reconnect…`;
       const left = holdRemaining(1 - S.seat);
@@ -2426,9 +2462,10 @@ function refreshPanels() {
     $('waitSub').textContent = sub;
   }
   if (panel === 'overPanel') {
-    $('overText').textContent = S.winner === null ? 'Game over' : (isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`);
+    $('overText').textContent = winnerTitle();
+    $('rematch').textContent = S.practice ? 'Rack again' : 'Rematch';
     const next = S.lastBreaker >= 0 ? 1 - S.lastBreaker : -1;
-    $('rematchNote').textContent = (next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`) + ` Next: ${MODE_NAME[S.mode]}.`;
+    $('rematchNote').textContent = S.practice ? `Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.` : (next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`) + ` Next: ${MODE_NAME[S.mode]}.`;
   }
   refreshDecision();
 }
@@ -2436,7 +2473,9 @@ function refreshPanels() {
 // renderModes shows the room's game in the header and on the lobby and
 // game-over pickers.
 function renderModes() {
-  $('roomEyebrow').textContent = S.seat >= 0 ? `${MODE_NAME[S.mode]} room` : 'Room';
+  $('roomEyebrow').textContent = S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
+  $('copyLink').hidden = S.practice;
+  document.body.classList.toggle('is-practice', S.practice && S.seat >= 0);
   for (const id of ['lobbyMode', 'overMode']) setSeg($(id), S.mode);
 }
 
@@ -2627,11 +2666,41 @@ function renderBanner(text) {
 }
 
 // renderResult shows who won the rack over the table while the game is over.
+// renderPracticeBar shows the practice tools and their state.
+function renderPracticeBar() {
+  const bar = $('practiceBar');
+  const on = S.practice && S.seat >= 0;
+  if (bar.hidden === on) { bar.hidden = !on; resize(); }
+  if (!on) return;
+  $('undoBtn').disabled = S.undos === 0 || S.moving;
+  $('undoBtn').title = S.undos ? `Take back the last shot (Z) · ${S.undos} left` : 'Nothing to take back yet';
+  $('moveBtn').setAttribute('aria-pressed', String(S.moveTool));
+  setSeg($('practiceMode'), S.rackMode);
+  $('rackBtn').disabled = S.moving;
+}
+
+function undo() {
+  if (S.practice && S.undos > 0 && !S.moving) send({ type: 'undo' });
+}
+
+function toggleMoveTool() {
+  S.moveTool = !S.moveTool;
+  if (S.moveTool) toast('Move balls: drag any ball. Press M again to aim.');
+  refreshPanels();
+}
+
+// winnerTitle names the winner of the rack; in practice by side.
+function winnerTitle() {
+  if (S.winner === null) return 'Game over';
+  if (S.practice) return `${sideName(S.winner)} wins the rack`;
+  return isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`;
+}
+
 function renderResult() {
   let el = $('tableWrap').querySelector('.result');
   if (S.phase !== 'game_over' || S.winner === null) { if (el) el.remove(); return; }
-  const win = isMe(S.winner);
-  const title = win ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`;
+  const win = isMe(S.winner) && !S.practice;
+  const title = winnerTitle();
   if (el && el.dataset.title === title) return;
   if (el) el.remove();
   el = document.createElement('div');
@@ -2648,6 +2717,20 @@ function renderResult() {
 // wiring
 
 $('ready').onclick = () => send({ type: 'ready' });
+$('undoBtn').onclick = undo;
+$('moveBtn').onclick = toggleMoveTool;
+$('practiceMode').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b) return;
+  S.rackMode = b.dataset.mode;
+  renderPracticeBar();
+});
+$('rackBtn').onclick = () => {
+  if (S.moving) return;
+  resetOrientations();
+  send({ type: 'rerack', mode: S.rackMode });
+};
+$('practiceLeave').onclick = () => leaveRoom();
 $('rematch').onclick = () => send({ type: 'rematch' });
 $('safety').onclick = toggleSafety;
 $('pushOut').onclick = togglePushOut;
@@ -2698,7 +2781,9 @@ $('shuffleName').onclick = () => {
   $('name').dispatchEvent(new Event('input'));
   $('name').focus();
 };
-$('create').onclick = async () => {
+// createRoom asks for a room of the picked game and joins it; practice
+// rooms are private and played alone.
+async function createRoom(practice) {
   const name = landingName();
   if (!name) return;
   $('landingError').hidden = true;
@@ -2706,17 +2791,20 @@ $('create').onclick = async () => {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: landingMode }),
+      body: JSON.stringify({ mode: landingMode, practice }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
     const { roomCode } = body;
     $('code').value = roomCode;
+    S.rackMode = landingMode;
     connectAndJoin(roomCode, name);
   } catch (err) {
     showLanding(`Could not create a room: ${err.message}`);
   }
-};
+}
+$('create').onclick = () => createRoom(false);
+$('practice').onclick = () => createRoom(true);
 $('landingForm').onsubmit = (e) => {
   e.preventDefault();
   if ($('landing').hidden) return; // already in a room

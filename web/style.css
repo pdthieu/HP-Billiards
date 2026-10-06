@@ -45,6 +45,13 @@ button { cursor: pointer; }
 .landing__create { display: flex; flex-direction: column; gap: 12px; }
 .tag--foul { background: var(--foul-soft); color: var(--foul); }
 
+/* practice tools: a row between the status and the panel; the trays make
+   room for it */
+.practice { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px 8px; }
+.practice__sep { width: 1px; height: 24px; background: var(--hairline-strong); }
+.practice .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+body.is-practice .trays { display: none; }
+
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }
 .stage__table { touch-action: none; user-select: none; }
@@ -189,6 +196,9 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   #shotPanel .spin { grid-row: 2; grid-column: 2; flex-direction: row-reverse; gap: 8px; }
   .trays { height: 22px; padding: 0 16px; align-items: center; }
   .trays .ball { --size: 14px; }
+  .practice { gap: 6px; padding: 0 16px 6px; }
+  .practice__label { display: none; }
+  .practice .btn--small { min-height: 36px; padding: 0 10px; }
 }
 
 /* short screens: give the table room; trays go first, the hint is already gone */
@@ -222,5 +232,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   #shotPanel .angle__row { justify-content: space-between; gap: 4px; }
   #shotPanel .spin { gap: 10px; }
   .trays { display: none; }
+  .practice { position: absolute; top: 6px; left: 12px; height: auto; padding: 0; z-index: 3; }
+  .practice__label { display: none; }
   .landing__card { max-height: 100%; overflow-y: auto; }
 }

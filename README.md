@@ -1,6 +1,6 @@
 # Pool
 
-Two-player online 8-ball and 9-ball (WPA rules) in Go: server-side physics and rules,
+Two-player online 8-ball and 9-ball (WPA rules), plus a solo practice table, in Go: server-side physics and rules,
 WebSocket protocol, plain HTML/JS client embedded in one binary.
 
 - `internal/game` physics and rules (pure Go), `cmd/simulate` headless runner

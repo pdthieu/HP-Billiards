@@ -96,9 +96,9 @@ dashboard tối thiểu từ `/metrics`.
 
 Mục tiêu: có việc để làm khi không có bạn online.
 
-1. **Bàn tập**: `POST /api/rooms` với `{"mode": "practice"}`; một ghế, không
-   luật, bi vào lỗ thì biến mất, nút xếp lại. Dùng lại toàn bộ physics và
-   client, chỉ tắt `Rules`.
+1. ~~**Bàn tập**~~ Đã làm (10/2026), khác bản nháp: phòng riêng
+   (`"practice": true`), giữ luật 8-ball/9-ball và một người đánh cả hai
+   bên; có Undo 20 cú, đặt bi trắng mọi lúc, kéo đặt bi bất kỳ, xếp lại bàn.
 2. **Máy đánh**: `internal/bot` chạy trong goroutine của room khi ghế 2 là
    bot. Phiên bản đầu: chọn bi hợp lệ có đường thẳng tới lỗ không bị chắn
    (ray cast có sẵn ở client, chuyển sang Go), ngắm theo ghost ball, lực theo

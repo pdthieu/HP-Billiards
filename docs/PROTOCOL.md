@@ -4,8 +4,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball"}` picks the game (`8ball`, the default, or `9ball`); an unknown mode answers `400 {"error": "bad_mode", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
-- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "max": 3}`. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. Sorted by code.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "practice": true}` picks the game (`8ball`, the default, or `9ball`) and, with `practice`, makes a practice room (see Practice); an unknown mode answers `400 {"error": "bad_mode", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
 
@@ -32,6 +32,9 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
 | `extend` | – | Only for the player the shot clock is running for, once per game: their clock is set back to the long limit (see Shot clock). |
+| `place_ball` | `id`, `x`, `y` | Practice only: moves a ball on the table, the cue ball included, wherever it fits. |
+| `undo` | – | Practice only: puts the table, turn and rules back as they were before the last shot (up to 20 shots). |
+| `rerack` | `mode?` | Practice only: a fresh rack, of `mode` if given. |
 | `set_mode` | `mode` | `lobby` or `game_over` only; either player. Changes the room's game (`8ball` or `9ball`) for the next rack; in the lobby both players must press ready again. Both get a `room_state`. |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
@@ -54,6 +57,16 @@ The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket":
 | `rebreak` | 8-ball pocketed on the break | Re-rack; the chooser breaks. |
 | `take_shot` | 9-ball push out | The chooser shoots from where the balls lie. |
 | `pass_back` | 9-ball push out | The player who pushed out shoots again. |
+
+## Practice
+
+A practice room (`POST /api/rooms` with `"practice": true`) is private: it is not in the room list and a second `join` gets `room_full` (the player's own token still reconnects). The one player plays both seats with the full rules of the room's game:
+
+- The rack starts as soon as they join; there is no lobby, no ready and no shot clock (`clock` is always `null`, `extend` fails with `wrong_phase`).
+- `shoot`, `place_cue`, `choose` and `rematch` act for whichever seat is to play (`decision.seat`, else `turn`). `players[1]` mirrors `players[0]`.
+- `place_cue` works at any time between shots and anywhere on the table, not only with ball in hand; `place_ball` moves any other ball. The rules are not touched: a ball moved stays the same ball, pocketed balls stay pocketed. A cue ball left above the head string while `kitchen` is true still counts as played from there.
+- `undo` takes back the last shot (`undos` in `room_state` and `settled` says how many can be); `rerack` and `rematch` start a new rack and clear that history.
+- `place_ball`, `undo` and `rerack` in any other room fail with `not_practice`; `undo` with nothing to take back fails with `no_undo`.
 
 ## 9-ball
 
@@ -93,6 +106,8 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
   "decision": null,
   "winner": null,
   "moving": false,
+  "practice": false,
+  "undos": 0,
   "clock": {"seat": 0, "left": 29450, "limit": 30000, "paused": false, "extension": 40000, "extensions": [true, true]}
 }
 ```
@@ -103,6 +118,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 - `winner`: seat or `null`.
 - `moving`: a shot is in progress; `snapshot`s and a `settled` will follow.
 - `mode`: `8ball` or `9ball`.
+- `practice`: a practice room; `undos`: shots `undo` can take back there (always 0 elsewhere).
 - `fouls`: 9-ball consecutive fouls by seat (always `[0, 0]` in 8-ball). `pushOut`: 9-ball, the player in `turn` may push out on this shot.
 - `clock`: the shot clock of the player who must act next (shoot, or answer the `decision`), or `null` while nobody has to (lobby, game over, balls moving, clock turned off). `left` is milliseconds left when the message was sent: count down from its arrival rather than comparing clocks. `limit` is what the clock was last set to, `paused` is true while that player is offline, `extension` is what an `extend` sets the clock to and `extensions[seat]` whether that seat may still extend.
 
@@ -180,7 +196,9 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_placement` | `place_cue` off the table, in a pocket, on another ball, or outside the kitchen while `kitchen` is true. |
 | `bad_input` | `angle` or `power` is not a finite number. |
 | `bad_call` | `shoot` at the 8-ball without a `pocket`, a `pocket` outside 0–5, or a 9-ball push out that is not allowed. |
-| `bad_mode` | `set_mode` with a mode other than `8ball` or `9ball`. |
+| `bad_mode` | `set_mode` or `rerack` with a mode other than `8ball` or `9ball`. |
+| `no_undo` | `undo` with no shot to take back. |
+| `not_practice` | `place_ball`, `undo` or `rerack` outside a practice room. |
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
 | `no_extension` | `extend` after the sender already used their extension this game. |

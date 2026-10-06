@@ -216,6 +216,7 @@ type RoomState struct {
 	Clock      *Clock           `json:"clock"`      // null while nobody has to act
 	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by seat
 	PushOut    bool             `json:"pushOut"`    // 9-ball: turn may push out on this shot
+	Undos      int              `json:"undos"`      // practice: shots undo can take back
 }
 
 // Snapshot carries ball positions while a shot is in progress.
@@ -245,6 +246,7 @@ type Settled struct {
 	Clock        *Clock           `json:"clock"`
 	Fouls        [2]int           `json:"fouls"`
 	PushOut      bool             `json:"pushOut"`
+	Undos        int              `json:"undos"`
 }
 
 // Aim relays the shooter's aim to the other player.

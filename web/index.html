@@ -46,6 +46,16 @@
     <span class="status__pill status__layer" hidden></span>
   </div>
 
+  <div id="practiceBar" class="practice" role="toolbar" aria-label="Practice tools" hidden>
+    <button id="undoBtn" type="button" class="btn btn--secondary btn--small" title="Take back the last shot (Z)" aria-label="Undo the last shot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg><span class="practice__label">Undo</span></button>
+    <button id="moveBtn" type="button" class="btn btn--secondary btn--small" aria-pressed="false" title="Drag any ball to set up a position (M)" aria-label="Move balls"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l-3 3 3 3"></path><path d="M9 5l3-3 3 3"></path><path d="M15 19l-3 3-3-3"></path><path d="M19 9l3 3-3 3"></path><path d="M2 12h20"></path><path d="M12 2v20"></path></svg><span class="practice__label">Move balls</span></button>
+    <span class="practice__sep" aria-hidden="true"></span>
+    <div id="practiceMode" class="seg" role="group" aria-label="Game for the next rack"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
+    <button id="rackBtn" type="button" class="btn btn--secondary btn--small" title="Rack the balls again" aria-label="Rack again"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4 3 20h18z"></path></svg><span class="practice__label">Rack</span></button>
+    <span class="practice__sep" aria-hidden="true"></span>
+    <button id="practiceLeave" type="button" class="btn btn--quiet btn--small" aria-label="Leave practice"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg><span class="practice__label">Leave</span></button>
+  </div>
+
   <div id="controls" class="slot">
     <section id="lobbyPanel" class="panel panel--center" aria-label="Lobby" hidden>
       <div class="panel__group panel__group--center">
@@ -147,6 +157,7 @@
     <div id="createRow" class="landing__create">
       <div id="landingMode" class="seg seg--block" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
       <button type="button" id="create" class="btn btn--primary btn--lg btn--block">Create a room</button>
+      <button type="button" id="practice" class="btn btn--secondary btn--block">Practice alone</button>
       <p id="createNote" class="note" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
     </div>
     <hr class="divider" id="roomsDivider">

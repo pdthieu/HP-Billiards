@@ -33,6 +33,24 @@ game in each row's chip. In 9-ball:
   and the status line warns that a third loses;
 - the tray under the table is a single "Pocketed" row.
 
+*Practice alone* on the landing page opens a private practice room of the
+picked game. The player plays both sides under the full rules: the header
+shows "Side A" and "Side B" (groups, fouls and whose turn it is), the side
+to play gets the shot panel, and the status names the sides ("Foul by Side
+A: scratch. Your turn, ball in hand."). There is no shot clock. A toolbar
+between the status and the panel (over the table's corner on landscape
+phones, icons only on phones) has:
+
+- *Undo* (`Z`): take back the last shot, up to 20;
+- *Move balls* (`M`): while on, dragging any ball moves it instead of
+  aiming; with it off the cue ball can still be dragged anywhere at any
+  time;
+- an 8-ball / 9-ball switch and *Rack* to start a fresh rack of that game;
+- *Leave*.
+
+The tray row is hidden to make room. Game over reads "Side A wins the rack"
+with *Rack again*.
+
 1. **Landing**: the name field is prefilled with the last name used (kept in
    `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
    shuffle button suggests another. The live room list (`GET /api/rooms`,

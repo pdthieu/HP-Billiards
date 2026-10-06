@@ -670,6 +670,7 @@ func (r *room) tick() {
 		Clock:        r.clockInfo(),
 		Fouls:        st.Fouls,
 		PushOut:      st.PushOut,
+		Undos:        len(r.history),
 	})
 }
 
@@ -851,6 +852,7 @@ func (r *room) roomState() protocol.RoomState {
 		Clock:      r.clockInfo(),
 		Fouls:      st.Fouls,
 		PushOut:    st.PushOut,
+		Undos:      len(r.history),
 	}
 }
 
