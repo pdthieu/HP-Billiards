@@ -930,8 +930,8 @@ func TestNineBallRoomAndModeSwitch(t *testing.T) {
 	}
 
 	c0, c1 := dial(t, srv), dial(t, srv)
-	if _, st := c0.join(code, "Ann"); st["mode"] != "9ball" {
-		t.Fatalf("mode in room_state = %v", st["mode"])
+	if _, st := c0.join(code, "Ann"); st["mode"] != "9ball" || len(st["balls"].([]any)) != 10 {
+		t.Fatalf("lobby of a 9-ball room: %v", st)
 	}
 	c1.join(code, "Bob")
 	c0.expect("player")
@@ -943,7 +943,7 @@ func TestNineBallRoomAndModeSwitch(t *testing.T) {
 	c1.send(msg{"type": "set_mode", "mode": "8ball"})
 	for _, c := range []*testClient{c0, c1} {
 		st := c.expect("room_state")
-		if st["mode"] != "8ball" || players(st)[0].(msg)["ready"] != false {
+		if st["mode"] != "8ball" || players(st)[0].(msg)["ready"] != false || len(st["balls"].([]any)) != game.NumBalls {
 			t.Errorf("after set_mode: %v", st)
 		}
 	}

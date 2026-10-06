@@ -273,6 +273,15 @@ func NewGame(cfg Config) *Game {
 	return &Game{Table: NewTable(cfg), Rules: NewRules()}
 }
 
+// SetMode chooses the game the next Start begins. In the lobby the table is
+// racked for it at once, so the players see what they are about to play.
+func (g *Game) SetMode(m Mode) {
+	g.Rules.Mode = m
+	if g.Rules.Phase == PhaseLobby {
+		g.rack()
+	}
+}
+
 // Start racks the balls and begins a new game with breaker to shoot first.
 func (g *Game) Start(breaker int) {
 	g.Rules.Start(breaker)

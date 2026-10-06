@@ -90,6 +90,8 @@ function optionText(opt, opp) {
     case 'rerack_opponent_breaks': return [`Re-rack, ${opp} breaks again`, 'They get another try at a legal break.'];
     case 'spot_eight': return ['Spot the 8-ball', 'Put the 8 back on the foot spot and play on.'];
     case 'rebreak': return ['Re-rack, I break', 'Start the rack again with your break.'];
+    case 'take_shot': return ['Take the shot', 'Play from where the balls lie.'];
+    case 'pass_back': return ['Pass it back', `${opp} shoots again from here.`];
     default: return [opt, ''];
   }
 }
@@ -99,7 +101,9 @@ const FOUL_TEXT = {
   wrong_ball: 'wrong ball hit first',
   kitchen: 'illegal shot from the kitchen',
   no_rail: 'no rail after contact',
+  bad_break: 'fewer than four balls reached a rail',
 };
+const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball' };
 
 const $ = (id) => document.getElementById(id);
 
@@ -131,6 +135,9 @@ const S = {
   ],
   phase: 'lobby',
   turn: 0,
+  mode: '8ball',         // the room's game: '8ball' or '9ball'
+  fouls: [0, 0],         // 9-ball: consecutive fouls by seat
+  pushOut: false,        // 9-ball: the player on turn may push out
   groups: ['', ''],
   ballInHand: false,
   kitchen: false,
@@ -152,7 +159,7 @@ const S = {
   lastPower: 0,          // power of the last shot, shown faintly in the bar
   lefty: false,          // power bar on the left
   hoverBall: null,       // ball under the mouse, for its label
-  call: null,            // {pocket} for the 8-ball, or {safety: true}
+  call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
   roomsTimer: 0,
   aiming: false,
   dragCue: null,         // {x, y} while placing the cue ball
@@ -178,6 +185,7 @@ const S = {
   hoverUntil: 0,         // touch: hide the hover label after this time
   statusTimer: 0,
   lastBreaker: -1,       // who broke the current rack, for the game-over note
+  shotWasBreak: false,   // the shot in progress (or just settled) is a break
   resultReason: '',      // why the rack ended, for the result banner
 };
 
@@ -393,6 +401,9 @@ function applyRules(msg) {
   const turnChanged = msg.turn !== S.turn || msg.phase !== S.phase;
   S.phase = msg.phase;
   S.turn = msg.turn;
+  if (msg.mode) S.mode = msg.mode; // settled carries no mode: it cannot change mid-game
+  S.fouls = msg.fouls || [0, 0];
+  S.pushOut = !!msg.pushOut;
   S.groups = msg.groups;
   S.ballInHand = msg.ballInHand;
   S.kitchen = msg.kitchen;
@@ -420,7 +431,12 @@ function onRoomState(msg) {
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
   if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
   if (msg.phase === 'breaking' && prevPhase !== 'breaking') resetOrientations(); // a fresh rack
-  if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
+  if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
+    // Not by a shot (that comes as settled): a third foul on the clock.
+    const loser = 1 - S.winner;
+    S.resultReason = `${nameOf(loser)} fouled three times in a row`;
+    setStatus(`${S.resultReason}. ${isMe(S.winner) ? 'You win!' : `${nameOf(S.winner)} wins.`}`, 'foul');
+  } else if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
     setStatus('The game was abandoned.', 'foul');
     const gone = S.players[1 - S.seat];
     if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
@@ -445,6 +461,7 @@ function onSnapshot(msg) {
     S.snaps = [];
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
+    S.shotWasBreak = S.phase === 'breaking';
     S.moving = true;
     S.clock = null;
     S.oppAim = null;
@@ -537,8 +554,11 @@ function onTimeout(msg) {
     text += `; “${optionText(msg.option, other)[0]}” was chosen.`;
   } else if (S.phase === 'breaking') {
     text += `. ${other} ${isMe(1 - msg.seat) ? 'break' : 'breaks'} instead.`;
+  } else if (isNine() && S.fouls[msg.seat] + 1 >= 3) {
+    text += ': a third foul in a row.'; // the room_state that follows ends the rack
   } else {
     text += `. ${other} ${isMe(1 - msg.seat) ? 'have' : 'has'} ball in hand.`;
+    if (isNine() && S.fouls[msg.seat] + 1 === 2) text += ` ${isMe(msg.seat) ? 'You are' : `${who} is`} on two fouls.`;
   }
   S.clock = null;
   toast(text, isMe(msg.seat));
@@ -559,6 +579,9 @@ function resetToLanding(error) {
   S.snaps = [];
   S.decision = null;
   S.clock = null;
+  S.mode = '8ball';
+  S.fouls = [0, 0];
+  S.pushOut = false;
   S.lastBreaker = -1;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
@@ -600,29 +623,50 @@ function describeShot(msg) {
   const who = nameOf(msg.shooter);
   const me = isMe(msg.shooter);
   const made = msg.pocketed.filter((id) => id !== 0);
-  if (msg.illegalBreak) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
+  const over = msg.winner !== undefined && msg.winner !== null;
+  const nine = isNine();
+  if (msg.illegalBreak && !nine) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
+  if (msg.pushedOut) parts.push(me ? 'You pushed out.' : `${who} pushed out.`);
   if (msg.foul) parts.push(`${me ? 'Your foul' : `Foul by ${who}`}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
   if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
-  if (msg.winner !== undefined && msg.winner !== null) {
+  if (nine && !over && made.includes(9)) parts.push('The 9 goes back on the foot spot.');
+  if (nine && !over && msg.foul && msg.fouls && msg.fouls[msg.shooter] === 2) {
+    parts.push(`${me ? 'You are' : `${who} is`} on two fouls: a third loses the rack.`);
+  }
+  if (over) {
     parts.push(isMe(msg.winner) ? 'You win!' : `${nameOf(msg.winner)} wins.`);
-    const g = S.groups[msg.shooter];
-    const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
-    if (msg.winner === msg.shooter) S.resultReason = '8-ball pocketed in the called pocket';
-    else if (msg.foul) S.resultReason = `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
-    else S.resultReason = early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
+    S.resultReason = nine ? nineResultReason(msg, who) : eightResultReason(msg, who, made);
   } else if (msg.decision) {
     parts.push(`${nameOf(msg.decision.seat)} ${isMe(msg.decision.seat) ? 'choose' : 'chooses'} how to continue.`);
   } else {
     let t = isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn`;
     if (msg.ballInHand) t += msg.kitchen ? ', ball in hand in the kitchen' : ', ball in hand';
+    if (msg.pushOut) t += isMe(msg.turn) ? '; you may push out' : '; they may push out';
     parts.push(t + '.');
   }
-  if (msg.illegalBreak) {
+  if (msg.pushedOut && msg.decision) {
+    S.lastDecisionReason = `${me ? 'You' : who} pushed out. Take the shot from here, or pass it back.`;
+  } else if (msg.illegalBreak) {
     S.lastDecisionReason = `${me ? 'You' : who} broke illegally: nothing pocketed and fewer than four balls reached a rail.`;
   } else if (msg.decision) {
     S.lastDecisionReason = `${me ? 'You' : who} pocketed the 8-ball on the break.`;
   }
   setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
+}
+
+// nineResultReason says why a 9-ball rack ended with this shot.
+function nineResultReason(msg, who) {
+  if (msg.winner !== msg.shooter) return `${who} fouled three times in a row`;
+  return S.shotWasBreak ? '9-ball pocketed on the break' : '9-ball pocketed';
+}
+
+// eightResultReason says why an 8-ball rack ended with this shot.
+function eightResultReason(msg, who, made) {
+  const g = S.groups[msg.shooter];
+  const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
+  if (msg.winner === msg.shooter) return '8-ball pocketed in the called pocket';
+  if (msg.foul) return `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
+  return early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
 }
 
 // ---------------------------------------------------------------------------
@@ -631,13 +675,16 @@ function describeShot(msg) {
 const isMe = (seat) => seat === S.seat;
 const nameOf = (seat) => (isMe(seat) ? 'You' : (S.players[seat].name || `Player ${seat + 1}`));
 const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? 'stripes' : '');
-const ballName = (id) => (id === 8 ? 'the 8-ball' : `the ${id}`);
+const isNine = () => S.mode === '9ball';
+const ballName = (id) => (id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
 const inPlay = () => !S.decision && (S.phase === 'breaking' || S.phase === 'open' || S.phase === 'assigned');
 const isMyShot = () => S.seat >= 0 && inPlay() && !S.moving && S.turn === S.seat;
-const canCall = () => S.phase !== 'breaking'; // a safety may be declared
+const canCall = () => !isNine() && S.phase !== 'breaking'; // a safety may be declared (8-ball)
+const canPushOut = () => isNine() && S.pushOut && isMyShot();
 // eightOn mirrors Rules.eightOn: the 8-ball is my legal target, so it needs
 // a called pocket.
 function eightOn() {
+  if (isNine()) return false;
   if (S.phase === 'open') return remaining('solids') === 0 || remaining('stripes') === 0;
   if (S.phase === 'assigned') return remaining(S.groups[S.seat]) === 0;
   return false;
@@ -653,6 +700,11 @@ function remaining(group) {
 // legalTargets mirrors Rules.legalTarget on the server for highlighting.
 function legalTargets() {
   const out = new Set();
+  if (isNine()) {
+    const low = lowestBall();
+    if (low !== null) out.add(low);
+    return out;
+  }
   if (S.phase === 'breaking') return out;
   const mine = S.groups[S.seat];
   const eight = eightOn();
@@ -662,6 +714,13 @@ function legalTargets() {
     else if (S.phase === 'assigned' && (eight ? id === 8 : groupOf(id) === mine)) out.add(id);
   }
   return out;
+}
+
+// lowestBall mirrors Rules.lowest: the 9-ball shooter's legal first contact.
+function lowestBall() {
+  let low = null;
+  for (const id of S.balls.keys()) if (id > 0 && (low === null || id < low)) low = id;
+  return low;
 }
 
 // castAim finds where the cue ball, sent along angle, first touches a ball or
@@ -708,6 +767,7 @@ function shoot() {
   if (!canShoot()) return;
   const msg = { type: 'shoot', angle: S.angle, power: S.power };
   if (S.call && S.call.safety) msg.call = { safety: true };
+  else if (S.call && S.call.pushOut) msg.call = { pushOut: true };
   else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   if (send(msg)) {
@@ -1575,7 +1635,7 @@ function drawBall(id, p, opts) {
 // drawBallLabel names the ball under the pointer, in screen pixels so it
 // stays readable at any table size.
 function drawBallLabel(id, p) {
-  const text = id === 0 ? 'cue ball' : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
+  const text = id === 0 ? 'cue ball' : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
   const sp = toScreen(p);
   ctx.save();
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -1860,7 +1920,8 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowDown': setPower(barToPower(powerToBar(S.power) - 0.05)); break;
     case 'Escape': if (S.powerDrag) cancelPowerDrag(); else return; break;
     case ' ': case 'Enter': if (canShoot()) { shoot(); S.lastPower = S.power; renderPower(); } break;
-    case 's': case 'S': if (canCall()) toggleSafety(); break;
+    case 's': case 'S': if (canCall()) toggleSafety(); else return; break;
+    case 'p': case 'P': if (canPushOut()) togglePushOut(); else return; break;
     case 'x': case 'X': if (canExtend()) extend(); else return; break;
     default: return;
   }
@@ -2066,7 +2127,7 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
     const chip = li.querySelector('.chip');
     chip.className = `chip chip--${phase}`;
-    chip.querySelector('.chip__text').textContent = phase;
+    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'} · ${phase}`;
     const btn = li.querySelector('button');
     const open = room.seated < 2;
     btn.textContent = open ? 'Join' : 'Full';
@@ -2126,6 +2187,11 @@ function renderSeat(seat) {
   if (isMe(seat)) line.append(tag('you', 'you'));
   if (!p.connected) line.append(tag('offline', 'offline'));
   if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
+  if (isNine() && S.fouls[seat] === 2 && S.phase !== 'game_over') {
+    const t = tag('2 fouls', 'foul');
+    t.title = 'A third foul in a row loses the rack';
+    line.append(t);
+  }
   body.append(line);
   const g = S.groups[seat];
   if (g) {
@@ -2240,6 +2306,24 @@ function tickHolds() {
 // renderTrays lists the pocketed balls of each group under the table.
 function renderTrays() {
   $('trays').hidden = S.phase === 'lobby';
+  if (isNine()) {
+    // one row: the balls down so far (the 9 only ever drops to end the rack)
+    const el = $('traySolids');
+    el.replaceChildren();
+    $('trayStripes').replaceChildren();
+    if (S.phase === 'lobby') return;
+    const balls = [];
+    for (let id = 1; id <= 9; id++) {
+      if (S.balls.has(id)) continue;
+      const b = document.createElement('span');
+      b.className = 'ball' + (id === 9 ? ' ball--stripe' : '');
+      b.style.setProperty('--c', `var(--ball-${id === 9 ? 1 : id})`);
+      b.title = String(id);
+      balls.push(b);
+    }
+    el.append(Object.assign(document.createElement('span'), { className: 'tray__label', textContent: 'Pocketed' }), ...balls);
+    return;
+  }
   for (const [elId, first, label] of [['traySolids', 1, 'Solids'], ['trayStripes', 9, 'Stripes']]) {
     const el = $(elId);
     el.replaceChildren();
@@ -2274,6 +2358,7 @@ function showPanel(id) {
 }
 
 function refreshPanels() {
+  renderModes();
   renderSeat(0);
   renderSeat(1);
   if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
@@ -2304,7 +2389,7 @@ function refreshPanels() {
       $('lobbySub').textContent = 'Their seat is held for a moment.';
     } else if (me.ready) {
       setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
-      $('lobbySub').textContent = 'The game starts when both players are ready.';
+      $('lobbySub').textContent = 'The game starts when both players are ready. Changing the game makes you both ready again.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
       $('lobbySub').textContent = 'After the first rack the break alternates.';
@@ -2337,9 +2422,38 @@ function refreshPanels() {
   if (panel === 'overPanel') {
     $('overText').textContent = S.winner === null ? 'Game over' : (isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`);
     const next = S.lastBreaker >= 0 ? 1 - S.lastBreaker : -1;
-    $('rematchNote').textContent = next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`;
+    $('rematchNote').textContent = (next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`) + ` Next: ${MODE_NAME[S.mode]}.`;
   }
   refreshDecision();
+}
+
+// renderModes shows the room's game in the header and on the lobby and
+// game-over pickers.
+function renderModes() {
+  $('roomEyebrow').textContent = S.seat >= 0 ? `${MODE_NAME[S.mode]} room` : 'Room';
+  for (const id of ['lobbyMode', 'overMode']) setSeg($(id), S.mode);
+}
+
+function setSeg(seg, mode) {
+  for (const b of seg.querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+}
+
+// The landing picker chooses the game of a new room (remembered); the
+// lobby and game-over pickers change the room's game for both players.
+let landingMode = readSetting('pool:mode') === '9ball' ? '9ball' : '8ball';
+setSeg($('landingMode'), landingMode);
+$('landingMode').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b) return;
+  landingMode = b.dataset.mode;
+  writeSetting('pool:mode', landingMode);
+  setSeg($('landingMode'), landingMode);
+});
+for (const id of ['lobbyMode', 'overMode']) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('.seg__btn');
+    if (b && b.dataset.mode !== S.mode) send({ type: 'set_mode', mode: b.dataset.mode });
+  });
 }
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2348,7 +2462,18 @@ function setPanelMsg(id, html) { $(id).innerHTML = html; }
 function refreshShotPanel() {
   const callEl = $('callText');
   let html, called = false;
-  if (!canCall()) {
+  const opp = S.players[1 - S.seat].name || 'your opponent';
+  if (isNine()) {
+    const low = lowestBall();
+    called = true;
+    if (S.phase === 'breaking') {
+      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
+    } else if (S.call && S.call.pushOut) {
+      html = `Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
+    } else {
+      html = `Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.</span>`;
+    }
+  } else if (!canCall()) {
     html = 'Break: <span class="muted">no call needed' + (S.ballInHand ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
     called = true;
   } else if (S.call && S.call.safety) {
@@ -2377,7 +2502,7 @@ function refreshShotPanel() {
     callEl.classList.add('call__line--enter');
   }
   callEl.classList.toggle('call__line--called', called);
-  $('clearCall').hidden = !S.call;
+  $('clearCall').hidden = !S.call || !!S.call.pushOut; // the toggle undoes a push out
   const ext = $('extend');
   ext.hidden = !canExtend();
   if (!ext.hidden) {
@@ -2387,6 +2512,8 @@ function refreshShotPanel() {
     ext.setAttribute('aria-label', ext.title);
   }
   $('safety').hidden = !canCall();
+  $('pushOut').hidden = !canPushOut();
+  $('pushOut').setAttribute('aria-pressed', String(!!(S.call && S.call.pushOut)));
   $('safety').setAttribute('aria-pressed', String(!!(S.call && S.call.safety)));
   for (const b of document.querySelectorAll('#shotPanel .nudge')) {
     const d = Number(b.dataset.deg);
@@ -2403,6 +2530,11 @@ function refreshShotPanel() {
   setAngle(S.angle);
   renderPower();
   renderSpin();
+}
+
+function togglePushOut() {
+  S.call = S.call && S.call.pushOut ? null : { pushOut: true };
+  refreshShotPanel();
 }
 
 function toggleSafety() {
@@ -2426,7 +2558,7 @@ function refreshDecision() {
   if (wasShown && dlg.dataset.key === JSON.stringify(d)) return; // already built
   dlg.dataset.key = JSON.stringify(d);
   const eight = d.options.includes('spot_eight');
-  $('decisionTitle').textContent = eight ? '8-ball on the break' : 'Illegal break';
+  $('decisionTitle').textContent = d.options.includes('take_shot') ? 'Push out' : eight ? '8-ball on the break' : 'Illegal break';
   $('decisionText').textContent = S.lastDecisionReason || '';
   const box = $('decisionOptions');
   box.replaceChildren();
@@ -2512,6 +2644,7 @@ function renderResult() {
 $('ready').onclick = () => send({ type: 'ready' });
 $('rematch').onclick = () => send({ type: 'rematch' });
 $('safety').onclick = toggleSafety;
+$('pushOut').onclick = togglePushOut;
 $('clearCall').onclick = () => { S.call = null; refreshShotPanel(); };
 $('extend').onclick = extend;
 for (const b of document.querySelectorAll('.nudge')) {
@@ -2564,7 +2697,11 @@ $('create').onclick = async () => {
   if (!name) return;
   $('landingError').hidden = true;
   try {
-    const res = await fetch('/api/rooms', { method: 'POST' });
+    const res = await fetch('/api/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: landingMode }),
+    });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
     const { roomCode } = body;

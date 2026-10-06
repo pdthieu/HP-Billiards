@@ -136,6 +136,10 @@ gây `error` từ server (test chạy 100 ván bot với bot).
    kết nối. Chỉnh bằng flag `-shot-clock`, `-shot-clock-long` cho cả server.
    Còn lại: cho chọn thời gian khi tạo phòng.
 
+5. ~~**9-ball**~~ Đã làm (10/2026): chọn 8-ball hoặc 9-ball khi tạo phòng,
+   đổi được trong lobby và sau ván; luật WPA mục 5 đủ push-out và 3 lỗi
+   liên tiếp.
+
 ## Để sau
 
 - Tài khoản nhẹ (đăng nhập bằng link email hoặc OAuth), thống kê cá nhân,

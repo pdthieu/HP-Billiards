@@ -120,7 +120,7 @@ func newRoom(h *Hub, code string, mode game.Mode) *room {
 // resetGame puts a fresh game of the room's mode in the lobby.
 func (r *room) resetGame() {
 	r.game = game.NewGame(r.hub.opts.Game)
-	r.game.Rules.Mode = r.mode
+	r.game.SetMode(r.mode)
 }
 
 // publishInfo refreshes the room-list summary.
@@ -469,7 +469,7 @@ func (r *room) handleSetMode(mode game.Mode) error {
 		return nil
 	}
 	r.mode = mode
-	r.game.Rules.Mode = mode
+	r.game.SetMode(mode)
 	if ph == game.PhaseLobby {
 		for i := range r.seats {
 			r.seats[i].ready = false

@@ -17,6 +17,22 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 
 ## Flow
 
+The game, 8-ball or 9-ball, is picked with a two-button switch above
+*Create a room* (remembered in `localStorage` as `pool:mode`) and can be
+changed by either player from the same switch in the lobby panel (both must
+press ready again) or the game-over panel (the rematch uses it). The header
+eyebrow reads "8-ball room" or "9-ball room" and the room list shows the
+game in each row's chip. In 9-ball:
+
+- the call line says which ball to hit first and the lowest ball gets the
+  white ring; Safety and pocket calls do not exist;
+- right after the break the shooter sees a *Push out* toggle (or `P`); the
+  opponent then gets a "Push out" dialog: *Take the shot* or *Pass it
+  back*;
+- a player on two consecutive fouls gets a red "2 fouls" tag on their seat,
+  and the status line warns that a third loses;
+- the tray under the table is a single "Pocketed" row.
+
 1. **Landing**: the name field is prefilled with the last name used (kept in
    `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
    shuffle button suggests another. The live room list (`GET /api/rooms`,
@@ -79,8 +95,9 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".
-5. **Decisions** after the break (illegal break, 8-ball on the break) open a
-   dialog for the choosing player; the other sees "Waiting for … to decide".
+5. **Decisions** after the break (illegal break, 8-ball on the break) or a
+   9-ball push out open a dialog for the choosing player; the other sees
+   "Waiting for … to decide".
 6. **Game over**: banner plus *Rematch* (either player).
 7. **Disconnect**: the client reconnects by itself with the seat token from
    `welcome` (300 ms, then 1 s, 2 s, 4 s, 8 s, 8 s, …) and shows an overlay

@@ -15,7 +15,7 @@
 
 <header id="top" class="hdr">
   <div class="hdr__room">
-    <span class="eyebrow">Room</span>
+    <span id="roomEyebrow" class="eyebrow">Room</span>
     <span id="roomCode" class="hdr__code">—</span>
     <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
     <button id="copyLink" class="btn btn--secondary btn--small" title="Copy an invite link"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg><span>Copy link</span></button>
@@ -52,8 +52,11 @@
         <p id="lobbyText" class="panel__msg"></p>
         <p id="lobbySub" class="panel__sub"></p>
       </div>
-      <button id="ready" class="btn btn--primary btn--lg">I’m ready</button>
-      <button id="lobbyCopy" class="btn btn--secondary btn--lg" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy invite link</button>
+      <div class="panel__actions">
+        <div id="lobbyMode" class="seg" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
+        <button id="ready" class="btn btn--primary btn--lg">I’m ready</button>
+        <button id="lobbyCopy" class="btn btn--secondary btn--lg" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy invite link</button>
+      </div>
     </section>
 
     <section id="shotPanel" class="panel" aria-label="Your shot" hidden>
@@ -61,6 +64,7 @@
         <p id="callText" class="call__line"></p>
         <div class="call__actions">
           <button id="safety" class="toggle" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          <button id="pushOut" class="toggle" aria-pressed="false" hidden title="Push out (P): no contact needed; your opponent then chooses who shoots"><span class="toggle__box"></span>Push out</button>
           <button id="clearCall" class="btn btn--quiet btn--small" hidden>Clear</button>
           <button id="extend" class="btn btn--quiet btn--small" hidden>+40s</button>
           <span id="handTag" class="tag tag--ready" hidden>ball in hand</span>
@@ -109,6 +113,7 @@
       </div>
       <div class="panel__actions">
         <button id="leaveGame" class="btn btn--quiet">Leave</button>
+        <div id="overMode" class="seg" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
         <button id="rematch" class="btn btn--primary btn--lg">Rematch</button>
       </div>
     </section>
@@ -124,7 +129,7 @@
   <form id="landingForm" class="card landing__card" novalidate>
     <div id="landingBrand" class="landing__brand">
       <span class="wordmark">POOL</span>
-      <span class="caption">8-ball · WPA rules · call the 8</span>
+      <span class="caption">8-ball &amp; 9-ball · WPA rules</span>
     </div>
     <div id="landingInvite" class="landing__invite" hidden>
       <span class="wordmark wordmark--small">POOL</span>
@@ -140,6 +145,7 @@
       <span class="field__msg" id="nameError" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span>Enter a name so your opponent knows who you are.</span></span>
     </div>
     <div id="createRow" class="landing__create">
+      <div id="landingMode" class="seg seg--block" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
       <button type="button" id="create" class="btn btn--primary btn--lg btn--block">Create a room</button>
       <p id="createNote" class="note" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
     </div>

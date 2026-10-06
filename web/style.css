@@ -33,6 +33,18 @@ button { cursor: pointer; }
 .hold--clock.hold--low .hold__num { color: var(--foul); }
 .hint--low { color: var(--foul); }
 
+/* game picker: 8-ball / 9-ball */
+.seg { display: inline-flex; flex: none; gap: 2px; padding: 3px; border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--hairline); }
+.seg--block { display: flex; }
+.seg--block .seg__btn { flex: 1; }
+.seg__btn { position: relative; min-height: 32px; padding: 0 14px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--text-muted); font: 600 14px/1 var(--font-ui); cursor: pointer; transition: background-color var(--dur-1) var(--ease-out), color var(--dur-1) var(--ease-out); }
+.seg__btn::before { content: ""; position: absolute; inset: -6px -1px; }
+.seg__btn:hover { color: var(--text); }
+.seg__btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg__btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.landing__create { display: flex; flex-direction: column; gap: 12px; }
+.tag--foul { background: var(--foul-soft); color: var(--foul); }
+
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }
 .stage__table { touch-action: none; user-select: none; }
@@ -139,7 +151,15 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .spin__meta .field__label { display: none; }
   .spin__label { font-size: 13px; line-height: 18px; }
   .panel__title { font-size: 22px; line-height: 26px; }
-  #overPanel { flex-direction: row; align-items: center; }
+  #overPanel { justify-content: center; }
+  #overPanel .panel__group { gap: 4px; }
+  #rematchNote { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* picker and buttons share one row */
+  .panel__actions { justify-content: center; gap: 8px; }
+  .panel__actions .btn--lg { min-height: 44px; padding: 0 18px; font-size: 16px; }
+  .panel__actions .btn--lg svg { display: none; }
+  .panel__actions .btn--quiet { padding: 0 10px; }
+  .seg__btn { padding: 0 10px; font-size: 13px; }
   #settingsBtn { width: 36px; height: 36px; }
 }
 
