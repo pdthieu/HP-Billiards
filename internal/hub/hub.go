@@ -127,7 +127,7 @@ var ErrRoomLimit = errors.New("room limit reached")
 
 // CreateRoom starts a new empty room and returns its code. It fails with
 // ErrRoomLimit when MaxRooms rooms already exist.
-func (h *Hub) CreateRoom(mode game.Mode) (string, error) {
+func (h *Hub) CreateRoom(mode game.Mode, practice bool) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.rooms) >= h.opts.MaxRooms {
@@ -138,7 +138,7 @@ func (h *Hub) CreateRoom(mode game.Mode) (string, error) {
 		if _, taken := h.rooms[code]; taken {
 			continue
 		}
-		r := newRoom(h, code, mode)
+		r := newRoom(h, code, mode, practice)
 		h.rooms[code] = r
 		go r.run()
 		return code, nil
@@ -154,11 +154,14 @@ type RoomInfo struct {
 	// Seated counts taken seats, including seats held for a reconnect;
 	// a room with Seated < 2 can be joined.
 	Seated int `json:"seated"`
+	// Practice rooms are private: counted against MaxRooms, never listed.
+	Practice bool `json:"-"`
 }
 
 // RoomList is the body of GET /api/rooms.
 type RoomList struct {
 	Rooms []RoomInfo `json:"rooms"`
+	Used  int        `json:"used"` // live rooms, practice rooms included
 	Max   int        `json:"max"`
 }
 
@@ -170,9 +173,9 @@ func (h *Hub) Rooms() RoomList {
 		rooms = append(rooms, r)
 	}
 	h.mu.Unlock()
-	list := RoomList{Rooms: make([]RoomInfo, 0, len(rooms)), Max: h.opts.MaxRooms}
+	list := RoomList{Rooms: make([]RoomInfo, 0, len(rooms)), Used: len(rooms), Max: h.opts.MaxRooms}
 	for _, r := range rooms {
-		if info := r.info.Load(); info != nil {
+		if info := r.info.Load(); info != nil && !info.Practice {
 			list.Rooms = append(list.Rooms, *info)
 		}
 	}
@@ -203,12 +206,14 @@ func (h *Hub) remove(r *room) {
 
 // HandleCreateRoom is the POST handler that creates a room and answers
 // {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
-// MaxRooms rooms already exist. An optional JSON body {"mode": "9ball"}
-// picks the game; 8-ball by default.
+// MaxRooms rooms already exist. An optional JSON body {"mode": "9ball",
+// "practice": true} picks the game (8-ball by default) and makes a private
+// room for one player who plays both sides.
 func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var body struct {
-		Mode game.Mode `json:"mode"`
+		Mode     game.Mode `json:"mode"`
+		Practice bool      `json:"practice"`
 	}
 	json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<10)).Decode(&body) // an empty or bad body is the default
 	if body.Mode == "" {
@@ -219,7 +224,7 @@ func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"error": protocol.ErrBadMode, "message": "unknown game mode"})
 		return
 	}
-	code, err := h.CreateRoom(body.Mode)
+	code, err := h.CreateRoom(body.Mode, body.Practice)
 	if err != nil {
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{

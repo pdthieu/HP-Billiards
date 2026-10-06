@@ -188,7 +188,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	h := New(Options{MaxRooms: 200})
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		code, err := h.CreateRoom(game.ModeEight)
+		code, err := h.CreateRoom(game.ModeEight, false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +208,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	if h.RoomCount() != 200 {
 		t.Errorf("RoomCount = %d, want 200", h.RoomCount())
 	}
-	if _, err := h.CreateRoom(game.ModeEight); err != ErrRoomLimit {
+	if _, err := h.CreateRoom(game.ModeEight, false); err != ErrRoomLimit {
 		t.Errorf("201st room: err = %v, want ErrRoomLimit", err)
 	}
 }
@@ -1021,5 +1021,137 @@ func TestWelcomeCarriesTheAimLine(t *testing.T) {
 		if w["aimLine"] != tt.want {
 			t.Errorf("AimLine %v: welcome aimLine = %v, want %v", tt.aim, w["aimLine"], tt.want)
 		}
+	}
+}
+
+// createPractice creates a practice room for mode and returns its code.
+func createPractice(t *testing.T, srv *httptest.Server, mode string) string {
+	t.Helper()
+	res, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"mode":"`+mode+`","practice":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct{ RoomCode string }
+	json.NewDecoder(res.Body).Decode(&body)
+	return body.RoomCode
+}
+
+// joinPractice joins a practice room and returns the client and the state
+// of the rack it starts at once.
+func joinPractice(t *testing.T, srv *httptest.Server, code string) (*testClient, msg) {
+	t.Helper()
+	c := dial(t, srv)
+	c.join(code, "Ann")
+	return c, c.expect("room_state")
+}
+
+func TestPracticeRoomIsPrivateAndStartsAtOnce(t *testing.T) {
+	h, srv := newServer(t, fastOptions())
+	code := createPractice(t, srv, "9ball")
+	if list := h.Rooms(); len(list.Rooms) != 0 || list.Used != 1 {
+		t.Errorf("room list = %+v, want no rooms listed and one used", list)
+	}
+	c, st := joinPractice(t, srv, code)
+	if st["practice"] != true || st["phase"] != "breaking" || st["mode"] != "9ball" || st["clock"] != nil {
+		t.Errorf("practice rack: %v", st)
+	}
+	p := players(st)
+	if p[1].(msg)["name"] != "Ann" || p[1].(msg)["connected"] != true {
+		t.Errorf("the player should sit on both sides: %v", p)
+	}
+
+	other := dial(t, srv)
+	other.send(msg{"type": "join", "roomCode": code, "name": "Bob"})
+	other.expectError("room_full")
+
+	c.send(msg{"type": "extend"})
+	c.expectError("wrong_phase")
+}
+
+func TestPracticeOnePlayerPlaysBothSides(t *testing.T) {
+	opts := fastOptions()
+	opts.Game.SlidingFriction = 0.6 // a legal break that settles quickly
+	opts.Game.RollingFriction = 0.15
+	_, srv := newServer(t, opts)
+	c, _ := joinPractice(t, srv, createPractice(t, srv, "8ball"))
+
+	// Whichever side is to play, the same socket plays it, until side B
+	// (seat 1) has taken a shot.
+	c.send(msg{"type": "shoot", "angle": 0, "power": 1})
+	for i := 0; i < 8; i++ {
+		_, settled := c.waitFor("settled")
+		if settled["shooter"] == 1.0 {
+			return
+		}
+		if d, ok := settled["decision"].(msg); ok {
+			c.send(msg{"type": "choose", "option": d["options"].([]any)[0]})
+			c.expect("room_state")
+		}
+		c.send(msg{"type": "shoot", "angle": math.Pi/2 + float64(i)*0.4, "power": 0.15})
+	}
+	t.Fatal("side B never got to shoot")
+}
+
+func TestPracticeUndoPlaceAndRerack(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	c, start := joinPractice(t, srv, createPractice(t, srv, "8ball"))
+
+	c.send(msg{"type": "undo"})
+	c.expectError("no_undo")
+
+	// Set up a position: the cue ball and the 5 anywhere, outside ball in hand rules.
+	c.send(msg{"type": "place_cue", "x": 1.0, "y": 0.4})
+	c.expect("room_state")
+	c.send(msg{"type": "place_ball", "id": 5, "x": 1.4, "y": 0.5})
+	st := c.expect("room_state")
+	for _, b := range st["balls"].([]any) {
+		if b := b.(msg); b["id"] == 5.0 && (b["x"] != 1.4 || b["y"] != 0.5) {
+			t.Errorf("5-ball at %v", b)
+		}
+	}
+	c.send(msg{"type": "place_ball", "id": 5, "x": 1.0, "y": 0.4})
+	c.expectError("bad_placement") // on the cue ball
+
+	c.send(msg{"type": "shoot", "angle": 0.2, "power": 0.6})
+	c.waitFor("settled")
+	c.send(msg{"type": "undo"})
+	back := c.expect("room_state")
+	if !sameBalls(back["balls"], st["balls"]) || back["turn"] != st["turn"] || back["phase"] != st["phase"] {
+		t.Errorf("after undo:\n%v\nwant\n%v", back, st)
+	}
+	c.send(msg{"type": "undo"})
+	c.expectError("no_undo")
+
+	c.send(msg{"type": "rerack", "mode": "9ball"})
+	st = c.expect("room_state")
+	if st["mode"] != "9ball" || st["phase"] != "breaking" || len(st["balls"].([]any)) != 10 {
+		t.Errorf("after rerack: %v", st)
+	}
+	c.send(msg{"type": "rerack", "mode": "snooker"})
+	c.expectError("bad_mode")
+	c.send(msg{"type": "rerack"})
+	if st := c.expect("room_state"); st["mode"] != "9ball" || len(start["balls"].([]any)) != game.NumBalls {
+		t.Errorf("rerack without a mode: %v", st)
+	}
+}
+
+// sameBalls compares two ball lists from JSON.
+func sameBalls(a, b any) bool {
+	x, _ := json.Marshal(a)
+	y, _ := json.Marshal(b)
+	return bytes.Equal(x, y)
+}
+
+func TestPracticeMessagesOutsidePractice(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	c0, _, _ := startGame(t, srv)
+	for _, m := range []msg{
+		{"type": "place_ball", "id": 3, "x": 1, "y": 1},
+		{"type": "undo"},
+		{"type": "rerack"},
+	} {
+		c0.send(m)
+		c0.expectError("not_practice")
 	}
 }

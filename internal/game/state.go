@@ -368,6 +368,58 @@ func (g *Game) TimeFoul(seat int) error {
 	return nil
 }
 
+// PlaceFree moves ball id, which must be on the table, to pos for practice:
+// the cue ball with or without ball in hand and anywhere, object balls to
+// set up a position. The rules are untouched; a cue ball left above the head
+// string while the kitchen restriction applies still counts as played from
+// the kitchen.
+func (g *Game) PlaceFree(id int, pos Vec) error {
+	switch {
+	case g.shooting:
+		return ErrBallsMoving
+	case g.Rules.Phase == PhaseLobby:
+		return ErrWrongPhase
+	case id < 0 || id >= NumBalls || g.Table.Balls[id].Pocketed:
+		return ErrBadPlacement
+	}
+	if !g.Table.PlaceBall(id, pos) {
+		return ErrBadPlacement
+	}
+	if id == CueBall {
+		g.cueInKitchen = g.Rules.Kitchen && pos.X <= g.Table.Cfg.HeadString()
+	}
+	return nil
+}
+
+// Snapshot is a saved position: balls, rules and whose shot it is. Taken
+// with Save between shots, it brings the game back with Restore.
+type Snapshot struct {
+	balls        [NumBalls]Ball
+	rules        Rules
+	cueInKitchen bool
+}
+
+// Save records the game as it stands; balls must not be moving.
+func (g *Game) Save() Snapshot {
+	s := Snapshot{balls: g.Table.Balls, rules: *g.Rules, cueInKitchen: g.cueInKitchen}
+	if d := g.Rules.Decision; d != nil {
+		s.rules.Decision = &Decision{Seat: d.Seat, Options: append([]Option(nil), d.Options...)}
+	}
+	return s
+}
+
+// Restore puts the game back where Save found it.
+func (g *Game) Restore(s Snapshot) {
+	g.Table.Balls = s.balls
+	g.Table.ClearEvents()
+	*g.Rules = s.rules
+	if d := s.rules.Decision; d != nil {
+		g.Rules.Decision = &Decision{Seat: d.Seat, Options: append([]Option(nil), d.Options...)}
+	}
+	g.cueInKitchen = s.cueInKitchen
+	g.shooting = false
+}
+
 // Choose answers the pending decision for seat.
 func (g *Game) Choose(seat int, opt Option) error {
 	res, err := g.Rules.Choose(seat, opt)

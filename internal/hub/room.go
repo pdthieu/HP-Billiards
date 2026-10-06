@@ -76,7 +76,12 @@ type clock struct {
 var (
 	errNoExtension = errors.New("you have already used your extension this game")
 	errBadMode     = errors.New("unknown game mode")
+	errNoUndo      = errors.New("there is no shot to take back")
+	errNotPractice = errors.New("only in a practice room")
 )
+
+// maxUndo is how many shots a practice room can take back.
+const maxUndo = 20
 
 // room is one table and its two seats. Everything below inbox is owned by the
 // run goroutine and must not be touched from anywhere else.
@@ -89,7 +94,11 @@ type room struct {
 	// republishes it after every event; anyone may Load it.
 	info atomic.Pointer[RoomInfo]
 
-	mode        game.Mode // the game played; can change between games
+	mode game.Mode // the game played; can change between games
+	// practice: one player plays both seats, seat 0 holds the socket and
+	// history the positions before the last shots, for undo.
+	practice    bool
+	history     []game.Snapshot
 	game        *game.Game
 	seats       [2]seat
 	ticker      *time.Ticker // non-nil only while a shot is in progress
@@ -104,13 +113,14 @@ type room struct {
 	timerGen int
 }
 
-func newRoom(h *Hub, code string, mode game.Mode) *room {
+func newRoom(h *Hub, code string, mode game.Mode, practice bool) *room {
 	r := &room{
-		hub:   h,
-		code:  code,
-		inbox: make(chan event, 16),
-		done:  make(chan struct{}),
-		mode:  mode,
+		hub:      h,
+		code:     code,
+		inbox:    make(chan event, 16),
+		done:     make(chan struct{}),
+		mode:     mode,
+		practice: practice,
 	}
 	r.resetGame()
 	r.publishInfo()
@@ -125,7 +135,7 @@ func (r *room) resetGame() {
 
 // publishInfo refreshes the room-list summary.
 func (r *room) publishInfo() {
-	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Phase: r.game.Rules.Phase}
+	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Phase: r.game.Rules.Phase, Practice: r.practice}
 	for i := range r.seats {
 		info.Players[i] = r.seats[i].name
 		if !r.seats[i].empty() {
@@ -269,6 +279,9 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 			break
 		}
 	}
+	if r.practice && s != 0 {
+		s = -1 // a practice table has one player
+	}
 	if s < 0 {
 		c.SendJSON(protocol.NewError(protocol.ErrRoomFull, "the room is full"))
 		return false
@@ -280,6 +293,9 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 		name:   cleanName(msg.Name, s),
 	}
 	r.welcome(c, s)
+	if r.practice {
+		r.startRack(0) // nobody to wait for
+	}
 	return true
 }
 
@@ -399,23 +415,37 @@ func (r *room) vacate(s int) {
 	}
 }
 
+// handleMessage applies a message from seat s. In a practice room the one
+// player acts for whichever seat is to play (act); replies still go to s.
 func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
+	act := s
+	if r.practice {
+		act = r.actor()
+	}
 	var err error
 	switch msg.Type {
 	case protocol.TypeReady:
 		err = r.handleReady(s)
 	case protocol.TypeAim:
-		r.handleAim(s, msg)
+		r.handleAim(act, msg)
 	case protocol.TypeShoot:
-		err = r.handleShoot(s, msg)
+		err = r.handleShoot(act, msg)
 	case protocol.TypePlaceCue:
-		if err = r.game.PlaceCue(s, game.Vec{X: msg.X, Y: msg.Y}); err == nil {
+		if r.practice {
+			err = r.placeFree(game.CueBall, msg)
+		} else if err = r.game.PlaceCue(s, game.Vec{X: msg.X, Y: msg.Y}); err == nil {
 			r.broadcast(r.roomState())
 		}
 	case protocol.TypeChoose:
-		if err = r.choose(s, msg.Option); err == nil {
+		if err = r.choose(act, msg.Option); err == nil {
 			r.broadcast(r.roomState())
 		}
+	case protocol.TypePlaceBall:
+		err = r.placeFree(msg.ID, msg)
+	case protocol.TypeUndo:
+		err = r.handleUndo()
+	case protocol.TypeRerack:
+		err = r.handleRerack(msg.Mode)
 	case protocol.TypeRematch:
 		err = r.handleRematch()
 	case protocol.TypeExtend:
@@ -453,7 +483,59 @@ func (r *room) handleRematch() error {
 	if r.game.Rules.Phase != game.PhaseGameOver {
 		return game.ErrWrongPhase
 	}
+	if r.practice {
+		r.startRack(0)
+		return nil
+	}
 	r.startRack(1 - r.lastBreaker) // breaks alternate
+	return nil
+}
+
+// placeFree moves a ball anywhere it fits (practice only).
+func (r *room) placeFree(id int, msg protocol.ClientMessage) error {
+	if !r.practice {
+		return errNotPractice
+	}
+	if err := r.game.PlaceFree(id, game.Vec{X: msg.X, Y: msg.Y}); err != nil {
+		return err
+	}
+	r.broadcast(r.roomState())
+	return nil
+}
+
+// handleUndo takes back the last shot of a practice room.
+func (r *room) handleUndo() error {
+	switch {
+	case !r.practice:
+		return errNotPractice
+	case r.game.Moving():
+		return game.ErrBallsMoving
+	case len(r.history) == 0:
+		return errNoUndo
+	}
+	last := len(r.history) - 1
+	r.game.Restore(r.history[last])
+	r.history = r.history[:last]
+	r.broadcast(r.roomState())
+	return nil
+}
+
+// handleRerack starts a fresh rack in a practice room, of mode if one is
+// given.
+func (r *room) handleRerack(mode game.Mode) error {
+	switch {
+	case !r.practice:
+		return errNotPractice
+	case r.game.Moving():
+		return game.ErrBallsMoving
+	case mode != "" && !mode.Valid():
+		return errBadMode
+	}
+	if mode != "" {
+		r.mode = mode
+		r.game.SetMode(mode)
+	}
+	r.startRack(0)
 	return nil
 }
 
@@ -481,6 +563,7 @@ func (r *room) handleSetMode(mode game.Mode) error {
 }
 
 func (r *room) startRack(breaker int) {
+	r.history = nil
 	r.game.Start(breaker)
 	r.noteRack()
 	r.extended = [2]bool{}
@@ -499,8 +582,8 @@ func (r *room) noteRack() {
 // handleAim relays the shooter's aim preview unchanged to the other player.
 // Aim from anyone else is dropped silently: it is only cosmetic.
 func (r *room) handleAim(s int, msg protocol.ClientMessage) {
-	if !r.game.Rules.InPlay() || r.game.Moving() || r.game.Rules.Turn != s {
-		return
+	if r.practice || !r.game.Rules.InPlay() || r.game.Moving() || r.game.Rules.Turn != s {
+		return // nobody else to show it to in practice
 	}
 	if math.IsNaN(msg.Angle) || math.IsInf(msg.Angle, 0) || math.IsNaN(msg.Power) {
 		return
@@ -515,10 +598,20 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 
 func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 	breaking := r.game.Rules.Phase == game.PhaseBreaking
+	var before game.Snapshot
+	if r.practice {
+		before = r.game.Save()
+	}
 	if err := r.game.ShootSpin(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec()); err != nil {
 		return err
 	}
 	r.breakShot = breaking
+	if r.practice {
+		r.history = append(r.history, before)
+		if len(r.history) > maxUndo {
+			r.history = r.history[1:]
+		}
+	}
 	r.stopClock()
 	r.ticks = 0
 	r.lastSnapT = -1
@@ -609,7 +702,7 @@ func (r *room) actor() int {
 // when nobody has to (lobby, game over, balls moving, clock turned off).
 func (r *room) startClock(d time.Duration) {
 	rules := r.game.Rules
-	if r.hub.opts.ShotClock < 0 || r.game.Moving() || !(rules.InPlay() || rules.Decision != nil) {
+	if r.practice || r.hub.opts.ShotClock < 0 || r.game.Moving() || !(rules.InPlay() || rules.Decision != nil) {
 		r.stopClock()
 		return
 	}
@@ -744,6 +837,7 @@ func (r *room) roomState() protocol.RoomState {
 	return protocol.RoomState{
 		Type:       protocol.TypeRoomState,
 		Mode:       st.Mode,
+		Practice:   r.practice,
 		Balls:      st.Balls,
 		Players:    [2]protocol.PlayerInfo{r.playerInfo(0), r.playerInfo(1)},
 		Phase:      st.Phase,
@@ -762,6 +856,9 @@ func (r *room) roomState() protocol.RoomState {
 
 func (r *room) playerInfo(s int) protocol.PlayerInfo {
 	st := &r.seats[s]
+	if r.practice {
+		st = &r.seats[0] // the one player sits on both sides
+	}
 	return protocol.PlayerInfo{Seat: s, Name: st.name, Connected: st.client != nil, Ready: st.ready}
 }
 
@@ -861,6 +958,10 @@ func errorCode(err error) string {
 		return protocol.ErrNoExtension
 	case errors.Is(err, errBadMode):
 		return protocol.ErrBadMode
+	case errors.Is(err, errNoUndo):
+		return protocol.ErrNoUndo
+	case errors.Is(err, errNotPractice):
+		return protocol.ErrNotPractice
 	case errors.Is(err, game.ErrNoPushOut):
 		return protocol.ErrBadCall
 	}

@@ -529,11 +529,16 @@ func (t *Table) canPlace(id int, pos Vec) bool {
 
 // PlaceCue moves the cue ball to pos (ball-in-hand), putting it back in play
 // if it was pocketed. It reports false and changes nothing if pos is illegal.
-func (t *Table) PlaceCue(pos Vec) bool {
-	if !t.canPlace(CueBall, pos) {
+func (t *Table) PlaceCue(pos Vec) bool { return t.PlaceBall(CueBall, pos) }
+
+// PlaceBall puts ball id at rest on pos, back in play if it was pocketed. It
+// reports false and changes nothing if pos is off the table, over a pocket,
+// on a cushion or on another ball.
+func (t *Table) PlaceBall(id int, pos Vec) bool {
+	if id < 0 || id >= NumBalls || !t.canPlace(id, pos) {
 		return false
 	}
-	t.Balls[CueBall] = Ball{ID: CueBall, Pos: pos}
+	t.Balls[id] = Ball{ID: id, Pos: pos}
 	return true
 }
 

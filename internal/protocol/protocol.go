@@ -21,6 +21,10 @@ const (
 	TypeExtend = "extend"
 	// TypeSetMode changes the game played, in the lobby or after a game.
 	TypeSetMode = "set_mode"
+	// Practice rooms only: move a ball, take back the last shot, rack again.
+	TypePlaceBall = "place_ball"
+	TypeUndo      = "undo"
+	TypeRerack    = "rerack"
 	// TypePing may be sent at any time, even before join; the server answers
 	// with TypePong. Lets a client notice a dead connection quickly.
 	TypePing = "ping"
@@ -57,6 +61,8 @@ const (
 	ErrBadOption    = "bad_option"    // choose with an option that was not offered
 	ErrNoExtension  = "no_extension"  // extend after the sender used their extension this game
 	ErrBadMode      = "bad_mode"      // set_mode (or room creation) with an unknown mode
+	ErrNoUndo       = "no_undo"       // undo with no shot to take back
+	ErrNotPractice  = "not_practice"  // place_ball, undo or rerack outside a practice room
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -78,14 +84,15 @@ type ClientMessage struct {
 	// shoot: optional english, see Spin
 	Spin *Spin `json:"spin"`
 
-	// place_cue
-	X float64 `json:"x"`
-	Y float64 `json:"y"`
+	// place_cue, place_ball (ID is the ball)
+	ID int     `json:"id"`
+	X  float64 `json:"x"`
+	Y  float64 `json:"y"`
 
 	// choose
 	Option game.Option `json:"option"`
 
-	// set_mode
+	// set_mode, rerack (optional there)
 	Mode game.Mode `json:"mode"`
 }
 
@@ -195,7 +202,8 @@ type Player struct {
 type RoomState struct {
 	Type       string           `json:"type"`
 	Mode       game.Mode        `json:"mode"`
-	Balls      []game.BallState `json:"balls"` // balls on the table
+	Practice   bool             `json:"practice"` // one player plays both seats
+	Balls      []game.BallState `json:"balls"`    // balls on the table
 	Players    [2]PlayerInfo    `json:"players"`
 	Phase      game.Phase       `json:"phase"`
 	Turn       int              `json:"turn"`
