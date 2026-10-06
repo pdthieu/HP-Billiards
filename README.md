@@ -56,6 +56,13 @@ watch the other see "offline" then, after `-hold`, the lobby; close both tabs,
 reopen one link within `-abandon` (the game is still there), or after it (a
 fresh lobby).
 
+## Deploy
+
+`Dockerfile` builds an 8 MB image; `deploy/docker-compose.yml` adds Caddy for
+HTTPS; `render.yaml` is a one-click Render blueprint. The server listens on
+`:$PORT` when PORT is set and answers `GET /healthz`. Step-by-step options,
+including which free tiers still work, are in [docs/DEPLOY.md](docs/DEPLOY.md).
+
 ## Test
 
 ```sh

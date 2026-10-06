@@ -1,0 +1,8 @@
+.git
+bin
+e2e/node_modules
+e2e/shots
+design/canvas-source
+*.md
+!README.md
+.envrc

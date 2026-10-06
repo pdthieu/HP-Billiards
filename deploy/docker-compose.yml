@@ -1,0 +1,28 @@
+# Server plus Caddy for HTTPS on your own machine or VPS.
+# Usage: DOMAIN=pool.example.com docker compose up -d --build
+# (or put DOMAIN=... in a .env file next to this one).
+services:
+  server:
+    build: ..
+    command: ["-max-rooms", "10"]   # add -physics Name=value here to tune the table
+    restart: unless-stopped
+    expose: ["8080"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN to the host name players will use}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [server]
+
+volumes:
+  caddy_data:
+  caddy_config:

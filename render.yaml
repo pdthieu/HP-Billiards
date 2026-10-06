@@ -1,0 +1,10 @@
+# Render blueprint: New + > Blueprint, point it at this repo. Free instance,
+# Docker runtime, health check on /healthz. See docs/DEPLOY.md.
+services:
+  - type: web
+    name: pool
+    runtime: docker
+    plan: free
+    region: singapore
+    healthCheckPath: /healthz
+    dockerCommand: /server -max-rooms 10

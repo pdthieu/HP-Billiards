@@ -20,7 +20,11 @@ import (
 
 func main() {
 	def := hub.DefaultOptions()
-	addr := flag.String("addr", ":8080", "listen address")
+	defAddr := ":8080"
+	if port := os.Getenv("PORT"); port != "" { // Render, Cloud Run and friends
+		defAddr = ":" + port
+	}
+	addr := flag.String("addr", defAddr, "listen address (defaults to :$PORT when PORT is set)")
 	hold := flag.Duration("hold", def.ReconnectGrace, "how long a seat is held for a player who drops out while the other is connected")
 	abandon := flag.Duration("abandon", def.AbandonTimeout, "how long a game survives with both players gone")
 	idle := flag.Duration("idle", def.IdleTimeout, "how long an empty room is kept")
@@ -43,6 +47,10 @@ func main() {
 	mux.HandleFunc("POST /api/rooms", h.HandleCreateRoom)
 	mux.HandleFunc("GET /api/rooms", h.HandleListRooms)
 	mux.HandleFunc("GET /ws", h.ServeWS)
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		fmt.Fprintln(w, "ok")
+	})
 	static := http.FileServerFS(web.Files)
 	mux.Handle("GET /fonts/", immutable(static))
 	mux.Handle("GET /", noCache(static))
