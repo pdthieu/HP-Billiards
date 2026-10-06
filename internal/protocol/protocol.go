@@ -16,6 +16,9 @@ const (
 	TypePlaceCue = "place_cue"
 	TypeChoose   = "choose"
 	TypeRematch  = "rematch"
+	// TypeExtend uses the sender's one extension of the game: their running
+	// shot clock is set back to the long limit.
+	TypeExtend = "extend"
 	// TypePing may be sent at any time, even before join; the server answers
 	// with TypePong. Lets a client notice a dead connection quickly.
 	TypePing = "ping"
@@ -31,6 +34,8 @@ const (
 	TypePlayer    = "player"
 	TypeError     = "error"
 	TypePong      = "pong"
+	TypeClock     = "clock"   // the shot clock changed: extension, pause or resume
+	TypeTimeout   = "timeout" // a player's shot clock ran out
 )
 
 // Error codes carried by the error message.
@@ -48,6 +53,7 @@ const (
 	ErrBadCall      = "bad_call"      // shoot at the 8-ball without a pocket, or a pocket outside 0–5
 	ErrNoDecision   = "no_decision"   // choose with nothing to decide
 	ErrBadOption    = "bad_option"    // choose with an option that was not offered
+	ErrNoExtension  = "no_extension"  // extend after the sender used their extension this game
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -114,6 +120,38 @@ func (c *Call) Game() game.Call {
 	return out
 }
 
+// Clock is the shot clock of the player who must act next: shoot (placing
+// the cue ball first if they have ball in hand) or answer a decision. When it
+// runs out a shooter commits a foul and a decision takes its first option;
+// see Timeout.
+type Clock struct {
+	Seat   int  `json:"seat"`
+	Left   int  `json:"left"`   // milliseconds left when the message was sent
+	Limit  int  `json:"limit"`  // milliseconds the clock was last set to
+	Paused bool `json:"paused"` // the player is offline; the clock waits for them
+	// Extension is what an extension sets the clock to, in milliseconds.
+	Extension int `json:"extension"`
+	// Extensions by seat: whether that player may still extend this game.
+	Extensions [2]bool `json:"extensions"`
+}
+
+// ClockUpdate announces a change to the running clock outside room_state
+// and settled.
+type ClockUpdate struct {
+	Type string `json:"type"`
+	Clock
+}
+
+// Timeout says that Seat let the shot clock run out. A room_state follows.
+type Timeout struct {
+	Type string `json:"type"`
+	Seat int    `json:"seat"`
+	// Option is the choice made for Seat when they ran out of time on a
+	// decision; absent when they ran out of time on a shot, which is a foul
+	// giving the opponent ball in hand.
+	Option game.Option `json:"option,omitempty"`
+}
+
 // Welcome answers a successful join.
 type Welcome struct {
 	Type     string `json:"type"`
@@ -154,6 +192,7 @@ type RoomState struct {
 	Decision   *game.Decision   `json:"decision"`   // pending post-break choice or null
 	Winner     *int             `json:"winner"`     // seat or null
 	Moving     bool             `json:"moving"`     // a shot is in progress
+	Clock      *Clock           `json:"clock"`      // null while nobody has to act
 }
 
 // Snapshot carries ball positions while a shot is in progress.
@@ -179,6 +218,7 @@ type Settled struct {
 	Kitchen      bool             `json:"kitchen"`
 	Decision     *game.Decision   `json:"decision"`
 	Winner       *int             `json:"winner,omitempty"`
+	Clock        *Clock           `json:"clock"`
 }
 
 // Aim relays the shooter's aim to the other player.

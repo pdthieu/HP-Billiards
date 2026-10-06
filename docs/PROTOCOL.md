@@ -31,6 +31,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
+| `extend` | – | Only for the player the shot clock is running for, once per game: their clock is set back to the long limit (see Shot clock). |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
 `call` is `{"pocket": 4}` or `{"safety": true}`. Object balls are not called (a house-rule relaxation of WPA 1.7): any ball of the shooter's group that drops counts, and on an open table the first object ball legally pocketed decides the groups. The 8-ball must go into the called pocket.
@@ -60,7 +61,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ### `room_state`
 
-Full state. Sent right after `welcome`, and to both players whenever the state changes other than by a shot settling (game start, `place_cue`, `choose`, `rematch`, a player leaving mid-game).
+Full state. Sent right after `welcome`, and to both players whenever the state changes other than by a shot settling (game start, `place_cue`, `choose`, `rematch`, a `timeout`, a player leaving mid-game).
 
 ```json
 {
@@ -77,7 +78,8 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
   "kitchen": true,
   "decision": null,
   "winner": null,
-  "moving": false
+  "moving": false,
+  "clock": {"seat": 0, "left": 29450, "limit": 30000, "paused": false, "extension": 40000, "extensions": [true, true]}
 }
 ```
 
@@ -86,6 +88,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
 - `winner`: seat or `null`.
 - `moving`: a shot is in progress; `snapshot`s and a `settled` will follow.
+- `clock`: the shot clock of the player who must act next (shoot, or answer the `decision`), or `null` while nobody has to (lobby, game over, balls moving, clock turned off). `left` is milliseconds left when the message was sent: count down from its arrival rather than comparing clocks. `limit` is what the clock was last set to, `paused` is true while that player is offline, `extension` is what an `extend` sets the clock to and `extensions[seat]` whether that seat may still extend.
 
 ### `snapshot`
 
@@ -110,7 +113,8 @@ Ends a shot. Positions are exact; clients snap to them.
   "ballInHand": true,
   "kitchen": false,
   "decision": null,
-  "winner": 1
+  "winner": 1,
+  "clock": null
 }
 ```
 
@@ -119,6 +123,7 @@ Ends a shot. Positions are exact; clients snap to them.
 - `made`: a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket.
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; a `decision` for the opponent follows.
 - `winner`: present only when the game is over.
+- `clock`: as in `room_state`, started for whoever acts next.
 - After a scratch the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
 
 ### `aim`
@@ -128,6 +133,14 @@ Ends a shot. Positions are exact; clients snap to them.
 ### `player`
 
 `{type, seat, name, connected, ready}` — a seat changed: someone joined, became ready, dropped out (`name` kept, `connected` false), came back (`connected` true again) or left for good (`name` `""`, `connected` false). When a seat is emptied during a game the game is abandoned and a `room_state` with phase `lobby` follows.
+
+### `clock`
+
+`{type, seat, left, limit, paused, extension, extensions}` — the running clock changed outside a `room_state` or `settled`: a player used their extension, or the player it counts for dropped out (`paused` true) or came back. Fields as in `room_state.clock`.
+
+### `timeout`
+
+`{type, seat, option?}` — `seat` let the shot clock run out. Without `option` it was a shot: a foul, the opponent has ball in hand (or, on the break, breaks instead). With `option` it was a decision, and that option was chosen for them. A `room_state` with the new turn and clock follows.
 
 ### `pong`
 
@@ -152,6 +165,20 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_call` | `shoot` at the 8-ball without a `pocket`, or a `pocket` outside 0–5. |
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
+| `no_extension` | `extend` after the sender already used their extension this game. |
+
+## Shot clock
+
+The player who must act has 30 seconds (`-shot-clock`) for each shot, ball-in-hand placement included, and for each post-break decision. The first shot after the break gets 40 seconds (`-shot-clock-long`), whoever takes it, and also when a decision leads to playing on.
+
+- Each player has one extension per game: `extend` sets their running clock back to 40 seconds. Rematches give a new one.
+- The clock stops while balls move and restarts for whoever acts next when the shot settles.
+- It runs only while the player it counts for is connected. A dropped connection pauses it with the time left; it resumes on reconnect. The seat hold (see below) is what limits an absence.
+- When it runs out (`timeout`):
+  - on a shot: a standard foul, and the opponent gets ball in hand anywhere;
+  - on the break: nothing has moved, so the opponent breaks instead, with ball in hand in the kitchen;
+  - on a decision: its first option is taken (`accept_table` or `spot_eight`, i.e. play on from the table as it lies).
+- `-shot-clock 0` turns the clock off; `clock` is then always `null` and `extend` fails with `wrong_phase`.
 
 ## Reconnecting
 

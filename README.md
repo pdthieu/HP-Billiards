@@ -40,7 +40,7 @@ handoff the UI follows lives in [design/](design/).
 The defaults are production values; shorten them to try the edge cases:
 
 ```sh
-go run ./cmd/server -hold 10s -abandon 30s -idle 1m
+go run ./cmd/server -hold 10s -abandon 30s -idle 1m -shot-clock 12s
 ```
 
 | flag | default | meaning |
@@ -49,12 +49,15 @@ go run ./cmd/server -hold 10s -abandon 30s -idle 1m
 | `-abandon` | `5m` | both players gone: how long the game survives before it is cancelled and both seats freed |
 | `-idle` | `10m` | no connected player: how long the room is kept |
 | `-max-rooms` | `3` | how many rooms may exist at once |
+| `-shot-clock` | `30s` | time for each shot or decision; `0` turns the shot clock off |
+| `-shot-clock-long` | `40s` | time for the first shot after the break, and what a player's one extension per game resets their clock to |
 | `-physics` | – | override a physics constant, `Name=value`, repeatable or comma-separated (e.g. `-physics CushionRestitution=0.8,RollingFriction=0.012`); `-physics list` prints every tunable with its default |
 
 Things to try: reload a tab mid-game (it rejoins its seat), close one tab and
 watch the other see "offline" then, after `-hold`, the lobby; close both tabs,
 reopen one link within `-abandon` (the game is still there), or after it (a
-fresh lobby).
+fresh lobby); let the shot clock run out (the opponent gets ball in hand) or
+press *+40s* / `X` to extend it once.
 
 ## Deploy
 

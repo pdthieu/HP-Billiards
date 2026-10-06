@@ -41,6 +41,12 @@ type Options struct {
 	// AbandonTimeout is how long a game survives with both players gone
 	// before it is cancelled and both seats are freed.
 	AbandonTimeout time.Duration
+	// ShotClock is how long a player has for each shot or post-break
+	// decision. Negative turns the shot clock off.
+	ShotClock time.Duration
+	// LongShotClock is the time for the first shot after the break, and what
+	// a player's one extension per game sets their clock back to.
+	LongShotClock time.Duration
 	// WS tunes the connections (keepalive pings).
 	WS ws.Options
 	// Breaker picks the seat that breaks a room's first rack. Later racks
@@ -56,6 +62,8 @@ func DefaultOptions() Options {
 		MaxRooms:       3,
 		ReconnectGrace: 60 * time.Second,
 		AbandonTimeout: 5 * time.Minute,
+		ShotClock:      30 * time.Second,
+		LongShotClock:  40 * time.Second,
 		WS:             ws.DefaultOptions(),
 	}
 }
@@ -86,6 +94,12 @@ func New(opts Options) *Hub {
 	}
 	if opts.AbandonTimeout <= 0 {
 		opts.AbandonTimeout = def.AbandonTimeout
+	}
+	if opts.ShotClock == 0 {
+		opts.ShotClock = def.ShotClock
+	}
+	if opts.LongShotClock <= 0 {
+		opts.LongShotClock = def.LongShotClock
 	}
 	if opts.WS == (ws.Options{}) {
 		opts.WS = def.WS

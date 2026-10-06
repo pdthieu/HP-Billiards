@@ -26,6 +26,12 @@ button { cursor: pointer; }
 .hold--big { width: 40px; height: 40px; }
 .hold--big svg { width: 40px; height: 40px; }
 .hold--big .hold__num { font-size: 13px; }
+/* the shot clock reuses the hold ring: brass, red for the last seconds */
+.hold--clock .hold__arc { stroke: var(--accent); transition: stroke-dashoffset .2s linear; }
+.hold--clock .hold__num { color: var(--accent-text); }
+.hold--clock.hold--low .hold__arc { stroke: var(--foul); }
+.hold--clock.hold--low .hold__num { color: var(--foul); }
+.hint--low { color: var(--foul); }
 
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }

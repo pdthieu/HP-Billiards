@@ -339,6 +339,16 @@ func (g *Game) PlaceCue(seat int, pos Vec) error {
 	return nil
 }
 
+// TimeFoul ends the turn of seat, the shooter, whose shot clock ran out. See
+// Rules.TimeFoul.
+func (g *Game) TimeFoul(seat int) error {
+	if err := g.checkTurn(seat); err != nil {
+		return err
+	}
+	g.Rules.TimeFoul()
+	return nil
+}
+
 // Choose answers the pending post-break decision for seat.
 func (g *Game) Choose(seat int, opt Option) error {
 	res, err := g.Rules.Choose(seat, opt)

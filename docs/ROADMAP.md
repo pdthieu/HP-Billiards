@@ -130,8 +130,11 @@ gây `error` từ server (test chạy 100 ván bot với bot).
    tiêu; cho người chơi bật/tắt "vật lý nâng cao" theo phòng.
 3. **Xem lại cú vừa đánh**: client giữ snapshot của cú gần nhất, nút phát
    lại 1x/0.5x; không cần server.
-4. **Đồng hồ cú đánh**: tuỳ chọn 30/60 giây khi tạo phòng, server đếm, hết
-   giờ là lỗi mất lượt (`foul: "time"`).
+4. ~~**Đồng hồ cú đánh**~~ Đã làm (10/2026): 30 giây mỗi cú, 40 giây cho cú
+   đầu sau cú phá, mỗi người một lần gia hạn về 40 giây mỗi ván; hết giờ là
+   lỗi, đối thủ được bi trong tay; server đếm, tạm dừng khi người đó mất
+   kết nối. Chỉnh bằng flag `-shot-clock`, `-shot-clock-long` cho cả server.
+   Còn lại: cho chọn thời gian khi tạo phòng.
 
 ## Để sau
 

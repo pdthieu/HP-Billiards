@@ -29,6 +29,8 @@ func main() {
 	abandon := flag.Duration("abandon", def.AbandonTimeout, "how long a game survives with both players gone")
 	idle := flag.Duration("idle", def.IdleTimeout, "how long an empty room is kept")
 	maxRooms := flag.Int("max-rooms", def.MaxRooms, "how many rooms may exist at once")
+	shotClock := flag.Duration("shot-clock", def.ShotClock, "time for each shot or decision; 0 turns the shot clock off")
+	longClock := flag.Duration("shot-clock-long", def.LongShotClock, "time for the first shot after the break, and what a player's one extension per game resets the clock to")
 	var physics physicsFlag
 	flag.Var(&physics, "physics", "override a physics constant, Name=value (repeatable, or comma-separated); -physics list prints them")
 	flag.Parse()
@@ -38,6 +40,11 @@ func main() {
 	opts.AbandonTimeout = *abandon
 	opts.IdleTimeout = *idle
 	opts.MaxRooms = *maxRooms
+	opts.ShotClock = *shotClock
+	if *shotClock <= 0 {
+		opts.ShotClock = -1 // off; zero would mean the default
+	}
+	opts.LongShotClock = *longClock
 	if err := physics.apply(&opts.Game); err != nil {
 		log.Fatal(err)
 	}

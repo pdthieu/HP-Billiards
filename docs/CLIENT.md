@@ -30,6 +30,13 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
    *I'm ready*. Once groups are assigned a seat shows seven dots for the
    player's balls, dimmed as they are pocketed; the seat on turn pulses
    (paused while balls roll); an offline seat shows the 60 s hold ring.
+   The player who must act has the shot clock beside their name, a brass
+   ring with the seconds left that turns red for the last 10 s, when the
+   shooter also gets a "10 seconds left" toast. The ring counts from the
+   arrival of the server's `left`, so the two machines' clocks never mix.
+   The decision dialog repeats the countdown and names the option taken
+   when it runs out. A `timeout` is shown as a toast and in the status
+   line ("Bob ran out of time. You have ball in hand.").
 3. **Your shot** (shot panel visible):
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
      placement is limited to it and the drag is clamped there. The position is
@@ -40,7 +47,8 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
      are going for (a press that moves more than 8 px or lasts over 250 ms
      aims instead); the called pocket is ringed in brass and named in the
      line. *Safety* (or the `S` key) declares a safety instead. *Clear*
-     starts over.
+     starts over. *+40s* (or the `X` key) spends the game's one extension
+     and is hidden once used.
    - *Aim*: drag on the felt; the cue points from the cue ball toward the
      pointer. The guide shows the ghost ball at first contact, the object
      ball's line and the cue ball's deflection: the tangent line for a

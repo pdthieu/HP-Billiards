@@ -32,6 +32,7 @@ const (
 	evLeave
 	evHoldExpired // the reconnect grace of a held seat ran out
 	evAbandon     // both players have been gone for the abandon timeout
+	evClock       // the shot clock ran out
 )
 
 // event is one input to a room's goroutine.
@@ -41,7 +42,7 @@ type event struct {
 	msg    protocol.ClientMessage
 	joined chan bool // evJoin: whether the client got a seat
 	seat   int       // evHoldExpired
-	gen    int       // evHoldExpired, evAbandon: see room.timerGen
+	gen    int       // evHoldExpired, evAbandon: see room.timerGen; evClock: clock.gen
 }
 
 // seat is one of the two places at the table. Empty: name == "". Held for a
@@ -55,6 +56,22 @@ type seat struct {
 }
 
 func (s *seat) empty() bool { return s.name == "" }
+
+// clock is the shot clock of the player who must act next. It runs only
+// while that player is connected.
+type clock struct {
+	on       bool
+	seat     int
+	limit    time.Duration // what it was last set to
+	left     time.Duration // while paused
+	deadline time.Time     // while running; zero while paused
+	// gen is bumped on every change; an evClock carrying an older one is
+	// stale and ignored.
+	gen int
+}
+
+// errNoExtension rejects a second extend in one game.
+var errNoExtension = errors.New("you have already used your extension this game")
 
 // room is one table and its two seats. Everything below inbox is owned by the
 // run goroutine and must not be touched from anywhere else.
@@ -73,6 +90,9 @@ type room struct {
 	ticks       int          // since the shot started
 	lastSnapT   int          // simulated ms of the last snapshot sent
 	lastBreaker int
+	clock       clock
+	extended    [2]bool // by seat: the extension of this game is used
+	breakShot   bool    // the shot in progress is the break
 	// timerGen is bumped whenever the away-timers are re-armed; a timer
 	// event carrying an older generation is stale and ignored.
 	timerGen int
@@ -200,6 +220,8 @@ func (r *room) handle(ev event) {
 		r.handleHoldExpired(ev.seat, ev.gen)
 	case evAbandon:
 		r.handleAbandon(ev.gen)
+	case evClock:
+		r.handleClockExpired(ev.gen)
 	case evMessage:
 		if s := r.seatOf(ev.client); s >= 0 {
 			r.handleMessage(s, ev.msg)
@@ -216,7 +238,11 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 			old.Close(websocket.StatusPolicyViolation, "replaced by a new connection")
 		}
 		r.seats[s].client = c
+		resumed := r.syncClock()
 		r.welcome(c, s)
+		if resumed {
+			r.sendTo(1-s, r.clockUpdate())
+		}
 		if r.game.Rules.Phase != game.PhaseLobby {
 			r.rearmAwayTimers()
 		}
@@ -286,6 +312,9 @@ func (r *room) handleLeave(c *ws.Client) {
 	}
 	r.seats[s].client = nil
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	if r.syncClock() {
+		r.sendTo(1-s, r.clockUpdate())
+	}
 	r.rearmAwayTimers()
 }
 
@@ -337,6 +366,7 @@ func (r *room) handleAbandon(gen int) {
 		r.seats[i] = seat{}
 	}
 	r.stopTicker()
+	r.stopClock()
 	r.game = game.NewGame(r.hub.opts.Game)
 }
 
@@ -348,6 +378,7 @@ func (r *room) vacate(s int) {
 	// A game cannot go on with an empty seat: back to the lobby.
 	if r.game.Rules.Phase != game.PhaseLobby {
 		r.stopTicker()
+		r.stopClock()
 		r.game = game.NewGame(r.hub.opts.Game)
 		r.seats[1-s].ready = false
 		r.broadcast(r.roomState())
@@ -370,10 +401,13 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 	case protocol.TypeChoose:
 		if err = r.game.Choose(s, msg.Option); err == nil {
 			r.noteRack()
+			r.startClock(r.clockAfterChoice())
 			r.broadcast(r.roomState())
 		}
 	case protocol.TypeRematch:
 		err = r.handleRematch()
+	case protocol.TypeExtend:
+		err = r.handleExtend(s)
 	case protocol.TypeJoin:
 		r.sendError(s, protocol.ErrBadMessage, "already joined")
 	default:
@@ -412,6 +446,8 @@ func (r *room) handleRematch() error {
 func (r *room) startRack(breaker int) {
 	r.game.Start(breaker)
 	r.noteRack()
+	r.extended = [2]bool{}
+	r.startClock(r.hub.opts.ShotClock)
 	r.broadcast(r.roomState())
 }
 
@@ -441,9 +477,12 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 }
 
 func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
+	breaking := r.game.Rules.Phase == game.PhaseBreaking
 	if err := r.game.ShootSpin(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec()); err != nil {
 		return err
 	}
+	r.breakShot = breaking
+	r.stopClock()
 	r.ticks = 0
 	r.lastSnapT = -1
 	r.ticker = time.NewTicker(time.Second / tickRate)
@@ -471,6 +510,11 @@ func (r *room) tick() {
 	}
 	r.stopTicker()
 	r.publishInfo()
+	limit := r.hub.opts.ShotClock
+	if r.breakShot && r.game.Rules.Phase == game.PhaseOpen {
+		limit = r.hub.opts.LongShotClock // the first shot after the break
+	}
+	r.startClock(limit)
 
 	st := r.game.State()
 	pocketed := res.Pocketed
@@ -492,7 +536,136 @@ func (r *room) tick() {
 		Kitchen:      st.Kitchen,
 		Decision:     st.Decision,
 		Winner:       winner(st.Winner),
+		Clock:        r.clockInfo(),
 	})
+}
+
+// handleExtend spends seat s's extension: their running clock is set back to
+// the long limit.
+func (r *room) handleExtend(s int) error {
+	switch {
+	case !r.clock.on:
+		return game.ErrWrongPhase
+	case r.clock.seat != s:
+		return game.ErrNotYourTurn
+	case r.extended[s]:
+		return errNoExtension
+	}
+	r.extended[s] = true
+	r.startClock(r.hub.opts.LongShotClock)
+	r.broadcast(r.clockUpdate())
+	return nil
+}
+
+// actor is the seat that must act next: the one deciding, or the shooter.
+func (r *room) actor() int {
+	if d := r.game.Rules.Decision; d != nil {
+		return d.Seat
+	}
+	return r.game.Rules.Turn
+}
+
+// startClock sets the shot clock to d for whoever must act now, or stops it
+// when nobody has to (lobby, game over, balls moving, clock turned off).
+func (r *room) startClock(d time.Duration) {
+	rules := r.game.Rules
+	if r.hub.opts.ShotClock < 0 || r.game.Moving() || !(rules.InPlay() || rules.Decision != nil) {
+		r.stopClock()
+		return
+	}
+	r.clock = clock{on: true, seat: r.actor(), limit: d, left: d, gen: r.clock.gen + 1}
+	r.syncClock()
+}
+
+func (r *room) stopClock() {
+	r.clock.on = false
+	r.clock.gen++
+}
+
+// clockAfterChoice is the clock for the shot a decision leads to: a new
+// break, or the first shot after the break.
+func (r *room) clockAfterChoice() time.Duration {
+	if r.game.Rules.Phase == game.PhaseBreaking {
+		return r.hub.opts.ShotClock
+	}
+	return r.hub.opts.LongShotClock
+}
+
+// syncClock runs the clock while the player it counts for is connected and
+// pauses it while they are away, so nobody loses a turn to a dropped
+// connection. It reports whether that changed anything.
+func (r *room) syncClock() bool {
+	c := &r.clock
+	if !c.on {
+		return false
+	}
+	running := !c.deadline.IsZero()
+	online := r.seats[c.seat].client != nil
+	switch {
+	case online && !running:
+		c.gen++
+		c.deadline = time.Now().Add(c.left)
+		r.after(c.left, event{kind: evClock, gen: c.gen})
+	case !online && running:
+		c.gen++
+		c.left = max(0, time.Until(c.deadline))
+		c.deadline = time.Time{}
+	default:
+		return false
+	}
+	return true
+}
+
+// handleClockExpired applies the penalty for running out of time: a shooter
+// commits a foul, a decision takes its first option (play on from the
+// table as it lies). The next player's clock starts.
+func (r *room) handleClockExpired(gen int) {
+	c := &r.clock
+	if !c.on || gen != c.gen {
+		return
+	}
+	s := c.seat
+	out := protocol.Timeout{Type: protocol.TypeTimeout, Seat: s}
+	if d := r.game.Rules.Decision; d != nil {
+		out.Option = d.Options[0]
+		if r.game.Choose(s, out.Option) != nil {
+			return
+		}
+		r.startClock(r.clockAfterChoice())
+	} else {
+		if r.game.TimeFoul(s) != nil {
+			return
+		}
+		r.startClock(r.hub.opts.ShotClock)
+	}
+	r.noteRack() // a time foul on the break hands the break over
+	r.broadcast(out)
+	r.broadcast(r.roomState())
+}
+
+// clockInfo is the clock as sent to the clients, or nil when it is off.
+func (r *room) clockInfo() *protocol.Clock {
+	c := &r.clock
+	if !c.on {
+		return nil
+	}
+	left := c.left
+	if !c.deadline.IsZero() {
+		left = max(0, time.Until(c.deadline))
+	}
+	return &protocol.Clock{
+		Seat:       c.seat,
+		Left:       int(left / time.Millisecond),
+		Limit:      int(c.limit / time.Millisecond),
+		Paused:     c.deadline.IsZero(),
+		Extension:  int(r.hub.opts.LongShotClock / time.Millisecond),
+		Extensions: [2]bool{!r.extended[0], !r.extended[1]},
+	}
+}
+
+// clockUpdate is the clock message; only call it while the clock is on.
+func (r *room) clockUpdate() protocol.ClockUpdate {
+	return protocol.ClockUpdate{Type: protocol.TypeClock, Clock: *r.clockInfo()}
 }
 
 func (r *room) stopTicker() {
@@ -531,6 +704,7 @@ func (r *room) roomState() protocol.RoomState {
 		Decision:   st.Decision,
 		Winner:     winner(st.Winner),
 		Moving:     r.game.Moving(),
+		Clock:      r.clockInfo(),
 	}
 }
 
@@ -631,6 +805,8 @@ func errorCode(err error) string {
 		return protocol.ErrNoDecision
 	case errors.Is(err, game.ErrBadOption):
 		return protocol.ErrBadOption
+	case errors.Is(err, errNoExtension):
+		return protocol.ErrNoExtension
 	}
 	return protocol.ErrBadMessage
 }

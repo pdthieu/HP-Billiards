@@ -39,6 +39,7 @@ const PING_EVERY_MS = 15000;  // heartbeat; the server answers with pong
 const PONG_TIMEOUT_MS = 10000;
 const RECONNECT_MAX_MS = 8000;
 const SEAT_HOLD_S = 60;       // how long the server holds a seat (PROTOCOL.md)
+const CLOCK_LOW_S = 10;       // the shot clock turns red and warns from here
 const ROOMS_POLL_MS = 3000;
 
 // buildTable lays out cushions and pockets like Table.buildRails on the server.
@@ -164,6 +165,9 @@ const S = {
   lastDecisionReason: '',
   offlineSince: [0, 0],  // performance.now() when a seat dropped, per seat; 0 = unknown
   holdTimer: 0,
+  clock: null,           // the server's shot clock plus at: performance.now() when it arrived
+  clockTimer: 0,
+  clockWarned: false,    // the low-time toast was shown for this clock
 
   // canvas motion
   pendingDrops: [],      // balls that vanished from a snapshot, awaiting their drop animation
@@ -363,6 +367,8 @@ function handle(msg) {
       }
       break;
     case 'player': onPlayer(msg); break;
+    case 'clock': setClock(msg); refreshPanels(); break;
+    case 'timeout': onTimeout(msg); break;
     case 'pong': clearTimeout(S.pongTimer); S.pongTimer = 0; break;
     case 'error': onError(msg); break;
   }
@@ -408,6 +414,7 @@ function onRoomState(msg) {
   S.pendingDrops = [];
   const hadDecision = !!S.decision;
   const turnChanged = applyRules(msg);
+  setClock(msg.clock);
   S.cuePlacedAt = null;
   S.dragCue = null;
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
@@ -439,6 +446,7 @@ function onSnapshot(msg) {
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
     S.moving = true;
+    S.clock = null;
     S.oppAim = null;
     S.aiming = false;
     S.dragCue = null;
@@ -462,6 +470,7 @@ function onSettled(msg) {
   setBalls(msg.balls);
   S.oppAim = null;
   applyRules(msg);
+  setClock(msg.clock);
   newTurn();
   describeShot(msg);
   refreshPanels();
@@ -504,6 +513,38 @@ function onError(msg) {
   }
 }
 
+// setClock takes the shot clock from the server (null: nobody has to act).
+// Its time is counted from arrival, so the two machines' clocks never mix.
+function setClock(c) {
+  if (!c) { S.clock = null; return; }
+  if (!S.clock || c.seat !== S.clock.seat || c.left > CLOCK_LOW_S * 1000) S.clockWarned = false;
+  S.clock = { ...c, at: performance.now() };
+}
+
+// clockLeft returns the seconds left on the shot clock, or null without one.
+function clockLeft() {
+  const c = S.clock;
+  if (!c) return null;
+  const ms = c.paused ? c.left : c.left - (performance.now() - c.at);
+  return Math.max(0, ms / 1000);
+}
+
+function onTimeout(msg) {
+  const who = nameOf(msg.seat);
+  const other = nameOf(1 - msg.seat);
+  let text = `${isMe(msg.seat) ? 'You' : who} ran out of time`;
+  if (msg.option) {
+    text += `; “${optionText(msg.option, other)[0]}” was chosen.`;
+  } else if (S.phase === 'breaking') {
+    text += `. ${other} ${isMe(1 - msg.seat) ? 'break' : 'breaks'} instead.`;
+  } else {
+    text += `. ${other} ${isMe(1 - msg.seat) ? 'have' : 'has'} ball in hand.`;
+  }
+  S.clock = null;
+  toast(text, isMe(msg.seat));
+  setStatus(text, 'foul');
+}
+
 // resetToLanding forgets the room and shows the landing form.
 function resetToLanding(error) {
   clearTimeout(S.reconnectTimer);
@@ -517,6 +558,7 @@ function resetToLanding(error) {
   S.moving = false;
   S.snaps = [];
   S.decision = null;
+  S.clock = null;
   S.lastBreaker = -1;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
@@ -1819,6 +1861,7 @@ document.addEventListener('keydown', (e) => {
     case 'Escape': if (S.powerDrag) cancelPowerDrag(); else return; break;
     case ' ': case 'Enter': if (canShoot()) { shoot(); S.lastPower = S.power; renderPower(); } break;
     case 's': case 'S': if (canCall()) toggleSafety(); break;
+    case 'x': case 'X': if (canExtend()) extend(); else return; break;
     default: return;
   }
   e.preventDefault();
@@ -2105,6 +2148,47 @@ function renderSeat(seat) {
   else if (state && !compact) {
     el.append(Object.assign(document.createElement('span'), { className: 'seat__state', textContent: state }));
   }
+  if (p.connected && S.clock && S.clock.seat === seat) el.append(clockRing());
+}
+
+// clockRing shows the shot clock of the player who must act. It shares the
+// hold ring's drawing; tickClock keeps it current.
+function clockRing() {
+  const wrap = document.createElement('span');
+  wrap.className = 'hold hold--clock';
+  wrap.setAttribute('role', 'timer');
+  wrap.innerHTML = '<svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="var(--hairline-strong)" stroke-width="2"></circle><circle class="hold__arc" cx="13" cy="13" r="11" fill="none" stroke-width="2" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="0"></circle></svg><span class="hold__num"></span>';
+  updateClock(wrap);
+  return wrap;
+}
+
+function updateClock(wrap) {
+  const left = clockLeft();
+  if (left === null) return;
+  const low = left <= CLOCK_LOW_S;
+  wrap.querySelector('.hold__arc').style.strokeDashoffset = String(69.1 * (1 - left / (S.clock.limit / 1000)));
+  wrap.querySelector('.hold__num').textContent = String(Math.ceil(left));
+  wrap.classList.toggle('hold--low', low);
+  wrap.setAttribute('aria-label', `${Math.ceil(left)} seconds left${S.clock.paused ? ', paused' : ''}`);
+}
+
+function tickClock() {
+  const left = clockLeft();
+  if (left === null) { clearInterval(S.clockTimer); S.clockTimer = 0; return; }
+  document.querySelectorAll('.hold--clock').forEach(updateClock);
+  if (!$('decision').hidden) renderDecisionClock();
+  if (isMe(S.clock.seat) && !S.clock.paused && left <= CLOCK_LOW_S && left > 0 && !S.clockWarned) {
+    S.clockWarned = true;
+    toast(`${CLOCK_LOW_S} seconds left` + (canExtend() ? ' · X extends' : ''), true);
+  }
+}
+
+const canExtend = () => !!S.clock && isMe(S.clock.seat) && S.clock.extensions[S.seat];
+
+// extend spends this game's extension: the server resets the clock.
+function extend() {
+  if (!canExtend()) return;
+  send({ type: 'extend' });
 }
 
 function tag(text, cls) {
@@ -2143,7 +2227,7 @@ function updateHold(wrap) {
 }
 
 function tickHolds() {
-  const rings = [...document.querySelectorAll('.hold')].filter((r) => !r.hidden && r.querySelector('.hold__arc'));
+  const rings = [...document.querySelectorAll('.hold:not(.hold--clock)')].filter((r) => !r.hidden && r.querySelector('.hold__arc'));
   if (!rings.length) { clearInterval(S.holdTimer); S.holdTimer = 0; return; }
   rings.forEach(updateHold);
   // the waiting panel's sentence counts down too
@@ -2192,7 +2276,8 @@ function showPanel(id) {
 function refreshPanels() {
   renderSeat(0);
   renderSeat(1);
-  if (document.querySelector('.seat .hold') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
+  if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
+  if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
   renderTrays();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;
@@ -2293,6 +2378,14 @@ function refreshShotPanel() {
   }
   callEl.classList.toggle('call__line--called', called);
   $('clearCall').hidden = !S.call;
+  const ext = $('extend');
+  ext.hidden = !canExtend();
+  if (!ext.hidden) {
+    const secs = Math.round(S.clock.extension / 1000);
+    ext.innerHTML = `${CLOCK_SVG}+${secs}s`;
+    ext.title = `Extension: reset your clock to ${secs} seconds, once per game (X)`;
+    ext.setAttribute('aria-label', ext.title);
+  }
   $('safety').hidden = !canCall();
   $('safety').setAttribute('aria-pressed', String(!!(S.call && S.call.safety)));
   for (const b of document.querySelectorAll('#shotPanel .nudge')) {
@@ -2329,6 +2422,7 @@ function refreshDecision() {
   renderBanner(d && !isMe(d.seat) && !S.moving ? `Waiting for ${nameOf(d.seat)} to decide` : '');
   renderResult();
   if (!show) return;
+  renderDecisionClock();
   if (wasShown && dlg.dataset.key === JSON.stringify(d)) return; // already built
   dlg.dataset.key = JSON.stringify(d);
   const eight = d.options.includes('spot_eight');
@@ -2351,6 +2445,22 @@ function refreshDecision() {
   });
   setTimeout(() => { const first = box.querySelector('.option'); if (first) first.focus(); }, 0);
 }
+// renderDecisionClock says how long the chooser has and what happens then;
+// the dialog's scrim hides the clock in the header.
+function renderDecisionClock() {
+  const el = $('decisionClock');
+  const left = clockLeft();
+  el.hidden = left === null || !S.decision || !isMe(S.clock.seat);
+  if (el.hidden) return;
+  const opp = S.players[1 - S.seat].name || 'your opponent';
+  const text = `${Math.ceil(left)} s left, then “${optionText(S.decision.options[0], opp)[0]}” is chosen for you.`;
+  if (el.dataset.text === text) return;
+  el.dataset.text = text;
+  el.innerHTML = `${CLOCK_SVG}<span></span>`;
+  el.querySelector('span').textContent = text;
+  el.classList.toggle('hint--low', left <= CLOCK_LOW_S);
+}
+
 // A choice is required: Tab stays inside the dialog and Esc does nothing.
 $('decision').addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
@@ -2403,6 +2513,7 @@ $('ready').onclick = () => send({ type: 'ready' });
 $('rematch').onclick = () => send({ type: 'rematch' });
 $('safety').onclick = toggleSafety;
 $('clearCall').onclick = () => { S.call = null; refreshShotPanel(); };
+$('extend').onclick = extend;
 for (const b of document.querySelectorAll('.nudge')) {
   b.onclick = () => setAngle(S.angle + Number(b.dataset.deg) * DEG);
 }

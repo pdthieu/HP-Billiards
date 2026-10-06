@@ -1019,3 +1019,34 @@ func TestTickReportsTheFirstCollision(t *testing.T) {
 		t.Error("collision reported in a tick without one")
 	}
 }
+
+func TestTimeFoul(t *testing.T) {
+	// On the break the opponent breaks instead, from the kitchen.
+	r := NewRules()
+	r.Start(0)
+	r.TimeFoul()
+	if r.Phase != PhaseBreaking || r.Turn != 1 || !r.BallInHand || !r.Kitchen {
+		t.Errorf("after a time foul on the break: %+v", r)
+	}
+
+	// Later it is a standard foul: ball in hand anywhere.
+	r = openRules(1)
+	r.TimeFoul()
+	if r.Phase != PhaseOpen || r.Turn != 0 || !r.BallInHand || r.Kitchen {
+		t.Errorf("after a time foul on an open table: %+v", r)
+	}
+}
+
+func TestGameTimeFoulIsTheShootersOnly(t *testing.T) {
+	g := NewGame(DefaultConfig())
+	if err := g.TimeFoul(0); err != ErrWrongPhase {
+		t.Errorf("time foul in the lobby: %v, want ErrWrongPhase", err)
+	}
+	g.Start(0)
+	if err := g.TimeFoul(1); err != ErrNotYourTurn {
+		t.Errorf("time foul by the waiting player: %v, want ErrNotYourTurn", err)
+	}
+	if err := g.TimeFoul(0); err != nil || g.Rules.Turn != 1 {
+		t.Errorf("time foul by the breaker: %v, turn %d", err, g.Rules.Turn)
+	}
+}

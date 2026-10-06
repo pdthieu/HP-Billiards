@@ -4,8 +4,9 @@ import "slices"
 
 // The rules follow the WPA "Rules of Play" for 8-ball (section 4, with the
 // general rules and fouls of sections 1–3). Rules that need a referee or a
-// physical table (lag, foot on floor, double hits, balls off the table, slow
-// play, stalemate) do not apply to a simulated game.
+// physical table (lag, foot on floor, double hits, balls off the table,
+// stalemate) do not apply to a simulated game. The hub runs a shot clock in
+// place of the slow-play rule; TimeFoul is its penalty.
 
 // Phase is the stage of a game. Its values are the wire representation.
 type Phase string
@@ -369,6 +370,15 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 		r.Turn = opponent
 	}
 	return res
+}
+
+// TimeFoul passes the turn of a shooter who let the shot clock run out. It is
+// a standard foul: the opponent gets ball in hand. On the break nothing has
+// moved yet, so the opponent breaks instead, from the kitchen as usual.
+func (r *Rules) TimeFoul() {
+	r.Turn = 1 - r.Turn
+	r.BallInHand = true
+	r.Kitchen = r.Phase == PhaseBreaking
 }
 
 // Choose answers the pending decision for seat.

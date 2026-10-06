@@ -765,3 +765,142 @@ func TestIdleRoomsAreDeleted(t *testing.T) {
 	c.conn.Close(websocket.StatusNormalClosure, "")
 	waitForRooms(0)
 }
+
+// clockOf returns the clock of a room_state or settled message, failing if
+// there is none.
+func clockOf(t *testing.T, m msg) msg {
+	t.Helper()
+	c, ok := m["clock"].(msg)
+	if !ok {
+		t.Fatalf("no clock in %v", m)
+	}
+	return c
+}
+
+func TestShotClockFoulExtensionAndLongClockAfterTheBreak(t *testing.T) {
+	opts := fastOptions()
+	// Slow enough cloth for a legal break that still settles in about a second.
+	opts.Game.SlidingFriction = 0.6
+	opts.Game.RollingFriction = 0.15
+	opts.ShotClock = 300 * time.Millisecond
+	opts.LongShotClock = 2 * time.Second
+	_, srv := newServer(t, opts)
+	code := createRoom(t, srv)
+	c0, c1 := dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	c1.join(code, "Bob")
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	_, st := c1.waitFor("room_state")
+	if c := clockOf(t, st); c["seat"] != 0.0 || c["limit"] != 300.0 || c["paused"] != false {
+		t.Fatalf("clock at the start = %v", c)
+	}
+
+	// The breaker lets the clock run out: Bob breaks instead.
+	for _, c := range []*testClient{c0, c1} {
+		_, out := c.waitFor("timeout")
+		if out["seat"] != 0.0 || out["option"] != nil {
+			t.Errorf("timeout = %v", out)
+		}
+		st := c.expect("room_state")
+		if st["phase"] != "breaking" || st["turn"] != 1.0 || st["ballInHand"] != true || st["kitchen"] != true {
+			t.Errorf("state after the time foul: %v", st)
+		}
+		if ck := clockOf(t, st); ck["seat"] != 1.0 || ck["limit"] != 300.0 {
+			t.Errorf("clock after the time foul = %v", ck)
+		}
+	}
+
+	c0.send(msg{"type": "extend"})
+	c0.expectError("not_your_turn")
+	c1.send(msg{"type": "extend"})
+	for _, c := range []*testClient{c0, c1} {
+		ck := c.expect("clock")
+		ext := ck["extensions"].([]any)
+		if ck["seat"] != 1.0 || ck["limit"] != 2000.0 || ck["left"].(float64) < 1900 || ext[0] != true || ext[1] != false {
+			t.Errorf("clock after the extension = %v", ck)
+		}
+	}
+	c1.send(msg{"type": "extend"})
+	c1.expectError("no_extension")
+
+	// The first shot after the break gets the long clock.
+	c1.send(msg{"type": "shoot", "angle": 0, "power": 1})
+	_, settled := c1.waitFor("settled")
+	if settled["decision"] != nil || settled["phase"] != "open" {
+		t.Fatalf("the break did not leave an open table: %v", settled)
+	}
+	if ck := clockOf(t, settled); ck["seat"] != settled["turn"] || ck["limit"] != 2000.0 {
+		t.Errorf("clock after the break = %v", ck)
+	}
+}
+
+func TestShotClockWaitsForAnOfflineShooter(t *testing.T) {
+	opts := fastOptions()
+	opts.ShotClock = 300 * time.Millisecond
+	opts.ReconnectGrace = 5 * time.Second
+	_, srv := newServer(t, opts)
+	c0, c1, code, tokens := startGameWithTokens(t, srv)
+
+	c0.conn.CloseNow()
+	c1.expect("player")
+	if ck := c1.expect("clock"); ck["seat"] != 0.0 || ck["paused"] != true {
+		t.Fatalf("clock after the shooter left = %v", ck)
+	}
+	time.Sleep(2 * opts.ShotClock) // no timeout while they are away
+
+	c0, _, st := rejoin(t, srv, code, tokens[0])
+	if ck := clockOf(t, st); ck["paused"] != false || ck["left"].(float64) <= 0 {
+		t.Errorf("clock on rejoin = %v", ck)
+	}
+	c1.expect("player")
+	if ck := c1.expect("clock"); ck["paused"] != false {
+		t.Errorf("clock after the shooter came back = %v", ck)
+	}
+	if _, out := c0.waitFor("timeout"); out["seat"] != 0.0 {
+		t.Errorf("timeout = %v", out)
+	}
+}
+
+func TestShotClockDecidesForASlowChooser(t *testing.T) {
+	opts := fastOptions()
+	opts.ShotClock = 500 * time.Millisecond
+	opts.LongShotClock = 2 * time.Second
+	_, srv := newServer(t, opts)
+	c0, c1, _ := startGame(t, srv)
+
+	c0.send(msg{"type": "shoot", "angle": 0, "power": 0.3}) // illegal break
+	_, settled := c1.waitFor("settled")
+	if ck := clockOf(t, settled); ck["seat"] != 1.0 || ck["limit"] != 500.0 {
+		t.Fatalf("clock for the decision = %v", ck)
+	}
+	_, out := c1.waitFor("timeout")
+	if out["seat"] != 1.0 || out["option"] != "accept_table" {
+		t.Errorf("timeout = %v", out)
+	}
+	st := c1.expect("room_state")
+	if st["phase"] != "open" || st["turn"] != 1.0 || st["decision"] != nil {
+		t.Errorf("state after the timed-out decision: %v", st)
+	}
+	if ck := clockOf(t, st); ck["seat"] != 1.0 || ck["limit"] != 2000.0 {
+		t.Errorf("clock after the timed-out decision = %v", ck)
+	}
+}
+
+func TestShotClockCanBeTurnedOff(t *testing.T) {
+	opts := fastOptions()
+	opts.ShotClock = -1
+	_, srv := newServer(t, opts)
+	code := createRoom(t, srv)
+	c0, c1 := dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	c1.join(code, "Bob")
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	_, st := c1.waitFor("room_state")
+	if st["clock"] != nil {
+		t.Errorf("clock = %v, want none", st["clock"])
+	}
+	c1.send(msg{"type": "extend"})
+	c1.expectError("wrong_phase")
+}
