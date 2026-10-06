@@ -306,6 +306,7 @@ func (r *room) welcome(c *ws.Client, s int) {
 		Seat:     s,
 		Token:    r.seats[s].token,
 		RoomCode: r.code,
+		AimLine:  int(math.Round(max(0, r.hub.opts.AimLine) * 1000)),
 	})
 	c.SendJSON(r.roomState())
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})

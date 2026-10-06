@@ -47,8 +47,23 @@ Những điều cần biết:
   mất, cứ tạo phòng mới.
 - Free chỉ có 750 giờ/tháng cho cả workspace: một service chạy liên tục là
   vừa đủ, đừng tạo thêm service Free thứ hai.
-- Muốn đổi vật lý: sửa `dockerCommand` trong `render.yaml`
-  (ví dụ `/server -max-rooms 10 -physics RollingFriction=0.01`) rồi push.
+- Muốn đổi vật lý hay đồng hồ: sửa `dockerCommand` trong `render.yaml`
+  (ví dụ `/server -max-rooms 10 -physics RollingFriction=0.01 -shot-clock 45s`)
+  rồi push.
+
+### Biến môi trường trên Render
+
+| biến | mặc định | ý nghĩa |
+|---|---|---|
+| `AIM_LINE_MM` | `100` | độ dài (mm) vạch chỉ hướng bi mục tiêu sau khi chạm, vạch đường đi bi trắng bằng một nửa; `0` là không hiện |
+| `PORT` | do Render đặt | đừng tự đặt |
+
+Đặt hoặc đổi: Dashboard → service **pool** → **Environment** → **Add
+Environment Variable** (hoặc sửa giá trị) → **Save and deploy** (server
+đọc biến lúc khởi động nên không cần build lại; nếu không thấy nút này thì
+chọn **Save, rebuild, and deploy**). Không cần push code; phòng đang chơi sẽ
+mất vì server khởi động lại. `render.yaml` cố ý không ghi biến này, để giá trị trên
+Dashboard không bị Blueprint ghi đè.
 - Để không bị cold start có thể nâng lên gói Starter (7 USD/tháng) hoặc dùng
   Cách 2.
 

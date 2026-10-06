@@ -47,6 +47,10 @@ type Options struct {
 	// LongShotClock is the time for the first shot after the break, and what
 	// a player's one extension per game sets their clock back to.
 	LongShotClock time.Duration
+	// AimLine is how far, in meters, the aim guide draws the object ball's
+	// path after contact (the cue ball's deflection gets half). Negative
+	// hides both: players then judge the cut themselves.
+	AimLine float64
 	// WS tunes the connections (keepalive pings).
 	WS ws.Options
 	// Breaker picks the seat that breaks a room's first rack. Later racks
@@ -64,6 +68,7 @@ func DefaultOptions() Options {
 		AbandonTimeout: 5 * time.Minute,
 		ShotClock:      30 * time.Second,
 		LongShotClock:  40 * time.Second,
+		AimLine:        0.1,
 		WS:             ws.DefaultOptions(),
 	}
 }
@@ -100,6 +105,9 @@ func New(opts Options) *Hub {
 	}
 	if opts.LongShotClock <= 0 {
 		opts.LongShotClock = def.LongShotClock
+	}
+	if opts.AimLine == 0 {
+		opts.AimLine = def.AimLine
 	}
 	if opts.WS == (ws.Options{}) {
 		opts.WS = def.WS

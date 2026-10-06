@@ -184,6 +184,7 @@ const S = {
   oppAimAt: 0,
   hoverUntil: 0,         // touch: hide the hover label after this time
   statusTimer: 0,
+  aimLine: 0.1,          // m of object-ball guide after contact, from welcome; 0 = none
   lastBreaker: -1,       // who broke the current rack, for the game-over note
   shotWasBreak: false,   // the shot in progress (or just settled) is a break
   resultReason: '',      // why the rack ended, for the result banner
@@ -385,6 +386,7 @@ function handle(msg) {
 function onWelcome(msg) {
   const reconnected = S.seat >= 0 && S.reconnectAttempt > 0;
   S.seat = msg.seat;
+  if (typeof msg.aimLine === 'number') S.aimLine = msg.aimLine / 1000;
   S.token = msg.token;
   S.roomCode = msg.roomCode;
   S.reconnectAttempt = 0;
@@ -1741,23 +1743,27 @@ function drawAim(balls, cue, angle, mine, alpha) {
   ctx.fillStyle = rgba(line, 0.06);
   ctx.fill();
   ctx.stroke();
-  if (cast.objDir) {
+  // After contact: the object ball's path and the cue ball's deflection,
+  // as long as the server's aimLine (the deflection half of it).
+  const reach = S.aimLine;
+  if (cast.objDir && reach > 0) {
     const b = balls.get(cast.hit);
     const od = cast.objDir;
     const x0 = b.x + od.x * R, y0 = b.y + od.y * R;
-    const x1 = x0 + od.x * 0.3, y1 = y0 + od.y * 0.3;
+    const x1 = x0 + od.x * reach, y1 = y0 + od.y * reach;
     ctx.strokeStyle = rgba(brass, 0.95);
     ctx.lineWidth = 0.004;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
-    // chevron 18 × 24 at the end
+    // chevron 18 × 24 at the end, smaller on a very short line
     const nx = -od.y, ny = od.x;
+    const cl = Math.min(0.024, reach * 0.4), cw = cl * 0.375;
     ctx.beginPath();
-    ctx.moveTo(x1 - od.x * 0.024 + nx * 0.009, y1 - od.y * 0.024 + ny * 0.009);
+    ctx.moveTo(x1 - od.x * cl + nx * cw, y1 - od.y * cl + ny * cw);
     ctx.lineTo(x1, y1);
-    ctx.lineTo(x1 - od.x * 0.024 - nx * 0.009, y1 - od.y * 0.024 - ny * 0.009);
+    ctx.lineTo(x1 - od.x * cl - nx * cw, y1 - od.y * cl - ny * cw);
     ctx.stroke();
     // Where the cue ball goes next: the tangent line for a stun shot, bent
     // forward by top spin or back by draw (only a tendency: how much roll is
@@ -1773,7 +1779,7 @@ function drawAim(balls, cue, angle, mine, alpha) {
       cd = { x: d.x * Math.sign(f), y: d.y * Math.sign(f) }; // full hit: follow or draw straight
     }
     if (cd) {
-      const len = cast.cueDir ? 0.15 : 0.06 + 0.09 * Math.abs(f);
+      const len = (cast.cueDir ? 0.5 : 0.2 + 0.3 * Math.abs(f)) * reach;
       ctx.strokeStyle = rgba(line, 0.5);
       ctx.lineWidth = 0.003;
       ctx.setLineDash([0.010, 0.010]);

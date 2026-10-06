@@ -1008,3 +1008,18 @@ func TestNineBallPushOut(t *testing.T) {
 		t.Errorf("clock after a push out decision = %v, want the normal clock", ck)
 	}
 }
+
+func TestWelcomeCarriesTheAimLine(t *testing.T) {
+	for _, tt := range []struct {
+		aim  float64
+		want float64
+	}{{0, 100}, {0.25, 250}, {-1, 0}} {
+		opts := fastOptions()
+		opts.AimLine = tt.aim
+		_, srv := newServer(t, opts)
+		w, _ := dial(t, srv).join(createRoom(t, srv), "Ann")
+		if w["aimLine"] != tt.want {
+			t.Errorf("AimLine %v: welcome aimLine = %v, want %v", tt.aim, w["aimLine"], tt.want)
+		}
+	}
+}

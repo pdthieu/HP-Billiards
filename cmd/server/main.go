@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"reflect"
@@ -31,6 +32,15 @@ func main() {
 	maxRooms := flag.Int("max-rooms", def.MaxRooms, "how many rooms may exist at once")
 	shotClock := flag.Duration("shot-clock", def.ShotClock, "time for each shot or decision; 0 turns the shot clock off")
 	longClock := flag.Duration("shot-clock-long", def.LongShotClock, "time for the first shot after the break, and what a player's one extension per game resets the clock to")
+	defAim := int(math.Round(def.AimLine * 1000))
+	if v := os.Getenv("AIM_LINE_MM"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			log.Fatalf("AIM_LINE_MM=%q: want a whole number of millimetres, 0 or more", v)
+		}
+		defAim = n
+	}
+	aimLine := flag.Int("aim-line", defAim, "length in mm of the aim guide's object-ball line after contact, 0 hides it (default from $AIM_LINE_MM)")
 	var physics physicsFlag
 	flag.Var(&physics, "physics", "override a physics constant, Name=value (repeatable, or comma-separated); -physics list prints them")
 	flag.Parse()
@@ -45,6 +55,10 @@ func main() {
 		opts.ShotClock = -1 // off; zero would mean the default
 	}
 	opts.LongShotClock = *longClock
+	opts.AimLine = float64(*aimLine) / 1000
+	if *aimLine <= 0 {
+		opts.AimLine = -1 // off; zero would mean the default
+	}
 	if err := physics.apply(&opts.Game); err != nil {
 		log.Fatal(err)
 	}

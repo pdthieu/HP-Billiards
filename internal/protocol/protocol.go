@@ -169,6 +169,9 @@ type Welcome struct {
 	Seat     int    `json:"seat"`
 	Token    string `json:"token"`
 	RoomCode string `json:"roomCode"`
+	// AimLine is the length, in millimetres, of the aim guide's object-ball
+	// line after contact; 0 means the guide stops at the ghost ball.
+	AimLine int `json:"aimLine"`
 }
 
 // PlayerInfo describes one seat. A seat with a Name but Connected false is

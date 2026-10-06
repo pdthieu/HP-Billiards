@@ -70,7 +70,7 @@ WPA section 5. Balls `1`–`9` are racked in a diamond with the 1 on the foot sp
 
 ### `welcome`
 
-`{type, v, playerId, seat, token, roomCode}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect.
+`{type, v, playerId, seat, token, roomCode, aimLine}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect. `aimLine` is how long, in millimetres, the client draws the object ball's path after contact in the aim guide (100 by default, `-aim-line` / `AIM_LINE_MM`); `0` means the guide stops at the ghost ball.
 
 ### `room_state`
 

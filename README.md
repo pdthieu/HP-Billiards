@@ -51,6 +51,7 @@ go run ./cmd/server -hold 10s -abandon 30s -idle 1m -shot-clock 12s
 | `-max-rooms` | `3` | how many rooms may exist at once |
 | `-shot-clock` | `30s` | time for each shot or decision; `0` turns the shot clock off |
 | `-shot-clock-long` | `40s` | time for the first shot after the break, and what a player's one extension per game resets their clock to |
+| `-aim-line` | `100` (or `$AIM_LINE_MM`) | length in mm of the aim guide's line from the object ball after contact (the cue ball's deflection line is half of it); `0` hides both, so players judge the cut themselves |
 | `-physics` | – | override a physics constant, `Name=value`, repeatable or comma-separated (e.g. `-physics CushionRestitution=0.8,RollingFriction=0.012`); `-physics list` prints every tunable with its default |
 
 Things to try: reload a tab mid-game (it rejoins its seat), close one tab and
