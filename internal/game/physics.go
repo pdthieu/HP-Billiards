@@ -12,6 +12,10 @@ var rackOrder = [15]int{
 	6, 13, 7, 14, 15,
 }
 
+// nineRack lists the 9-ball diamond row by row from the apex: the 1-ball on
+// the foot spot, the 9-ball in the centre (WPA 5.1).
+var nineRack = [][]int{{1}, {2, 3}, {4, 9, 5}, {6, 7}, {8}}
+
 // segment is a straight piece of cushion rubber: a rail between two pocket
 // noses, or a jaw leading from a nose into a pocket. Balls bounce off it,
 // including off its end points, which is what makes a ball rattle in the jaws.
@@ -150,6 +154,29 @@ func (t *Table) Rack() {
 			t.Balls[id].Pos = Vec{
 				X: foot.X + float64(row)*rowDX,
 				Y: foot.Y + (float64(j)-float64(row)/2)*d,
+			}
+		}
+	}
+	t.ClearEvents()
+}
+
+// RackNine sets up a 9-ball break: balls 1–9 in a diamond, the cue ball on
+// the head spot, and balls 10–15 off the table (pocketed, so the simulation
+// ignores them).
+func (t *Table) RackNine() {
+	for i := range t.Balls {
+		t.Balls[i] = Ball{ID: i, Pocketed: i > NineBall}
+	}
+	t.Balls[CueBall].Pos = t.Cfg.HeadSpot()
+
+	foot := t.Cfg.FootSpot()
+	d := 2*t.Cfg.BallRadius + t.Cfg.RackGap
+	rowDX := d * math.Sqrt(3) / 2
+	for row, ids := range nineRack {
+		for j, id := range ids {
+			t.Balls[id].Pos = Vec{
+				X: foot.X + float64(row)*rowDX,
+				Y: foot.Y + (float64(j)-float64(len(ids)-1)/2)*d,
 			}
 		}
 	}

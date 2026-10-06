@@ -2,11 +2,22 @@ package game
 
 import "slices"
 
-// The rules follow the WPA "Rules of Play" for 8-ball (section 4, with the
-// general rules and fouls of sections 1–3). Rules that need a referee or a
+// The rules follow the WPA "Rules of Play" for 8-ball (section 4) and 9-ball
+// (section 5), with the general rules and fouls of sections 1–3. Rules that need a referee or a
 // physical table (lag, foot on floor, double hits, balls off the table,
 // stalemate) do not apply to a simulated game. The hub runs a shot clock in
 // place of the slow-play rule; TimeFoul is its penalty.
+
+// Mode is the game played. Its values are the wire representation.
+type Mode string
+
+const (
+	ModeEight Mode = "8ball"
+	ModeNine  Mode = "9ball"
+)
+
+// Valid reports whether m is a known mode.
+func (m Mode) Valid() bool { return m == ModeEight || m == ModeNine }
 
 // Phase is the stage of a game. Its values are the wire representation.
 type Phase string
@@ -14,8 +25,8 @@ type Phase string
 const (
 	PhaseLobby    Phase = "lobby"
 	PhaseBreaking Phase = "breaking"
-	PhaseOpen     Phase = "open"     // after the break, no groups yet
-	PhaseAssigned Phase = "assigned" // solids/stripes decided
+	PhaseOpen     Phase = "open"     // after the break: no groups yet (8-ball), the rest of the rack (9-ball)
+	PhaseAssigned Phase = "assigned" // 8-ball: solids/stripes decided
 	PhaseGameOver Phase = "game_over"
 )
 
@@ -61,16 +72,20 @@ const (
 	FoulWrongBall Foul = "wrong_ball" // 3.2: first contact was not a legal target
 	FoulKitchen   Foul = "kitchen"    // 3.11: bad play from above the head string
 	FoulNoRail    Foul = "no_rail"    // 3.3: nothing pocketed and no rail after contact
+	FoulBadBreak  Foul = "bad_break"  // 9-ball 5.3: nothing pocketed and fewer than four balls to a rail
 )
 
 // Call is the shooter's declaration before a shot. Object balls are not
 // called (a house-rule relaxation of WPA 1.7: any ball of the shooter's
 // group that drops counts, and on an open table the first ball down decides
 // the groups); the 8-ball must be shot into the called Pocket. A Safety
-// passes the turn whatever drops. Nothing is called on the break.
+// passes the turn whatever drops. Nothing is called on the break. In 9-ball
+// nothing is called at all, but the shot right after the break may be a
+// PushOut.
 type Call struct {
-	Safety bool `json:"safety,omitempty"`
-	Pocket int  `json:"pocket"` // the 8-ball's pocket; AnyPocket when none was called
+	Safety  bool `json:"safety,omitempty"`
+	Pocket  int  `json:"pocket"` // the 8-ball's pocket; AnyPocket when none was called
+	PushOut bool `json:"pushOut,omitempty"`
 }
 
 // AnyPocket as Call.Pocket means no pocket was called.
@@ -100,9 +115,14 @@ const (
 	OptRerackBreak Option = "rerack_break"
 	// OptRerackOpponentBreaks: illegal break; re-rack and the offender breaks again.
 	OptRerackOpponentBreaks Option = "rerack_opponent_breaks"
+	// OptTakeShot: 9-ball, after the opponent's push out; shoot from here.
+	OptTakeShot Option = "take_shot"
+	// OptPassBack: 9-ball, after the opponent's push out; they shoot again.
+	OptPassBack Option = "pass_back"
 )
 
-// Decision is a pending choice. No shot is allowed until Seat has chosen.
+// Decision is a pending choice: after an 8-ball break, or a 9-ball push
+// out. No shot is allowed until Seat has chosen.
 type Decision struct {
 	Seat    int      `json:"seat"`
 	Options []Option `json:"options"`
@@ -127,13 +147,16 @@ type ShotResult struct {
 	Foul         Foul
 	Pocketed     []int // every ball pocketed this shot, in order, cue ball included
 	CuePocketed  bool  // the cue ball must be put back on the table
-	Made         bool  // a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket
+	Made         bool  // a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket; in 9-ball any ball on a legal shot
 	IllegalBreak bool  // break shot that pocketed nothing and drove too few balls to a rail
+	PushOut      bool  // 9-ball: the shot was a push out
+	Respot       int   // a ball to put back on the foot spot (the 9-ball), or 0
 }
 
 // Rules is the 8-ball state machine. It consumes the physics event list of
 // each shot once the table has settled and knows nothing about positions.
 type Rules struct {
+	Mode       Mode
 	Phase      Phase
 	Turn       int       // seat (0 or 1) that shoots next
 	Groups     [2]Group  // by seat; GroupNone until assigned
@@ -141,20 +164,28 @@ type Rules struct {
 	Kitchen    bool      // ...but only above the head string
 	Decision   *Decision // pending post-break choice, if any
 	Winner     int       // seat, or NoWinner
+	Fouls      [2]int    // 9-ball: consecutive fouls by seat; the third loses (WPA 5.8)
+	PushOut    bool      // 9-ball: Turn may push out (the shot right after the break)
 
 	pocketed     [NumBalls]bool // object balls that are permanently down
 	decisionFoul bool           // the break awaiting a decision was a foul
 }
 
-// NewRules returns the rules in the lobby phase.
+// NewRules returns 8-ball rules in the lobby phase. Set Mode before Start
+// for another game.
 func NewRules() *Rules {
-	return &Rules{Phase: PhaseLobby, Winner: NoWinner}
+	return &Rules{Mode: ModeEight, Phase: PhaseLobby, Winner: NoWinner}
 }
 
-// Start begins a fresh rack with breaker to shoot the break. The cue ball is
-// in hand above the head string (WPA 4.3 a).
+// Start begins a fresh rack of r.Mode with breaker to shoot the break. The
+// cue ball is in hand above the head string (WPA 4.3 a, 5.3).
 func (r *Rules) Start(breaker int) {
-	*r = Rules{Phase: PhaseBreaking, Turn: breaker, BallInHand: true, Kitchen: true, Winner: NoWinner}
+	*r = Rules{Mode: r.Mode, Phase: PhaseBreaking, Turn: breaker, BallInHand: true, Kitchen: true, Winner: NoWinner}
+	if r.Mode == ModeNine {
+		for id := NineBall + 1; id < NumBalls; id++ {
+			r.pocketed[id] = true // not in a 9-ball rack
+		}
+	}
 }
 
 // InPlay reports whether a shot is currently allowed.
@@ -195,6 +226,9 @@ func (r *Rules) legalTarget(ball int) bool {
 	if ball < 1 || ball >= NumBalls || r.pocketed[ball] {
 		return false
 	}
+	if r.Mode == ModeNine {
+		return ball == r.lowest()
+	}
 	eightOn := r.eightOn(r.Turn)
 	switch r.Phase {
 	case PhaseBreaking:
@@ -214,6 +248,12 @@ func (r *Rules) legalTarget(ball int) bool {
 // is always fine, a pocket must exist if one is named, and a shooter whose
 // legal target is the 8-ball must name one. Nothing is called on the break.
 func (r *Rules) CheckCall(c Call) error {
+	if r.Mode == ModeNine {
+		if c.PushOut && !r.PushOut {
+			return ErrNoPushOut
+		}
+		return nil
+	}
 	if r.Phase == PhaseBreaking || c.Safety {
 		return nil
 	}
@@ -229,11 +269,18 @@ func (r *Rules) CheckCall(c Call) error {
 // Resolve applies one settled shot by the current Turn and updates phase,
 // turn, groups, ball-in-hand, pending decision and winner.
 func (r *Rules) Resolve(s Shot) ShotResult {
+	if !r.InPlay() {
+		return ShotResult{Shooter: r.Turn}
+	}
+	if r.Mode == ModeNine {
+		return r.resolveNine(s)
+	}
+	return r.resolveEight(s)
+}
+
+func (r *Rules) resolveEight(s Shot) ShotResult {
 	shooter, opponent := r.Turn, 1-r.Turn
 	res := ShotResult{Shooter: shooter}
-	if !r.InPlay() {
-		return res
-	}
 	breaking := r.Phase == PhaseBreaking
 
 	// Legality is judged against the table as it was when the shot was struck,
@@ -375,10 +422,19 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 // TimeFoul passes the turn of a shooter who let the shot clock run out. It is
 // a standard foul: the opponent gets ball in hand. On the break nothing has
 // moved yet, so the opponent breaks instead, from the kitchen as usual.
+//
+// In 9-ball it counts towards three fouls in a row, except on the break, and
+// the chance to push out is gone.
 func (r *Rules) TimeFoul() {
-	r.Turn = 1 - r.Turn
+	shooter := r.Turn
+	breaking := r.Phase == PhaseBreaking
+	r.Turn = 1 - shooter
 	r.BallInHand = true
-	r.Kitchen = r.Phase == PhaseBreaking
+	r.Kitchen = breaking
+	r.PushOut = false
+	if r.Mode == ModeNine && !breaking {
+		r.foul(shooter)
+	}
 }
 
 // Choose answers the pending decision for seat.
@@ -393,6 +449,15 @@ func (r *Rules) Choose(seat int, opt Option) (ChoiceResult, error) {
 		return ChoiceResult{}, ErrBadOption
 	}
 	foul := r.decisionFoul
+
+	switch opt {
+	case OptTakeShot:
+		r.Decision, r.Turn = nil, seat
+		return ChoiceResult{}, nil
+	case OptPassBack:
+		r.Decision, r.Turn = nil, 1-seat
+		return ChoiceResult{}, nil
+	}
 
 	switch opt {
 	case OptRebreak, OptRerackBreak:
@@ -410,4 +475,127 @@ func (r *Rules) Choose(seat int, opt Option) (ChoiceResult, error) {
 	r.Turn = seat
 	r.BallInHand, r.Kitchen = foul, foul
 	return ChoiceResult{RespotEight: opt == OptSpotEight}, nil
+}
+
+// lowest returns the lowest-numbered object ball on the table: the 9-ball
+// shooter's legal first contact (WPA 5.6).
+func (r *Rules) lowest() int {
+	for id := 1; id <= NineBall; id++ {
+		if !r.pocketed[id] {
+			return id
+		}
+	}
+	return NineBall
+}
+
+// foul records a 9-ball foul by seat: the opponent gets ball in hand
+// anywhere, or wins on the third foul in a row (WPA 5.8).
+func (r *Rules) foul(seat int) {
+	r.Fouls[seat]++
+	r.Turn, r.BallInHand, r.Kitchen = 1-seat, true, false
+	if r.Fouls[seat] >= 3 {
+		r.Winner = 1 - seat
+		r.Phase = PhaseGameOver
+		r.BallInHand = false
+	}
+}
+
+// resolveNine is Resolve for 9-ball (WPA 5): the cue ball must first hit the
+// lowest ball on the table, any ball pocketed on a legal shot keeps the
+// turn, and the 9-ball pocketed on a legal shot wins, on the break or by
+// combination. A 9-ball pocketed otherwise is spotted. The shot right after
+// the break may be a push out.
+func (r *Rules) resolveNine(s Shot) ShotResult {
+	shooter, opponent := r.Turn, 1-r.Turn
+	res := ShotResult{Shooter: shooter}
+	breaking := r.Phase == PhaseBreaking
+	pushOut := s.Call.PushOut && r.PushOut
+	res.PushOut = pushOut
+	lowest := r.lowest() // before this shot's balls are recorded
+
+	first := -1
+	var (
+		railAfter    bool
+		ninePocketed bool
+		toRail       [NumBalls]bool
+	)
+	for _, e := range s.Events {
+		switch e.Kind {
+		case FirstContact:
+			if first < 0 {
+				first = e.Ball
+			}
+		case CushionHit:
+			railAfter = railAfter || first >= 0
+			toRail[e.Ball] = true
+		case BallPocketed:
+			res.Pocketed = append(res.Pocketed, e.Ball)
+			switch e.Ball {
+			case CueBall:
+				res.CuePocketed = true
+			case NineBall:
+				ninePocketed = true
+			}
+		}
+	}
+	objects := 0 // object balls pocketed, the 9 included
+	for _, id := range res.Pocketed {
+		if id != CueBall {
+			objects++
+		}
+		if id != CueBall && id != NineBall {
+			r.pocketed[id] = true
+		}
+	}
+
+	switch {
+	case res.CuePocketed:
+		res.Foul = FoulScratch
+	case pushOut:
+		// 5.5: no contact or rail is required.
+	case first < 0:
+		res.Foul = FoulNoContact
+	case first != lowest:
+		res.Foul = FoulWrongBall
+	case breaking:
+		railed := 0
+		for id := 1; id <= NineBall; id++ {
+			if toRail[id] {
+				railed++
+			}
+		}
+		if objects == 0 && railed < minBreakRails {
+			res.Foul, res.IllegalBreak = FoulBadBreak, true
+		}
+	case objects == 0 && !railAfter:
+		res.Foul = FoulNoRail
+	}
+	legal := res.Foul == FoulNone
+
+	r.BallInHand, r.Kitchen, r.PushOut = false, false, false
+	r.Phase = PhaseOpen
+	if ninePocketed {
+		if legal && !pushOut {
+			r.Winner, r.Phase = shooter, PhaseGameOver
+			res.Made = true
+			return res
+		}
+		res.Respot = NineBall
+	}
+	if !legal {
+		r.foul(shooter)
+		r.PushOut = breaking && r.Phase != PhaseGameOver
+		return res
+	}
+	r.Fouls[shooter] = 0
+	if pushOut {
+		r.Decision = &Decision{Seat: opponent, Options: []Option{OptTakeShot, OptPassBack}}
+		return res
+	}
+	res.Made = objects > 0
+	if !res.Made {
+		r.Turn = opponent
+	}
+	r.PushOut = breaking // whoever shoots next may push out
+	return res
 }

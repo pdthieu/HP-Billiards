@@ -14,6 +14,8 @@ const (
 	CueBall = 0
 	// EightBall is the id of the 8-ball.
 	EightBall = 8
+	// NineBall is the id of the 9-ball, the last ball of a 9-ball rack.
+	NineBall = 9
 	// NumPockets is the number of pockets. Pocket indices run 0–5: top-left,
 	// top-middle, top-right, bottom-left, bottom-middle, bottom-right.
 	NumPockets = 6
@@ -228,8 +230,11 @@ type State struct {
 	Groups     [2]Group    `json:"groups"`     // by seat; "" until assigned
 	BallInHand bool        `json:"ballInHand"` // applies to Turn
 	Kitchen    bool        `json:"kitchen"`    // ball in hand is limited to above the head string
-	Decision   *Decision   `json:"decision"`   // pending post-break choice, or null
+	Decision   *Decision   `json:"decision"`   // pending choice, or null
 	Winner     int         `json:"winner"`     // seat, or -1
+	Mode       Mode        `json:"mode"`
+	Fouls      [2]int      `json:"fouls"`   // 9-ball: consecutive fouls by seat
+	PushOut    bool        `json:"pushOut"` // 9-ball: Turn may push out on this shot
 }
 
 // Errors returned by Game and Rules when an action is not allowed.
@@ -243,6 +248,7 @@ var (
 	ErrBadCall      = errors.New("call a pocket for the 8-ball, or a safety")
 	ErrNoDecision   = errors.New("there is no decision to make")
 	ErrBadOption    = errors.New("that option is not available")
+	ErrNoPushOut    = errors.New("a push out is only allowed on the shot right after the break")
 )
 
 // Game ties the physics table to the rules. Like Table it must be driven by a
@@ -274,7 +280,11 @@ func (g *Game) Start(breaker int) {
 }
 
 func (g *Game) rack() {
-	g.Table.Rack()
+	if g.Rules.Mode == ModeNine {
+		g.Table.RackNine()
+	} else {
+		g.Table.Rack()
+	}
 	g.shooting = false
 	g.cueInKitchen = true
 }
@@ -349,7 +359,7 @@ func (g *Game) TimeFoul(seat int) error {
 	return nil
 }
 
-// Choose answers the pending post-break decision for seat.
+// Choose answers the pending decision for seat.
 func (g *Game) Choose(seat int, opt Option) error {
 	res, err := g.Rules.Choose(seat, opt)
 	if err != nil {
@@ -386,6 +396,9 @@ func (g *Game) Tick() *ShotResult {
 	g.shot.Events = g.Table.Events
 	res := g.Rules.Resolve(g.shot)
 	g.cueInKitchen = false
+	if res.Respot != 0 {
+		g.Table.Spot(res.Respot, g.Table.Cfg.FootSpot(), 1)
+	}
 	if res.CuePocketed && g.Rules.Phase != PhaseGameOver {
 		// The incoming player has ball in hand; the head spot is only a
 		// default. It is inside the kitchen, which every scratch on the
@@ -415,5 +428,8 @@ func (g *Game) State() State {
 		Kitchen:    g.Rules.Kitchen,
 		Decision:   g.Rules.Decision,
 		Winner:     g.Rules.Winner,
+		Mode:       g.Rules.Mode,
+		Fouls:      g.Rules.Fouls,
+		PushOut:    g.Rules.PushOut,
 	}
 }

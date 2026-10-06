@@ -119,7 +119,7 @@ var ErrRoomLimit = errors.New("room limit reached")
 
 // CreateRoom starts a new empty room and returns its code. It fails with
 // ErrRoomLimit when MaxRooms rooms already exist.
-func (h *Hub) CreateRoom() (string, error) {
+func (h *Hub) CreateRoom(mode game.Mode) (string, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.rooms) >= h.opts.MaxRooms {
@@ -130,7 +130,7 @@ func (h *Hub) CreateRoom() (string, error) {
 		if _, taken := h.rooms[code]; taken {
 			continue
 		}
-		r := newRoom(h, code)
+		r := newRoom(h, code, mode)
 		h.rooms[code] = r
 		go r.run()
 		return code, nil
@@ -140,6 +140,7 @@ func (h *Hub) CreateRoom() (string, error) {
 // RoomInfo is the public summary of a room, for the room list.
 type RoomInfo struct {
 	RoomCode string     `json:"roomCode"`
+	Mode     game.Mode  `json:"mode"`
 	Players  [2]string  `json:"players"` // names; "" for an empty seat
 	Phase    game.Phase `json:"phase"`
 	// Seated counts taken seats, including seats held for a reconnect;
@@ -194,10 +195,23 @@ func (h *Hub) remove(r *room) {
 
 // HandleCreateRoom is the POST handler that creates a room and answers
 // {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
-// MaxRooms rooms already exist.
-func (h *Hub) HandleCreateRoom(w http.ResponseWriter, _ *http.Request) {
+// MaxRooms rooms already exist. An optional JSON body {"mode": "9ball"}
+// picks the game; 8-ball by default.
+func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	code, err := h.CreateRoom()
+	var body struct {
+		Mode game.Mode `json:"mode"`
+	}
+	json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<10)).Decode(&body) // an empty or bad body is the default
+	if body.Mode == "" {
+		body.Mode = game.ModeEight
+	}
+	if !body.Mode.Valid() {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": protocol.ErrBadMode, "message": "unknown game mode"})
+		return
+	}
+	code, err := h.CreateRoom(body.Mode)
 	if err != nil {
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{

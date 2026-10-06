@@ -188,7 +188,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	h := New(Options{MaxRooms: 200})
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		code, err := h.CreateRoom()
+		code, err := h.CreateRoom(game.ModeEight)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +208,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	if h.RoomCount() != 200 {
 		t.Errorf("RoomCount = %d, want 200", h.RoomCount())
 	}
-	if _, err := h.CreateRoom(); err != ErrRoomLimit {
+	if _, err := h.CreateRoom(game.ModeEight); err != ErrRoomLimit {
 		t.Errorf("201st room: err = %v, want ErrRoomLimit", err)
 	}
 }
@@ -903,4 +903,108 @@ func TestShotClockCanBeTurnedOff(t *testing.T) {
 	}
 	c1.send(msg{"type": "extend"})
 	c1.expectError("wrong_phase")
+}
+
+// createRoomMode creates a room for mode and returns the response status
+// and code.
+func createRoomMode(t *testing.T, srv *httptest.Server, mode string) (int, string) {
+	t.Helper()
+	res, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(`{"mode":"`+mode+`"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var body struct{ RoomCode string }
+	json.NewDecoder(res.Body).Decode(&body)
+	return res.StatusCode, body.RoomCode
+}
+
+func TestNineBallRoomAndModeSwitch(t *testing.T) {
+	h, srv := newServer(t, fastOptions())
+	if status, _ := createRoomMode(t, srv, "snooker"); status != http.StatusBadRequest {
+		t.Errorf("unknown mode: status %d, want 400", status)
+	}
+	_, code := createRoomMode(t, srv, "9ball")
+	if list := h.Rooms(); len(list.Rooms) != 1 || list.Rooms[0].Mode != game.ModeNine {
+		t.Fatalf("room list = %+v", list)
+	}
+
+	c0, c1 := dial(t, srv), dial(t, srv)
+	if _, st := c0.join(code, "Ann"); st["mode"] != "9ball" {
+		t.Fatalf("mode in room_state = %v", st["mode"])
+	}
+	c1.join(code, "Bob")
+	c0.expect("player")
+	c0.send(msg{"type": "ready"})
+	c0.expect("player")
+	c1.expect("player")
+
+	// Switching the game in the lobby makes both players ready again.
+	c1.send(msg{"type": "set_mode", "mode": "8ball"})
+	for _, c := range []*testClient{c0, c1} {
+		st := c.expect("room_state")
+		if st["mode"] != "8ball" || players(st)[0].(msg)["ready"] != false {
+			t.Errorf("after set_mode: %v", st)
+		}
+	}
+	c1.send(msg{"type": "set_mode", "mode": "pool"})
+	c1.expectError("bad_mode")
+	c1.send(msg{"type": "set_mode", "mode": "9ball"})
+	c0.expect("room_state")
+	c1.expect("room_state")
+
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	for _, c := range []*testClient{c0, c1} {
+		_, st := c.waitFor("room_state")
+		if st["phase"] != "breaking" || st["mode"] != "9ball" || len(st["balls"].([]any)) != 10 || st["pushOut"] != false {
+			t.Errorf("9-ball rack: %v", st)
+		}
+	}
+	c0.send(msg{"type": "set_mode", "mode": "8ball"})
+	c0.expectError("wrong_phase")
+	c0.send(msg{"type": "shoot", "angle": 0, "power": 1, "call": msg{"pushOut": true}})
+	c0.expectError("bad_call") // no push out on the break
+}
+
+func TestNineBallPushOut(t *testing.T) {
+	opts := fastOptions()
+	opts.Game.SlidingFriction = 0.6 // a break that reaches the rails
+	opts.Game.RollingFriction = 0.15
+	_, srv := newServer(t, opts)
+	_, code := createRoomMode(t, srv, "9ball")
+	c := [2]*testClient{dial(t, srv), dial(t, srv)}
+	c[0].join(code, "Ann")
+	c[1].join(code, "Bob")
+	c[0].send(msg{"type": "ready"})
+	c[1].send(msg{"type": "ready"})
+	c[1].waitFor("room_state")
+
+	c[0].send(msg{"type": "shoot", "angle": 0, "power": 1})
+	c[0].waitFor("settled")
+	_, settled := c[1].waitFor("settled")
+	if settled["phase"] != "open" || settled["pushOut"] != true {
+		t.Fatalf("after the break: %v", settled)
+	}
+	shooter := int(settled["turn"].(float64))
+	other := 1 - shooter
+
+	c[shooter].send(msg{"type": "shoot", "angle": math.Pi / 2, "power": 0.05, "call": msg{"pushOut": true}})
+	_, settled = c[other].waitFor("settled")
+	d, _ := settled["decision"].(msg)
+	if settled["pushedOut"] != true || settled["foul"] != nil || d == nil || d["seat"] != float64(other) {
+		t.Fatalf("after the push out: %v", settled)
+	}
+	if ck := clockOf(t, settled); ck["seat"] != float64(other) {
+		t.Errorf("clock for the decision = %v", ck)
+	}
+
+	c[other].send(msg{"type": "choose", "option": "pass_back"})
+	st := c[other].expect("room_state")
+	if st["turn"] != float64(shooter) || st["decision"] != nil || st["pushOut"] != false {
+		t.Errorf("after pass_back: %v", st)
+	}
+	if ck := clockOf(t, st); ck["seat"] != float64(shooter) || ck["limit"] != 30000.0 {
+		t.Errorf("clock after a push out decision = %v, want the normal clock", ck)
+	}
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -70,8 +71,12 @@ type clock struct {
 	gen int
 }
 
-// errNoExtension rejects a second extend in one game.
-var errNoExtension = errors.New("you have already used your extension this game")
+// errNoExtension rejects a second extend in one game; errBadMode an unknown
+// mode.
+var (
+	errNoExtension = errors.New("you have already used your extension this game")
+	errBadMode     = errors.New("unknown game mode")
+)
 
 // room is one table and its two seats. Everything below inbox is owned by the
 // run goroutine and must not be touched from anywhere else.
@@ -84,6 +89,7 @@ type room struct {
 	// republishes it after every event; anyone may Load it.
 	info atomic.Pointer[RoomInfo]
 
+	mode        game.Mode // the game played; can change between games
 	game        *game.Game
 	seats       [2]seat
 	ticker      *time.Ticker // non-nil only while a shot is in progress
@@ -98,21 +104,28 @@ type room struct {
 	timerGen int
 }
 
-func newRoom(h *Hub, code string) *room {
+func newRoom(h *Hub, code string, mode game.Mode) *room {
 	r := &room{
 		hub:   h,
 		code:  code,
 		inbox: make(chan event, 16),
 		done:  make(chan struct{}),
-		game:  game.NewGame(h.opts.Game),
+		mode:  mode,
 	}
+	r.resetGame()
 	r.publishInfo()
 	return r
 }
 
+// resetGame puts a fresh game of the room's mode in the lobby.
+func (r *room) resetGame() {
+	r.game = game.NewGame(r.hub.opts.Game)
+	r.game.Rules.Mode = r.mode
+}
+
 // publishInfo refreshes the room-list summary.
 func (r *room) publishInfo() {
-	info := &RoomInfo{RoomCode: r.code, Phase: r.game.Rules.Phase}
+	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Phase: r.game.Rules.Phase}
 	for i := range r.seats {
 		info.Players[i] = r.seats[i].name
 		if !r.seats[i].empty() {
@@ -367,7 +380,7 @@ func (r *room) handleAbandon(gen int) {
 	}
 	r.stopTicker()
 	r.stopClock()
-	r.game = game.NewGame(r.hub.opts.Game)
+	r.resetGame()
 }
 
 // vacate empties a seat and, if a game was on, abandons it.
@@ -379,7 +392,7 @@ func (r *room) vacate(s int) {
 	if r.game.Rules.Phase != game.PhaseLobby {
 		r.stopTicker()
 		r.stopClock()
-		r.game = game.NewGame(r.hub.opts.Game)
+		r.resetGame()
 		r.seats[1-s].ready = false
 		r.broadcast(r.roomState())
 	}
@@ -399,15 +412,15 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 			r.broadcast(r.roomState())
 		}
 	case protocol.TypeChoose:
-		if err = r.game.Choose(s, msg.Option); err == nil {
-			r.noteRack()
-			r.startClock(r.clockAfterChoice())
+		if err = r.choose(s, msg.Option); err == nil {
 			r.broadcast(r.roomState())
 		}
 	case protocol.TypeRematch:
 		err = r.handleRematch()
 	case protocol.TypeExtend:
 		err = r.handleExtend(s)
+	case protocol.TypeSetMode:
+		err = r.handleSetMode(msg.Mode)
 	case protocol.TypeJoin:
 		r.sendError(s, protocol.ErrBadMessage, "already joined")
 	default:
@@ -440,6 +453,29 @@ func (r *room) handleRematch() error {
 		return game.ErrWrongPhase
 	}
 	r.startRack(1 - r.lastBreaker) // breaks alternate
+	return nil
+}
+
+// handleSetMode changes the game played, between games only. In the lobby
+// both players must be ready again for the new game.
+func (r *room) handleSetMode(mode game.Mode) error {
+	ph := r.game.Rules.Phase
+	switch {
+	case !mode.Valid():
+		return errBadMode
+	case ph != game.PhaseLobby && ph != game.PhaseGameOver:
+		return game.ErrWrongPhase
+	case mode == r.mode:
+		return nil
+	}
+	r.mode = mode
+	r.game.Rules.Mode = mode
+	if ph == game.PhaseLobby {
+		for i := range r.seats {
+			r.seats[i].ready = false
+		}
+	}
+	r.broadcast(r.roomState())
 	return nil
 }
 
@@ -529,6 +565,7 @@ func (r *room) tick() {
 		Foul:         res.Foul,
 		Made:         res.Made,
 		IllegalBreak: res.IllegalBreak,
+		PushedOut:    res.PushOut,
 		Phase:        st.Phase,
 		Turn:         st.Turn,
 		Groups:       st.Groups,
@@ -537,6 +574,8 @@ func (r *room) tick() {
 		Decision:     st.Decision,
 		Winner:       winner(st.Winner),
 		Clock:        r.clockInfo(),
+		Fouls:        st.Fouls,
+		PushOut:      st.PushOut,
 	})
 }
 
@@ -582,13 +621,23 @@ func (r *room) stopClock() {
 	r.clock.gen++
 }
 
-// clockAfterChoice is the clock for the shot a decision leads to: a new
-// break, or the first shot after the break.
-func (r *room) clockAfterChoice() time.Duration {
-	if r.game.Rules.Phase == game.PhaseBreaking {
-		return r.hub.opts.ShotClock
+// choose applies seat s's answer to the pending decision and starts the
+// clock for the shot it leads to: the long one for the first shot after an
+// 8-ball break, the normal one for a new break or a shot after a 9-ball
+// push out.
+func (r *room) choose(s int, opt game.Option) error {
+	d := r.game.Rules.Decision
+	afterPush := d != nil && slices.Contains(d.Options, game.OptTakeShot)
+	if err := r.game.Choose(s, opt); err != nil {
+		return err
 	}
-	return r.hub.opts.LongShotClock
+	r.noteRack()
+	limit := r.hub.opts.LongShotClock
+	if afterPush || r.game.Rules.Phase == game.PhaseBreaking {
+		limit = r.hub.opts.ShotClock
+	}
+	r.startClock(limit)
+	return nil
 }
 
 // syncClock runs the clock while the player it counts for is connected and
@@ -628,17 +677,16 @@ func (r *room) handleClockExpired(gen int) {
 	out := protocol.Timeout{Type: protocol.TypeTimeout, Seat: s}
 	if d := r.game.Rules.Decision; d != nil {
 		out.Option = d.Options[0]
-		if r.game.Choose(s, out.Option) != nil {
+		if r.choose(s, out.Option) != nil {
 			return
 		}
-		r.startClock(r.clockAfterChoice())
 	} else {
 		if r.game.TimeFoul(s) != nil {
 			return
 		}
 		r.startClock(r.hub.opts.ShotClock)
 	}
-	r.noteRack() // a time foul on the break hands the break over
+	r.noteRack() // a time foul on the break hands the break over (a no-op after choose)
 	r.broadcast(out)
 	r.broadcast(r.roomState())
 }
@@ -694,6 +742,7 @@ func (r *room) roomState() protocol.RoomState {
 	st := r.game.State()
 	return protocol.RoomState{
 		Type:       protocol.TypeRoomState,
+		Mode:       st.Mode,
 		Balls:      st.Balls,
 		Players:    [2]protocol.PlayerInfo{r.playerInfo(0), r.playerInfo(1)},
 		Phase:      st.Phase,
@@ -705,6 +754,8 @@ func (r *room) roomState() protocol.RoomState {
 		Winner:     winner(st.Winner),
 		Moving:     r.game.Moving(),
 		Clock:      r.clockInfo(),
+		Fouls:      st.Fouls,
+		PushOut:    st.PushOut,
 	}
 }
 
@@ -807,6 +858,10 @@ func errorCode(err error) string {
 		return protocol.ErrBadOption
 	case errors.Is(err, errNoExtension):
 		return protocol.ErrNoExtension
+	case errors.Is(err, errBadMode):
+		return protocol.ErrBadMode
+	case errors.Is(err, game.ErrNoPushOut):
+		return protocol.ErrBadCall
 	}
 	return protocol.ErrBadMessage
 }

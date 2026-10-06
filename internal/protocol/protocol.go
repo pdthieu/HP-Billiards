@@ -19,6 +19,8 @@ const (
 	// TypeExtend uses the sender's one extension of the game: their running
 	// shot clock is set back to the long limit.
 	TypeExtend = "extend"
+	// TypeSetMode changes the game played, in the lobby or after a game.
+	TypeSetMode = "set_mode"
 	// TypePing may be sent at any time, even before join; the server answers
 	// with TypePong. Lets a client notice a dead connection quickly.
 	TypePing = "ping"
@@ -50,10 +52,11 @@ const (
 	ErrNoBallInHand = "no_ball_in_hand"
 	ErrBadPlacement = "bad_placement" // place_cue off the table, on a ball or outside the kitchen
 	ErrBadInput     = "bad_input"     // angle or power is not a finite number
-	ErrBadCall      = "bad_call"      // shoot at the 8-ball without a pocket, or a pocket outside 0–5
+	ErrBadCall      = "bad_call"      // shoot at the 8-ball without a pocket, a pocket outside 0–5, or a push out that is not allowed
 	ErrNoDecision   = "no_decision"   // choose with nothing to decide
 	ErrBadOption    = "bad_option"    // choose with an option that was not offered
 	ErrNoExtension  = "no_extension"  // extend after the sender used their extension this game
+	ErrBadMode      = "bad_mode"      // set_mode (or room creation) with an unknown mode
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -81,6 +84,9 @@ type ClientMessage struct {
 
 	// choose
 	Option game.Option `json:"option"`
+
+	// set_mode
+	Mode game.Mode `json:"mode"`
 }
 
 // Spin is where the cue tip strikes the cue ball, as an offset from its
@@ -99,12 +105,14 @@ func (s *Spin) Vec() game.Vec {
 	return game.Vec{X: s.X, Y: s.Y}
 }
 
-// Call is the shooter's declaration: a safety, or the pocket the 8-ball is
-// going to. Object balls are not called; a shooter whose target is the 8-ball
-// must name a pocket.
+// Call is the shooter's declaration. 8-ball: a safety, or the pocket the
+// 8-ball is going to; object balls are not called, a shooter whose target is
+// the 8-ball must name a pocket. 9-ball: nothing is called, but the shot
+// right after the break may be a push out.
 type Call struct {
-	Safety bool `json:"safety,omitempty"`
-	Pocket *int `json:"pocket,omitempty"`
+	Safety  bool `json:"safety,omitempty"`
+	Pocket  *int `json:"pocket,omitempty"`
+	PushOut bool `json:"pushOut,omitempty"`
 }
 
 // Game converts the wire call to the rules' representation; nil is no call.
@@ -114,6 +122,7 @@ func (c *Call) Game() game.Call {
 		return out
 	}
 	out.Safety = c.Safety
+	out.PushOut = c.PushOut
 	if c.Pocket != nil {
 		out.Pocket = *c.Pocket
 	}
@@ -182,6 +191,7 @@ type Player struct {
 // whenever the state changes other than by a shot settling.
 type RoomState struct {
 	Type       string           `json:"type"`
+	Mode       game.Mode        `json:"mode"`
 	Balls      []game.BallState `json:"balls"` // balls on the table
 	Players    [2]PlayerInfo    `json:"players"`
 	Phase      game.Phase       `json:"phase"`
@@ -193,6 +203,8 @@ type RoomState struct {
 	Winner     *int             `json:"winner"`     // seat or null
 	Moving     bool             `json:"moving"`     // a shot is in progress
 	Clock      *Clock           `json:"clock"`      // null while nobody has to act
+	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by seat
+	PushOut    bool             `json:"pushOut"`    // 9-ball: turn may push out on this shot
 }
 
 // Snapshot carries ball positions while a shot is in progress.
@@ -211,6 +223,7 @@ type Settled struct {
 	Foul         game.Foul        `json:"foul,omitempty"`
 	Made         bool             `json:"made"`
 	IllegalBreak bool             `json:"illegalBreak"`
+	PushedOut    bool             `json:"pushedOut"` // 9-ball: this shot was a push out
 	Phase        game.Phase       `json:"phase"`
 	Turn         int              `json:"turn"`
 	Groups       [2]game.Group    `json:"groups"`
@@ -219,6 +232,8 @@ type Settled struct {
 	Decision     *game.Decision   `json:"decision"`
 	Winner       *int             `json:"winner,omitempty"`
 	Clock        *Clock           `json:"clock"`
+	Fouls        [2]int           `json:"fouls"`
+	PushOut      bool             `json:"pushOut"`
 }
 
 // Aim relays the shooter's aim to the other player.
