@@ -123,11 +123,24 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     const strong = await A.evaluate(() => {
       SND.strong = false;
       let n = 0;
-      for (let i = 0; i < 300; i++) if (pickLine(['great', 'miss', 'win', 'foul', 'lose'][i % 5]).strong) n++;
+      for (let i = 0; i < 300; i++) if (pickLine(['great', 'miss', 'win', 'foul', 'lose'][i % 5], Math.random).strong) n++;
       SND.strong = true;
       return n;
     });
     if (strong) fail(`${strong} strong lines with strong language off`);
+    // Everyone hears the same line: the player and the spectator draw the
+    // same one from the same shot, many times over.
+    const shot = (i) => ({ pocketed: i % 3 ? [] : [3, 5], shooter: i % 2, phase: 'open', balls: [{ id: 0, x: 0.1 * i, y: 0.5 }] });
+    const lines = async (page) => page.evaluate((shots) => shots.map((m) => {
+      SND.spokeAt = -Infinity;
+      SND.lastLine = '';
+      S.shotWasBreak = false;
+      voiceFor(m);
+      return SND.lastLine;
+    }), [...Array(30)].map((_, i) => shot(i)));
+    await W.waitForFunction(() => SND.lines.length > 60, null, { timeout: 10000 });
+    const [la, lw] = [await lines(A), await lines(W)];
+    if (la.join() !== lw.join() || la.filter(Boolean).length < 10) fail(`lines differ or too few:\n${la}\n${lw}`);
     const file = await A.evaluate(async () => { const r = await fetch('/voice/great-01.m4a'); return [r.status, r.headers.get('content-type')]; });
     if (file[0] !== 200 || file[1] !== 'audio/mp4') fail(`voice file ${file}`);
     console.log('commentator ok:', said.line.text);

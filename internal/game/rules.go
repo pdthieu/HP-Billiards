@@ -163,6 +163,7 @@ type ShotResult struct {
 	Made         bool  // a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket; in 9-ball any ball on a legal shot
 	IllegalBreak bool  // break shot that pocketed nothing and drove too few balls to a rail
 	PushOut      bool  // 9-ball: the shot was a push out
+	Safety       bool  // 8-ball: the shooter called a safety
 	Respot       int   // a ball to put back on the foot spot (the 9-ball), or 0
 }
 
@@ -327,7 +328,7 @@ func (r *Rules) resolveFree(s Shot) ShotResult {
 
 func (r *Rules) resolveEight(s Shot) ShotResult {
 	shooter, opponent := r.Turn, 1-r.Turn
-	res := ShotResult{Shooter: shooter}
+	res := ShotResult{Shooter: shooter, Safety: s.Call.Safety}
 	breaking := r.Phase == PhaseBreaking
 
 	// Legality is judged against the table as it was when the shot was struck,

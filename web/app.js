@@ -597,6 +597,8 @@ function onSettled(msg) {
     if (msg.impacts) rec.impacts.push(...msg.impacts);
     rec.snaps.push({ t: rec.snaps[rec.snaps.length - 1].t + 50, balls: new Map(S.balls) });
     S.lastShot = rec;
+  } else {
+    S.lastShot = null; // joined midway: no replay, and an older shot is not this one
   }
   S.oppAim = null;
   applyRules(msg);
@@ -688,7 +690,7 @@ function onTimeout(msg) {
   S.clock = null;
   toast(text, isMe(msg.seat));
   setStatus(text, 'foul');
-  speak('timeout');
+  speak('timeout', seeded(JSON.stringify([S.roomCode, 'timeout', msg])));
 }
 
 // resetToLanding forgets the room and shows the landing form.
@@ -931,7 +933,6 @@ function shoot() {
   if (send(msg)) {
     playStrike(S.power);
     SND.ownStrike = performance.now();
-    S.shotSafety = !!(S.call && S.call.safety);
     const cue = displayBalls().get(0);
     if (cue) {
       const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
@@ -2464,7 +2465,7 @@ const SND = {
   voice: readSetting('pool:voice') !== 'off',          // the commentator speaks
   strong: readSetting('pool:voice:strong') !== 'off',  // ...strong language too
   lines: [],     // web/voice/lines.json: {id, kind, text, strong?, buf?}
-  lastLine: '',  // the id spoken last, not to repeat it
+  lastLine: '',  // the id spoken last
   spokeAt: -Infinity, // performance.now() of the last line
   voices: 0,     // lines spoken so far, for tests
 };
@@ -2789,8 +2790,10 @@ function setVolume(v) {
 // (CLIENT.md, "Commentary"). web/voice/lines.json lists them; each is
 // web/voice/<id>.m4a, recorded by scripts/make-voices.js and replaceable by
 // a recording of your own under the same name. Lines marked strong use
-// strong language; Settings → Sound can leave them out. Each machine picks
-// its own line, at most one every 3 s, and shows it as a caption.
+// strong language; Settings → Sound can leave them out. Everyone in the
+// room hears the same line: each machine draws it from a generator seeded
+// by what it got from the server about the shot, which is the same for all.
+// At most one line every 3 s, shown as a caption too.
 
 const VOICE_GAP_MS = 3000;
 const VOICE_DELAY_MS = 250; // after the balls have had their say
@@ -2811,19 +2814,40 @@ function loadVoices(ctx) {
     .catch(() => { /* no commentator */ });
 }
 
-// pickLine chooses a line of kind, not the last one spoken, without strong
-// language unless allowed. Lines not loaded yet still count (as captions).
-function pickLine(kind) {
-  let pool = SND.lines.filter((l) => l.kind === kind && (SND.strong || !l.strong));
-  if (pool.length > 1) pool = pool.filter((l) => l.id !== SND.lastLine);
-  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+// seeded returns a generator of numbers in [0, 1) that is the same on every
+// machine for the same text (FNV-1a, then mulberry32).
+function seeded(text) {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) { h ^= text.charCodeAt(i); h = Math.imul(h, 16777619); }
+  let a = h >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-function speak(kind) {
+// pickLine draws a line of kind with rnd. Someone who leaves strong language
+// out gets a clean line of the same kind in place of a strong one (drawn
+// with the next number, so everyone's draws stay in step). Lines not loaded
+// yet still count, as captions.
+function pickLine(kind, rnd) {
+  const all = SND.lines.filter((l) => l.kind === kind);
+  if (!all.length) return null;
+  const line = all[Math.floor(rnd() * all.length)];
+  const alt = rnd();
+  if (!line.strong || SND.strong) return line;
+  const clean = all.filter((l) => !l.strong);
+  return clean.length ? clean[Math.floor(alt * clean.length)] : null;
+}
+
+function speak(kind, rnd) {
   if (!SND.voice || S.replay) return;
   const now = performance.now();
   if (now - SND.spokeAt < VOICE_GAP_MS) return;
-  const line = pickLine(kind);
+  const line = pickLine(kind, rnd);
   if (!line) return;
   SND.spokeAt = now;
   SND.lastLine = line.id;
@@ -2852,22 +2876,24 @@ function caption(text) {
   caption.timer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
-// voiceFor picks what the commentator says about a settled shot.
+// voiceFor picks what the commentator says about a settled shot. Every
+// draw comes from the shot's seed, in the same order on every machine.
 function voiceFor(msg) {
+  const rnd = seeded(JSON.stringify([S.roomCode, msg.shooter, msg.pocketed, msg.balls]));
+  const say = (kind) => speak(kind, rnd);
   const made = msg.pocketed.filter((id) => id !== 0);
   const scratch = msg.pocketed.includes(0) || msg.foul === 'scratch';
   const over = msg.winner !== undefined && msg.winner !== null;
-  const safety = S.shotSafety;
-  S.shotSafety = false;
   if (!S.practice) {
-    if (over) { speak(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
-    if (scratch) { speak('scratch'); return; }
-    if (msg.foul) { speak('foul'); return; }
-  } else if (scratch) { speak('scratch'); return; }
-  if (S.shotWasBreak) { if (made.length) speak('break'); return; }
-  if (made.length >= 2 || longPot(made)) { speak('great'); return; }
-  if (made.length === 1) { if (Math.random() < 0.35) speak('nice'); return; }
-  if (!safety && !msg.pushedOut && Math.random() < 0.5) speak('miss');
+    if (over) { say(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
+    if (scratch) { say('scratch'); return; }
+    if (msg.foul) { say('foul'); return; }
+  } else if (scratch) { say('scratch'); return; }
+  if (S.shotWasBreak) { if (made.length) say('break'); return; }
+  if (made.length >= 2 || longPot(made)) { say('great'); return; }
+  const chance = rnd();
+  if (made.length === 1) { if (chance < 0.35) say('nice'); return; }
+  if (!msg.safety && !msg.pushedOut && chance < 0.5) say('miss');
 }
 
 // longPot: one of the balls made travelled more than 1.2 m to its pocket.

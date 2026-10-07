@@ -812,6 +812,7 @@ func (r *room) tick() {
 		IllegalBreak: res.IllegalBreak,
 		Impacts:      r.newImpacts(),
 		PushedOut:    res.PushOut,
+		Safety:       res.Safety,
 		Phase:        st.Phase,
 		Turn:         st.Turn,
 		Groups:       st.Groups,

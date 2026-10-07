@@ -221,6 +221,9 @@ func TestPocketingKeepsTheTurn(t *testing.T) {
 			if got := r.Remaining(GroupSolids); got != tc.wantSolids {
 				t.Errorf("solids remaining = %d, want %d", got, tc.wantSolids)
 			}
+			if res.Safety != tc.shot.Call.Safety {
+				t.Errorf("safety = %v, want %v", res.Safety, tc.shot.Call.Safety)
+			}
 		})
 	}
 }

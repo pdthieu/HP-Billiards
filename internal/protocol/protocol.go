@@ -322,7 +322,8 @@ type Settled struct {
 	Foul         game.Foul        `json:"foul,omitempty"`
 	Made         bool             `json:"made"`
 	IllegalBreak bool             `json:"illegalBreak"`
-	PushedOut    bool             `json:"pushedOut"` // 9-ball: this shot was a push out
+	PushedOut    bool             `json:"pushedOut"`        // 9-ball: this shot was a push out
+	Safety       bool             `json:"safety,omitempty"` // 8-ball: the shooter called a safety
 	Phase        game.Phase       `json:"phase"`
 	Turn         int              `json:"turn"`
 	Groups       [2]game.Group    `json:"groups"`

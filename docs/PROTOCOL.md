@@ -211,6 +211,7 @@ Ends a shot. Positions are exact; clients snap to them.
 - `made`: a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket.
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; in 8-ball a `decision` for the opponent follows, in 9-ball it is the foul `bad_break`.
 - `pushedOut`: 9-ball, this shot was a push out. `fouls` and `pushOut` as in `room_state`.
+- `safety`: present (true) when the shooter called a safety, so every client knows it.
 - `winner`: present only when the game is over.
 - `clock`: as in `room_state`, started for whoever acts next.
 - `match`: as in `room_state`; a shot that ends a rack has it in `racks` already.

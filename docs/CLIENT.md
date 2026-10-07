@@ -316,10 +316,18 @@ loudness within its kind:
 
 ### Commentary
 
-A commentator says a short line in Vietnamese after some shots, picked at
-random from `web/voice/lines.json` (69 lines in 9 kinds), never the same twice
-in a row and at most one every 3 s. The line also shows as a caption over the
-table, also with the sound off. Replays stay quiet.
+A commentator says a short line in Vietnamese after some shots, picked from
+`web/voice/lines.json` (69 lines in 9 kinds), at most one every 3 s. The line
+also shows as a caption over the table, also with the sound off. Replays stay
+quiet.
+
+Everyone in the room, players and spectators, hears the same line. There is
+no extra message for it: every client draws the line, and whether one is
+said at all, from a generator seeded by the shot's `settled` message (room
+code, shooter, pocketed balls, final positions), which is the same for all
+(`seeded`, `voiceFor`). The shot clock's lines are seeded by the `timeout`
+message. Someone who leaves strong language out hears a clean line of the
+same kind instead of a strong one.
 
 | kind | when | how often |
 |---|---|---|
@@ -339,6 +347,11 @@ play there.
   "Ảo ma Canada!", "Ét o ét!", "Gét gô!"…). Those marked `strong` use strong
   language ("Cái đéo má…"). Settings → Sound → *Strong language* leaves them
   out; *Commentator* turns the voice off (`pool:voice:strong`, `pool:voice`).
+- **The voices.** To be funnier each kind has a style, set in
+  `scripts/make-voices.js`: good news (`break`, `nice`, `great`, `win`)
+  high and quick like a cartoon (played back 1.3× faster), bad news
+  (`miss`, `foul`, `scratch`, `lose`) deep and slow (0.78×), the shot clock
+  sleepy (0.7×). A line in `lines.json` may name its own `style`.
 - **The recordings.** Each line is `web/voice/<id>.m4a` (AAC, 32 kbit/s, about
   580 KB in all), fetched and decoded once audio starts. They are spoken by
   macOS's Vietnamese voice "Linh" (`node scripts/make-voices.js`), which
