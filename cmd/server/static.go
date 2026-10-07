@@ -15,7 +15,7 @@ import (
 // compressible lists the text files worth gzipping; the sounds, icons and
 // fonts are compressed already.
 var compressible = map[string]bool{
-	".js": true, ".css": true, ".html": true, ".svg": true, ".webmanifest": true,
+	".js": true, ".css": true, ".html": true, ".svg": true, ".webmanifest": true, ".json": true,
 }
 
 // gzipStatic serves text files from fsys gzipped to browsers that accept

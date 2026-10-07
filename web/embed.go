@@ -9,15 +9,17 @@ import (
 // Files is the content served at the site root: the game client
 // (index.html, app.js, the stylesheets, fonts, icons, the recorded sounds
 // and the web app manifest that lets a phone add it to the home screen),
-// the 3D library under vendor/ and the protocol debug page.
+// the 3D library under vendor/, the commentary lines under voice/ and the
+// protocol debug page.
 //
-//go:embed *.html *.js *.css *.webmanifest fonts/*.woff2 icons sounds vendor
+//go:embed *.html *.js *.css *.webmanifest fonts/*.woff2 icons sounds vendor voice
 var Files embed.FS
 
 func init() {
-	// Go's built-in table has no entry for woff2, webmanifest or wav; without them
+	// Go's built-in table has no entry for woff2, webmanifest, wav or m4a; without them
 	// they are served as application/octet-stream.
 	mime.AddExtensionType(".woff2", "font/woff2")
 	mime.AddExtensionType(".webmanifest", "application/manifest+json")
 	mime.AddExtensionType(".wav", "audio/wav")
+	mime.AddExtensionType(".m4a", "audio/mp4")
 }
