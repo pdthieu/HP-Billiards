@@ -91,6 +91,8 @@ async function shootAndSettle(page, angle, power) {
     const played = await A.evaluate(() => SND.played);
     if (played < 5) fail(`only ${played} sounds scheduled for a shot into the rack`);
     console.log('sounds scheduled:', played);
+    // the recordings load and decode (the synthesized sounds only stand in)
+    await A.waitForFunction(() => SND.takes.clack.length === 7 && SND.takes.cue.length === 4 && SND.takes.pocket.length === 1, null, { timeout: 10000 });
     const st = await A.evaluate(() => ({ seat: S.seat, turn: S.turn, decision: S.decision, phase: S.phase, ballInHand: S.ballInHand }));
     if (st.seat !== 0 || st.turn !== 0 || st.decision || st.phase !== 'open' || st.ballInHand) fail(`not free play after a shot: ${JSON.stringify(st)}`);
     await A.waitForTimeout(300); // the status cross-fade
@@ -125,7 +127,8 @@ async function shootAndSettle(page, angle, power) {
 
     // Phone layout: an iPhone in Safari with its bars (393 x 670). The table
     // stands upright and every panel fits its slot.
-    const P = await mk({ width: 393, height: 670 });
+    const P = await (await browser.newContext({ viewport: { width: 393, height: 670 }, hasTouch: true, isMobile: true })).newPage();
+    P.on('pageerror', (e) => errors.push(e.message));
     await P.goto(base + '/');
     await P.fill('#name', 'Pho');
     await P.click('#practice');
@@ -154,6 +157,23 @@ async function shootAndSettle(page, angle, power) {
     await P.click('#sheetClose');
     await P.waitForFunction(() => document.getElementById('shotSheet').hidden);
     console.log('phone sheet ok');
+
+    // A touch beside a ball names it (a fingertip is wider than a ball here),
+    // and the ball the aim hits is named while aiming.
+    const beside = await P.evaluate(() => {
+      const r = document.getElementById('table').getBoundingClientRect();
+      const sp = toScreen(S.balls.get(1));
+      return { x: r.left + sp.x + 12, y: r.top + sp.y + 4 };
+    });
+    await P.touchscreen.tap(beside.x, beside.y);
+    await P.waitForTimeout(100);
+    const named = await P.evaluate(() => S.hoverBall);
+    if (named === null) fail('a touch beside a ball named nothing');
+    const aimed = await P.evaluate(() => { const c = S.balls.get(0), t = S.balls.get(1); setAngle(Math.atan2(t.y - c.y, t.x - c.x)); return castAim(displayBalls(), c, S.angle).hit; });
+    if (aimed !== 1) fail(`aim at the 1 hits ${aimed}`);
+    await P.waitForTimeout(2100); // the touch label fades, the aim tag stays
+    await P.screenshot({ path: path.join(shots, 'practice-phone-aim-tag.png') });
+    console.log('ball names ok, touch named', named);
 
     // The page can be added to a home screen.
     const manifest = await P.evaluate(async () => {

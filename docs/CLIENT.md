@@ -200,6 +200,14 @@ The tray row is hidden to make room.
      buttons. `placeShotOptions` moves those nodes there from the panel
      whenever the phone layout applies. Done, Escape, a touch anywhere else
      or the shot closes the sheet; the table stays live above it.
+   - **Naming balls.** The numbers on balls under 16 px across are too
+     small to read, so:
+     - a touch within a fingertip (22 px) of a ball names it for 2 s, with
+       a swatch of its colour, at any time, the other player's turn
+       included;
+     - while aiming, the ball the shot hits first carries a small tag
+       beside it, across the line of the shot, so the cut is never played
+       on the wrong ball.
    - **Lobby and game over** keep the 134 px slot, so the table resizes
      only at the start and end of a rack. On an iPhone in Safari
      (393 × 670) balls are about 10 px. Toasts drop from under the header.
@@ -218,18 +226,44 @@ The tray row is hidden to make room.
 
 ## Sound
 
-Sound effects are synthesized with the Web Audio API (no audio files): a
-short bright clack for ball on ball, a dull thump for a cushion, a knock and
-rattle for a pocket and a leather "tock" for the cue. Volume follows the
-closing speed the server reports in `impacts`, and each sound is scheduled
-for the moment the render clock (100 ms behind the snapshots) reaches it, so
-it lands on the frame that shows the contact; one that would play over
-120 ms late is dropped. The cue strike plays at once for your own shot and
-with the first snapshot for the other player's. A limiter keeps a break's
-pile of clacks from clipping. Browsers only start audio after a click or key
-press, so the context is created on the first one. Settings has *Sound
-effects* (on by default) and a volume slider, kept in `localStorage` as
-`pool:sound` and `pool:volume`.
+Ball on ball, the cue and a pocket are recordings (`web/sounds`, about
+200 KB of 16-bit mono WAV, fetched once audio starts); a cushion is a
+synthesized thump.
+
+- **What a real clack is.** Measured on the recordings, it falls 30 dB in
+  3 to 8 ms, its energy around 2 to 3 kHz, because the balls touch for only
+  about 0.2 ms. The old synthesized clack rang for 35 ms on three pure tones
+  and sounded like a bell.
+- **Variation.** Each contact plays one of the takes (7 clacks, 4 cue
+  strikes, 1 pocket), never the same one twice in a row, 3 % up or down in
+  pitch.
+- **Speed.** Volume follows the closing speed the server reports in
+  `impacts`. A low-pass filter also closes for soft contacts, which are
+  duller as well as quieter.
+- **Before loading.** Until the takes have decoded, short synthesized
+  stand-ins play.
+- **Timing.** Each sound is scheduled for the moment the render clock
+  (100 ms behind the snapshots) reaches it, so it lands on the frame that
+  shows the contact. One that would play over 120 ms late is dropped. The
+  cue strike plays at once for your own shot and with the first snapshot
+  for the other player's.
+- **Limiter.** It keeps a break's pile of clacks from clipping.
+- **Starting.** Browsers only start audio after a click or key press, so the
+  context is created on the first one.
+- **Settings.** *Sound effects* (on by default) and a volume slider are kept
+  in `localStorage` as `pool:sound` and `pool:volume`.
+
+The takes were cut from CC0 (public domain) recordings on Freesound. Each
+was trimmed to start 1 ms before the hit, faded out, and evened out in
+loudness within its kind:
+
+| file | source |
+|---|---|
+| `clack-1` to `clack-4` | "Billiard Ball percussive hits" by Cymeon, freesound.org/s/245397 |
+| `clack-5`, `clack-6` | "Pool balls" by bsumusictech, freesound.org/s/62331 |
+| `clack-7` | "billiard ball clack" by Za-Games, freesound.org/s/539854 |
+| `cue-1` to `cue-4` | "S02-22 Billiards cue stick hits ball" by craigsmith, freesound.org/s/675330 |
+| `pocket-1` | "B_1 pool ball falling" by Yarmonics, freesound.org/s/441857 |
 
 ## Rendering
 

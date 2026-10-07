@@ -1350,7 +1350,7 @@ function draw() {
   } else if (cue && S.oppAim && inPlay() && !S.moving && S.turn !== S.seat) {
     aim = { angle: oppAimAngle(now), power: S.oppAim.power, mine: false, alpha: 1 };
   }
-  if (aim) drawAim(balls, cue, aim.angle, aim.mine, aim.alpha);
+  const cast = aim ? drawAim(balls, cue, aim.angle, aim.mine, aim.alpha) : null;
 
   // shadows, then bodies
   const lifted = S.drag ? S.drag.id : -1;
@@ -1394,6 +1394,13 @@ function draw() {
   else if (myShot && S.ballInHand && cue) ring(cue, R + 0.014, PAL.ok, 0.004);
 
   if (S.hoverUntil && now > S.hoverUntil) { S.hoverBall = null; S.hoverUntil = 0; }
+  // Where the numbers on the balls are too small to read (phones), the ball
+  // my aim hits first is named, so a cut is never played on the wrong ball.
+  const target = cast && aim.mine && !S.drag && cast.hit;
+  if (target && target !== S.hoverBall && 2 * R * view.s < 16 && balls.has(target)) {
+    const a = toScreen(cue), b = toScreen({ x: cue.x + Math.cos(S.angle), y: cue.y + Math.sin(S.angle) });
+    drawBallLabel(target, balls.get(target), { x: b.x - a.x, y: b.y - a.y });
+  }
   if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
   drawFx('top', now);
 }
@@ -1753,26 +1760,53 @@ function drawBall(id, p, opts) {
 
 // drawBallLabel names the ball under the pointer, in screen pixels so it
 // stays readable at any table size.
-function drawBallLabel(id, p) {
+// A swatch of the ball's colour leads the text (a stripe is a band on
+// white), so the label reads even before the number does. aim (the screen
+// direction of the shot) makes it the smaller tag of the ball the aim hits,
+// set beside that ball across the line of the shot, toward the open table,
+// so it hides neither the aim nor the balls beyond.
+function drawBallLabel(id, p, aim) {
+  const quiet = !!aim;
   const text = id === 0 ? 'cue ball' : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
   const sp = toScreen(p);
   ctx.save();
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
-  ctx.font = '600 13px "Source Sans 3", system-ui, sans-serif';
-  ctx.textAlign = 'center';
+  if (quiet) ctx.globalAlpha = 0.88;
+  ctx.font = `600 ${quiet ? 12 : 14}px "Source Sans 3", system-ui, sans-serif`;
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
-  const w = ctx.measureText(text).width + 22;
-  const h = 26;
-  const cx = Math.max(w / 2 + 4, Math.min(view.cssW - w / 2 - 4, sp.x));
-  const cy = sp.y - R * view.s - 23;
-  roundRect(cx - w / 2, cy - h / 2, w, h, 13);
+  const sw = quiet ? 5 : 6; // swatch radius
+  const tw = ctx.measureText(text).width;
+  const w = tw + sw * 2 + (quiet ? 18 : 24);
+  const h = quiet ? 22 : 28;
+  let x = sp.x, y = sp.y - R * view.s - h / 2 - 10;
+  if (aim) {
+    if (Math.abs(aim.y) >= Math.abs(aim.x)) { x = sp.x + (sp.x > view.cssW / 2 ? -1 : 1) * (R * view.s + w / 2 + 6); y = sp.y; }
+    else { x = sp.x; y = sp.y + (sp.y > view.cssH / 2 ? -1 : 1) * (R * view.s + h / 2 + 6); }
+  }
+  const cx = Math.max(w / 2 + 4, Math.min(view.cssW - w / 2 - 4, x));
+  const cy = Math.max(h / 2 + 2, Math.min(view.cssH - h / 2 - 2, y));
+  roundRect(cx - w / 2, cy - h / 2, w, h, h / 2);
   ctx.fillStyle = rgba(PAL.labelBg, 0.92);
   ctx.fill();
   ctx.strokeStyle = rgba(PAL.labelStroke, 0.22);
   ctx.lineWidth = 1.5;
   ctx.stroke();
+  const sx = cx - w / 2 + (quiet ? 9 : 12) + sw;
+  const color = id === 0 ? '#F4EFE2' : BALL_COLORS[id > 8 ? id - 8 : id];
+  ctx.beginPath();
+  ctx.arc(sx, cy, sw, 0, Math.PI * 2);
+  ctx.fillStyle = id > 8 ? '#F4EFE2' : color;
+  ctx.fill();
+  if (id > 8) {
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = color;
+    ctx.fillRect(sx - sw, cy - sw * 0.55, sw * 2, sw * 1.1);
+    ctx.restore();
+  }
   ctx.fillStyle = PAL.labelText;
-  ctx.fillText(text, cx, cy + 1);
+  ctx.fillText(text, sx + sw + (quiet ? 5 : 7), cy + 1);
   ctx.restore();
   applyTableTransform();
 }
@@ -1836,7 +1870,8 @@ function drawCue(cue, dir, back, alpha) {
 }
 
 // drawAim draws the guide: path to the ghost ball, the ghost ball, the
-// object ball's direction and the cue ball's deflection.
+// object ball's direction and the cue ball's deflection. It returns the cast
+// (castAim), whose hit names the ball the aim strikes first.
 function drawAim(balls, cue, angle, mine, alpha) {
   const cast = castAim(balls, cue, angle);
   const d = cast.dir;
@@ -1908,17 +1943,21 @@ function drawAim(balls, cue, angle, mine, alpha) {
     }
   }
   ctx.restore();
+  return cast;
 }
 
 // ---------------------------------------------------------------------------
 // 4b. sound
 //
-// Synthesized with Web Audio, no files: a short bright clack for ball on
-// ball, a dull thump for a cushion, a knock and rattle for a pocket and a
-// leather "tock" for the cue. The server sends each contact of a shot with
-// its time and closing speed (snapshot.impacts); it is played when the
-// render clock reaches it, so the sound lands on the frame that shows it,
-// louder for harder contacts.
+// Recorded sounds (web/sounds, CC0 recordings from Freesound, see
+// docs/CLIENT.md) for ball on ball, the cue and a pocket; a synthesized
+// thump for a cushion. A real clack is a click of a few milliseconds, not a
+// ringing tone: the contact lasts about 0.2 ms. Each contact picks one of
+// several takes, a few percent off pitch, and a soft one is duller as well
+// as quieter. The server sends each contact of a shot with its time and
+// closing speed (snapshot.impacts); it is played when the render clock
+// reaches it, so the sound lands on the frame that shows it. Until the
+// recordings have loaded, a short synthesized stand-in plays.
 
 const SND = {
   ctx: null,
@@ -1928,7 +1967,48 @@ const SND = {
   volume: Math.min(1, Math.max(0, Number(readSetting('pool:volume') ?? 0.8))),
   played: 0,     // sounds scheduled so far, for tests
   ownStrike: 0,  // when we last played our own cue strike
+  takes: { clack: [], cue: [], pocket: [] }, // decoded recordings, filled once loaded
+  last: {},      // the take each kind played last, not to repeat it
 };
+
+const SOUND_TAKES = { clack: 7, cue: 4, pocket: 1 };
+
+// loadTakes fetches and decodes the recordings; a failure leaves the
+// synthesized sounds in place.
+function loadTakes(ctx) {
+  for (const [kind, n] of Object.entries(SOUND_TAKES)) {
+    for (let i = 1; i <= n; i++) {
+      fetch(`/sounds/${kind}-${i}.wav`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buf) => { SND.takes[kind].push(buf); })
+        .catch(() => { /* keep the synthesized stand-in */ });
+    }
+  }
+}
+
+// playTake plays a recording of kind at time at, or reports false if none
+// has loaded. gain 0..1; bright 0..1 opens the low-pass (a soft contact is
+// duller); pitch shifts all takes.
+function playTake(ctx, kind, at, gain, bright = 1, pitch = 1) {
+  const takes = SND.takes[kind];
+  if (!takes.length) return false;
+  let i = Math.floor(Math.random() * takes.length);
+  if (takes.length > 1 && i === SND.last[kind]) i = (i + 1) % takes.length;
+  SND.last[kind] = i;
+  const src = ctx.createBufferSource();
+  src.buffer = takes[i];
+  src.playbackRate.value = pitch * (0.97 + 0.06 * Math.random());
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 1800 + 16000 * bright * bright;
+  lp.Q.value = 0.5;
+  const g = ctx.createGain();
+  g.gain.value = gain;
+  src.connect(lp).connect(g).connect(SND.master);
+  src.start(at);
+  return true;
+}
 
 // audio returns the running AudioContext, creating it on first use, or
 // null when sound is off or unsupported. Browsers only let it start from a
@@ -1950,6 +2030,7 @@ function audio() {
     const d = SND.noise.getChannelData(0);
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     SND.ctx = ctx;
+    loadTakes(ctx);
   }
   if (SND.ctx.state === 'suspended') SND.ctx.resume();
   return SND.ctx;
@@ -1988,14 +2069,12 @@ function burst(ctx, at, type, freq, q, gain, decay) {
 // shot near full, with a cube-root-ish curve like the ear's.
 const loudness = (v, full) => Math.min(1, Math.pow(v / full, 0.6));
 
-// Phenolic balls: very short, bright, a little different every time.
+// Phenolic balls: a click of a few milliseconds, its energy around 2-3 kHz.
 function clack(ctx, at, v) {
   const g = loudness(v, 4);
-  const k = 0.96 + 0.08 * Math.random() + 0.04 * g;
-  tone(ctx, at, 2650 * k, 0.55 * g, 0.035);
-  tone(ctx, at, 4150 * k, 0.35 * g, 0.022);
-  tone(ctx, at, 6900 * k, 0.18 * g, 0.012);
-  burst(ctx, at, 'bandpass', 3800, 1.2, 0.6 * g, 0.008);
+  if (playTake(ctx, 'clack', at, 0.9 * g, 0.25 + 0.75 * g)) return;
+  burst(ctx, at, 'bandpass', 2800, 0.7, 0.9 * g, 0.006);
+  tone(ctx, at, 2600 * (0.97 + 0.06 * Math.random()), 0.25 * g, 0.008);
 }
 
 // Rubber cushion behind cloth: a dull thump, a hint of the wooden rail.
@@ -2009,6 +2088,7 @@ function thump(ctx, at, v) {
 // Into a pocket: a knock on the jaw, a low leather thud, a short rattle.
 function drop(ctx, at, v) {
   const g = 0.35 + 0.65 * loudness(v, 3);
+  if (playTake(ctx, 'pocket', at, 0.8 * g, 0.5 + 0.5 * g)) return;
   tone(ctx, at, 1900, 0.18 * g, 0.03);
   burst(ctx, at, 'lowpass', 1100, 0.8, 0.5 * g, 0.05);
   tone(ctx, at + 0.03, 170, 0.55 * g, 0.12);
@@ -2019,7 +2099,9 @@ function drop(ctx, at, v) {
 
 // The tip on the cue ball: a woody tock, sharper for a hard stroke.
 function tock(ctx, at, power) {
-  const g = 0.25 + 0.6 * Math.sqrt(Math.max(0, Math.min(1, power)));
+  const p = Math.max(0, Math.min(1, power));
+  const g = 0.25 + 0.6 * Math.sqrt(p);
+  if (playTake(ctx, 'cue', at, 0.9 * g, 0.45 + 0.55 * p, 0.98 + 0.05 * p)) return;
   tone(ctx, at, 1150, 0.35 * g, 0.025);
   tone(ctx, at, 520, 0.4 * g, 0.045);
   burst(ctx, at, 'bandpass', 2200, 0.9, 0.5 * g, 0.012);
@@ -2073,12 +2155,12 @@ function pointerPos(e) {
   return toTable(e.clientX - rect.left, e.clientY - rect.top);
 }
 
-function hitBall(p, balls, skipCue) {
+function hitBall(p, balls, skipCue, reach = R * 1.8) {
   let best = null;
   for (const [id, b] of balls) {
     if (skipCue && id === 0) continue;
     const d = Math.hypot(b.x - p.x, b.y - p.y);
-    if (d < R * 1.8 && (!best || d < best.d)) best = { id, d };
+    if (d < reach && (!best || d < best.d)) best = { id, d };
   }
   return best ? best.id : null;
 }
@@ -2093,8 +2175,26 @@ function clampBall(id, p) {
   };
 }
 
+// FINGER_PX is how close to a ball a touch must land to name it: a fingertip,
+// not the ball, which is ~10 px across on a phone.
+const FINGER_PX = 22;
+const fingerReach = () => Math.max(R * 1.8, FINGER_PX / view.s);
+
+// nameBall shows ball id's number over it for a moment (a touch has no hover).
+function nameBall(id) {
+  S.hoverBall = id;
+  S.hoverUntil = performance.now() + 2000;
+}
+
 canvas.addEventListener('pointerdown', (e) => {
-  if (!isMyShot()) return;
+  if (!isMyShot()) {
+    // Not my shot: a touch only names the ball under it.
+    if (e.pointerType !== 'mouse') {
+      const id = hitBall(pointerPos(e), displayBalls(), false, fingerReach());
+      if (id !== null) nameBall(id);
+    }
+    return;
+  }
   e.preventDefault();
   const p = pointerPos(e);
   const balls = displayBalls();
@@ -2111,7 +2211,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // (to name it) may be a tap or the start of an aiming drag; decide on
   // release, by distance and time.
   const pocket = needsPocket() ? hitPocket(p) : null;
-  const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true) : null;
+  const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true, fingerReach()) : null;
   S.tap = { id, pocket, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
   if (cue) {
     canvas.setPointerCapture(e.pointerId);
@@ -2189,7 +2289,7 @@ function endPointer(e) {
   if (tap && e.type === 'pointerup' && isMyShot() &&
       performance.now() - tap.t < 250 && Math.hypot(e.clientX - tap.x, e.clientY - tap.y) < 8) {
     if (tap.pocket !== null) callPocket(tap.pocket);
-    else if (tap.id !== null) { S.hoverBall = tap.id; S.hoverUntil = performance.now() + 1500; }
+    else if (tap.id !== null) nameBall(tap.id);
   }
   S.aiming = false;
   if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
@@ -2198,7 +2298,9 @@ function endPointer(e) {
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
-canvas.addEventListener('pointerleave', () => { S.hoverBall = null; });
+// A mouse leaving takes its hover label along; a finger lifting fires
+// pointerleave too, but its label stays for its time (nameBall).
+canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') S.hoverBall = null; });
 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
