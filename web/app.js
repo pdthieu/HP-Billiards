@@ -153,6 +153,14 @@ const S = {
   // shot in progress
   snaps: [],             // [{t, balls: Map}] in arrival order
   shotWall0: 0,          // performance.now() when snapshot t=0 arrived
+  rec: null,             // the shot being recorded for a replay: {snaps, impacts}
+  lastShot: null,        // the last shot, recorded whole: {snaps, impacts}
+  replay: null,          // the replay being played, see startReplay
+
+  // view
+  view: '2d',            // '2d' from above, or '3d' (view3d.js); see initialView
+  camTop: false,         // 3D: look straight down instead of from behind the cue
+  aimDrag: null,         // 3D behind the cue: {x} of the pointer turning the aim
 
   // my shot
   angle: 0,
@@ -443,6 +451,12 @@ function onRoomState(msg) {
   setBalls(msg.balls);
   S.snaps = []; // a shot in progress resumes from the next snapshot
   S.pendingDrops = [];
+  S.rec = null;
+  if (S.lastShot && !sameObjectBalls(S.lastShot.snaps[S.lastShot.snaps.length - 1].balls, S.balls)) {
+    // re-racked, taken back or set up anew: the last shot is history
+    stopReplay();
+    S.lastShot = null;
+  }
   const hadDecision = !!S.decision;
   const turnChanged = applyRules(msg);
   setClock(msg.clock);
@@ -480,6 +494,18 @@ function onRoomState(msg) {
   showMatchIfWon(0);
 }
 
+// sameObjectBalls: the same object balls in the same places (the cue
+// ball may have been placed since).
+function sameObjectBalls(a, b) {
+  for (const [id, p] of a) {
+    if (id === 0) continue;
+    const q = b.get(id);
+    if (!q || Math.hypot(q.x - p.x, q.y - p.y) > 1e-4) return false;
+  }
+  for (const id of b.keys()) if (id !== 0 && !a.has(id)) return false;
+  return true;
+}
+
 function onSnapshot(msg) {
   const balls = new Map(msg.balls.map((b) => [b.id, { x: b.x, y: b.y }]));
   if (msg.t > 0 && S.moving && S.snaps.length) {
@@ -494,6 +520,8 @@ function onSnapshot(msg) {
     if (msg.t === 0 && performance.now() - SND.ownStrike > 1500) {
       playStrike(S.oppAim ? S.oppAim.power : 0.4, RENDER_DELAY_MS);
     }
+    stopReplay();
+    S.rec = msg.t === 0 ? { snaps: [], impacts: [] } : null; // a shot joined midway is not replayed
     S.snaps = [];
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
@@ -506,6 +534,10 @@ function onSnapshot(msg) {
     S.placedAt = null;
   }
   S.snaps.push({ t: msg.t, balls });
+  if (S.rec) {
+    S.rec.snaps.push({ t: msg.t, balls });
+    if (msg.impacts) S.rec.impacts.push(...msg.impacts);
+  }
   playImpacts(msg.impacts);
   refreshPanels();
 }
@@ -523,6 +555,13 @@ function onSettled(msg) {
   S.moving = false;
   S.snaps = [];
   setBalls(msg.balls);
+  const rec = S.rec;
+  S.rec = null;
+  if (rec && rec.snaps.length) {
+    if (msg.impacts) rec.impacts.push(...msg.impacts);
+    rec.snaps.push({ t: rec.snaps[rec.snaps.length - 1].t + 50, balls: new Map(S.balls) });
+    S.lastShot = rec;
+  }
   S.oppAim = null;
   applyRules(msg);
   setClock(msg.clock);
@@ -621,6 +660,9 @@ function resetToLanding(error) {
   S.phase = 'lobby';
   S.moving = false;
   S.snaps = [];
+  stopReplay();
+  S.rec = null;
+  S.lastShot = null;
   S.decision = null;
   S.clock = null;
   S.mode = '8ball';
@@ -1065,7 +1107,11 @@ $('shotSheet').addEventListener('keydown', (e) => { if (e.key === 'Escape') { cl
 document.addEventListener('pointerdown', (e) => {
   if (!$('shotSheet').hidden && !e.target.closest('#shotSheet, #optionsBtn')) closeSheet();
 }, true);
-compactLayout.addEventListener('change', () => { placeShotOptions(); refreshPanels(); });
+compactLayout.addEventListener('change', () => {
+  placeShotOptions();
+  refreshPanels();
+  if (!readSetting('pool:view')) setView(initialView(), false);
+});
 placeShotOptions();
 
 function queueAim() {
@@ -1148,10 +1194,7 @@ function drawFx(layer, now) {
 const FX = {
   // the cue advances to the ball, then fades
   strike(f, p) {
-    const hit = 80 / f.dur;
-    let back, alpha;
-    if (p < hit) { back = R + (0.02 + powerToBar(f.power) * 0.12) * (1 - EASE.in(p / hit)); alpha = 1; }
-    else { back = R; alpha = 1 - EASE.out((p - hit) / (1 - hit)); }
+    const { back, alpha } = strikePose(f.power, p, f.dur);
     drawCue(f.cue, f.dir, back, alpha);
   },
   ring(f, p) {
@@ -1180,6 +1223,14 @@ const FX = {
     ctx.stroke();
   },
 };
+
+// strikePose: where the cue's tip is (back, metres behind the ball's
+// centre) and how visible, p of the way through a strike lasting dur ms.
+function strikePose(power, p, dur) {
+  const hit = 80 / Math.max(dur, 80);
+  if (p < hit) return { back: R + (0.02 + powerToBar(power) * 0.12) * (1 - EASE.in(p / hit)), alpha: 1 };
+  return { back: R, alpha: 1 - EASE.out((p - hit) / (1 - hit)) };
+}
 
 // pocketHole is the dark drop of a pocket as a circle: where the drop
 // animation sinks a ball, where the rim flashes and what a pocket call rings.
@@ -1230,8 +1281,133 @@ function queueDrop(id, from, t) {
 }
 function startDrop(id, from) {
   const { pk, hole } = nearestPocket(from);
-  addFx({ type: 'drop', layer: 'balls', dur: 180, id, from, to: hole });
+  addFx({ type: 'drop', layer: 'balls', dur: v3 ? 360 : 180, id, from, to: hole });
   addFx({ type: 'rim', layer: 'top', dur: 120, pk });
+}
+
+// --- 3D view ----------------------------------------------------------------
+// view3d.js draws the table in 3D (CLIENT.md, "3D view"). It is loaded the
+// first time 3D is turned on; the 2D canvas then lies over it, transparent,
+// for the labels and the pointer, and toTable/toScreen go through the 3D
+// camera so the input code is the same in both views.
+
+let v3 = null;       // the 3D view while it is on
+let canvas3d = null; // its canvas, under the 2D one
+let v3Loading = false;
+
+// initialView: the stored choice, else 3D on a desktop and 2D on a phone,
+// where the flat table aims more precisely and spares the battery.
+function initialView() {
+  const v = readSetting('pool:view');
+  return v === '2d' || v === '3d' ? v : compactLayout.matches ? '2d' : '3d';
+}
+
+function setView(v, save) {
+  if (save) writeSetting('pool:view', v);
+  S.view = v;
+  if (v === '3d' && !v3 && !v3Loading) start3d();
+  if (v === '2d' && v3) stop3d();
+  renderViewControls();
+}
+
+function start3d() {
+  const c = document.createElement('canvas');
+  c.className = 'stage__table3d';
+  c.setAttribute('aria-hidden', 'true');
+  // No WebGL: say so without downloading the library.
+  if (!c.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' })) { no3d(); return; }
+  v3Loading = true;
+  import('/view3d.js').then((m) => {
+    v3Loading = false;
+    if (S.view !== '3d') return;
+    canvas.before(c);
+    try {
+      v3 = m.createView3D(c, view3dKit());
+    } catch (err) {
+      c.remove();
+      throw err;
+    }
+    canvas3d = c;
+    document.body.classList.add('is-3d');
+    resize();
+    renderViewControls();
+  }).catch(() => { v3Loading = false; no3d(); });
+}
+
+function no3d() {
+  S.view = '2d';
+  toast('3D is not available here. Showing the table from above.');
+  renderViewControls();
+}
+
+function stop3d() {
+  v3.dispose();
+  canvas3d.remove();
+  v3 = null;
+  canvas3d = null;
+  document.body.classList.remove('is-3d');
+  resize();
+}
+
+// view3dKit is what the 3D view needs to know about the table.
+function view3dKit() {
+  return {
+    W, H, R, RAIL, CUSHION, HEAD,
+    cushions: TABLE.cushions,
+    holes: POCKETS.map(pocketHole),
+    felt: feltCanvas(),
+    colors: {
+      rail: PAL.rail, railBottom: PAL.railBottom, cushion: PAL.cushion, sight: PAL.sight,
+      ivory: PAL.ivory, disc: PAL.disc, ink: PAL.ink, ok: PAL.ok,
+    },
+    ballColors: BALL_COLORS,
+    cueSegments: CUE_SEGMENTS,
+    cueLength: CUE_LEN,
+    reduceMotion: () => reduceMotion.matches,
+    onLost: () => {
+      if (!v3) return;
+      canvas3d.remove();
+      v3 = null;
+      canvas3d = null;
+      document.body.classList.remove('is-3d');
+      resize();
+      no3d();
+    },
+  };
+}
+
+// feltCanvas draws the 2D table from above, unrotated, as the 3D cloth.
+function feltCanvas() {
+  const PX = 800; // per metre
+  const off = document.createElement('canvas');
+  off.width = Math.round((W + 2 * RAIL) * PX);
+  off.height = Math.round((H + 2 * RAIL) * PX);
+  const live = ctx;
+  ctx = off.getContext('2d');
+  ctx.setTransform(PX, 0, 0, PX, RAIL * PX, RAIL * PX);
+  drawTableStatic();
+  ctx = live;
+  return off;
+}
+
+function toggleCamTop() {
+  S.camTop = !S.camTop;
+  renderViewControls();
+}
+
+// behindCue: the 3D camera is behind the cue, where a sideways drag turns
+// the aim (turnAim) rather than pointing on the table.
+const behindCue = () => !!v3 && v3.mode === 'aim';
+
+function renderViewControls() {
+  const three = S.view === '3d';
+  const vb = $('viewBtn');
+  vb.querySelector('.view-btn__text').textContent = three ? '2D' : '3D';
+  vb.setAttribute('aria-label', three ? 'Show the table from above' : 'Show the table in 3D');
+  vb.title = `${three ? 'Show the table from above' : 'Show the table in 3D'} (V)`;
+  $('camTopBtn').hidden = !v3;
+  $('camTopBtn').setAttribute('aria-pressed', String(S.camTop));
+  for (const b of $('viewSeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.view === S.view));
 }
 
 // --- geometry helpers -------------------------------------------------------
@@ -1243,6 +1419,29 @@ function resize() {
   const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + parseFloat(cs.columnGap || cs.gap || '12') || 0;
   const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  if (v3) {
+    // 3D fills the stage; the 2D canvas lies over it for labels and input
+    view.rotated = false;
+    view.cssW = Math.floor(availW);
+    view.cssH = Math.floor(availH);
+    view.dpr = dpr;
+    canvas.width = Math.round(view.cssW * dpr);
+    canvas.height = Math.round(view.cssH * dpr);
+    canvas.style.width = `${view.cssW}px`;
+    canvas.style.height = `${view.cssH}px`;
+    canvas3d.style.width = `${view.cssW}px`;
+    canvas3d.style.height = `${view.cssH}px`;
+    canvas3d.style.left = `${canvas.offsetLeft}px`;
+    canvas3d.style.top = `${canvas.offsetTop}px`;
+    v3.resize(view.cssW, view.cssH, dpr);
+    view.s = v3.pxPerM({ x: W / 2, y: H / 2 });
+    const top = $('camTopBtn');
+    top.style.left = `${canvas.offsetLeft + view.cssW - 52}px`;
+    top.style.top = `${canvas.offsetTop + 8}px`;
+    tableCache = null;
+    return;
+  }
   const fullW = W + 2 * RAIL, fullH = H + 2 * RAIL;
   const sLand = Math.min(availW / fullW, availH / fullH);
   const sPort = Math.min(availW / fullH, availH / fullW);
@@ -1256,7 +1455,6 @@ function resize() {
   view.cssH = Math.floor(view.rotated ? fullW * view.s : fullH * view.s);
   view.ox = RAIL * view.s;
   view.oy = RAIL * view.s;
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
   canvas.width = Math.round(view.cssW * dpr);
   canvas.height = Math.round(view.cssH * dpr);
   canvas.style.width = `${view.cssW}px`;
@@ -1267,14 +1465,20 @@ function resize() {
 
 // toTable converts a pointer position (CSS px within the canvas) to meters.
 function toTable(px, py) {
+  if (v3) return v3.pick(px, py);
   if (!view.rotated) return { x: (px - view.ox) / view.s, y: (py - view.oy) / view.s };
   return { x: W - (py - view.oy) / view.s, y: (px - view.ox) / view.s };
 }
 // toScreen is the inverse: meters to CSS px within the canvas.
 function toScreen(p) {
+  if (v3) return v3.project(p);
   if (!view.rotated) return { x: view.ox + p.x * view.s, y: view.oy + p.y * view.s };
   return { x: view.ox + p.y * view.s, y: view.oy + (W - p.x) * view.s };
 }
+
+// pxPerM is how many CSS px a metre spans at p: the same everywhere from
+// above, smaller far away in 3D.
+function pxPerM(p) { return v3 && p ? v3.pxPerM(p) : view.s; }
 
 // applyTableTransform sets ctx so that drawing happens in meters.
 function applyTableTransform() {
@@ -1289,6 +1493,7 @@ function applyTableTransform() {
 
 // displayBalls returns the positions to draw this frame.
 function displayBalls() {
+  if (S.replay) return interpSnaps(S.replay.shot.snaps, replayClock());
   if (S.snaps.length === 0) {
     const held = S.drag || S.placedAt;
     if (held) {
@@ -1298,8 +1503,10 @@ function displayBalls() {
     }
     return S.balls;
   }
-  const t = renderClock();
-  const snaps = S.snaps;
+  return interpSnaps(S.snaps, renderClock());
+}
+// interpSnaps places the balls at shot time t between two snapshots.
+function interpSnaps(snaps, t) {
   if (t <= snaps[0].t) return snaps[0].balls;
   let i = snaps.length - 1;
   while (i > 0 && snaps[i].t > t) i--;
@@ -1330,33 +1537,38 @@ function draw() {
       startDrop(d.id, d.from);
     }
   }
-
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  if (tableCache) ctx.drawImage(tableCache, 0, 0);
-  applyTableTransform();
+  if (S.replay) tickReplay(now);
 
   const balls = displayBalls();
-  const myShot = isMyShot();
+  const myShot = isMyShot() && !S.replay;
   const cue = balls.get(0);
   const placingInKitchen = myShot && S.ballInHand && S.kitchen;
-  if (placingInKitchen) drawKitchenWash();
-
-  // aim guide goes under the balls
   const striking = fx.some((f) => f.type === 'strike');
   let aim = null; // {angle, power, mine, alpha}
   if (cue && myShot && !S.drag) {
     const a = S.aimShownAt ? EASE.out(clamp01((now - S.aimShownAt) / 200)) : 1;
     aim = { angle: S.angle, power: S.power, mine: true, alpha: reduceMotion.matches ? 1 : a };
-  } else if (cue && S.oppAim && inPlay() && !S.moving && S.turn !== S.seat) {
+  } else if (cue && S.oppAim && inPlay() && !S.moving && !S.replay && S.turn !== S.seat) {
     aim = { angle: oppAimAngle(now), power: S.oppAim.power, mine: false, alpha: 1 };
   }
-  const cast = aim ? drawAim(balls, cue, aim.angle, aim.mine, aim.alpha) : null;
-
-  // shadows, then bodies
   const lifted = S.drag ? S.drag.id : -1;
   const lift = S.drag ? liftAmount(now) : 0;
   for (const [id, p] of balls) rollBall(id, p);
+  if (v3) {
+    draw3d(now, balls, { aim, myShot, cue, placingInKitchen, striking, lifted, lift });
+    return;
+  }
+
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (tableCache) ctx.drawImage(tableCache, 0, 0);
+  applyTableTransform();
+  if (placingInKitchen) drawKitchenWash();
+
+  // aim guide goes under the balls
+  const cast = aim ? drawAim(balls, cue, aim.angle, aim.mine, aim.alpha) : null;
+
+  // shadows, then bodies
   for (const [id, p] of balls) drawBallShadow(p, id === lifted ? lift : 0);
   for (const [id, p] of balls) drawBall(id, p, id === lifted && lift ? { scale: 1 + 0.05 * lift } : undefined);
   drawFx('balls', now);
@@ -1366,6 +1578,8 @@ function draw() {
     const dir = { x: Math.cos(aim.angle), y: Math.sin(aim.angle) };
     drawCue(cue, dir, R + 0.02 + powerToBar(aim.power) * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha);
   }
+  const rc = S.replay && replayCue(now);
+  if (rc) drawCue(rc, rc.dir, rc.back, rc.alpha);
   drawFx('cue', now);
 
   // rings
@@ -1394,16 +1608,111 @@ function draw() {
   if (S.drag && balls.has(S.drag.id)) ring(balls.get(S.drag.id), 1.05 * R + 0.014, '#FFFFFF', 0.005);
   else if (myShot && S.ballInHand && cue) ring(cue, R + 0.014, PAL.ok, 0.004);
 
+  drawLabels(balls, cast, aim, cue, now);
+  drawFx('top', now);
+}
+
+// drawLabels names balls: the one under the pointer (or touched), and on
+// small tables the one the aim hits first, so a cut is never played on the
+// wrong ball.
+function drawLabels(balls, cast, aim, cue, now) {
   if (S.hoverUntil && now > S.hoverUntil) { S.hoverBall = null; S.hoverUntil = 0; }
-  // Where the numbers on the balls are too small to read (phones), the ball
-  // my aim hits first is named, so a cut is never played on the wrong ball.
   const target = cast && aim.mine && !S.drag && cast.hit;
-  if (target && target !== S.hoverBall && 2 * R * view.s < 16 && balls.has(target)) {
-    const a = toScreen(cue), b = toScreen({ x: cue.x + Math.cos(S.angle), y: cue.y + Math.sin(S.angle) });
+  if (target && target !== S.hoverBall && balls.has(target) && 2 * R * pxPerM(balls.get(target)) < 16) {
+    const a = toScreen(cue), b = toScreen({ x: cue.x + 0.1 * Math.cos(S.angle), y: cue.y + 0.1 * Math.sin(S.angle) });
     drawBallLabel(target, balls.get(target), { x: b.x - a.x, y: b.y - a.y });
   }
   if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
-  drawFx('top', now);
+}
+
+// draw3d hands the frame to the 3D view, then draws the labels on the 2D
+// canvas lying over it.
+function draw3d(now, balls, st) {
+  const { aim, myShot, cue, placingInKitchen, striking, lifted, lift } = st;
+  const guide = aim ? aimGuide(balls, cue, aim.angle, aim.mine) : null;
+  if (guide) guide.alpha *= aim.alpha;
+  const rings = [];
+  const drops = [];
+  let stick = null;
+  if (aim && !striking) {
+    stick = { x: cue.x, y: cue.y, dir: { x: Math.cos(aim.angle), y: Math.sin(aim.angle) },
+      back: R + 0.02 + powerToBar(aim.power) * 0.12, alpha: aim.mine ? aim.alpha : 0.4 * aim.alpha };
+  }
+  for (const { f, p } of takeFx(now)) {
+    const e = EASE.out(p);
+    if (f.type === 'strike') stick = { ...f.cue, dir: f.dir, ...strikePose(f.power, p, f.dur) };
+    else if (f.type === 'ring') rings.push({ x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
+    else if (f.type === 'rim') { const h = pocketHole(f.pk); rings.push({ x: h.x, y: h.y, r: h.r, w: 0.006, color: PAL.flash, alpha: 0.5 * (1 - e) }); }
+    else if (f.type === 'drop') {
+      // the ball runs into the hole and sinks
+      drops.push({ id: f.id, x: f.from.x + (f.to.x - f.from.x) * e, y: f.from.y + (f.to.y - f.from.y) * e, sink: 0.08 * EASE.in(p), alpha: p < 1 ? 1 : 0 });
+    }
+  }
+  const rc = S.replay && replayCue(now);
+  if (rc) stick = rc;
+  if (myShot && canCall()) {
+    for (const id of legalTargets()) {
+      const p = balls.get(id);
+      if (p) rings.push({ x: p.x, y: p.y, r: R + 0.010, w: 0.003, color: '#FFFFFF', alpha: 0.55 });
+    }
+  }
+  if (myShot && needsPocket()) {
+    for (let n = 0; n < POCKETS.length; n++) {
+      const h = pocketHole(POCKETS[n]);
+      const called = S.call && S.call.pocket === n;
+      if (called) rings.push({ x: h.x, y: h.y, r: h.r, w: 0.016, color: PAL.brass, alpha: 0.22 });
+      rings.push({ x: h.x, y: h.y, r: h.r, w: called ? 0.006 : 0.003, color: called ? PAL.brass : '#FFFFFF', alpha: called ? 1 : 0.45 });
+    }
+  }
+  if (S.drag && balls.has(S.drag.id)) { const p = balls.get(S.drag.id); rings.push({ x: p.x, y: p.y, r: 1.05 * R + 0.014, w: 0.005, color: '#FFFFFF', alpha: 1 }); }
+  else if (myShot && S.ballInHand && cue) rings.push({ x: cue.x, y: cue.y, r: R + 0.014, w: 0.004, color: PAL.ok, alpha: 1 });
+  v3.render({
+    balls, orient: orientationOf, lifted: lifted >= 0 ? { id: lifted, lift } : null, drops, cue: stick, guide, rings,
+    kitchenLine: placingInKitchen, cam: cameraFor(balls, aim),
+  }, now);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  drawLabels(balls, guide && guide.cast, aim, cue, now);
+}
+
+// takeFx steps the transient effects for the 3D view: each running one
+// with its progress, finished ones removed.
+function takeFx(now) {
+  const out = [];
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    const el = now - f.t0 - f.delay;
+    if (el < 0) continue;
+    const p = f.dur > 0 ? clamp01(el / f.dur) : 1;
+    out.push({ f, p });
+    if (p >= 1) fx.splice(i, 1);
+  }
+  return out;
+}
+
+// cameraFor picks the 3D camera: behind the cue to aim, high over the
+// balls while they run, straight down to place a ball.
+let camAngle = 0; // the heading of the last aim seen
+function cameraFor(balls, aim) {
+  if (S.replay) return replayCamera(balls);
+  const cue = balls.get(0);
+  if (S.camTop || S.drag || S.ballInHand || (S.practice && S.moveTool)) return { mode: 'top' };
+  if (S.moving && S.snaps.length) return { mode: 'follow', box: actionBox(balls, S.snaps[0].balls), angle: camAngle };
+  if (cue && inPlay()) {
+    if (aim) camAngle = aim.angle;
+    return { mode: 'aim', cue, angle: camAngle };
+  }
+  return { mode: 'overview' };
+}
+// actionBox bounds the balls that have moved since the shot began.
+function actionBox(balls, start) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [id, p] of balls) {
+    const s0 = start.get(id);
+    if (id !== 0 && s0 && Math.hypot(p.x - s0.x, p.y - s0.y) < 1e-3) continue;
+    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+  }
+  return x0 <= x1 ? { x0, y0, x1, y1 } : { x0: 0, y0: 0, x1: W, y1: H };
 }
 
 // liftAmount eases the carried ball up over 120 ms.
@@ -1780,10 +2089,11 @@ function drawBallLabel(id, p, aim) {
   const tw = ctx.measureText(text).width;
   const w = tw + sw * 2 + (quiet ? 18 : 24);
   const h = quiet ? 22 : 28;
-  let x = sp.x, y = sp.y - R * view.s - h / 2 - 10;
+  const rp = R * pxPerM(p); // the ball's radius on screen
+  let x = sp.x, y = sp.y - rp - h / 2 - 10;
   if (aim) {
-    if (Math.abs(aim.y) >= Math.abs(aim.x)) { x = sp.x + (sp.x > view.cssW / 2 ? -1 : 1) * (R * view.s + w / 2 + 6); y = sp.y; }
-    else { x = sp.x; y = sp.y + (sp.y > view.cssH / 2 ? -1 : 1) * (R * view.s + h / 2 + 6); }
+    if (Math.abs(aim.y) >= Math.abs(aim.x)) { x = sp.x + (sp.x > view.cssW / 2 ? -1 : 1) * (rp + w / 2 + 6); y = sp.y; }
+    else { x = sp.x; y = sp.y + (sp.y > view.cssH / 2 ? -1 : 1) * (rp + h / 2 + 6); }
   }
   const cx = Math.max(w / 2 + 4, Math.min(view.cssW - w / 2 - 4, x));
   const cy = Math.max(h / 2 + 2, Math.min(view.cssH - h / 2 - 2, y));
@@ -1870,32 +2180,19 @@ function drawCue(cue, dir, back, alpha) {
   ctx.restore();
 }
 
-// drawAim draws the guide: path to the ghost ball, the ghost ball, the
-// object ball's direction and the cue ball's deflection. It returns the cast
-// (castAim), whose hit names the ball the aim strikes first.
-function drawAim(balls, cue, angle, mine, alpha) {
+// aimGuide lays out the guide: the path to the ghost ball, the ghost ball,
+// the object ball's direction with a chevron and the cue ball's deflection,
+// as lines in table metres for either view. Its cast (castAim) names the
+// ball the aim strikes first.
+function aimGuide(balls, cue, angle, mine) {
   const cast = castAim(balls, cue, angle);
   const d = cast.dir;
   const line = mine ? '#FFFFFF' : PAL.oppAim;
   const brass = mine ? PAL.brassLine : PAL.oppAim;
-  ctx.save();
-  ctx.globalAlpha = (mine ? 1 : 0.5) * alpha;
-  ctx.lineCap = 'round';
-  // path from the cue-ball edge to the ghost edge
-  ctx.strokeStyle = rgba(line, 0.78);
-  ctx.lineWidth = 0.003;
-  ctx.setLineDash([0.020, 0.014]);
-  ctx.beginPath();
-  ctx.moveTo(cue.x + d.x * R, cue.y + d.y * R);
-  ctx.lineTo(cast.ghost.x - d.x * R, cast.ghost.y - d.y * R);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  // ghost ball
-  ctx.beginPath();
-  ctx.arc(cast.ghost.x, cast.ghost.y, R, 0, Math.PI * 2);
-  ctx.fillStyle = rgba(line, 0.06);
-  ctx.fill();
-  ctx.stroke();
+  const lines = [{
+    a: { x: cue.x + d.x * R, y: cue.y + d.y * R }, b: { x: cast.ghost.x - d.x * R, y: cast.ghost.y - d.y * R },
+    w: 0.003, color: line, alpha: 0.78, dash: [0.020, 0.014],
+  }];
   // After contact: the object ball's path and the cue ball's deflection,
   // as long as the server's aimLine (the deflection half of it).
   const reach = S.aimLine;
@@ -1904,20 +2201,12 @@ function drawAim(balls, cue, angle, mine, alpha) {
     const od = cast.objDir;
     const x0 = b.x + od.x * R, y0 = b.y + od.y * R;
     const x1 = x0 + od.x * reach, y1 = y0 + od.y * reach;
-    ctx.strokeStyle = rgba(brass, 0.95);
-    ctx.lineWidth = 0.004;
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    ctx.stroke();
+    lines.push({ a: { x: x0, y: y0 }, b: { x: x1, y: y1 }, w: 0.004, color: brass, alpha: 0.95 });
     // chevron 18 × 24 at the end, smaller on a very short line
     const nx = -od.y, ny = od.x;
     const cl = Math.min(0.024, reach * 0.4), cw = cl * 0.375;
-    ctx.beginPath();
-    ctx.moveTo(x1 - od.x * cl + nx * cw, y1 - od.y * cl + ny * cw);
-    ctx.lineTo(x1, y1);
-    ctx.lineTo(x1 - od.x * cl - nx * cw, y1 - od.y * cl - ny * cw);
-    ctx.stroke();
+    lines.push({ a: { x: x1 - od.x * cl + nx * cw, y: y1 - od.y * cl + ny * cw }, b: { x: x1, y: y1 }, w: 0.004, color: brass, alpha: 0.95 });
+    lines.push({ a: { x: x1, y: y1 }, b: { x: x1 - od.x * cl - nx * cw, y: y1 - od.y * cl - ny * cw }, w: 0.004, color: brass, alpha: 0.95 });
     // Where the cue ball goes next: the tangent line for a stun shot, bent
     // forward by top spin or back by draw (only a tendency: how much roll is
     // left at contact depends on speed and distance). The opponent's spin is
@@ -1933,18 +2222,42 @@ function drawAim(balls, cue, angle, mine, alpha) {
     }
     if (cd) {
       const len = (cast.cueDir ? 0.5 : 0.2 + 0.3 * Math.abs(f)) * reach;
-      ctx.strokeStyle = rgba(line, 0.5);
-      ctx.lineWidth = 0.003;
-      ctx.setLineDash([0.010, 0.010]);
-      ctx.beginPath();
-      ctx.moveTo(cast.ghost.x + cd.x * R, cast.ghost.y + cd.y * R);
-      ctx.lineTo(cast.ghost.x + cd.x * (R + len), cast.ghost.y + cd.y * (R + len));
-      ctx.stroke();
-      ctx.setLineDash([]);
+      lines.push({
+        a: { x: cast.ghost.x + cd.x * R, y: cast.ghost.y + cd.y * R }, b: { x: cast.ghost.x + cd.x * (R + len), y: cast.ghost.y + cd.y * (R + len) },
+        w: 0.003, color: line, alpha: 0.5, dash: [0.010, 0.010],
+      });
     }
   }
+  return { cast, lines, ghost: { x: cast.ghost.x, y: cast.ghost.y, color: line }, alpha: mine ? 1 : 0.5 };
+}
+
+// drawAim draws the guide on the 2D table and returns its cast.
+function drawAim(balls, cue, angle, mine, alpha) {
+  const g = aimGuide(balls, cue, angle, mine);
+  ctx.save();
+  ctx.globalAlpha = g.alpha * alpha;
+  ctx.lineCap = 'round';
+  const stroke = (l) => {
+    ctx.strokeStyle = rgba(l.color, l.alpha);
+    ctx.lineWidth = l.w;
+    ctx.setLineDash(l.dash || []);
+    ctx.beginPath();
+    ctx.moveTo(l.a.x, l.a.y);
+    ctx.lineTo(l.b.x, l.b.y);
+    ctx.stroke();
+  };
+  const [path, ...rest] = g.lines;
+  stroke(path);
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(g.ghost.x, g.ghost.y, R, 0, Math.PI * 2);
+  ctx.fillStyle = rgba(g.ghost.color, 0.06);
+  ctx.fill();
+  ctx.stroke();
+  for (const l of rest) stroke(l);
+  ctx.setLineDash([]);
   ctx.restore();
-  return cast;
+  return g.cast;
 }
 
 // ---------------------------------------------------------------------------
@@ -2127,12 +2440,150 @@ function playImpacts(list) {
     const due = S.shotWall0 + im.t + RENDER_DELAY_MS - now;
     if (due < -120) continue;
     if (++n > 48) break; // a break's first instants: enough is enough
-    const at = ctx.currentTime + Math.max(0, due) / 1000;
-    if (im.k === 'ball') clack(ctx, at, im.v);
-    else if (im.k === 'rail') thump(ctx, at, im.v);
-    else if (im.k === 'pocket') drop(ctx, at, im.v);
-    SND.played++;
+    playImpact(ctx, ctx.currentTime + Math.max(0, due) / 1000, im);
   }
+}
+function playImpact(ctx, at, im) {
+  if (im.k === 'ball') clack(ctx, at, im.v);
+  else if (im.k === 'rail') thump(ctx, at, im.v);
+  else if (im.k === 'pocket') drop(ctx, at, im.v);
+  SND.played++;
+}
+
+// --- replay -------------------------------------------------------------------
+// Every shot is recorded from its first snapshot (not when joining one
+// midway), and the last one can be played again, here only, at half speed:
+// the cue draws back and strikes, then the balls run with their sounds. In
+// 3D the camera chases the cue ball to its first contact, then the object
+// ball that moves most. A press or a key ends it, as does a new shot.
+
+const REPLAY_SPEED = 0.5;
+const REPLAY_LEAD_MS = 700; // the cue's draw back and strike before the balls run
+const REPLAY_HOLD_MS = 600; // the last frame stays this long
+
+function canReplay() { return !!S.lastShot && !S.moving && !S.replay && S.seat >= 0; }
+
+function startReplay() {
+  if (!canReplay()) return;
+  const shot = S.lastShot;
+  const snaps = shot.snaps;
+  const t0 = snaps[0].t;
+  const start = snaps[0].balls.get(0);
+  if (!start) return;
+  // the shot's direction and speed: where and how fast the cue ball first went
+  let dir = { x: 1, y: 0 }, speed = 1;
+  for (const sn of snaps) {
+    const p = sn.balls.get(0);
+    const d = p ? Math.hypot(p.x - start.x, p.y - start.y) : 0;
+    if (d > 0.005) { dir = { x: (p.x - start.x) / d, y: (p.y - start.y) / d }; speed = d / Math.max(0.001, (sn.t - t0) / 1000); break; }
+  }
+  // balls that vanish between two snapshots drop into their pocket then
+  const drops = [];
+  for (let i = 1; i < snaps.length; i++) {
+    for (const [id, p] of snaps[i - 1].balls) if (!snaps[i].balls.has(id)) drops.push({ id, from: p, t: snaps[i].t });
+  }
+  // after the first contact the camera follows the object ball that moves
+  // most in the next 0.4 s (or drops)
+  const hits = shot.impacts.filter((im) => im.k === 'ball').map((im) => im.t);
+  const firstHit = hits.length ? Math.min(...hits) : Infinity;
+  let follow = 0;
+  if (Number.isFinite(firstHit)) {
+    const a = interpSnaps(snaps, firstHit), b = interpSnaps(snaps, firstHit + 400);
+    let most = -1;
+    for (const [id, p] of a) {
+      if (id === 0) continue;
+      const q = b.get(id);
+      const d = q ? Math.hypot(q.x - p.x, q.y - p.y) : 1;
+      if (d > most) { most = d; follow = id; }
+    }
+  }
+  const now = performance.now();
+  const r = {
+    shot, t0: now + REPLAY_LEAD_MS, start: now, dir, cue: start, drops, firstHit, follow,
+    endAt: 0, timers: [], cam: { p: start, dir },
+    saved: { orient: new Map([...orient].map(([id, m]) => [id, Float64Array.from(m)])), lastPos: new Map(lastPos) },
+  };
+  lastPos.clear(); // the jump back to where the shot began does not roll the balls
+  S.replay = r;
+  // sounds, on timers so that ending the replay silences the rest
+  const power = Math.min(1, speed / MAX_CUE_SPEED);
+  r.timers.push(setTimeout(() => playStrike(power), REPLAY_LEAD_MS));
+  for (const im of shot.impacts.slice(0, 64)) {
+    r.timers.push(setTimeout(() => { const c = audio(); if (c) playImpact(c, c.currentTime, im); }, REPLAY_LEAD_MS + (im.t - t0) / REPLAY_SPEED));
+  }
+  refreshReplay();
+}
+
+// replayClock is the shot time the replay shows now.
+function replayClock() {
+  const r = S.replay;
+  return r.shot.snaps[0].t + (performance.now() - r.t0) * REPLAY_SPEED;
+}
+
+// tickReplay starts the replay's pocket drops and ends it after the last frame.
+function tickReplay(now) {
+  const r = S.replay;
+  const t = replayClock();
+  while (r.drops.length && r.drops[0].t <= t) {
+    const d = r.drops.shift();
+    startDrop(d.id, d.from);
+  }
+  const snaps = r.shot.snaps;
+  if (t >= snaps[snaps.length - 1].t) {
+    if (!r.endAt) r.endAt = now;
+    else if (now - r.endAt > REPLAY_HOLD_MS) stopReplay();
+  }
+}
+
+function stopReplay() {
+  const r = S.replay;
+  if (!r) return;
+  for (const id of r.timers) clearTimeout(id);
+  orient.clear();
+  for (const [id, m] of r.saved.orient) orient.set(id, m);
+  lastPos.clear();
+  for (const [id, p] of r.saved.lastPos) lastPos.set(id, p);
+  texCache.clear();
+  for (let i = fx.length - 1; i >= 0; i--) if (fx[i].type === 'drop' || fx[i].type === 'rim') fx.splice(i, 1);
+  S.replay = null;
+  refreshReplay();
+}
+
+// replayCue is the cue in the replay's lead: drawn back, then the strike.
+function replayCue(now) {
+  const r = S.replay;
+  const el = now - r.start;
+  const pull = 0.02 + 0.1;
+  let back, alpha = 1;
+  if (el < REPLAY_LEAD_MS - 80) back = R + 0.02 + 0.1 * EASE.inout(clamp01(el / (REPLAY_LEAD_MS - 200)));
+  else if (el < REPLAY_LEAD_MS) back = R + pull * (1 - EASE.in((el - REPLAY_LEAD_MS + 80) / 80));
+  else { back = R; alpha = 1 - clamp01((el - REPLAY_LEAD_MS) / 200); }
+  if (alpha <= 0) return null;
+  return { x: r.cue.x, y: r.cue.y, dir: r.dir, back, alpha };
+}
+
+// replayCamera: behind the cue for the strike, then chasing the cue ball
+// to its first contact and the followed object ball after it.
+function replayCamera(balls) {
+  const r = S.replay;
+  const t = replayClock();
+  if (t <= r.shot.snaps[0].t) return { mode: 'aim', cue: r.cue, angle: Math.atan2(r.dir.y, r.dir.x) };
+  const id = t < r.firstHit ? 0 : r.follow;
+  const p = balls.get(id);
+  if (p) {
+    const q = interpSnaps(r.shot.snaps, t + 80).get(id);
+    const d = q ? Math.hypot(q.x - p.x, q.y - p.y) : 0;
+    if (d > 2e-3) r.cam.dir = { x: (q.x - p.x) / d, y: (q.y - p.y) / d };
+    r.cam.p = p;
+  }
+  return { mode: 'chase', p: r.cam.p, dir: r.cam.dir };
+}
+
+function refreshReplay() {
+  const btn = $('replayBtn');
+  btn.hidden = !canReplay();
+  $('status').classList.toggle('has-replay', !btn.hidden);
+  $('replayTag').hidden = !S.replay;
 }
 
 function setSound(on) {
@@ -2179,7 +2630,7 @@ function clampBall(id, p) {
 // FINGER_PX is how close to a ball a touch must land to name it: a fingertip,
 // not the ball, which is ~10 px across on a phone.
 const FINGER_PX = 22;
-const fingerReach = () => Math.max(R * 1.8, FINGER_PX / view.s);
+const fingerReach = (p) => Math.max(R * 1.8, FINGER_PX / pxPerM(p));
 
 // nameBall shows ball id's number over it for a moment (a touch has no hover).
 function nameBall(id) {
@@ -2188,10 +2639,13 @@ function nameBall(id) {
 }
 
 canvas.addEventListener('pointerdown', (e) => {
+  // A press during a replay only ends it.
+  if (S.replay) { e.preventDefault(); stopReplay(); return; }
   if (!isMyShot()) {
     // Not my shot: a touch only names the ball under it.
     if (e.pointerType !== 'mouse') {
-      const id = hitBall(pointerPos(e), displayBalls(), false, fingerReach());
+      const p = pointerPos(e);
+      const id = hitBall(p, displayBalls(), false, fingerReach(p));
       if (id !== null) nameBall(id);
     }
     return;
@@ -2212,7 +2666,7 @@ canvas.addEventListener('pointerdown', (e) => {
   // (to name it) may be a tap or the start of an aiming drag; decide on
   // release, by distance and time.
   const pocket = needsPocket() ? hitPocket(p) : null;
-  const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true, fingerReach()) : null;
+  const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true, fingerReach(p)) : null;
   S.tap = { id, pocket, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
   if (cue) {
     canvas.setPointerCapture(e.pointerId);
@@ -2220,7 +2674,8 @@ canvas.addEventListener('pointerdown', (e) => {
       S.aiming = true;
       // Pointing aims at once; holding the butt waits for a move, so a
       // touch that only closes a sheet does not swing the cue around.
-      if (S.aimFront) aimFrom(p, cue);
+      if (behindCue()) S.aimDrag = { x: e.clientX };
+      else if (S.aimFront) aimFrom(p, cue);
     }
   }
 });
@@ -2234,6 +2689,21 @@ function aimFrom(p, cue) {
   const dx = p.x - cue.x, dy = p.y - cue.y;
   if (Math.hypot(dx, dy) < R * 1.5) return;
   setAngle(S.aimFront ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx));
+}
+
+// turnAim turns the aim by a sideways drag while the 3D camera is behind
+// the cue: by default the finger holds the butt, so moving it right swings
+// the shot left (S.aimFront: the other way). Lower on the screen, nearer
+// the butt, the same drag turns it less: 0.3° per px at the top, 0.03° at
+// the bottom.
+function turnAim(e) {
+  if (!S.aimDrag) { S.aimDrag = { x: e.clientX }; return; }
+  const dx = e.clientX - S.aimDrag.x;
+  S.aimDrag.x = e.clientX;
+  const rect = canvas.getBoundingClientRect();
+  const low = clamp01((e.clientY - rect.top) / rect.height);
+  const rate = (0.3 - 0.27 * low) * DEG;
+  setAngle(S.angle + (S.aimFront ? 1 : -1) * dx * rate);
 }
 
 // grabbable returns the ball a press at p picks up, or null: in practice
@@ -2250,7 +2720,7 @@ function grabbable(p, balls) {
 // the hole plus a margin, at least 24 px across on screen.
 function hitPocket(p) {
   const { d, pk, hole } = nearestPocket(p);
-  return d <= Math.max(hole.r + 0.02, 24 / view.s) ? POCKETS.indexOf(pk) : null;
+  return d <= Math.max(hole.r + 0.02, 24 / pxPerM(hole)) ? POCKETS.indexOf(pk) : null;
 }
 
 // callPocket names the pocket for the 8-ball.
@@ -2282,11 +2752,13 @@ canvas.addEventListener('pointermove', (e) => {
       S.tap = null;
       S.aiming = true;
       const cue = displayBalls().get(0);
-      if (cue) aimFrom(p, cue);
+      if (behindCue()) S.aimDrag = { x: e.clientX };
+      else if (cue) aimFrom(p, cue);
     }
   } else if (S.aiming) {
     const cue = displayBalls().get(0);
-    if (cue) aimFrom(p, cue);
+    if (behindCue()) turnAim(e);
+    else if (cue) aimFrom(p, cue);
   }
 });
 
@@ -2306,6 +2778,7 @@ function endPointer(e) {
     else if (tap.id !== null) nameBall(tap.id);
   }
   S.aiming = false;
+  S.aimDrag = null;
   if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
     canvas.releasePointerCapture(e.pointerId);
   }
@@ -2320,6 +2793,13 @@ document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
   if (document.querySelector('.scrim:not([hidden])')) return; // keys belong to the dialog
+  if (S.replay) { stopReplay(); e.preventDefault(); return; } // any key ends a replay
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+    const k = e.key.toLowerCase();
+    if (k === 'v') { setView(S.view === '3d' ? '2d' : '3d', true); e.preventDefault(); return; }
+    if (k === 't' && v3) { toggleCamTop(); e.preventDefault(); return; }
+    if (k === 'r' && canReplay()) { startReplay(); e.preventDefault(); return; }
+  }
   if (S.practice && S.seat >= 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (e.key === 'z' || e.key === 'Z') { undo(); e.preventDefault(); return; }
     if (e.key === 'm' || e.key === 'M') { toggleMoveTool(); e.preventDefault(); return; }
@@ -2776,6 +3256,7 @@ function showPanel(id) {
 }
 
 function refreshPanels() {
+  refreshReplay();
   renderModes();
   renderSeat(0);
   renderSeat(1);
@@ -3472,6 +3953,7 @@ function renderSettings() {
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
   $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
+  renderViewControls();
   $('volume').value = String(Math.round(SND.volume * 100));
   $('volume').disabled = !SND.on;
 }
@@ -3492,6 +3974,13 @@ $('aimFrontToggle').onclick = () => {
   writeSetting('pool:aim', S.aimFront ? 'front' : null);
   renderSettings();
 };
+$('viewSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (b) setView(b.dataset.view, true);
+});
+$('viewBtn').onclick = () => setView(S.view === '3d' ? '2d' : '3d', true);
+$('camTopBtn').onclick = toggleCamTop;
+$('replayBtn').onclick = startReplay;
 $('leftyToggle').onclick = () => {
   applyLefty(!S.lefty);
   writeSetting('pool:lefty', S.lefty ? '1' : null);
@@ -3541,6 +4030,7 @@ function applyTheme(theme) {
   if (room) $('code').value = room;
   new ResizeObserver(resize).observe($('tableWrap'));
   window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+  setView(initialView(), false);
   resize();
   refreshPanels();
   if (document.fonts && document.fonts.load) {

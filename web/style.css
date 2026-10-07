@@ -105,6 +105,23 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .status__pill[data-tone="foul"] .status__icon { color: var(--foul); }
 .status__pill[data-tone="ok"] { background: var(--ok-soft); border-color: transparent; }
 .status__pill[data-tone="ok"] .status__icon { color: var(--ok); }
+/* the replay button sits at the row's end; the pill keeps the middle */
+.status { position: relative; }
+.status.has-replay { padding-left: 60px; padding-right: 60px; }
+.status__replay { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: auto; }
+
+/* 3D view: the WebGL canvas lies under the 2D one, which stays on top
+   (transparent) for the ball labels and the pointer */
+.stage__table3d { position: absolute; display: block; pointer-events: none; }
+.is-3d .stage__table { position: relative; z-index: 1; }
+.cam-top { position: absolute; z-index: 2; background: var(--surface-2); border-color: var(--hairline); }
+.cam-top[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); }
+.view-btn__text { font: 700 13px/1 var(--font-ui); letter-spacing: .02em; }
+.replay-tag {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 2; pointer-events: none;
+  padding: 4px 12px; border-radius: var(--r-pill); background: rgba(13, 18, 24, .72); color: #E8ECF1;
+  font: 600 13px/18px var(--font-ui); letter-spacing: .04em; text-transform: uppercase;
+}
 
 /* panel slot: panels stack in one grid cell and cross-fade */
 .slot { display: grid; }
