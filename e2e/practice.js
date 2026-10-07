@@ -197,6 +197,27 @@ async function shootAndSettle(page, angle, power) {
     await P.waitForFunction(() => document.getElementById('shotSheet').hidden);
     console.log('phone sheet ok');
 
+    // A finger on the felt turns the cue by as much as it turns about the cue
+    // ball, from wherever it lands: the aim never jumps to it.
+    const cdp = await P.context().newCDPSession(P);
+    const onArc = (deg) => P.evaluate((deg) => {
+      const r = document.getElementById('table').getBoundingClientRect();
+      const c = S.balls.get(0), a = deg * DEG;
+      const sp = toScreen({ x: c.x + 0.4 * Math.cos(a), y: c.y + 0.4 * Math.sin(a) });
+      return { x: r.left + sp.x, y: r.top + sp.y };
+    }, deg);
+    const touch = async (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [at] : [] });
+    const l0 = await P.evaluate(() => { setAngle(1.234); return S.angle; });
+    await touch('touchStart', await onArc(10));
+    await touch('touchEnd');
+    if (await P.evaluate(() => S.angle) !== l0) fail('a touch on the felt turned the cue');
+    await touch('touchStart', await onArc(10));
+    for (let d = 12; d <= 30; d += 2) await touch('touchMove', await onArc(d));
+    await touch('touchEnd');
+    const lturn = (await P.evaluate(() => S.angle) - l0) * 180 / Math.PI;
+    if (Math.abs(lturn - 20) > 0.5) fail(`a finger turning 20° about the cue ball turned the cue ${lturn}°`);
+    console.log('lever aim ok');
+
     // A touch beside a ball names it (a fingertip is wider than a ball here),
     // and the ball the aim hits is named while aiming.
     const beside = await P.evaluate(() => {

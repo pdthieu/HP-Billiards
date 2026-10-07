@@ -141,6 +141,12 @@ The tray row is hidden to make room.
      cue lies between it and the cue ball, and the shot goes the other way,
      as with a real cue. The aim changes only once the pointer moves, not
      on the press. Within 1.5 radii of the cue ball the aim holds still.
+     A finger (touch or pen, in 2D) works the cue as a lever instead
+     (`leverAim`): the cue turns by as much as the finger turns about the
+     cue ball, but never jumps to it. So a new touch keeps the aim set so
+     far, even one from the fine aim wheel, and the farther from the cue
+     ball the finger is, the finer it turns (300 px away, 0.2° per px).
+     Within 24 px of the cue ball the aim holds still.
      Settings → *Aiming* switches to pointing (`pool:aim` = `front`): the
      shot goes toward the pointer, from the press on. In 3D, behind the cue,
      a sideways drag turns the aim instead (see *3D view*). The guide shows the ghost ball at first contact and, as far

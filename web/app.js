@@ -160,7 +160,7 @@ const S = {
   // view
   view: '2d',            // '2d' from above, or '3d' (view3d.js); see initialView
   camTop: false,         // 3D: look straight down instead of from behind the cue
-  aimDrag: null,         // 3D behind the cue: {x} of the pointer turning the aim
+  aimDrag: null,         // the pointer turning the aim: {x} in 3D behind the cue, {a} for a finger in 2D (see leverAim)
 
   // my shot
   angle: 0,
@@ -2678,6 +2678,7 @@ canvas.addEventListener('pointerdown', (e) => {
       // touch that only closes a sheet does not swing the cue around.
       if (behindCue()) S.aimDrag = { x: e.clientX };
       else if (S.aimFront) aimFrom(p, cue);
+      else if (e.pointerType !== 'mouse') leverAim(p, cue);
     }
   }
 });
@@ -2693,13 +2694,38 @@ function aimFrom(p, cue) {
   setAngle(S.aimFront ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx));
 }
 
+// LEVER_HOLD_PX: a finger nearer the cue ball than this turns nothing.
+const LEVER_HOLD_PX = 24;
+
+// leverAim aims from a finger in 2D while it holds the butt: the cue turns
+// by as much as the finger turns about the cue ball, as a lever would, but
+// never jumps to the finger. So a new touch keeps the aim set so far, and a
+// finger far from the cue ball turns it finely (300 px away, 0.2° per px).
+// Near the cue ball the direction means nothing, so the aim holds there.
+function leverAim(p, cue) {
+  const dx = p.x - cue.x, dy = p.y - cue.y;
+  if (Math.hypot(dx, dy) < Math.max(R * 1.5, LEVER_HOLD_PX / pxPerM(cue))) { S.aimDrag = { a: null }; return; }
+  const a = Math.atan2(dy, dx);
+  const was = S.aimDrag && S.aimDrag.a != null ? S.aimDrag.a : null; // not {x}: the camera may change mid-drag
+  S.aimDrag = { a };
+  if (was !== null) setAngle(S.angle + Math.atan2(Math.sin(a - was), Math.cos(a - was)));
+}
+
+// aimMove aims from a pointer moving across the table.
+function aimMove(e, p, cue) {
+  if (behindCue()) turnAim(e);
+  else if (!cue) return;
+  else if (e.pointerType !== 'mouse' && !S.aimFront) leverAim(p, cue);
+  else aimFrom(p, cue);
+}
+
 // turnAim turns the aim by a sideways drag while the 3D camera is behind
 // the cue: by default the finger holds the butt, so moving it right swings
 // the shot left (S.aimFront: the other way). Lower on the screen, nearer
 // the butt, the same drag turns it less: 0.3° per px at the top, 0.03° at
 // the bottom.
 function turnAim(e) {
-  if (!S.aimDrag) { S.aimDrag = { x: e.clientX }; return; }
+  if (!S.aimDrag || S.aimDrag.x === undefined) { S.aimDrag = { x: e.clientX }; return; }
   const dx = e.clientX - S.aimDrag.x;
   S.aimDrag.x = e.clientX;
   const rect = canvas.getBoundingClientRect();
@@ -2753,14 +2779,11 @@ canvas.addEventListener('pointermove', (e) => {
     if (Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) > 8) {
       S.tap = null;
       S.aiming = true;
-      const cue = displayBalls().get(0);
       if (behindCue()) S.aimDrag = { x: e.clientX };
-      else if (cue) aimFrom(p, cue);
+      else aimMove(e, p, displayBalls().get(0));
     }
   } else if (S.aiming) {
-    const cue = displayBalls().get(0);
-    if (behindCue()) turnAim(e);
-    else if (cue) aimFrom(p, cue);
+    aimMove(e, p, displayBalls().get(0));
   }
 });
 
