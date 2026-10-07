@@ -170,13 +170,25 @@ with *Rack again*.
 9. **Phones**:
    - **Portrait.** The table stands upright whenever that is not smaller.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
-     The shot panel stacks in two rows in a 134 px slot with a 56 px spin
-     pad. The break line leaves out what the "ball in hand · kitchen" tag
-     already says, and the lobby drops its second line. On an iPhone in
-     Safari (393 × 670) balls are about 9 px.
+   - **The shot panel is one row** while a rack is played (`body.is-playing`,
+     a 64 px slot). The row holds:
+     - the call line (two lines at most);
+     - the situational toggles (Safety, Push out, +40s);
+     - on the right, a small cue ball showing the spin (`#optionsBtn`).
+
+     Tapping that cue ball opens the *Spin and fine aim* sheet over the
+     bottom of the screen: the spin pad, the angle readout and its four
+     buttons. `placeShotOptions` moves those nodes there from the panel
+     whenever the phone layout applies. Done, Escape, a touch anywhere else
+     or the shot closes the sheet; the table stays live above it.
+   - **Lobby and game over** keep the 134 px slot, so the table resizes
+     only at the start and end of a rack. On an iPhone in Safari
+     (393 × 670) balls are about 10 px. Toasts drop from under the header.
    - **Screens under 700 px tall** drop the trays.
    - **Landscape phones** show the shot panel as a sidebar, with the status
-     floating over the table.
+     floating over the table. While a rack is played the sidebar is 132 px
+     (the call, the toggles and the cue-ball button), and the sheet opens
+     at the top right.
    - **Home screen.** `manifest.webmanifest` and the icons in `web/icons`
      (`icon.svg`, rendered to 192, 512 and the 180 px apple-touch-icon) let
      a phone add Pool to its home screen. It then opens standalone, without

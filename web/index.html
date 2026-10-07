@@ -117,6 +117,7 @@
           <button id="spinReset" class="btn btn--quiet btn--small">Reset</button>
         </div>
       </div>
+      <button id="optionsBtn" type="button" class="opts-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="shotSheet" aria-label="Spin and fine aim: centre" title="Spin and fine aim"><span id="optsDot" class="opts-btn__dot"></span></button>
     </section>
 
     <section id="waitPanel" class="panel panel--center" aria-label="Waiting" hidden>
@@ -139,6 +140,14 @@
         <button id="rematch" class="btn btn--primary btn--lg">Rematch</button>
       </div>
     </section>
+  </div>
+
+  <div id="shotSheet" class="sheet" role="dialog" aria-labelledby="sheetTitle" hidden>
+    <div class="sheet__head">
+      <span id="sheetTitle" class="sheet__title">Spin and fine aim</span>
+      <button id="sheetClose" type="button" class="btn btn--quiet btn--small">Done</button>
+    </div>
+    <div id="sheetBody" class="sheet__body"></div>
   </div>
 
   <div id="trays" class="trays" aria-label="Pocketed balls">

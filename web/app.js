@@ -821,6 +821,7 @@ function shoot() {
   else if (S.call && S.call.pushOut) msg.call = { pushOut: true };
   else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
+  closeSheet();
   if (send(msg)) {
     playStrike(S.power);
     SND.ownStrike = performance.now();
@@ -970,6 +971,11 @@ function renderSpin(spring) {
   $('spinText').textContent = atLimit ? `${words} · at limit` : words;
   spinPad.setAttribute('aria-valuetext', words);
   $('spinReset').disabled = !S.spin.x && !S.spin.y;
+  // the phone's options button is a small cue ball showing the same spin
+  const mini = $('optsDot');
+  mini.style.left = `${50 + S.spin.x * SPIN_RANGE}%`;
+  mini.style.top = `${50 - S.spin.y * SPIN_RANGE}%`;
+  $('optionsBtn').setAttribute('aria-label', `Spin and fine aim: ${words}`);
 }
 
 function setSpin(x, y, spring) {
@@ -1004,6 +1010,50 @@ spinPad.addEventListener('keydown', (e) => {
   setSpin(S.spin.x + k[0], S.spin.y + k[1]);
 });
 $('spinReset').onclick = () => setSpin(0, 0, true);
+
+// --- shot options sheet (phones) ---------------------------------------------
+//
+// On a phone the table gets the room: the shot panel is one row (what to
+// hit, the situational toggles and a small cue ball showing the spin). The
+// spin pad and the fine angle buttons move into a sheet that this button
+// opens over the bottom of the screen; the table stays live above it.
+
+const compactLayout = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
+const shotOptions = [document.querySelector('#shotPanel .angle'), document.querySelector('#shotPanel .spin')];
+const optionHomes = shotOptions.map((el) => { const mark = document.createComment(''); el.before(mark); return mark; });
+
+// placeShotOptions puts the spin pad and the angle buttons in the sheet on
+// a phone and back in the shot panel elsewhere.
+function placeShotOptions() {
+  if (compactLayout.matches) {
+    $('sheetBody').append(...shotOptions);
+  } else {
+    shotOptions.forEach((el, i) => optionHomes[i].after(el));
+    closeSheet();
+  }
+}
+
+function openSheet() {
+  if (!compactLayout.matches || !isMyShot()) return;
+  $('shotSheet').hidden = false;
+  $('optionsBtn').setAttribute('aria-expanded', 'true');
+}
+
+function closeSheet() {
+  if ($('shotSheet').hidden) return;
+  $('shotSheet').hidden = true;
+  $('optionsBtn').setAttribute('aria-expanded', 'false');
+}
+
+$('optionsBtn').onclick = () => { if ($('shotSheet').hidden) openSheet(); else closeSheet(); };
+$('sheetClose').onclick = closeSheet;
+$('shotSheet').addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('optionsBtn').focus(); } });
+// A touch anywhere else (aiming, the power bar) puts the sheet away.
+document.addEventListener('pointerdown', (e) => {
+  if (!$('shotSheet').hidden && !e.target.closest('#shotSheet, #optionsBtn')) closeSheet();
+}, true);
+compactLayout.addEventListener('change', () => { placeShotOptions(); refreshPanels(); });
+placeShotOptions();
 
 function queueAim() {
   if (!isMyShot()) return;
@@ -2418,10 +2468,12 @@ function renderSeat(seat) {
   line.className = 'seat__line';
   const name = document.createElement('span');
   name.className = 'seat__name';
-  name.textContent = S.practice ? sideName(seat) : p.name;
-  name.title = name.textContent;
+  // On a phone the header is tight: my seat just says "You".
+  const meShort = compact && isMe(seat) && !S.practice;
+  name.textContent = S.practice ? sideName(seat) : meShort ? 'You' : p.name;
+  name.title = S.practice ? name.textContent : p.name;
   line.append(name);
-  if (isMe(seat)) line.append(tag('you', 'you'));
+  if (isMe(seat) && !meShort) line.append(tag('you', 'you'));
   if (!p.connected) line.append(tag('offline', 'offline'));
   if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
   if (isNine() && S.fouls[seat] === 2 && S.phase !== 'game_over') {
@@ -2617,6 +2669,14 @@ function refreshPanels() {
   const panel = S.phase === 'lobby' && !S.practice ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
   renderPracticeBar();
   showPanel(panel);
+  // On a phone the slot is one row while the rack is played; the table
+  // resizes only when that changes (start and end of a rack).
+  const playing = panel === 'shotPanel' || panel === 'waitPanel';
+  if (document.body.classList.contains('is-playing') !== playing) {
+    document.body.classList.toggle('is-playing', playing);
+    resize();
+  }
+  if (!myShot) closeSheet();
 
   if (panel === 'lobbyPanel' && me) {
     const alone = !opp.connected && !opp.name;
@@ -2976,7 +3036,7 @@ function showMatchIfWon(delay) {
 function renderScore() {
   const el = $('score');
   const m = S.seat >= 0 && !S.practice ? S.match : null;
-  const compact = compactMedia.matches ? ' score--compact' : '';
+  const compact = compactLayout.matches ? ' score--compact' : '';
   el.disabled = !m;
   if (!m) {
     el.className = 'score score--empty' + compact;

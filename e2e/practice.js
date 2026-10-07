@@ -131,8 +131,24 @@ async function shootAndSettle(page, angle, power) {
       ball: 2 * R * view.s,
       overflow: [...document.querySelectorAll('#controls > .panel')].filter((e) => !e.hidden && e.scrollHeight > e.clientHeight).map((e) => e.id),
     }));
-    if (!layout.rotated || layout.ball < 7.5 || layout.overflow.length) fail(`phone layout ${JSON.stringify(layout)}`);
+    if (!layout.rotated || layout.ball < 9 || layout.overflow.length) fail(`phone layout ${JSON.stringify(layout)}`);
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
+
+    // Spin and fine aim live in a sheet behind the small cue ball.
+    if (await P.isVisible('#spinPad')) fail('spin pad shown in the phone shot row');
+    await P.click('#optionsBtn');
+    await P.waitForFunction(() => !document.getElementById('shotSheet').hidden);
+    const pad = await P.locator('#spinPad').boundingBox();
+    await P.mouse.click(pad.x + pad.width / 2, pad.y + pad.height * 0.25);
+    const a0 = await P.evaluate(() => S.angle);
+    await P.click('#shotSheet .nudge[data-deg="5"]');
+    const sheet = await P.evaluate((a) => ({ spin: S.spin, turned: Math.round((S.angle - a) / DEG), dot: document.getElementById('optsDot').style.top }), a0);
+    if (!(sheet.spin.y > 0.3) || sheet.turned !== 5 || sheet.dot === '50%') fail(`sheet ${JSON.stringify(sheet)}`);
+    await P.waitForTimeout(300);
+    await P.screenshot({ path: path.join(shots, 'practice-phone-sheet.png') });
+    await P.click('#sheetClose');
+    await P.waitForFunction(() => document.getElementById('shotSheet').hidden);
+    console.log('phone sheet ok');
 
     // The page can be added to a home screen.
     const manifest = await P.evaluate(async () => {
