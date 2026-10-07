@@ -325,9 +325,14 @@ the battery.
     by itself with ball in hand, while a ball is carried and with the
     practice Move tool; aiming there is the 2D drag;
   - *overview*: three quarters, in the lobby and after a rack.
-- **Speed.** Pixel ratio at most 2. If the first two seconds average over
-  25 ms a frame, shadows go hard and the pixel ratio to 1
-  (`v3.lowQuality`).
+- **Speed.** Pixel ratio at most 2, and lower where that would draw more
+  than 3.5 million pixels (a laptop window at 2× is about 5 million). From
+  the tenth frame (the first ones compile shaders) the pace is checked a
+  window at a time (90 frames, or 2 s). A median over 25 ms makes the
+  shadows hard and the pixel ratio 1, and stops the checks
+  (`v3.lowQuality`). Otherwise, if over a fifth of the frames miss the
+  screen's refresh (taken as their shortest tenth), the pixel ratio drops by
+  0.25, down to 1. It never steps back up.
 
 ### Replay
 

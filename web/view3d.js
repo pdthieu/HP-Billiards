@@ -12,6 +12,13 @@ const RAIL_H = 0.044;    // rail top above the bed
 const FOV = 42;          // vertical field of view, degrees; more on a tall screen
 const FOV_TALL = 60;
 const CUE_TILT = 6 * Math.PI / 180;
+// MAX_PIXELS caps the drawing buffer. A laptop window at 2× is about 5
+// million pixels, where the shading and shadows take even a recent GPU
+// past a frame on a 120 Hz screen now and then; the antialiasing already
+// smooths the edges a higher ratio would.
+const MAX_PIXELS = 3.5e6;
+const WARMUP = 10; // frames before checkSpeed starts counting
+const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 
 // createView3D draws into canvas and returns the view. k carries the
 // table's measures and look from app.js:
@@ -498,7 +505,7 @@ export function createView3D(canvas, k) {
   }
 
   // --- frame ------------------------------------------------------------
-  const timing = { n: 0, start: 0, done: false, low: false };
+  const timing = { warm: 0, last: 0, since: 0, gaps: [], ratio: Infinity, low: false };
   function render(frame, now) {
     for (const [id, mesh] of balls) {
       const p = frame.balls.get(id);
@@ -532,22 +539,41 @@ export function createView3D(canvas, k) {
     kitchen.visible = !!frame.kitchenLine;
     moveCamera(frame.cam, now);
     renderer.render(scene, camera);
-    // A slow device (software rendering, an old phone) drops to plain
-    // shadows at 1× after the first two seconds.
-    if (!timing.done) {
-      if (!timing.start) timing.start = now;
-      else if (++timing.n >= 10 && now - timing.start > 2000) {
-        timing.done = true;
-        if ((now - timing.start) / timing.n > 25) setQuality(true);
-      }
-    }
+    checkSpeed(now);
+  }
+  // checkSpeed watches the pace, a window at a time (90 frames, or 2 s on
+  // a slow device). A median over 25 ms is a slow device (software
+  // rendering, an old phone): it gets plain shadows at 1× and the checks
+  // stop. Otherwise, when over a fifth of the frames miss the screen's
+  // refresh (taken as the shortest tenth), the GPU is at its limit, or
+  // shared with other work, and alternates one refresh and two, which
+  // judders: the pixel ratio drops by STEP, down to 1. It never steps back
+  // up, so the picture does not pump. The first WARMUP frames compile the
+  // shaders and upload the textures and are not counted; a gap over 500 ms
+  // (the tab hidden, a stall) starts the window again.
+  function checkSpeed(now) {
+    const gap = timing.last ? now - timing.last : 0;
+    timing.last = now;
+    if (timing.low || ++timing.warm <= WARMUP) return;
+    if (gap > 500) { timing.gaps.length = 0; return; }
+    if (!timing.gaps.length) timing.since = now;
+    timing.gaps.push(gap);
+    if (timing.gaps.length < 90 && (timing.gaps.length < 10 || now - timing.since < 2000)) return;
+    const sorted = timing.gaps.slice().sort((a, b) => a - b);
+    timing.gaps.length = 0;
+    if (sorted[sorted.length >> 1] > 25) { setQuality(true); return; }
+    const refresh = sorted[Math.floor(sorted.length / 10)];
+    if (sorted.filter((g) => g > refresh * 1.5).length <= sorted.length / 5) return;
+    timing.ratio = Math.max(1, renderer.getPixelRatio() - STEP);
+    applyRatio();
   }
   function setQuality(low) {
-    timing.done = true;
     timing.low = low;
+    timing.ratio = low ? 1 : Infinity;
+    timing.gaps.length = 0;
     renderer.shadowMap.type = low ? THREE.BasicShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
-    resize(size.w, size.h, size.dpr);
+    applyRatio();
   }
 
   // --- coordinates ------------------------------------------------------
@@ -586,9 +612,15 @@ export function createView3D(canvas, k) {
     camera.aspect = w / h;
     camera.fov = w < h ? FOV_TALL : FOV;
     camera.updateProjectionMatrix();
-    renderer.setPixelRatio(timing.low ? 1 : Math.min(2, dpr));
-    renderer.setSize(w, h, false);
+    applyRatio();
     cam.fresh = true;
+  }
+  // applyRatio sizes the drawing buffer: the screen's ratio, at most 2,
+  // MAX_PIXELS and what checkSpeed has left.
+  function applyRatio() {
+    const { w, h, dpr } = size;
+    renderer.setPixelRatio(Math.max(1, Math.min(2, dpr, Math.sqrt(MAX_PIXELS / (w * h)), timing.ratio)));
+    renderer.setSize(w, h, false);
   }
 
   function dispose() {
