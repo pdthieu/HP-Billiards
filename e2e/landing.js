@@ -1,6 +1,7 @@
 // Landing page: invite mode, name validation and memory, the room limit.
 // Usage: node landing.js [base] [base of a server started with -max-rooms 1]
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 const base = process.argv[2] || 'http://127.0.0.1:18080';
 const lim = process.argv[3] || 'http://127.0.0.1:18081';
@@ -8,7 +9,7 @@ const shots = path.join(__dirname, 'shots');
 require('fs').mkdirSync(shots, { recursive: true });
 (async () => {
   const browser = await chromium.launch();
-  const page = await (await browser.newContext({ viewport: { width: 420, height: 760 } })).newPage();
+  const page = await (await flat(browser, { viewport: { width: 420, height: 760 } })).newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(base + '/?room=ABCDE');
   await page.waitForTimeout(200);

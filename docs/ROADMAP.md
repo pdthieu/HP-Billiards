@@ -27,6 +27,10 @@ Mục tiêu: bàn không còn "câm". Không đổi server.
 2. **Hiệu ứng**: chớp nhẹ ở lỗ khi bi rơi, vòng sáng ở điểm chạm cơ, rung
    `navigator.vibrate` 10–20 ms trên điện thoại khi đánh và khi vào lỗ.
 3. **Embed**: mở rộng `web/embed.go` để nhúng `sounds/*`.
+4. ~~**Góc nhìn 3D**~~ Đã làm (10/2026): bàn 3D bằng Three.js (`web/view3d.js`),
+   mặc định trên máy tính, 2D trên điện thoại; camera tự đứng sau gậy khi
+   ngắm, nâng lên theo bi khi đánh, nhìn từ trên khi đặt bi; nút Replay phát
+   lại cú vừa rồi chậm 0,5×. Xem CLIENT.md, mục *3D view*.
 
 Xong khi: chơi một ván trên điện thoại có đủ tiếng và rung; tắt tiếng được;
 `go test ./web` kiểm tra file âm thanh được nhúng.

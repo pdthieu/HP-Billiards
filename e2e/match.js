@@ -2,6 +2,7 @@
 // header score and the match dialog, and leaving mid-match, which forfeits.
 // Usage: node match.js <base>
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 
 const base = process.argv[2] || 'http://127.0.0.1:18080';
@@ -15,7 +16,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
   const browser = await chromium.launch();
   const errors = [];
   const mk = async (viewport) => {
-    const page = await (await browser.newContext({ viewport })).newPage();
+    const page = await (await flat(browser, { viewport })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
     return page;

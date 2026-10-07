@@ -1,6 +1,7 @@
 // Measures on-screen ball motion: per-frame displacement of balls while a shot
 // plays, and snapshot arrival jitter. Also screenshots pockets at rest.
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 const base = process.argv[2] || 'http://127.0.0.1:18080';
 const power = parseFloat(process.argv[3] || '0.35');
@@ -9,7 +10,7 @@ require('fs').mkdirSync(shots, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 (async () => {
   const browser = await chromium.launch();
-  const mk = async (vp) => (await browser.newContext({ viewport: vp })).newPage();
+  const mk = async (vp) => (await flat(browser, { viewport: vp })).newPage();
   const A = await mk({ width: 1100, height: 700 }), B = await mk({ width: 1100, height: 700 });
   await A.goto(base + '/'); await A.fill('#name', 'Ann'); await A.click('#create');
   await A.waitForFunction(() => document.getElementById('landing').hidden);

@@ -3,6 +3,7 @@
 // -shot-clock 11s -shot-clock-long 13s (run.js passes it as the third URL).
 // Usage: node clock.js <base> <limited> <quick>
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 
 const base = process.argv[4] || 'http://127.0.0.1:18082';
@@ -22,7 +23,7 @@ async function ring(page, seat) {
   const browser = await chromium.launch();
   const errors = [];
   const mk = async (viewport) => {
-    const page = await (await browser.newContext({ viewport })).newPage();
+    const page = await (await flat(browser, { viewport })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
     return page;

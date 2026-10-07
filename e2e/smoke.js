@@ -1,6 +1,7 @@
 // End-to-end smoke test of the pool client against a running server.
 // Usage: PLAYWRIGHT_BROWSERS_PATH=... node smoke.js http://127.0.0.1:18080
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 
 const base = process.argv[2] || 'http://127.0.0.1:18080';
@@ -47,7 +48,7 @@ async function waitFor(page, pred, what, ms = 15000) {
   const browser = await chromium.launch();
   const errors = [];
   const mk = async (viewport) => {
-    const ctx = await browser.newContext({ viewport });
+    const ctx = await flat(browser, { viewport });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(`${viewport.width}x${viewport.height}: ${e.message}`));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });

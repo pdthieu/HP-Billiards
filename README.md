@@ -77,7 +77,9 @@ make e2e    # browser scenarios against a freshly built server
 The browser scenarios live in `e2e/` (plain Node scripts on Playwright, no
 test framework): `landing` (invite mode, name validation, room limit), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
-break dialog) and `reconnect` (seat hold, mid-shot rejoin, takeover).
+break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
+`view3d` (the 3D view under software WebGL: camera, aiming, replay, the fall
+back to 2D); the others pin the 2D view (`e2e/flat.js`).
 `e2e/run.js` builds the server, starts two instances on free ports (one with
 `-max-rooms 1`) and runs every scenario, or only the ones named:
 `cd e2e && node run.js smoke`. Install the dependencies once with

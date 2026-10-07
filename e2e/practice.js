@@ -2,6 +2,7 @@
 // free placement of any ball and re-racking.
 // Usage: node practice.js <base>
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 
 const base = process.argv[2] || 'http://127.0.0.1:18080';
@@ -39,7 +40,7 @@ async function shootAndSettle(page, angle, power) {
   const browser = await chromium.launch();
   const errors = [];
   const mk = async (viewport) => {
-    const page = await (await browser.newContext({ viewport })).newPage();
+    const page = await (await flat(browser, { viewport })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
     return page;
@@ -127,7 +128,7 @@ async function shootAndSettle(page, angle, power) {
 
     // Phone layout: an iPhone in Safari with its bars (393 x 670). The table
     // stands upright and every panel fits its slot.
-    const P = await (await browser.newContext({ viewport: { width: 393, height: 670 }, hasTouch: true, isMobile: true })).newPage();
+    const P = await (await flat(browser, { viewport: { width: 393, height: 670 }, hasTouch: true, isMobile: true })).newPage();
     P.on('pageerror', (e) => errors.push(e.message));
     await P.goto(base + '/');
     await P.fill('#name', 'Pho');

@@ -1,5 +1,6 @@
 // Reconnect scenarios for the pool client against a running server.
 const { chromium } = require('playwright');
+const flat = require('./flat');
 const path = require('path');
 const base = process.argv[2] || 'http://127.0.0.1:18080';
 const shots = path.join(__dirname, 'shots');
@@ -27,7 +28,7 @@ async function waitFor(page, pred, what, ms = 20000) {
   const browser = await chromium.launch();
   const errors = [];
   const mk = async () => {
-    const page = await (await browser.newContext({ viewport: { width: 900, height: 650 } })).newPage();
+    const page = await (await flat(browser, { viewport: { width: 900, height: 650 } })).newPage();
     page.on('pageerror', (e) => errors.push(e.message));
     return page;
   };

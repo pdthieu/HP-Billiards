@@ -142,7 +142,8 @@ The tray row is hidden to make room.
      as with a real cue. The aim changes only once the pointer moves, not
      on the press. Within 1.5 radii of the cue ball the aim holds still.
      Settings → *Aiming* switches to pointing (`pool:aim` = `front`): the
-     shot goes toward the pointer, from the press on. The guide shows the ghost ball at first contact and, as far
+     shot goes toward the pointer, from the press on. In 3D, behind the cue,
+     a sideways drag turns the aim instead (see *3D view*). The guide shows the ghost ball at first contact and, as far
      as the server's `aimLine` allows (100 mm by default, none at 0), the
      object ball's line and the cue ball's deflection: the tangent line for a
      stun shot, bent forward or back by the top or bottom spin set on the
@@ -268,6 +269,66 @@ loudness within its kind:
 | `clack-7` | "billiard ball clack" by Za-Games, freesound.org/s/539854 |
 | `cue-1` to `cue-4` | "S02-22 Billiards cue stick hits ball" by craigsmith, freesound.org/s/675330 |
 | `pocket-1` | "B_1 pool ball falling" by Yarmonics, freesound.org/s/441857 |
+
+## 3D view
+
+The table can also be shown in 3D (`web/view3d.js`, Three.js r186). Settings →
+*View* chooses 2D or 3D (`pool:view`), and so do the header's 2D/3D button and
+the `V` key. Without a stored choice a desktop opens in 3D and a phone
+(`compactLayout`) in 2D, where the flat table aims more precisely and spares
+the battery.
+
+- **Loading.** `view3d.js` is an ES module that `app.js` imports the first
+  time 3D is turned on; it imports `vendor/three-r186/three.min.js`, Three.js
+  bundled into one minified module (esbuild, from the npm package's
+  `build/three.module.js`; MIT, its licence beside it). The versioned path is
+  cached for a year, and the server gzips text files (190 KB on the wire).
+  No WebGL 2, a failed load or a lost context: back to 2D with a notice,
+  without storing the choice.
+- **Split of work.** `view3d.js` only draws. `app.js` keeps the state and
+  computes everything as for 2D (positions from `displayBalls`, rolling in
+  `orient`, the guide from `aimGuide`, rings, effects) and hands
+  `v3.render(frame)` a frame each animation frame. The 2D canvas lies over the
+  3D one, transparent: it takes the pointer and draws the ball labels.
+  `toTable` and `toScreen` go through the camera (`v3.pick` onto the plane of
+  the balls' centres, `v3.project`), and sizes in screen pixels use
+  `pxPerM(p)`, so the input code is the same in both views.
+- **Table.** The cloth is the 2D table from above (`feltCanvas`, drawn by
+  `drawTableStatic`) on a bed with the pocket holes cut out; cushions are the
+  2D cushion quads raised 40 mm, the rail goes round the pockets, and a dark
+  liner hangs under each hole. Two spot lights cast the shadows.
+- **Balls.** Each ball's markings are painted once on a sphere texture in its
+  own frame; the mesh turns by the 2D orientation, so a ball shows the same
+  face in both views (axes: table x → world x, table y → world z, into the
+  slate → world −y).
+- **Camera** (`cameraFor`), easing between poses over about 0.6 s, cutting
+  with reduced motion:
+  - *aim*: behind the cue ball, looking along the aim (the opponent's aim on
+    their turn). A sideways drag turns the aim (`turnAim`): the finger holds
+    the butt, so a drag to the right swings the shot left (pointing in
+    Settings → *Aiming* reverses it), 0.3° per px at the top of the table
+    down to 0.03° at the bottom, near the butt;
+  - *follow*: high and oblique over the balls that have moved, while a shot
+    runs;
+  - *top*: straight down, by the button at the stage's top right or `T`, and
+    by itself with ball in hand, while a ball is carried and with the
+    practice Move tool; aiming there is the 2D drag;
+  - *overview*: three quarters, in the lobby and after a rack.
+- **Speed.** Pixel ratio at most 2. If the first two seconds average over
+  25 ms a frame, shadows go hard and the pixel ratio to 1
+  (`v3.lowQuality`).
+
+### Replay
+
+Each shot is recorded from its first snapshot (`S.rec`; a shot joined midway
+is not) and kept when it settles (`S.lastShot`). The replay button at the end
+of the status line, or `R`, plays it again here only, in either view, at half
+speed: the cue draws back and strikes, then the balls run with their sounds and
+pocket drops. In 3D the camera chases the cue ball to its first contact, then
+the object ball that moves most in the next 0.4 s. A press or a key ends it
+(that press does nothing else), as does a new shot. The record is dropped when
+the object balls change other than by a shot (a new rack, an undo, a ball
+moved in practice).
 
 ## Rendering
 
