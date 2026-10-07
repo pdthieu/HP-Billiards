@@ -162,6 +162,7 @@ const S = {
   powerBefore: 0.3,      // power before the current pull, restored on cancel
   lastPower: 0,          // power of the last shot, shown faintly in the bar
   lefty: false,          // power bar on the left
+  aimFront: readSetting('pool:aim') === 'front', // aim by pointing at the target, not by the butt of the cue
   hoverBall: null,       // ball under the mouse, for its label
   call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
   roomsTimer: 0,
@@ -2217,10 +2218,23 @@ canvas.addEventListener('pointerdown', (e) => {
     canvas.setPointerCapture(e.pointerId);
     if (id === null && pocket === null) {
       S.aiming = true;
-      setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+      // Pointing aims at once; holding the butt waits for a move, so a
+      // touch that only closes a sheet does not swing the cue around.
+      if (S.aimFront) aimFrom(p, cue);
     }
   }
 });
+
+// aimFrom aims the shot from a pointer at p. By default the pointer holds
+// the butt of the cue: the cue lies between it and the cue ball and the
+// shot goes the other way, as with a real cue. With S.aimFront it points
+// at where the cue ball should go. Right over the cue ball the direction
+// means nothing, so the aim stays.
+function aimFrom(p, cue) {
+  const dx = p.x - cue.x, dy = p.y - cue.y;
+  if (Math.hypot(dx, dy) < R * 1.5) return;
+  setAngle(S.aimFront ? Math.atan2(dy, dx) : Math.atan2(-dy, -dx));
+}
 
 // grabbable returns the ball a press at p picks up, or null: in practice
 // with Move on any ball, otherwise the cue ball when it may be placed (ball
@@ -2268,11 +2282,11 @@ canvas.addEventListener('pointermove', (e) => {
       S.tap = null;
       S.aiming = true;
       const cue = displayBalls().get(0);
-      if (cue) setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+      if (cue) aimFrom(p, cue);
     }
   } else if (S.aiming) {
     const cue = displayBalls().get(0);
-    if (cue) setAngle(Math.atan2(p.y - cue.y, p.x - cue.x));
+    if (cue) aimFrom(p, cue);
   }
 });
 
@@ -3456,6 +3470,7 @@ function renderSettings() {
   const theme = readSetting('pool:theme') || 'system';
   for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
+  $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
   $('volume').value = String(Math.round(SND.volume * 100));
   $('volume').disabled = !SND.on;
@@ -3472,6 +3487,11 @@ for (const b of document.querySelectorAll('#settings .seg .toggle')) {
     renderSettings();
   };
 }
+$('aimFrontToggle').onclick = () => {
+  S.aimFront = !S.aimFront;
+  writeSetting('pool:aim', S.aimFront ? 'front' : null);
+  renderSettings();
+};
 $('leftyToggle').onclick = () => {
   applyLefty(!S.lefty);
   writeSetting('pool:lefty', S.lefty ? '1' : null);

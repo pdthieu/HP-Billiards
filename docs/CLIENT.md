@@ -137,8 +137,12 @@ The tray row is hidden to make room.
      line. *Safety* (or the `S` key) declares a safety instead. *Clear*
      starts over. *+40s* (or the `X` key) spends the game's one extension
      and is hidden once used.
-   - *Aim*: drag on the felt; the cue points from the cue ball toward the
-     pointer. The guide shows the ghost ball at first contact and, as far
+   - *Aim*: drag on the felt. The pointer holds the butt of the cue: the
+     cue lies between it and the cue ball, and the shot goes the other way,
+     as with a real cue. The aim changes only once the pointer moves, not
+     on the press. Within 1.5 radii of the cue ball the aim holds still.
+     Settings → *Aiming* switches to pointing (`pool:aim` = `front`): the
+     shot goes toward the pointer, from the press on. The guide shows the ghost ball at first contact and, as far
      as the server's `aimLine` allows (100 mm by default, none at 0), the
      object ball's line and the cue ball's deflection: the tangent line for a
      stun shot, bent forward or back by the top or bottom spin set on the

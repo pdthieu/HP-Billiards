@@ -127,17 +127,29 @@ async function waitFor(page, pred, what, ms = 15000) {
   await breaker.mouse.up();
   await waitFor(breaker, (s) => Math.abs(s.balls.find((b) => b.id === 0).x - 0.635) < 1e-6, 'clamped to the head string');
 
-  // aim by dragging on the felt toward the rack and break at full power
+  // aim by holding the butt of the cue: drag behind the cue ball, away from
+  // the rack, and the shot points at the rack
   cue = (await state(breaker)).balls.find((b) => b.id === 0);
+  const want = Math.atan2(0.635 - cue.y, 1.905 - cue.x);
+  from = await tablePoint(breaker, 0.3, 1.0);
+  to = await tablePoint(breaker, cue.x - 0.4 * Math.cos(want), cue.y - 0.4 * Math.sin(want));
+  await breaker.mouse.move(from.x, from.y);
+  await breaker.mouse.down();
+  await breaker.mouse.move(to.x, to.y, { steps: 3 });
+  await breaker.mouse.up();
+  let angle = await breaker.evaluate(() => S.angle);
+  if (Math.abs(angle - want) > 1e-3) fail(`aim angle ${angle} want ${want} (dragging the butt)`);
+  // the other way, from Settings: point at the target
+  await breaker.evaluate(() => { S.aimFront = true; });
   from = await tablePoint(breaker, 1.2, 0.9);
   to = await tablePoint(breaker, 1.905, 0.635);
   await breaker.mouse.move(from.x, from.y);
   await breaker.mouse.down();
   await breaker.mouse.move(to.x, to.y, { steps: 3 });
   await breaker.mouse.up();
-  const angle = await breaker.evaluate(() => S.angle);
-  const want = Math.atan2(0.635 - cue.y, 1.905 - cue.x);
-  if (Math.abs(angle - want) > 1e-3) fail(`aim angle ${angle} want ${want}`);
+  angle = await breaker.evaluate(() => S.angle);
+  await breaker.evaluate(() => { S.aimFront = false; });
+  if (Math.abs(angle - want) > 1e-3) fail(`aim angle ${angle} want ${want} (pointing)`);
   // the opponent gets the aim preview
   await other.waitForFunction(() => S.oppAim !== null);
   await breaker.screenshot({ path: path.join(shots, '2-aim-breaker.png') });
