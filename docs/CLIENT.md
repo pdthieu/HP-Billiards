@@ -93,8 +93,8 @@ picked game. It is free play, without the tournament rules:
 - there is no shot clock.
 
 A toolbar
-between the status and the panel (over the table's corner on landscape
-phones, icons only on phones) has:
+between the status and the panel (at the head of the side column on
+landscape phones, icons only on phones) has:
 
 - *Undo* (`Z`): take back the last shot, up to 20;
 - *Move balls* (`M`): while on, dragging any ball moves it instead of
@@ -158,7 +158,20 @@ The tray row is hidden to make room.
      0.25°. Under them the fine aim wheel (`#aimJog`) turns the cue 0.02°
      per px dragged sideways (100 px = 2°), without end, clockwise to the
      right; its ticks roll with the finger, and focused, the arrow keys turn
-     it 0.05° (Shift 0.01°). The readout shows hundredths.
+     it 0.05° (Shift 0.01°). The readout shows hundredths. A mouse wheel
+     (or two fingers on a trackpad) over the table or the wheel turns the
+     cue 0.05° a notch, 0.01° with Shift; Ctrl + wheel stays the browser's
+     zoom.
+   - *One finger at a time.* The table follows the pointer that pressed
+     first (`S.pointer`) until it lifts; a second finger (a thumb resting
+     on the felt, a palm on the rail) neither aims nor carries a ball. The
+     power bar likewise keeps the finger that took it.
+   - *Loupe.* While a finger aims (on the felt, the fine aim wheel or the
+     power bar) and the balls are under 18 px across, a circle of 54 px in
+     a corner shows the contact three times larger: the ghost ball and the
+     ball it hits. The corner is the one clear of the contact and of the
+     hand, and changes only when the one in use gets in the way. It is a
+     copy of the frame just drawn (`drawLoupe`), 2D only.
    - *Power and shooting*: the bar beside the table. Press it, pull down to
      set the power (the cue draws back on the table) and release to shoot;
      releasing in the top 8 % cancels. The bar is quadratic: a pull to f
@@ -166,7 +179,9 @@ The tray row is hidden to make room.
      70 % about 4 m/s (a power shot) and the bottom is the 8 m/s break; the
      readout shows the speed. Arrow up/down move the bar by 5 % and Enter or
      Space shoots with it. A shot at the 8-ball without a called pocket is
-     refused with a hint.
+     refused with a hint. On a phone that vibrates the pull ticks (8 ms) at
+     each quarter of the bar, longer entering the cancel zone and on the
+     shot; Settings → *Vibration* turns it off (`pool:haptics` = `off`).
    - *Spin*: the small cue ball in the shot panel. Tap or drag where the tip
      should strike (limited to the dashed circle, the no-miscue zone); above
      centre is top spin, below is draw, left and right are english. Reset
@@ -179,8 +194,8 @@ The tray row is hidden to make room.
    - The panel slot and the status line have fixed heights, so the table
      never jumps when panels swap or a sentence wraps; both cross-fade.
    - *Settings* (gear in the header): theme (system, dark, light), power bar
-     on the left for left-handed play, and "show hints again". Stored in
-     `localStorage` under `pool:*`.
+     on the left for left-handed play, vibration, full screen and "show
+     hints again". Stored in `localStorage` under `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".
@@ -230,13 +245,31 @@ The tray row is hidden to make room.
    - **Screens under 700 px tall** drop the trays.
    - **Landscape phones** show the shot panel as a sidebar, with the status
      floating over the table. While a rack is played the sidebar is 132 px
-     (the call, the toggles and the cue-ball button), and the sheet opens
-     at the top right.
+     and holds the header too (the code and its buttons, the seats, the
+     score), then the practice tools, then the call, the toggles and the
+     cue-ball button: the table gets the whole height. `main.game` steps
+     aside (`display: contents`) and the page is the grid. In Safari with
+     its bars (about 844 × 340) the height is what limits the table, which
+     is 12 % bigger so. The sheet opens at the top right.
+   - **Turning the phone** in the middle of an aim, a pull or a carried
+     ball stops it (`cancelGestures`): no shot, no placement, the ball goes
+     back. The table turns under the finger, so where it goes next means
+     nothing.
+   - **No pull to refresh.** `overscroll-behavior: none` on the page: a drag
+     down from the header or a panel does not reload it.
+   - **Awake.** In a room the page holds a screen wake lock, so the phone
+     does not dim and sleep (and drop the socket) while the opponent
+     thinks. The browser lets it go when the tab is hidden; it is taken
+     again when the tab shows, and given back on leaving.
+   - **Full screen** where the page may ask for it (Android, desktops, not
+     an iPhone): the header button (not on portrait phones, where the
+     header has no room), Settings or `F`. On a phone it also holds the
+     orientation it was entered in.
    - **Home screen.** `manifest.webmanifest` and the icons in `web/icons`
      (`icon.svg`, rendered to 192, 512 and the 180 px apple-touch-icon) let
      a phone add Pool to its home screen. It then opens standalone, without
      browser bars. Settings explains how on touch devices that are not
-     standalone yet. The
+     standalone yet; it is the only full screen an iPhone has. The
    connection card appears only after 300 ms offline, with the retry backoff
    drawn as steps; a reload inside a room shows a splash after 150 ms.
 
@@ -358,6 +391,10 @@ moved in practice).
   Cushions and pocket jaws are drawn from the same WPA dimensions the server
   simulates (constants at the top of `app.js`; keep them in sync with
   `game.DefaultConfig`).
+- Pixel ratio up to 3. A slow device steps it down (`checkPace`): the
+  drawing itself is timed, not the gap between frames (a phone in low power
+  mode stretches that to 33 ms on its own), and when the median of 60
+  frames is over 8 ms the ratio drops by half, to 1 at least, never back up.
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays

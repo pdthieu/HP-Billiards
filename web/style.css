@@ -8,7 +8,9 @@
 h1, h2, h3, p, ul { margin: 0; }
 ul { padding: 0; list-style: none; }
 button, input { font: inherit; color: inherit; }
-html, body { height: 100%; }
+/* No pull to refresh, no rubber band: a drag down from the header or a
+   panel mid-game must not reload the page (and drop the seat). */
+html, body { height: 100%; overscroll-behavior: none; }
 body {
   margin: 0;
   padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
@@ -32,6 +34,11 @@ button.score:focus-visible { outline: 2px solid var(--focus); outline-offset: 2p
 .score__slot .score__new { animation: pool-tick-in var(--dur-4) var(--ease-spring), score-brass 1.2s var(--ease-out) var(--dur-4) backwards; }
 @keyframes score-brass { from { color: var(--accent-text); } to { color: var(--text); } }
 #leaveBtn { color: var(--text-muted); }
+/* full screen: corners out, corners in once on */
+.full-btn[aria-pressed="true"] .full-btn__in, .full-btn:not([aria-pressed="true"]) .full-btn__out { display: none; }
+/* practice: the one seat may take the room a second seat and the score leave */
+body.is-practice .seat--compact { max-width: 200px; }
+body.is-practice .seat--compact .seat__name { max-width: 16ch; }
 .match-btn { white-space: nowrap; }
 .btn--danger { background: var(--foul); color: var(--bg); }
 .btn--danger:hover { filter: brightness(1.08); }
@@ -315,6 +322,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .practice { gap: 6px; padding: 0 16px 6px; }
   .practice__label { display: none; }
   .practice .btn--small { min-height: 36px; padding: 0 10px; }
+  #fullBtn { display: none; } /* Settings has it: the header has no room */
 }
 
 /* short screens: give the table room; trays go first, the hint is already gone */
@@ -335,7 +343,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   main.game { display: grid; grid-template-columns: minmax(0, 1fr) 220px; grid-template-rows: minmax(0, 1fr); gap: 0 12px; position: relative; padding: 0 8px 6px 0; }
   .stage { grid-row: 1; grid-column: 1; padding: 4px 0 4px 8px; gap: 10px; }
   .status { position: absolute; left: 8px; right: 232px; bottom: 10px; height: auto; min-height: 0; padding: 0; z-index: 2; pointer-events: none; }
-  .status__layer { font-size: 14px; line-height: 20px; padding: 4px 12px; background: rgba(13, 18, 24, .88); }
+  .status__layer { font-size: 14px; line-height: 20px; padding: 4px 12px; background: rgba(13, 18, 24, .88); color: #E8ECF1; } /* over the felt: light in either theme */
   .slot { grid-row: 1; grid-column: 2; height: auto; padding: 4px 0; }
   .slot .panel { height: 100%; justify-content: center; gap: 14px; }
   .slot .panel .call { flex: none; flex-direction: column; align-items: stretch; gap: 8px; }
@@ -355,7 +363,38 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .sheet { left: auto; right: 8px; top: 8px; bottom: auto; width: 320px; max-width: none; max-height: calc(100% - 16px); margin: 0; overflow-y: auto; }
   .sheet .nudge { font-size: 12px; }
   .trays { display: none; }
-  .practice { position: absolute; top: 6px; left: 12px; height: auto; padding: 0; z-index: 3; }
-  .practice__label { display: none; }
+  /* practice tools head the side column, clear of the table */
+  .stage, .slot { grid-row: 1 / -1; }
+  body.is-practice main.game { grid-template-rows: auto minmax(0, 1fr); }
+  body.is-practice .slot { grid-row: 2; }
+  .practice { grid-row: 1; grid-column: 2; display: grid; grid-auto-flow: column; justify-content: center; height: auto; gap: 6px; padding: 6px 0 0; }
+  .practice__sep, .practice__label { display: none; }
+  .practice .btn--small { min-height: 36px; padding: 0 10px; }
   .landing__card { max-height: 100%; overflow-y: auto; }
+
+  /* While a rack is played the header joins the side column too, so the
+     table gets the whole height: what an iPhone's Safari bars leave is
+     short (about 340 px), and there the height is what limits the table.
+     main.game steps aside (display: contents) and the page itself is the
+     grid: the table on the left over all rows; the header, the practice
+     tools and the shot panel down the right. */
+  body.is-playing {
+    display: grid; grid-template-columns: minmax(0, 1fr) 132px; grid-template-rows: auto auto minmax(0, 1fr); column-gap: 12px;
+    position: relative;
+    padding-right: calc(env(safe-area-inset-right, 0px) + 8px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
+  }
+  body.is-playing main.game { display: contents; }
+  body.is-playing .stage { grid-column: 1; grid-row: 1 / -1; }
+  body.is-playing .practice { grid-column: 2; grid-row: 2; grid-auto-flow: row; grid-template-columns: repeat(2, auto); }
+  body.is-playing .slot { grid-column: 2; grid-row: 3; }
+  body.is-practice.is-playing .slot { grid-row: 3; }
+  body.is-playing .status { left: calc(env(safe-area-inset-left, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 152px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  body.is-playing .hdr { grid-column: 2; grid-row: 1; height: auto; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 0 0; }
+  body.is-playing .hdr__room { flex-wrap: wrap; justify-content: center; gap: 0 2px; }
+  body.is-playing .hdr__code { font-size: 14px; letter-spacing: .08em; margin-right: 2px; }
+  body.is-playing .hdr .icon-btn { width: 30px; height: 30px; }
+  body.is-playing .hdr__match { flex: none; flex-direction: column; align-items: stretch; gap: 2px; }
+  body.is-playing .seat { max-width: none; height: 32px; }
+  body.is-playing .seat__name { max-width: none; }
+  body.is-playing button.score { align-self: center; }
 }

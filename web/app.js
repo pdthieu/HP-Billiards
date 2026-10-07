@@ -175,6 +175,14 @@ const S = {
   call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
   roomsTimer: 0,
   aiming: false,
+  pointer: null,         // the pointerId the table follows while it aims or carries a ball; other fingers are ignored
+  pointerType: '',       // 'mouse', 'touch' or 'pen': that pointer's kind
+  fingerAt: null,        // {x, y} in canvas px: where that finger is, for the loupe to keep clear of it
+  powerPointer: null,    // the pointerId pulling the power bar
+  powerType: '',         // and its kind
+  powerStep: 0,          // the quarter of the bar the pull is in (powerStep), for the haptic ticks
+  powerY: 0,             // clientY of that pull, for the loupe to keep clear of the hand
+  haptics: readSetting('pool:haptics') !== 'off', // vibrate on the power bar's steps and the shot (Android)
   drag: null,            // {id, x, y} while a ball is carried: the cue ball in hand, any ball in practice
   tap: null,             // press on a ball or pocket awaiting release: {id, pocket, x, y, t, type}
   placedAt: null,        // {id, x, y}: last placement we sent, kept until the server confirms
@@ -417,6 +425,7 @@ function onWelcome(msg) {
   hideConn();
   hideSplash();
   saveSession();
+  keepAwake(true);
   if (reconnected) toast('Reconnected');
 }
 
@@ -675,6 +684,7 @@ function resetToLanding(error) {
   S.match = null;
   S.shownScore = null;
   S.oppLeft = false;
+  keepAwake(false);
   for (const id of ['matchDialog', 'settings', 'leaveConfirm']) $(id).hidden = true;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
@@ -928,27 +938,51 @@ function powerClasses(...keep) {
   }
 }
 
+// The pull is felt as well as seen on a phone that vibrates: a tick at each
+// quarter of the bar, a longer one entering the cancel zone and on the shot.
+const canVibrate = typeof navigator.vibrate === 'function';
+const POWER_STEPS = 4;
+function buzz(ms) {
+  if (!S.haptics || !canVibrate || S.powerType === 'mouse') return;
+  try { navigator.vibrate(ms); } catch { /* not allowed */ }
+}
+// powerStep is the part of the bar f is in: -1 the cancel zone, then 0 to 3.
+const powerStep = (f) => (f <= CANCEL_ZONE ? -1 : Math.min(POWER_STEPS - 1, Math.floor(f * POWER_STEPS)));
+
 powerBar.addEventListener('pointerdown', (e) => {
-  if (!isMyShot()) return;
+  if (!isMyShot() || S.powerDrag) return; // a second finger does not take the bar over
   e.preventDefault();
   powerBar.setPointerCapture(e.pointerId);
   S.powerDrag = true;
+  S.powerPointer = e.pointerId;
+  S.powerType = e.pointerType;
   S.powerBefore = S.power;
   powerClasses('pbar--drag');
-  setPower(barToPower(barPower(e)), true);
+  const f = barPower(e);
+  S.powerStep = powerStep(f);
+  S.powerY = e.clientY;
+  setPower(barToPower(f), true);
 });
 powerBar.addEventListener('pointermove', (e) => {
-  if (S.powerDrag) setPower(barToPower(barPower(e)), true);
+  if (!S.powerDrag || e.pointerId !== S.powerPointer) return;
+  const f = barPower(e);
+  const step = powerStep(f);
+  if (step !== S.powerStep) buzz(step < 0 ? 18 : 8);
+  S.powerStep = step;
+  S.powerY = e.clientY;
+  setPower(barToPower(f), true);
 });
 // endPowerDrag finishes a pull: a release below the cancel zone shoots (if a
 // call has been made), anything else restores the previous power.
 function endPowerDrag(e, fire) {
-  if (!S.powerDrag) return;
+  if (!S.powerDrag || (e && e.pointerId !== S.powerPointer)) return;
   S.powerDrag = false;
+  S.powerPointer = null;
   const f = e ? barPower(e) : 0;
   if (fire && f > CANCEL_ZONE) {
     setPower(barToPower(f));
     if (canShoot()) {
+      buzz(25);
       shoot();
       S.lastPower = S.power;
       powerClasses('pbar--flash', 'pbar--settle');
@@ -971,6 +1005,7 @@ powerBar.addEventListener('pointercancel', (e) => endPowerDrag(e, false));
 function cancelPowerDrag() {
   if (!S.powerDrag) return;
   S.powerDrag = false;
+  S.powerPointer = null;
   S.power = S.powerBefore;
   powerClasses('pbar--spring');
   setTimeout(() => powerClasses(), 260);
@@ -1421,7 +1456,9 @@ function resize() {
   const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + parseFloat(cs.columnGap || cs.gap || '12') || 0;
   const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
-  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const dpr = Math.min(pace.cap, window.devicePixelRatio || 1);
+  pace.times = [];
+  pace.skip = 10;
   if (v3) {
     // 3D fills the stage; the 2D canvas lies over it for labels and input
     view.rotated = false;
@@ -1612,6 +1649,103 @@ function draw() {
 
   drawLabels(balls, cast, aim, cue, now);
   drawFx('top', now);
+  drawLoupe(aim && aim.mine ? cast : null, balls);
+  checkPace(performance.now() - now);
+}
+
+// --- pace ----------------------------------------------------------------------
+//
+// A slow device (an old phone, a browser drawing without the GPU) spends
+// long on each frame of the flat table at a pixel ratio of 3. checkPace
+// times the drawing itself, not the gap between frames, which a phone in low
+// power mode stretches to 33 ms on its own: when the median of a window of
+// 60 frames is over 8 ms, the ratio steps down by half, to 1 at least. It
+// never steps back up, so the picture does not pump. The first frames after
+// a resize (the cached table is redrawn) are not counted.
+
+const PACE_FRAMES = 60;
+const PACE_SLOW_MS = 8;
+const pace = { cap: 3, times: [], skip: 10 };
+
+function checkPace(ms) {
+  if (pace.skip > 0) { pace.skip--; return; }
+  if (view.dpr <= 1) return;
+  pace.times.push(ms);
+  if (pace.times.length < PACE_FRAMES) return;
+  const sorted = pace.times.sort((a, b) => a - b);
+  const median = sorted[sorted.length >> 1];
+  pace.times = [];
+  if (median <= PACE_SLOW_MS) return;
+  pace.cap = Math.max(1, view.dpr - 0.5);
+  resize();
+}
+
+// --- loupe -------------------------------------------------------------------
+//
+// On a phone the balls are about 10 px across and the finger covers the
+// cue's end of the line, so while a finger aims (on the felt, the fine aim
+// wheel or the power bar) a circle in a corner shows the contact magnified:
+// the ghost ball and the ball it hits. The corner is the one clear of the
+// contact and of the hand; it changes only when the one in use gets in the
+// way. A copy of the frame just drawn, so it costs one drawImage.
+
+const LOUPE_PX = 54;     // radius on screen
+const LOUPE_ZOOM = 3;
+const LOUPE_BALL_PX = 18; // only for balls smaller than this across
+const loupe = { canvas: null, corner: -1, shown: null };
+
+// loupeFinger is where the hand is, in canvas px, while a finger aims; null
+// when none does.
+function loupeFinger() {
+  if (S.aiming && S.pointerType !== 'mouse' && S.pointer !== null) return S.fingerAt || { x: view.cssW / 2, y: view.cssH };
+  const rect = canvas.getBoundingClientRect();
+  if (S.powerDrag && S.powerType !== 'mouse') return { x: S.lefty ? 0 : view.cssW, y: S.powerY - rect.top };
+  if (jogFrom !== null && jogType !== 'mouse') return { x: view.cssW / 2, y: view.cssH };
+  return null;
+}
+
+function drawLoupe(cast, balls) {
+  loupe.shown = null;
+  const finger = cast && loupeFinger();
+  if (!finger || !cast.hit || 2 * R * view.s >= LOUPE_BALL_PX) { loupe.corner = -1; return; }
+  const at = toScreen(cast.ghost);
+  const m = LOUPE_PX + 8;
+  const corners = [[m, m], [view.cssW - m, m], [m, view.cssH - m], [view.cssW - m, view.cssH - m]];
+  // clear: how far a corner's circle is from the contact and the finger
+  const clear = ([x, y]) => Math.min(Math.hypot(x - at.x, y - at.y), Math.hypot(x - finger.x, y - finger.y)) - LOUPE_PX;
+  if (loupe.corner < 0 || clear(corners[loupe.corner]) < LOUPE_PX * 0.5) {
+    let best = 0;
+    for (let i = 1; i < 4; i++) if (clear(corners[i]) > clear(corners[best])) best = i;
+    loupe.corner = best;
+  }
+  const [cx, cy] = corners[loupe.corner];
+  const dpr = view.dpr;
+  const src = LOUPE_PX / LOUPE_ZOOM;
+  const size = Math.ceil(2 * src * dpr);
+  if (!loupe.canvas) loupe.canvas = document.createElement('canvas');
+  const lc = loupe.canvas;
+  if (lc.width !== size) { lc.width = size; lc.height = size; }
+  const lx = lc.getContext('2d');
+  lx.fillStyle = PAL.railBottom;
+  lx.fillRect(0, 0, size, size); // beyond the canvas edge
+  lx.drawImage(canvas, (at.x - src) * dpr, (at.y - src) * dpr, size, size, 0, 0, size, size);
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.beginPath();
+  ctx.arc(cx, cy, LOUPE_PX, 0, Math.PI * 2);
+  ctx.save();
+  ctx.clip();
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(lc, cx - LOUPE_PX, cy - LOUPE_PX, 2 * LOUPE_PX, 2 * LOUPE_PX);
+  ctx.restore();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(13,18,24,.6)';
+  ctx.stroke();
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = rgba(PAL.labelText, 0.9);
+  ctx.stroke();
+  ctx.restore();
+  loupe.shown = { x: cx, y: cy, hit: cast.hit };
 }
 
 // drawLabels names balls: the one under the pointer (or touched), and on
@@ -2640,7 +2774,24 @@ function nameBall(id) {
   S.hoverUntil = performance.now() + 2000;
 }
 
+// otherPointer: a second finger while the first aims or carries a ball (a
+// thumb resting on the felt, a palm on the rail). It does nothing.
+const otherPointer = (e) => S.pointer !== null && e.pointerId !== S.pointer;
+
+// followPointer makes the table follow pointer e until it lifts.
+function followPointer(e) {
+  S.pointer = e.pointerId;
+  S.pointerType = e.pointerType;
+  canvas.setPointerCapture(e.pointerId);
+  trackFinger(e);
+}
+function trackFinger(e) {
+  const rect = canvas.getBoundingClientRect();
+  S.fingerAt = e.pointerType === 'mouse' ? null : { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
 canvas.addEventListener('pointerdown', (e) => {
+  if (otherPointer(e)) { e.preventDefault(); return; }
   // A press during a replay only ends it.
   if (S.replay) { e.preventDefault(); stopReplay(); return; }
   if (!isMyShot()) {
@@ -2661,7 +2812,7 @@ canvas.addEventListener('pointerdown', (e) => {
   if (grab !== null) {
     S.drag = { id: grab, ...clampBall(grab, p) };
     S.liftStart = performance.now();
-    canvas.setPointerCapture(e.pointerId);
+    followPointer(e);
     return;
   }
   // A press on a pocket (when the 8-ball needs one) or, on touch, on a ball
@@ -2671,7 +2822,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true, fingerReach(p)) : null;
   S.tap = { id, pocket, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
   if (cue) {
-    canvas.setPointerCapture(e.pointerId);
+    followPointer(e);
     if (id === null && pocket === null) {
       S.aiming = true;
       // Pointing aims at once; holding the butt waits for a move, so a
@@ -2771,7 +2922,8 @@ canvas.addEventListener('pointermove', (e) => {
   if (e.pointerType === 'mouse' && !S.drag && !S.aiming) {
     S.hoverBall = hitBall(p, displayBalls(), false);
   }
-  if (!isMyShot()) return;
+  if (!isMyShot() || otherPointer(e)) return;
+  if (S.pointer !== null) trackFinger(e);
   if (S.drag) {
     S.drag = { id: S.drag.id, ...clampBall(S.drag.id, p) };
   } else if (S.tap && (S.tap.id !== null || S.tap.pocket !== null) && !S.aiming) {
@@ -2788,6 +2940,9 @@ canvas.addEventListener('pointermove', (e) => {
 });
 
 function endPointer(e) {
+  if (otherPointer(e)) return;
+  S.pointer = null;
+  S.fingerAt = null;
   if (S.drag) {
     const d = S.drag;
     S.drag = null;
@@ -2810,6 +2965,41 @@ function endPointer(e) {
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
+// A capture lost without a release (the browser took the touch) ends it too.
+canvas.addEventListener('lostpointercapture', (e) => { if (e.pointerId === S.pointer) endPointer(e); });
+
+// cancelGestures drops whatever a finger was doing, without a shot or a
+// placement: turning the phone moves the table under it, so where it goes
+// next means nothing. The carried ball goes back where it was.
+function cancelGestures() {
+  cancelPowerDrag();
+  if (jogFrom !== null) endJog();
+  const id = S.pointer;
+  S.pointer = null;
+  S.fingerAt = null;
+  S.drag = null;
+  S.tap = null;
+  S.aiming = false;
+  S.aimDrag = null;
+  if (id !== null && canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
+}
+matchMedia('(orientation: portrait)').addEventListener('change', cancelGestures);
+
+// A mouse wheel, or two fingers on a trackpad, turns the cue finely: a notch
+// 0.05°, 0.01° with Shift. Ctrl + wheel stays the browser's zoom.
+const WHEEL_DEG = 0.05;
+const WHEEL_DEG_FINE = 0.01;
+// wheelNotches converts a wheel event to notches of 100 px; a trackpad sends
+// many small ones. Shift turns the wheel sideways in some browsers.
+function wheelNotches(e) {
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  return d * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 800 : 1) / 100;
+}
+canvas.addEventListener('wheel', (e) => {
+  if (e.ctrlKey || !isMyShot() || S.replay) return;
+  e.preventDefault();
+  setAngle(S.angle + wheelNotches(e) * (e.shiftKey ? WHEEL_DEG_FINE : WHEEL_DEG) * DEG);
+}, { passive: false });
 // A mouse leaving takes its hover label along; a finger lifting fires
 // pointerleave too, but its label stays for its time (nameBall).
 canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') S.hoverBall = null; });
@@ -2824,6 +3014,7 @@ document.addEventListener('keydown', (e) => {
     if (k === 'v') { setView(S.view === '3d' ? '2d' : '3d', true); e.preventDefault(); return; }
     if (k === 't' && v3) { toggleCamTop(); e.preventDefault(); return; }
     if (k === 'r' && canReplay()) { startReplay(); e.preventDefault(); return; }
+    if (k === 'f' && canFullscreen) { toggleFullscreen(); e.preventDefault(); return; }
   }
   if (S.practice && S.seat >= 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (e.key === 'z' || e.key === 'Z') { undo(); e.preventDefault(); return; }
@@ -3107,7 +3298,7 @@ function renderSeat(seat) {
   name.textContent = meShort ? 'You' : p.name;
   name.title = p.name;
   line.append(name);
-  if (isMe(seat) && !meShort) line.append(tag('you', 'you'));
+  if (isMe(seat) && !meShort && !(compactLayout.matches && S.practice)) line.append(tag('you', 'you')); // practice: the only player
   if (!p.connected) line.append(tag('offline', 'offline'));
   if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
   if (isNine() && S.fouls[seat] === 2 && S.phase !== 'game_over') {
@@ -3392,13 +3583,13 @@ function refreshShotPanel() {
   let html, called = false;
   const opp = S.players[1 - S.seat].name || 'your opponent';
   if (S.practice) {
-    html = 'Free play: <span class="muted">any ball, any pocket' + (compactMedia.matches ? '.' : ', no fouls. Drag the cue ball anywhere; Move sets up the others.') + '</span>';
+    html = 'Free play: <span class="muted">any ball, any pocket' + (compactLayout.matches ? '.' : ', no fouls. Drag the cue ball anywhere; Move sets up the others.') + '</span>';
     called = true;
   } else if (isNine()) {
     const low = lowestBall();
     called = true;
     if (S.phase === 'breaking') {
-      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand && !compactMedia.matches ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
+      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand && !compactLayout.matches ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
     } else if (S.call && S.call.pushOut) {
       html = `Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
     } else {
@@ -3406,7 +3597,7 @@ function refreshShotPanel() {
     }
   } else if (!canCall()) {
     // On a phone the "ball in hand · kitchen" tag beside it says the rest.
-    html = 'Break: <span class="muted">no call needed' + (S.ballInHand && !compactMedia.matches ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
+    html = 'Break: <span class="muted">no call needed' + (S.ballInHand && !compactLayout.matches ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
     called = true;
   } else if (S.call && S.call.safety) {
     html = 'Safety: <span class="muted">the turn passes after the shot.</span>';
@@ -3859,6 +4050,7 @@ for (const b of document.querySelectorAll('.nudge')) {
 const aimJog = $('aimJog');
 const JOG_DEG_PER_PX = 0.02;
 let jogFrom = null; // the pointer's x while dragging
+let jogType = '';   // and its kind
 let jogRolled = 0;  // px the ticks have rolled
 function turnJog(px) {
   if (!isMyShot()) return;
@@ -3871,6 +4063,7 @@ aimJog.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   aimJog.focus({ preventScroll: true }); // the arrows go on in its steps
   jogFrom = e.clientX;
+  jogType = e.pointerType;
   aimJog.setPointerCapture(e.pointerId);
   aimJog.classList.add('jog--drag');
 });
@@ -3890,6 +4083,11 @@ aimJog.addEventListener('keydown', (e) => {
   e.stopPropagation(); // not the table's 0.5° step
   turnJog(dir * (e.shiftKey ? 0.01 : 0.05) / JOG_DEG_PER_PX);
 });
+aimJog.addEventListener('wheel', (e) => {
+  if (e.ctrlKey) return;
+  e.preventDefault();
+  turnJog(wheelNotches(e) * (e.shiftKey ? WHEEL_DEG_FINE : WHEEL_DEG) / JOG_DEG_PER_PX);
+}, { passive: false });
 // copyInvite shares (phones) or copies the room's invite link.
 async function copyInvite() {
   const url = `${location.origin}/?room=${S.roomCode}`;
@@ -3979,6 +4177,63 @@ function writeSetting(key, value) { try { if (value === null) localStorage.remov
 // standalone: opened from the home screen, without browser bars.
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+// --- the screen: kept awake, full screen -------------------------------------
+
+// keepAwake holds a screen wake lock while the player is in a room, so the
+// phone does not dim and sleep (and drop the socket) during the opponent's
+// long think. The browser releases it when the tab is hidden; it is taken
+// again when the tab shows.
+const wake = { want: false, lock: null, pending: false };
+function keepAwake(on) {
+  wake.want = on;
+  if (!navigator.wakeLock) return;
+  if (!on) {
+    if (wake.lock) wake.lock.release().catch(() => {});
+    wake.lock = null;
+    return;
+  }
+  if (wake.lock || wake.pending || document.visibilityState !== 'visible') return;
+  wake.pending = true;
+  navigator.wakeLock.request('screen').then((lock) => {
+    wake.pending = false;
+    if (!wake.want) { lock.release().catch(() => {}); return; }
+    wake.lock = lock;
+    lock.addEventListener('release', () => { if (wake.lock === lock) wake.lock = null; });
+  }).catch(() => { wake.pending = false; });
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && wake.want) keepAwake(true); });
+
+// Full screen hides the browser's bars where the page may ask for it
+// (Android, desktops; not an iPhone, where the home screen does it). On a
+// phone it also holds the orientation it was entered in, so tilting the
+// phone mid-shot does not turn the table.
+const canFullscreen = !standalone && !!document.fullscreenEnabled && typeof document.documentElement.requestFullscreen === 'function';
+const isFullscreen = () => !!document.fullscreenElement;
+async function toggleFullscreen() {
+  if (!canFullscreen) return;
+  try {
+    if (isFullscreen()) { await document.exitFullscreen(); return; }
+    await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+    const o = screen.orientation;
+    if (o && o.lock && matchMedia('(pointer: coarse)').matches) {
+      o.lock(o.type.startsWith('portrait') ? 'portrait' : 'landscape').catch(() => {});
+    }
+  } catch { /* refused: no gesture, or not allowed here */ }
+}
+function renderFullscreen() {
+  const on = isFullscreen();
+  const b = $('fullBtn');
+  b.hidden = !canFullscreen;
+  b.setAttribute('aria-pressed', String(on));
+  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
+  b.title = `${on ? 'Leave full screen' : 'Full screen'} (F)`;
+  $('fullToggle').setAttribute('aria-pressed', String(on));
+}
+document.addEventListener('fullscreenchange', renderFullscreen);
+$('fullBtn').onclick = toggleFullscreen;
+$('fullToggle').onclick = toggleFullscreen;
+renderFullscreen();
+
 // renderRoomSettings: the game, the next match and the invite link, for the
 // room the player is in. They change only between matches.
 function renderRoomSettings() {
@@ -4012,7 +4267,14 @@ $('settingsMode').addEventListener('click', (e) => {
 
 function renderSettings() {
   renderRoomSettings();
-  $('installTip').hidden = standalone || !matchMedia('(pointer: coarse)').matches;
+  // Full screen: a switch where the page may ask for it, and on a phone the
+  // home screen, which is the only way on an iPhone.
+  const touchScreen = matchMedia('(pointer: coarse)').matches;
+  $('fullToggle').hidden = !canFullscreen;
+  $('installText').hidden = standalone || !touchScreen;
+  $('installTip').hidden = $('fullToggle').hidden && $('installText').hidden;
+  $('hapticsRow').hidden = !canVibrate || !touchScreen;
+  $('hapticsToggle').setAttribute('aria-pressed', String(S.haptics));
   const theme = readSetting('pool:theme') || 'system';
   for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
@@ -4052,6 +4314,12 @@ $('leftyToggle').onclick = () => {
   renderSettings();
 };
 $('soundToggle').onclick = () => { setSound(!SND.on); renderSettings(); };
+$('hapticsToggle').onclick = () => {
+  S.haptics = !S.haptics;
+  writeSetting('pool:haptics', S.haptics ? null : 'off');
+  if (S.haptics && canVibrate) try { navigator.vibrate(15); } catch { /* not allowed */ }
+  renderSettings();
+};
 $('volume').addEventListener('input', () => setVolume(Number($('volume').value) / 100));
 $('volume').addEventListener('change', () => { const ctx = audio(); if (ctx) { clack(ctx, ctx.currentTime, 2.5); } });
 $('hintsReset').onclick = () => {
