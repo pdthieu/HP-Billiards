@@ -1183,7 +1183,11 @@ function resize() {
   const fullW = W + 2 * RAIL, fullH = H + 2 * RAIL;
   const sLand = Math.min(availW / fullW, availH / fullH);
   const sPort = Math.min(availW / fullH, availH / fullW);
-  view.rotated = sPort > sLand * 1.15; // only rotate when it is clearly better
+  // A portrait screen gets the table upright whenever that is not smaller:
+  // with a margin, the browser bars growing or shrinking on a phone would
+  // flip it back and forth. Elsewhere only rotate when it is clearly better.
+  const portrait = window.innerHeight > window.innerWidth;
+  view.rotated = portrait ? sPort >= sLand : sPort > sLand * 1.15;
   view.s = view.rotated ? sPort : sLand;
   view.cssW = Math.floor(view.rotated ? fullH * view.s : fullW * view.s);
   view.cssH = Math.floor(view.rotated ? fullW * view.s : fullH * view.s);
@@ -2710,14 +2714,15 @@ function refreshShotPanel() {
     const low = lowestBall();
     called = true;
     if (S.phase === 'breaking') {
-      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
+      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand && !compactMedia.matches ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
     } else if (S.call && S.call.pushOut) {
       html = `Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
     } else {
       html = `Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.</span>`;
     }
   } else if (!canCall()) {
-    html = 'Break: <span class="muted">no call needed' + (S.ballInHand ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
+    // On a phone the "ball in hand · kitchen" tag beside it says the rest.
+    html = 'Break: <span class="muted">no call needed' + (S.ballInHand && !compactMedia.matches ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
     called = true;
   } else if (S.call && S.call.safety) {
     html = 'Safety: <span class="muted">the turn passes after the shot.</span>';
@@ -2901,7 +2906,8 @@ function renderResult() {
   const m = S.practice ? null : S.match;
   const matchWon = m && m.race > 1 && m.winner !== null;
   const title = matchWon ? matchTitle(m) : winnerTitle();
-  const reason = m && m.race > 1 && m.racks.length ? `${S.resultReason} · ${m.score[0]}–${m.score[1]}` : S.resultReason;
+  const score = m && m.race > 1 && m.racks.length ? `${m.score[0]}–${m.score[1]}` : '';
+  const reason = [S.resultReason, score].filter(Boolean).join(' · ');
   if (el && el.dataset.title === title + reason) return;
   if (el) el.remove();
   el = document.createElement('div');
@@ -3259,7 +3265,11 @@ $('rejoin').onclick = () => {
 function readSetting(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function writeSetting(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* unavailable */ } }
 
+// standalone: opened from the home screen, without browser bars.
+const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
 function renderSettings() {
+  $('installTip').hidden = standalone || !matchMedia('(pointer: coarse)').matches;
   const theme = readSetting('pool:theme') || 'system';
   for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));

@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pool</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Pool">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#F9F8F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#141B23" media="(prefers-color-scheme: dark)">
 <link rel="preload" href="/fonts/SourceSans3-400-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/fonts/SourceSans3-600-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/tokens.css">
@@ -253,6 +262,10 @@
         <button id="soundToggle" class="toggle" aria-pressed="true"><span class="toggle__box"></span>Sound effects</button>
         <input id="volume" class="volume" type="range" min="0" max="100" step="5" value="80" aria-label="Volume">
       </div>
+    </div>
+    <div class="setting" id="installTip" hidden>
+      <span class="field__label">Full screen</span>
+      <p class="caption">Add Pool to your home screen and it opens without the browser bars, with a bigger table. iPhone: Share, then Add to Home Screen. Android: the browser menu, then Install app.</p>
     </div>
     <div class="setting">
       <span class="field__label">Hints</span>

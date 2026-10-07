@@ -11,7 +11,8 @@ func TestEmbeddedClient(t *testing.T) {
 	for _, name := range []string{
 		"index.html", "app.js", "style.css", "tokens.css", "components.css", "fonts.css",
 		"fonts/SourceSans3-400-latin.woff2", "fonts/BarlowSemiCondensed-600-latin.woff2",
-		"debug.html",
+		"debug.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
+		"icons/apple-touch-icon.png",
 	} {
 		data, err := fs.ReadFile(Files, name)
 		if err != nil {

@@ -167,9 +167,21 @@ with *Rack again*.
    the status line says the seat is held, and the wait panel counts down
    "Their seat is held for N more seconds". If the hold expires the server
    abandons the game and the lobby says the opponent did not come back.
-9. **Phones**: portrait rotates the table and stacks the shot panel in two
-   rows; screens under 700 px tall drop the trays; landscape phones show the
-   shot panel as a sidebar with the status floating over the table. The
+9. **Phones**:
+   - **Portrait.** The table stands upright whenever that is not smaller.
+     Without a margin, Safari's bars growing or shrinking cannot flip it.
+     The shot panel stacks in two rows in a 134 px slot with a 56 px spin
+     pad. The break line leaves out what the "ball in hand · kitchen" tag
+     already says, and the lobby drops its second line. On an iPhone in
+     Safari (393 × 670) balls are about 9 px.
+   - **Screens under 700 px tall** drop the trays.
+   - **Landscape phones** show the shot panel as a sidebar, with the status
+     floating over the table.
+   - **Home screen.** `manifest.webmanifest` and the icons in `web/icons`
+     (`icon.svg`, rendered to 192, 512 and the 180 px apple-touch-icon) let
+     a phone add Pool to its home screen. It then opens standalone, without
+     browser bars. Settings explains how on touch devices that are not
+     standalone yet. The
    connection card appears only after 300 ms offline, with the retry backoff
    drawn as steps; a reload inside a room shows a splash after 150 ms.
 
@@ -190,8 +202,9 @@ effects* (on by default) and a volume slider, kept in `localStorage` as
 
 ## Rendering
 
-- The table is drawn in meters on a canvas scaled to fit; on a portrait
-  screen it is rotated 90° (`view.rotated`), and pointer coordinates are mapped
+- The table is drawn in meters on a canvas scaled to fit. On a portrait
+  screen it is rotated 90° whenever that is not smaller; elsewhere only when
+  it is 15 % bigger (`view.rotated`), and pointer coordinates are mapped
   back through the same transform. Labels are counter-rotated; ball markings
   are not: each ball keeps an orientation that rolls with its movement (see
   `rollBall`), its stripe, discs and numbers are drawn from that, and only the

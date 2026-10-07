@@ -118,14 +118,30 @@ async function shootAndSettle(page, angle, power) {
     await A.click('#soundToggle');
     await A.click('#settingsClose');
 
-    // Phone layout.
-    const P = await mk({ width: 390, height: 800 });
+    // Phone layout: an iPhone in Safari with its bars (393 x 670). The table
+    // stands upright and every panel fits its slot.
+    const P = await mk({ width: 393, height: 670 });
     await P.goto(base + '/');
     await P.fill('#name', 'Pho');
     await P.click('#practice');
     await P.waitForFunction(() => S.practice && S.phase === 'breaking');
     await P.waitForTimeout(400);
+    const layout = await P.evaluate(() => ({
+      rotated: view.rotated,
+      ball: 2 * R * view.s,
+      overflow: [...document.querySelectorAll('#controls > .panel')].filter((e) => !e.hidden && e.scrollHeight > e.clientHeight).map((e) => e.id),
+    }));
+    if (!layout.rotated || layout.ball < 7.5 || layout.overflow.length) fail(`phone layout ${JSON.stringify(layout)}`);
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
+
+    // The page can be added to a home screen.
+    const manifest = await P.evaluate(async () => {
+      const r = await fetch('/manifest.webmanifest');
+      const icon = await fetch('/icons/apple-touch-icon.png');
+      return { type: r.headers.get('content-type'), body: await r.json(), icon: icon.headers.get('content-type') };
+    });
+    if (manifest.type !== 'application/manifest+json' || manifest.body.display !== 'standalone' || manifest.icon !== 'image/png') fail(`manifest ${JSON.stringify(manifest)}`);
+    console.log('phone layout and manifest ok');
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);
     console.log('OK');
   } finally {
