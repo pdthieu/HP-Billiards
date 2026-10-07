@@ -779,9 +779,10 @@ func clockOf(t *testing.T, m msg) msg {
 
 func TestShotClockFoulExtensionAndLongClockAfterTheBreak(t *testing.T) {
 	opts := fastOptions()
-	// Slow enough cloth for a legal break that still settles in about a second.
-	opts.Game.SlidingFriction = 0.6
-	opts.Game.RollingFriction = 0.15
+	// Slow enough cloth for a break that settles in a few seconds and still
+	// sends six or seven balls to a rail.
+	opts.Game.SlidingFriction = 0.3
+	opts.Game.RollingFriction = 0.08
 	opts.ShotClock = 300 * time.Millisecond
 	opts.LongShotClock = 2 * time.Second
 	_, srv := newServer(t, opts)

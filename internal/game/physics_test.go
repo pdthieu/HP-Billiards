@@ -214,6 +214,34 @@ func TestGlancingCollisionConservesMomentum(t *testing.T) {
 	}
 }
 
+// The object ball leaves along the line of centres at the moment of contact,
+// which is where the client's aim guide points, however hard the shot and
+// wherever in a physics step the balls meet.
+func TestCutFollowsTheAimGuide(t *testing.T) {
+	cfg := DefaultConfig()
+	R := cfg.BallRadius
+	obj := Vec{1.5, 0.635}
+	ghost := Vec{obj.X - 2*R, obj.Y} // object ball to leave along +x
+	for _, cut := range []float64{10, 30, 50, 70} {
+		for _, power := range []float64{0.2, 0.5, 1} {
+			for k := 0; k < 10; k++ { // contact at different points within a step
+				tbl := emptyTable(cfg)
+				dir := Vec{math.Cos(cut * math.Pi / 180), math.Sin(cut * math.Pi / 180)}
+				tbl.place(CueBall, ghost.Sub(dir.Scale(0.6+float64(k)*0.0013)), Vec{})
+				tbl.place(1, obj, Vec{})
+				tbl.Shoot(math.Atan2(dir.Y, dir.X), power)
+				for s := 0; s < 6000 && tbl.Balls[1].Vel == (Vec{}); s++ {
+					tbl.Step(cfg.Dt)
+				}
+				v := tbl.Balls[1].Vel
+				if got := math.Atan2(v.Y, v.X) * 180 / math.Pi; math.Abs(got) > 0.05 {
+					t.Errorf("cut %v° power %v (k=%d): object ball off the guide by %.2f°", cut, power, k, got)
+				}
+			}
+		}
+	}
+}
+
 func TestBallAimedAtPocketIsPocketed(t *testing.T) {
 	cfg := DefaultConfig()
 	w, h := cfg.TableWidth, cfg.TableHeight

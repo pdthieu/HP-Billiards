@@ -252,7 +252,7 @@ func (t *Table) Step(dt float64) {
 	t.integrate(dt)
 	t.capturePockets()
 	t.collideCushions()
-	t.collideBalls()
+	t.collideBalls(dt)
 }
 
 // integrate applies cloth friction and moves the balls.
@@ -453,8 +453,6 @@ func (s segment) closest(p Vec) Vec {
 	return s.a.Add(ab.Scale(f))
 }
 
-// collideBalls resolves every overlapping pair: the balls are pushed apart
-// along the contact normal and, if approaching, exchange an equal-mass impulse.
 // impact records a contact of the given closing speed, if audible.
 func (t *Table) impact(k ImpactKind, speed float64) {
 	if speed >= minImpact {
@@ -462,7 +460,14 @@ func (t *Table) impact(k ImpactKind, speed float64) {
 	}
 }
 
-func (t *Table) collideBalls() {
+// collideBalls resolves every overlapping pair. Two balls closing on each
+// other are wound back to the instant they touched, exchange an equal-mass
+// impulse along the line of centres there and move on with their new
+// velocities for the rest of the step: the normal taken where they overlap
+// at the end of the step would be off by up to 13° on a hard cut, so the
+// object ball would not leave where the aim guide points. Balls that overlap
+// without closing are pushed apart.
+func (t *Table) collideBalls(dt float64) {
 	minDist := 2 * t.Cfg.BallRadius
 	e := t.Cfg.BallRestitution
 	for i := 0; i < NumBalls; i++ {
@@ -480,24 +485,38 @@ func (t *Table) collideBalls() {
 			if dist >= minDist {
 				continue
 			}
+			rel := b.Vel.Sub(a.Vel)
+			back := contactTime(delta, rel, minDist, dt)
+			if back > 0 {
+				a.Pos = a.Pos.Sub(a.Vel.Scale(back))
+				b.Pos = b.Pos.Sub(b.Vel.Scale(back))
+				delta = b.Pos.Sub(a.Pos)
+				dist = delta.Len()
+			}
 			n := Vec{1, 0}
 			if dist > 0 {
 				n = delta.Scale(1 / dist)
 			}
-			push := n.Scale((minDist - dist) / 2)
-			a.Pos = a.Pos.Sub(push)
-			b.Pos = b.Pos.Add(push)
+			if dist < minDist {
+				push := n.Scale((minDist - dist) / 2)
+				a.Pos = a.Pos.Sub(push)
+				b.Pos = b.Pos.Add(push)
+			}
 
-			rel := b.Vel.Sub(a.Vel)
 			vn := rel.Dot(n)
+			if vn < 0 {
+				t.impact(ImpactBall, -vn)
+				impulse := n.Scale(-(1 + e) / 2 * vn)
+				a.Vel = a.Vel.Sub(impulse)
+				b.Vel = b.Vel.Add(impulse)
+				t.Collided = true
+			}
+			// the rest of the step, with the new velocities
+			a.Pos = a.Pos.Add(a.Vel.Scale(back))
+			b.Pos = b.Pos.Add(b.Vel.Scale(back))
 			if vn >= 0 {
 				continue // already separating
 			}
-			t.impact(ImpactBall, -vn)
-			impulse := n.Scale(-(1 + e) / 2 * vn)
-			a.Vel = a.Vel.Sub(impulse)
-			b.Vel = b.Vel.Add(impulse)
-			t.Collided = true
 			// Spin is untouched by the collision (ball–ball friction is
 			// negligible): a cue ball with follow or draw leaves the contact
 			// nearly stopped but still spinning, and the cloth then carries
@@ -515,6 +534,21 @@ func (t *Table) collideBalls() {
 			}
 		}
 	}
+}
+
+// contactTime returns how long ago two balls at separation delta (b − a),
+// closing at relative velocity rel (b − a), were minDist apart, at most dt;
+// 0 when they are not closing.
+func contactTime(delta, rel Vec, minDist, dt float64) float64 {
+	dr := delta.Dot(rel)
+	rr := rel.Dot(rel)
+	if dr >= 0 || rr == 0 {
+		return 0
+	}
+	// |delta − rel·τ| = minDist, the root with τ > 0
+	c := delta.Dot(delta) - minDist*minDist
+	tau := (dr + math.Sqrt(dr*dr-rr*c)) / rr
+	return math.Max(0, math.Min(tau, dt))
 }
 
 // canPlace reports whether ball id could rest at pos: on the playing surface
