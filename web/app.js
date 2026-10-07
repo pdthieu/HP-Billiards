@@ -632,7 +632,7 @@ function resetToLanding(error) {
   S.match = null;
   S.shownScore = null;
   S.oppLeft = false;
-  for (const id of ['matchDialog', 'matchSettings', 'leaveConfirm']) $(id).hidden = true;
+  for (const id of ['matchDialog', 'settings', 'leaveConfirm']) $(id).hidden = true;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
     { seat: 1, name: '', connected: false, ready: false },
@@ -669,6 +669,7 @@ function newTurn() {
 }
 
 function describeShot(msg) {
+  if (S.practice) { describeFreeShot(msg); return; }
   const parts = [];
   const who = nameOf(msg.shooter);
   const me = isMe(msg.shooter);
@@ -704,6 +705,16 @@ function describeShot(msg) {
   setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
 }
 
+// describeFreeShot says what a practice shot did: no fouls, no turns.
+function describeFreeShot(msg) {
+  const made = msg.pocketed.filter((id) => id !== 0);
+  const parts = [];
+  if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
+  if (msg.pocketed.includes(0)) parts.push('The cue ball dropped; it is back on the head spot.');
+  if (![...S.balls.keys()].some((id) => id > 0)) parts.push('Table cleared! Rack again for more.');
+  setStatus(parts.join(' ') || 'Nothing dropped.', made.length ? 'good' : '');
+}
+
 // nineResultReason says why a 9-ball rack ended with this shot.
 function nineResultReason(msg, who) {
   if (msg.winner !== msg.shooter) return `${who} fouled three times in a row`;
@@ -730,12 +741,12 @@ const isNine = () => S.mode === '9ball';
 const ballName = (id) => (id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
 const inPlay = () => !S.decision && (S.phase === 'breaking' || S.phase === 'open' || S.phase === 'assigned');
 const isMyShot = () => S.seat >= 0 && inPlay() && !S.moving && S.turn === S.seat;
-const canCall = () => !isNine() && S.phase !== 'breaking'; // a safety may be declared (8-ball)
+const canCall = () => !S.practice && !isNine() && S.phase !== 'breaking'; // a safety may be declared (8-ball)
 const canPushOut = () => isNine() && S.pushOut && isMyShot();
 // eightOn mirrors Rules.eightOn: the 8-ball is my legal target, so it needs
 // a called pocket.
 function eightOn() {
-  if (isNine()) return false;
+  if (S.practice || isNine()) return false; // practice calls nothing
   if (S.phase === 'open') return remaining('solids') === 0 || remaining('stripes') === 0;
   if (S.phase === 'assigned') return remaining(S.groups[S.seat]) === 0;
   return false;
@@ -751,6 +762,7 @@ function remaining(group) {
 // legalTargets mirrors Rules.legalTarget on the server for highlighting.
 function legalTargets() {
   const out = new Set();
+  if (S.practice) return out; // free play: every ball is fair
   if (isNine()) {
     const low = lowestBall();
     if (low !== null) out.add(low);
@@ -2440,6 +2452,7 @@ compactMedia.addEventListener('change', () => refreshPanels());
 // the player's group, whose turn it is, and the hold ring while offline.
 function renderSeat(seat) {
   const el = $(`seat${seat}`);
+  el.hidden = S.practice && seat === 1; // practice: one player, no sides
   const p = S.players[seat];
   const compact = compactMedia.matches;
   el.className = 'seat' + (compact ? ' seat--compact' : '');
@@ -2470,8 +2483,8 @@ function renderSeat(seat) {
   name.className = 'seat__name';
   // On a phone the header is tight: my seat just says "You".
   const meShort = compact && isMe(seat) && !S.practice;
-  name.textContent = S.practice ? sideName(seat) : meShort ? 'You' : p.name;
-  name.title = S.practice ? name.textContent : p.name;
+  name.textContent = meShort ? 'You' : p.name;
+  name.title = p.name;
   line.append(name);
   if (isMe(seat) && !meShort) line.append(tag('you', 'you'));
   if (!p.connected) line.append(tag('offline', 'offline'));
@@ -2652,7 +2665,7 @@ function refreshPanels() {
   renderSeat(1);
   renderScore();
   if (!$('matchDialog').hidden) renderMatchDialog();
-  if (!$('matchSettings').hidden) setMatchPick($('roomMatch'), S.race, S.breaks);
+  if (!$('settings').hidden) renderRoomSettings();
   if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
   renderTrays();
@@ -2693,7 +2706,7 @@ function refreshPanels() {
       $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game or the race makes you both ready again.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
-      $('lobbySub').textContent = `First to ${S.race} ${S.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[S.breaks]}`;
+      $('lobbySub').textContent = `${MODE_NAME[S.mode]}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -2729,16 +2742,8 @@ function refreshPanels() {
 // game-over pickers.
 function renderModes() {
   $('roomEyebrow').textContent = S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
-  // On a phone the invite gives way to the score once the opponent is here.
-  const oppHere = S.seat >= 0 && !!S.players[1 - S.seat].name;
-  $('copyLink').hidden = S.practice || (compactMedia.matches && oppHere);
   $('leaveBtn').hidden = S.seat < 0 || S.practice;
-  for (const id of ['lobbyMatch', 'overMatch']) {
-    $(id).textContent = `Race to ${S.race}`;
-    $(id).title = `Race and break for the next match · ${S.breaks === 'winner' ? 'winner breaks' : 'alternate breaks'}`;
-  }
   document.body.classList.toggle('is-practice', S.practice && S.seat >= 0);
-  for (const id of ['lobbyMode', 'overMode']) setSeg($(id), S.mode);
 }
 
 function setSeg(seg, mode) {
@@ -2756,12 +2761,6 @@ $('landingMode').addEventListener('click', (e) => {
   writeSetting('pool:mode', landingMode);
   setSeg($('landingMode'), landingMode);
 });
-for (const id of ['lobbyMode', 'overMode']) {
-  $(id).addEventListener('click', (e) => {
-    const b = e.target.closest('.seg__btn');
-    if (b && b.dataset.mode !== S.mode) send({ type: 'set_mode', mode: b.dataset.mode });
-  });
-}
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function setPanelMsg(id, html) { $(id).innerHTML = html; }
@@ -2770,7 +2769,10 @@ function refreshShotPanel() {
   const callEl = $('callText');
   let html, called = false;
   const opp = S.players[1 - S.seat].name || 'your opponent';
-  if (isNine()) {
+  if (S.practice) {
+    html = 'Free play: <span class="muted">any ball, any pocket' + (compactMedia.matches ? '.' : ', no fouls. Drag the cue ball anywhere; Move sets up the others.') + '</span>';
+    called = true;
+  } else if (isNine()) {
     const low = lowestBall();
     called = true;
     if (S.phase === 'breaking') {
@@ -2938,7 +2940,6 @@ function renderPracticeBar() {
   $('undoBtn').disabled = S.undos === 0 || S.moving;
   $('undoBtn').title = S.undos ? `Take back the last shot (Z) · ${S.undos} left` : 'Nothing to take back yet';
   $('moveBtn').setAttribute('aria-pressed', String(S.moveTool));
-  setSeg($('practiceMode'), S.rackMode);
   $('rackBtn').disabled = S.moving;
 }
 
@@ -3035,6 +3036,7 @@ function showMatchIfWon(delay) {
 // renderScore draws the header score; a digit that went up ticks.
 function renderScore() {
   const el = $('score');
+  el.hidden = S.practice;
   const m = S.seat >= 0 && !S.practice ? S.match : null;
   const compact = compactLayout.matches ? ' score--compact' : '';
   el.disabled = !m;
@@ -3125,8 +3127,6 @@ function openLeaveConfirm() {
 function renderOverPanel() {
   const m = S.practice ? null : S.match;
   const live = matchLive();
-  $('overMode').hidden = live;
-  $('overMatch').hidden = live || S.practice;
   if (S.practice) {
     $('overText').textContent = winnerTitle();
     $('rematch').textContent = 'Rack again';
@@ -3145,7 +3145,7 @@ function renderOverPanel() {
   const long = m && m.race > 1;
   $('overText').textContent = long ? `${matchTitle(m)} ${m.score[m.winner]}–${m.score[1 - m.winner]}` : winnerTitle();
   $('rematch').textContent = long ? 'New match' : 'Rematch';
-  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, race to ${S.race}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`);
+  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, race to ${S.race}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`) + ' Change them in Settings.';
 }
 
 // Match pickers: race (quick picks or a number) and who breaks.
@@ -3194,11 +3194,6 @@ wireMatchPick($('roomMatch'), () => ({ race: S.race }), (c) => {
   if ((c.race && c.race !== S.race) || (c.breaks && c.breaks !== S.breaks)) send({ type: 'set_match', ...c });
 });
 
-function openMatchSettings() {
-  setMatchPick($('roomMatch'), S.race, S.breaks);
-  $('matchSettings').hidden = false;
-  $('matchSettingsClose').focus();
-}
 
 // closable wires a dialog's close button, backdrop and Escape.
 function closable(scrimId, closeId) {
@@ -3208,11 +3203,8 @@ function closable(scrimId, closeId) {
   $(scrimId).addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 }
 closable('matchDialog', 'matchClose');
-closable('matchSettings', 'matchSettingsClose');
 closable('leaveConfirm', 'leaveStay');
 $('score').onclick = openMatchDialog;
-$('lobbyMatch').onclick = openMatchSettings;
-$('overMatch').onclick = openMatchSettings;
 $('leaveForfeit').onclick = () => { $('leaveConfirm').hidden = true; leaveRoom(); };
 
 // ---------------------------------------------------------------------------
@@ -3221,16 +3213,11 @@ $('leaveForfeit').onclick = () => { $('leaveConfirm').hidden = true; leaveRoom()
 $('ready').onclick = () => send({ type: 'ready' });
 $('undoBtn').onclick = undo;
 $('moveBtn').onclick = toggleMoveTool;
-$('practiceMode').addEventListener('click', (e) => {
-  const b = e.target.closest('.seg__btn');
-  if (!b) return;
-  S.rackMode = b.dataset.mode;
-  renderPracticeBar();
-});
 $('rackBtn').onclick = () => {
   if (S.moving) return;
   resetOrientations();
-  send({ type: 'rerack', mode: S.rackMode });
+  send({ type: 'rerack' });
+  setStatus(`New ${MODE_NAME[S.mode]} rack. Free play.`);
 };
 $('practiceLeave').onclick = () => leaveRoom();
 $('rematch').onclick = () => send({ type: 'rematch' });
@@ -3241,7 +3228,8 @@ $('extend').onclick = extend;
 for (const b of document.querySelectorAll('.nudge')) {
   b.onclick = () => setAngle(S.angle + Number(b.dataset.deg) * DEG);
 }
-$('copyLink').onclick = async () => {
+// copyInvite shares (phones) or copies the room's invite link.
+async function copyInvite() {
   const url = `${location.origin}/?room=${S.roomCode}`;
   if (navigator.share && compactMedia.matches) {
     try { await navigator.share({ title: 'Pool', text: `Join my pool room ${S.roomCode}`, url }); return; } catch { /* cancelled or unsupported: fall back to copying */ }
@@ -3252,7 +3240,8 @@ $('copyLink').onclick = async () => {
   } catch {
     toast(url);
   }
-};
+}
+$('inviteCopy').onclick = copyInvite;
 
 // landingName returns the typed name, or null (with the field marked) if it
 // is empty.
@@ -3328,7 +3317,39 @@ function writeSetting(key, value) { try { if (value === null) localStorage.remov
 // standalone: opened from the home screen, without browser bars.
 const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
 
+// renderRoomSettings: the game, the next match and the invite link, for the
+// room the player is in. They change only between matches.
+function renderRoomSettings() {
+  const inRoom = S.seat >= 0;
+  $('roomSettings').hidden = !inRoom;
+  if (!inRoom) return;
+  $('settingsMatchRow').hidden = S.practice;
+  $('settingsInviteRow').hidden = S.practice;
+  const locked = !S.practice && (matchLive() || !(S.phase === 'lobby' || S.phase === 'game_over'));
+  setSeg($('settingsMode'), S.mode);
+  for (const b of $('roomSettings').querySelectorAll('#settingsMode .seg__btn, #roomMatch button, #roomMatch input')) b.disabled = locked;
+  const note = $('settingsModeNote');
+  note.hidden = !locked && !S.practice;
+  note.textContent = locked ? 'Locked while a match is played: change them after it, or in the lobby.' : 'Changing the game racks the table again.';
+  if (!S.practice) setMatchPick($('roomMatch'), S.race, S.breaks);
+  $('inviteCode').textContent = S.roomCode;
+}
+
+$('settingsMode').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b || b.disabled || b.dataset.mode === S.mode) return;
+  if (S.practice) {
+    if (S.moving) return;
+    resetOrientations();
+    send({ type: 'rerack', mode: b.dataset.mode });
+    setStatus(`New ${MODE_NAME[b.dataset.mode]} rack. Free play.`);
+  } else {
+    send({ type: 'set_mode', mode: b.dataset.mode });
+  }
+});
+
 function renderSettings() {
+  renderRoomSettings();
   $('installTip').hidden = standalone || !matchMedia('(pointer: coarse)').matches;
   const theme = readSetting('pool:theme') || 'system';
   for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
@@ -3376,7 +3397,7 @@ function leaveRoom() {
 $('leave').onclick = leaveRoom;
 $('leaveBtn').onclick = () => { if (matchLive()) openLeaveConfirm(); else leaveRoom(); };
 $('leaveGame').onclick = leaveRoom;
-$('lobbyCopy').onclick = () => $('copyLink').click();
+$('lobbyCopy').onclick = copyInvite;
 $('hintClose').onclick = () => {
   $('powerHint').hidden = true;
   try { localStorage.setItem('pool:hint', 'off'); } catch { /* storage unavailable */ }

@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -1058,7 +1059,7 @@ func TestPracticeRoomIsPrivateAndStartsAtOnce(t *testing.T) {
 		t.Errorf("room list = %+v, want no rooms listed and one used", list)
 	}
 	c, st := joinPractice(t, srv, code)
-	if st["practice"] != true || st["phase"] != "breaking" || st["mode"] != "9ball" || st["clock"] != nil {
+	if st["practice"] != true || st["phase"] != "open" || st["mode"] != "9ball" || st["clock"] != nil || st["ballInHand"] != false {
 		t.Errorf("practice rack: %v", st)
 	}
 	p := players(st)
@@ -1074,28 +1075,39 @@ func TestPracticeRoomIsPrivateAndStartsAtOnce(t *testing.T) {
 	c.expectError("wrong_phase")
 }
 
-func TestPracticeOnePlayerPlaysBothSides(t *testing.T) {
-	opts := fastOptions()
-	opts.Game.SlidingFriction = 0.6 // a legal break that settles quickly
-	opts.Game.RollingFriction = 0.15
-	_, srv := newServer(t, opts)
+// Practice is free play: whatever drops stays down, nothing is a foul, the
+// player keeps the table and the rack never ends.
+func TestPracticeIsFreePlay(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
 	c, _ := joinPractice(t, srv, createPractice(t, srv, "8ball"))
 
-	// Whichever side is to play, the same socket plays it, until side B
-	// (seat 1) has taken a shot.
-	c.send(msg{"type": "shoot", "angle": 0, "power": 1})
-	for i := 0; i < 8; i++ {
-		_, settled := c.waitFor("settled")
-		if settled["shooter"] == 1.0 {
-			return
-		}
-		if d, ok := settled["decision"].(msg); ok {
-			c.send(msg{"type": "choose", "option": d["options"].([]any)[0]})
-			c.expect("room_state")
-		}
-		c.send(msg{"type": "shoot", "angle": math.Pi/2 + float64(i)*0.4, "power": 0.15})
+	// The 8-ball first thing, into the top-left corner, the cue ball after it.
+	c.send(msg{"type": "place_cue", "x": 0.35, "y": 0.35})
+	c.expect("room_state")
+	c.send(msg{"type": "place_ball", "id": 8, "x": 0.2, "y": 0.2})
+	c.expect("room_state")
+	c.send(msg{"type": "shoot", "angle": -3 * math.Pi / 4, "power": 0.8, "call": msg{"pocket": 3}})
+	_, settled := c.waitFor("settled")
+	pocketed := settled["pocketed"].([]any)
+	if !slices.Contains(pocketed, 8.0) {
+		t.Fatalf("the 8 did not drop: %v", settled)
 	}
-	t.Fatal("side B never got to shoot")
+	if settled["foul"] != nil || settled["phase"] != "open" || settled["turn"] != 0.0 || settled["winner"] != nil || settled["decision"] != nil {
+		t.Errorf("free play settled as %v", settled)
+	}
+	onTable := false
+	for _, b := range settled["balls"].([]any) {
+		onTable = onTable || b.(msg)["id"] == 0.0
+	}
+	if !onTable {
+		t.Errorf("the cue ball is not back on the table: %v", settled["balls"])
+	}
+
+	// A miss is no foul either, and the same player shoots again.
+	c.send(msg{"type": "shoot", "angle": math.Pi / 2, "power": 0.05})
+	if _, settled := c.waitFor("settled"); settled["foul"] != nil || settled["turn"] != 0.0 || settled["ballInHand"] != false {
+		t.Errorf("a miss settled as %v", settled)
+	}
 }
 
 func TestPracticeUndoPlaceAndRerack(t *testing.T) {
@@ -1135,7 +1147,7 @@ func TestPracticeUndoPlaceAndRerack(t *testing.T) {
 
 	c.send(msg{"type": "rerack", "mode": "9ball"})
 	st = c.expect("room_state")
-	if st["mode"] != "9ball" || st["phase"] != "breaking" || len(st["balls"].([]any)) != 10 {
+	if st["mode"] != "9ball" || st["phase"] != "open" || len(st["balls"].([]any)) != 10 {
 		t.Errorf("after rerack: %v", st)
 	}
 	c.send(msg{"type": "rerack", "mode": "snooker"})

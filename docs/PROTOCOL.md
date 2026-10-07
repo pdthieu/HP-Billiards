@@ -62,12 +62,16 @@ The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket":
 
 ## Practice
 
-A practice room (`POST /api/rooms` with `"practice": true`) is private: it is not in the room list and a second `join` gets `room_full` (the player's own token still reconnects). The one player plays both seats with the full rules of the room's game:
+A practice room (`POST /api/rooms` with `"practice": true`) is private: it is not in the room list and a second `join` gets `room_full` (the player's own token still reconnects). It is free play, without the rules of the game; the game (`mode`) only decides the rack.
 
-- The rack starts as soon as they join; there is no lobby, no ready and no shot clock (`clock` is always `null`, `extend` fails with `wrong_phase`).
-- `shoot`, `place_cue`, `choose` and `rematch` act for whichever seat is to play (`decision.seat`, else `turn`). `players[1]` mirrors `players[0]`.
-- `place_cue` works at any time between shots and anywhere on the table, not only with ball in hand; `place_ball` moves any other ball. The rules are not touched: a ball moved stays the same ball, pocketed balls stay pocketed. A cue ball left above the head string while `kitchen` is true still counts as played from there.
-- `undo` takes back the last shot (`undos` in `room_state` and `settled` says how many can be); `rerack` and `rematch` start a new rack and clear that history.
+- The rack starts as soon as the player joins. There is no lobby, no ready and no shot clock: `clock` is always `null`, and `extend` fails with `wrong_phase`.
+- `phase` stays `open` and `turn` stays 0. There are:
+  - no fouls, no ball in hand and no kitchen;
+  - no calls (a `call` sent is ignored) and no push out;
+  - no `decision`, no `winner` and no `game_over`.
+- Every ball that drops stays down (`pocketed` in `settled`). A cue ball that drops is put back on the head spot.
+- `place_cue` works at any time between shots and anywhere on the table; `place_ball` moves any other ball. `players[1]` mirrors `players[0]`.
+- `undo` takes back the last shot (`undos` in `room_state` and `settled` says how many can be); `rerack` starts a new rack, of `mode` if given, and clears that history.
 - `place_ball`, `undo` and `rerack` in any other room fail with `not_practice`; `undo` with nothing to take back fails with `no_undo`.
 
 ## Matches

@@ -50,9 +50,13 @@ const st = (page) => page.evaluate(() => ({
 
     // Switching in the lobby reaches both players.
     await A.waitForFunction(() => document.getElementById('seat1').textContent.includes('Bob'));
-    await A.click('#lobbyMode [data-mode="8ball"]');
+    await A.click('#settingsBtn');
+    await A.click('#settingsMode [data-mode="8ball"]');
+    await A.click('#settingsClose');
     await B.waitForFunction(() => S.mode === '8ball');
-    await B.click('#lobbyMode [data-mode="9ball"]');
+    await B.click('#settingsBtn');
+    await B.click('#settingsMode [data-mode="9ball"]');
+    await B.click('#settingsClose');
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10);
     await B.waitForFunction(() => S.balls.size === 10);
     await B.screenshot({ path: path.join(shots, 'nine-lobby-B.png') });

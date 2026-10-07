@@ -140,6 +140,7 @@ func newRoom(h *Hub, code string, settings RoomSettings) *room {
 // resetGame puts a fresh game of the room's mode in the lobby.
 func (r *room) resetGame() {
 	r.game = game.NewGame(r.hub.opts.Game)
+	r.game.SetFree(r.practice) // practice is free play, without the rules
 	r.game.SetMode(r.mode)
 }
 

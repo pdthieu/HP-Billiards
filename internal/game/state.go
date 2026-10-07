@@ -305,6 +305,9 @@ func (g *Game) SetMode(m Mode) {
 	}
 }
 
+// SetFree turns the rules off (practice) or back on, from the next Start.
+func (g *Game) SetFree(free bool) { g.Rules.Free = free }
+
 // Start racks the balls and begins a new game with breaker to shoot first.
 func (g *Game) Start(breaker int) {
 	g.Rules.Start(breaker)

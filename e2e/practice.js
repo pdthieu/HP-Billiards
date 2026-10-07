@@ -49,10 +49,12 @@ async function shootAndSettle(page, angle, power) {
     await A.goto(base + '/');
     await A.fill('#name', 'Ann');
     await A.click('#practice');
-    await A.waitForFunction(() => document.getElementById('landing').hidden && S.practice && S.phase === 'breaking');
+    await A.waitForFunction(() => document.getElementById('landing').hidden && S.practice && S.phase === 'open');
     const code = await A.textContent('#roomCode');
     if ((await A.textContent('#roomEyebrow')) !== 'Practice · 8-ball') fail(`eyebrow ${await A.textContent('#roomEyebrow')}`);
-    if (await A.isVisible('#copyLink')) fail('copy link shown in practice');
+    // One player, free play: no second seat, no score, no calls.
+    if (await A.isVisible('#seat1') || await A.isVisible('#score')) fail('sides or score shown in practice');
+    if (!/^Free play/.test(await A.textContent('#callText'))) fail(`call line ${await A.textContent('#callText')}`);
     if (!(await A.isVisible('#practiceBar')) || !(await A.isDisabled('#undoBtn'))) fail('practice bar state at the start');
 
     // Private: not listed, and nobody else gets in.
@@ -89,22 +91,25 @@ async function shootAndSettle(page, angle, power) {
     const played = await A.evaluate(() => SND.played);
     if (played < 5) fail(`only ${played} sounds scheduled for a shot into the rack`);
     console.log('sounds scheduled:', played);
-    const st = await A.evaluate(() => ({ seat: S.seat, turn: S.turn, decision: S.decision, phase: S.phase }));
-    const side = st.decision ? st.decision.seat : st.turn;
-    if (st.seat !== side) fail(`playing seat ${st.seat}, side to play ${side}`);
+    const st = await A.evaluate(() => ({ seat: S.seat, turn: S.turn, decision: S.decision, phase: S.phase, ballInHand: S.ballInHand }));
+    if (st.seat !== 0 || st.turn !== 0 || st.decision || st.phase !== 'open' || st.ballInHand) fail(`not free play after a shot: ${JSON.stringify(st)}`);
     await A.waitForTimeout(300); // the status cross-fade
-    if (/You break/.test(await A.textContent('#status .is-active'))) fail('status not updated after the shot');
+    if (/You break|turn|[Ff]oul/.test(await A.textContent('#status .is-active'))) fail(`status after the shot: ${await A.textContent('#status .is-active')}`);
     await A.screenshot({ path: path.join(shots, 'practice-after-shot.png') });
     await A.keyboard.press('z');
-    await A.waitForFunction(() => S.phase === 'breaking' && S.undos === 0);
+    await A.waitForFunction(() => S.undos === 0);
     const after = await balls(A);
     for (const id of Object.keys(before)) if (!after[id] || !near(before[id], after[id])) fail(`ball ${id} not restored`);
-    console.log('undo ok, side to play after the shot:', side ? 'B' : 'A');
+    console.log('free play and undo ok');
 
-    // Rack a 9-ball game.
-    await A.click('#practiceMode [data-mode="9ball"]');
-    await A.click('#rackBtn');
-    await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10 && S.phase === 'breaking');
+    // Rack a 9-ball game from Settings; no match or invite there in practice.
+    await A.click('#settingsBtn');
+    if (await A.isVisible('#settingsMatchRow') || await A.isVisible('#settingsInviteRow')) fail('match or invite settings in practice');
+    await A.click('#settingsMode [data-mode="9ball"]');
+    await A.click('#settingsClose');
+    await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10 && S.phase === 'open');
+    await A.click('#rackBtn'); // the Rack button racks the same game again
+    await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10);
     await A.screenshot({ path: path.join(shots, 'practice-A.png') });
     console.log('rack ok');
 
@@ -124,7 +129,7 @@ async function shootAndSettle(page, angle, power) {
     await P.goto(base + '/');
     await P.fill('#name', 'Pho');
     await P.click('#practice');
-    await P.waitForFunction(() => S.practice && S.phase === 'breaking');
+    await P.waitForFunction(() => S.practice && S.phase === 'open');
     await P.waitForTimeout(400);
     const layout = await P.evaluate(() => ({
       rotated: view.rotated,

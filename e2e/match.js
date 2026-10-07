@@ -38,7 +38,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     await A.waitForFunction(() => document.getElementById('landing').hidden && S.match && S.match.race === 3);
     const code = await A.textContent('#roomCode');
     if (await text(A, '#score') !== '0–0race to 3') fail(`header score ${await text(A, '#score')}`);
-    if (await text(A, '#lobbyMatch') !== 'Race to 3') fail(`lobby match button ${await text(A, '#lobbyMatch')}`);
+    if (await A.evaluate(() => S.race) !== 3) fail(`room race ${await A.evaluate(() => S.race)}`);
 
     const L = await mk({ width: 800, height: 700 });
     await L.goto(base + '/');
@@ -55,14 +55,19 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
 
     // Changing the race in the lobby reaches both players.
     await A.waitForFunction(() => document.getElementById('seat1').textContent.includes('Bob'));
-    await A.click('#lobbyMatch');
+    // The game, the race and the invite link are in Settings.
+    await A.click('#settingsBtn');
+    if (await text(A, '#inviteCode') !== code) fail(`invite code ${await text(A, '#inviteCode')}`);
     await A.click('#roomMatch [data-race="5"]');
     await A.click('#roomMatch [data-breaks="alternate"]');
     await B.waitForFunction(() => S.race === 5 && S.breaks === 'alternate' && S.match.race === 5);
     await A.waitForTimeout(500); // the dialog's entry
     await A.screenshot({ path: path.join(shots, 'match-settings.png') });
-    await A.click('#matchSettingsClose');
-    if (await text(B, '#lobbyMatch') !== 'Race to 5') fail(`B's lobby match button ${await text(B, '#lobbyMatch')}`);
+    await A.click('#settingsClose');
+    if (!(await text(B, '#lobbySub')).includes('first to 5 racks')) fail(`B's lobby line ${await text(B, '#lobbySub')}`);
+    await B.click('#settingsBtn');
+    if (await B.getAttribute('#roomMatch [data-race="5"]', 'aria-pressed') !== 'true') fail('B does not see race 5 in Settings');
+    await B.click('#settingsClose');
     await B.screenshot({ path: path.join(shots, 'match-lobby-B.png') });
     console.log('lobby race ok');
 
@@ -70,6 +75,11 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     await B.click('#ready');
     await A.waitForFunction(() => S.phase === 'breaking');
     await B.waitForFunction(() => S.phase === 'breaking');
+
+    // During the match the game and the race are locked.
+    await A.click('#settingsBtn');
+    if (!(await A.isDisabled('#settingsMode [data-mode="9ball"]')) || !(await A.isDisabled('#roomMatch [data-race="7"]'))) fail('settings not locked mid-match');
+    await A.click('#settingsClose');
 
     // The score opens the match dialog.
     await B.click('#score');
@@ -126,14 +136,14 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
       Object.assign(S, { phase: 'game_over', winner: S.seat, lastBreaker: 0 });
       S.match = { race: 2, breaks: 'alternate', score: S.seat ? [0, 1] : [1, 0], racks, winner: null };
       refreshPanels();
-      const between = [document.getElementById('overText').textContent, document.getElementById('rematch').textContent, document.getElementById('rematchNote').textContent, document.getElementById('overMode').hidden];
+      const between = [document.getElementById('overText').textContent, document.getElementById('rematch').textContent, document.getElementById('rematchNote').textContent];
       S.match = { ...S.match, score: S.seat ? [0, 2] : [2, 0], racks: [...racks, racks[0]], winner: S.seat };
       refreshPanels();
-      const after = [document.getElementById('overText').textContent, document.getElementById('rematch').textContent, document.getElementById('overMode').hidden];
+      const after = [document.getElementById('overText').textContent, document.getElementById('rematch').textContent];
       return { between, after };
     });
-    if (over.between[0] !== 'You win the rack' || over.between[1] !== 'Next rack' || !over.between[2].includes('race to 2') || !over.between[3]) fail(`between racks: ${JSON.stringify(over.between)}`);
-    if (over.after[0] !== 'You win the match 2–0' || over.after[1] !== 'New match' || over.after[2]) fail(`after the match: ${JSON.stringify(over.after)}`);
+    if (over.between[0] !== 'You win the rack' || over.between[1] !== 'Next rack' || !over.between[2].includes('race to 2')) fail(`between racks: ${JSON.stringify(over.between)}`);
+    if (over.after[0] !== 'You win the match 2–0' || over.after[1] !== 'New match') fail(`after the match: ${JSON.stringify(over.after)}`);
     console.log('game-over panel ok');
 
     // Leaving after the match needs no confirmation.

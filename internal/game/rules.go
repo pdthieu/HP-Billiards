@@ -180,6 +180,10 @@ type Rules struct {
 	End        End       // why the game ended, once Winner is set
 	Fouls      [2]int    // 9-ball: consecutive fouls by seat; the third loses (WPA 5.8)
 	PushOut    bool      // 9-ball: Turn may push out (the shot right after the break)
+	// Free is practice without rules: no fouls, no turns, no calls and no
+	// end; balls that drop stay down and a scratched cue ball is respotted.
+	// Mode only decides the rack.
+	Free bool
 
 	pocketed     [NumBalls]bool // object balls that are permanently down
 	decisionFoul bool           // the break awaiting a decision was a foul
@@ -194,6 +198,10 @@ func NewRules() *Rules {
 // Start begins a fresh rack of r.Mode with breaker to shoot the break. The
 // cue ball is in hand above the head string (WPA 4.3 a, 5.3).
 func (r *Rules) Start(breaker int) {
+	if r.Free {
+		*r = Rules{Mode: r.Mode, Free: true, Phase: PhaseOpen, Turn: breaker, Winner: NoWinner}
+		return
+	}
 	*r = Rules{Mode: r.Mode, Phase: PhaseBreaking, Turn: breaker, BallInHand: true, Kitchen: true, Winner: NoWinner}
 	if r.Mode == ModeNine {
 		for id := NineBall + 1; id < NumBalls; id++ {
@@ -262,6 +270,9 @@ func (r *Rules) legalTarget(ball int) bool {
 // is always fine, a pocket must exist if one is named, and a shooter whose
 // legal target is the 8-ball must name one. Nothing is called on the break.
 func (r *Rules) CheckCall(c Call) error {
+	if r.Free {
+		return nil // nothing is called; a call is ignored
+	}
 	if r.Mode == ModeNine {
 		if c.PushOut && !r.PushOut {
 			return ErrNoPushOut
@@ -286,10 +297,32 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 	if !r.InPlay() {
 		return ShotResult{Shooter: r.Turn}
 	}
-	if r.Mode == ModeNine {
+	switch {
+	case r.Free:
+		return r.resolveFree(s)
+	case r.Mode == ModeNine:
 		return r.resolveNine(s)
 	}
 	return r.resolveEight(s)
+}
+
+// resolveFree records what dropped and nothing else: the same player
+// shoots again, whatever happened.
+func (r *Rules) resolveFree(s Shot) ShotResult {
+	res := ShotResult{Shooter: r.Turn}
+	for _, e := range s.Events {
+		if e.Kind != BallPocketed {
+			continue
+		}
+		res.Pocketed = append(res.Pocketed, e.Ball)
+		if e.Ball == CueBall {
+			res.CuePocketed = true
+		} else {
+			r.pocketed[e.Ball] = true
+			res.Made = true
+		}
+	}
+	return res
 }
 
 func (r *Rules) resolveEight(s Shot) ShotResult {

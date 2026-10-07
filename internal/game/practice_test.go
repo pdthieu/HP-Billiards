@@ -98,3 +98,37 @@ func TestPlaceFreeKeepsTheKitchen(t *testing.T) {
 		t.Error("a cue ball placed outside the kitchen still counts as in it")
 	}
 }
+
+// Free rules (practice) record what drops and nothing else.
+func TestFreeRulesHaveNoFoulsTurnsOrEnd(t *testing.T) {
+	for _, mode := range []Mode{ModeEight, ModeNine} {
+		r := &Rules{Mode: mode, Free: true}
+		r.Start(0)
+		if r.Phase != PhaseOpen || r.BallInHand || r.Kitchen || !r.InPlay() {
+			t.Fatalf("%s: free start %+v", mode, r)
+		}
+		for _, s := range []Shot{
+			shot(noCall, -1),                        // no contact
+			shot(noCall, 3, CueBall),                // scratch
+			shot(noCall, 5, EightBall),              // the 8 early
+			shot(noCall, 2, NineBall, 4),            // the 9 on a wrong first ball
+			shot(Call{Pocket: 9, PushOut: true}, 1), // calls are ignored
+		} {
+			if err := r.CheckCall(s.Call); err != nil {
+				t.Errorf("%s: call %+v refused: %v", mode, s.Call, err)
+			}
+			res := r.Resolve(s)
+			if res.Foul != FoulNone || res.IllegalBreak || res.Respot != 0 || r.Turn != 0 || r.Phase != PhaseOpen ||
+				r.Winner != NoWinner || r.Decision != nil || r.BallInHand {
+				t.Errorf("%s: after %+v: result %+v, rules %+v", mode, s, res, r)
+			}
+		}
+		if !r.pocketed[EightBall] || !r.pocketed[NineBall] || !r.pocketed[4] {
+			t.Errorf("%s: dropped balls not recorded: %v", mode, r.pocketed)
+		}
+		r.Start(0)
+		if !r.Free || r.pocketed[EightBall] {
+			t.Errorf("%s: a new rack must stay free and clear: %+v", mode, r)
+		}
+	}
+}

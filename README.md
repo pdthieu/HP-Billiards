@@ -16,7 +16,7 @@ go run ./cmd/server -addr :8080
 ```
 
 Open <http://localhost:8080>, keep or change the suggested name and *Create a
-room*, then open the invite link (*Copy link*, or
+room*, then open the invite link (Settings → *Copy invite link*, or
 `http://localhost:8080/?room=CODE`) in a second browser window and *Join*.
 The landing page also lists the open rooms, so the second player can simply
 pick the room there. Use a private window or another

@@ -18,9 +18,22 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 ## Flow
 
 The game, 8-ball or 9-ball, is picked with a two-button switch above
-*Create a room* (remembered in `localStorage` as `pool:mode`) and can be
-changed by either player from the same switch in the lobby panel (both must
-press ready again) or the game-over panel (the rematch uses it). The header
+*Create a room* (remembered in `localStorage` as `pool:mode`).
+
+Inside a room, Settings (the gear in the header) has a *Room* part at the
+top, so that the screen around the table stays bare. It holds:
+
+- the game switch;
+- the next match's race and break rule;
+- the room code with *Copy invite link* (a share sheet on phones).
+
+Either player may change the game and the match settings in the lobby (both
+press ready again) or once the match is won. While a match is played they
+are disabled with a note. In practice only the game switch shows, and it
+racks the table again. The lobby panel keeps *Copy invite link* while the
+player waits alone.
+
+The header
 eyebrow reads "8-ball room" or "9-ball room" and the room list shows the
 game in each row's chip. In 9-ball:
 
@@ -39,10 +52,10 @@ to them (Enter commits, never submits the form). Below it is the break
 rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
 (default 3) and `pool:breaks`. The room list chip adds "race 5".
 
-- **Changing the settings.** In the lobby, and on the game-over panel once
-  the match is won, a *Race to N* button opens the *Next match* dialog with
-  the same pickers. Changes go to both players with `set_match`; in the
-  lobby both press ready again.
+- **Changing the settings.** Settings has the same pickers under *Next
+  match*. Changes go to both players with `set_match`; in the lobby both
+  press ready again. The lobby line and the game-over note say what the
+  next match is and that Settings changes it.
 - **Header score.** The score between the seats reads "2 – 1, race to 5"
   and is a button.
   - A digit that goes up ticks: the old digit slides out, the new one
@@ -65,14 +78,21 @@ rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
   - Leaving sends `leave`, so the seat is freed immediately. The player
     who stays gets "Ann left. You win the match 2–1." and the match dialog,
     and waits in the lobby: "Ann left the room."
-- **Phones.** Once the opponent is in, the phone header drops *Copy link*
-  to make room for the score.
+- **Phones.** The header holds the code, Settings, Leave, the seats and the
+  score. There is no invite button there, so the score always fits.
 
 *Practice alone* on the landing page opens a private practice room of the
-picked game. The player plays both sides under the full rules: the header
-shows "Side A" and "Side B" (groups, fouls and whose turn it is), the side
-to play gets the shot panel, and the status names the sides ("Foul by Side
-A: scratch. Your turn, ball in hand."). There is no shot clock. A toolbar
+picked game. It is free play, without the tournament rules:
+
+- no fouls, turns, calls or end;
+- every ball that drops stays down, and a scratched cue ball comes back to
+  the head spot;
+- the call line reads "Free play: any ball, any pocket";
+- the status says what dropped, or "Table cleared!";
+- the header shows the one player, with no score and no second seat;
+- there is no shot clock.
+
+A toolbar
 between the status and the panel (over the table's corner on landscape
 phones, icons only on phones) has:
 
@@ -80,11 +100,10 @@ phones, icons only on phones) has:
 - *Move balls* (`M`): while on, dragging any ball moves it instead of
   aiming; with it off the cue ball can still be dragged anywhere at any
   time;
-- an 8-ball / 9-ball switch and *Rack* to start a fresh rack of that game;
+- *Rack*: a fresh rack of the same game (Settings switches the game);
 - *Leave*.
 
-The tray row is hidden to make room. Game over reads "Side A wins the rack"
-with *Rack again*.
+The tray row is hidden to make room.
 
 1. **Landing**: the name field is prefilled with the last name used (kept in
    `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
