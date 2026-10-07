@@ -19,8 +19,14 @@ const (
 	// TypeExtend uses the sender's one extension of the game: their running
 	// shot clock is set back to the long limit.
 	TypeExtend = "extend"
-	// TypeSetMode changes the game played, in the lobby or after a game.
+	// TypeSetMode changes the game played, in the lobby or after a match.
 	TypeSetMode = "set_mode"
+	// TypeSetMatch changes the race and break rule, in the lobby or after a
+	// match.
+	TypeSetMatch = "set_match"
+	// TypeLeave gives up the sender's seat at once; during a match it
+	// forfeits the match.
+	TypeLeave = "leave"
 	// Practice rooms only: move a ball, take back the last shot, rack again.
 	TypePlaceBall = "place_ball"
 	TypeUndo      = "undo"
@@ -63,6 +69,7 @@ const (
 	ErrBadMode      = "bad_mode"      // set_mode (or room creation) with an unknown mode
 	ErrNoUndo       = "no_undo"       // undo with no shot to take back
 	ErrNotPractice  = "not_practice"  // place_ball, undo or rerack outside a practice room
+	ErrBadRace      = "bad_race"      // set_match (or room creation) with a race outside 1–25 or an unknown break rule
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -94,6 +101,10 @@ type ClientMessage struct {
 
 	// set_mode, rerack (optional there)
 	Mode game.Mode `json:"mode"`
+
+	// set_match: either may be left out (0, "") to keep it
+	Race   int            `json:"race"`
+	Breaks game.BreakRule `json:"breaks"`
 }
 
 // Spin is where the cue tip strikes the cue ball, as an offset from its
@@ -217,6 +228,22 @@ type RoomState struct {
 	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by seat
 	PushOut    bool             `json:"pushOut"`    // 9-ball: turn may push out on this shot
 	Undos      int              `json:"undos"`      // practice: shots undo can take back
+	// Race and Breaks are the settings of the next match (set_match);
+	// Match is the one being played, or the last one.
+	Race   int            `json:"race"`
+	Breaks game.BreakRule `json:"breaks"`
+	Match  *Match         `json:"match"` // null in practice
+}
+
+// Match is the race the two players are playing: the first to win Race
+// racks wins. A finished match stays until the next one starts or a new
+// player sits down.
+type Match struct {
+	Race   int            `json:"race"`
+	Breaks game.BreakRule `json:"breaks"`
+	Score  [2]int         `json:"score"`  // racks won, by seat
+	Racks  []game.Rack    `json:"racks"`  // every finished rack, in order
+	Winner *int           `json:"winner"` // seat, or null while the match is on
 }
 
 // Snapshot carries ball positions while a shot is in progress.
@@ -260,6 +287,7 @@ type Settled struct {
 	Fouls        [2]int           `json:"fouls"`
 	PushOut      bool             `json:"pushOut"`
 	Undos        int              `json:"undos"`
+	Match        *Match           `json:"match"`
 }
 
 // Aim relays the shooter's aim to the other player.

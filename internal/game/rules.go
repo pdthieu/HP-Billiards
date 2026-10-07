@@ -137,6 +137,19 @@ type ChoiceResult struct {
 // NoWinner is the value of Rules.Winner while the game is undecided.
 const NoWinner = -1
 
+// End is why a game (one rack) ended. The winner is Rules.Winner; every end
+// but EndMade is a loss by the other player.
+type End string
+
+const (
+	EndMade        End = "made"         // the 8-ball (in its called pocket) or the 9-ball, legally
+	EndEightFoul   End = "eight_foul"   // the 8-ball dropped on a foul
+	EndEightEarly  End = "eight_early"  // the 8-ball dropped before it was the shooter's target
+	EndEightPocket End = "eight_pocket" // the 8-ball dropped in another pocket than called, or on a safety
+	EndThreeFouls  End = "three_fouls"  // 9-ball: a third foul in a row
+	EndForfeit     End = "forfeit"      // a player left the match (only in Match)
+)
+
 // minBreakRails is how many object balls a break that pockets nothing must
 // drive to a rail to be legal (WPA 4.3 d).
 const minBreakRails = 4
@@ -164,6 +177,7 @@ type Rules struct {
 	Kitchen    bool      // ...but only above the head string
 	Decision   *Decision // pending post-break choice, if any
 	Winner     int       // seat, or NoWinner
+	End        End       // why the game ended, once Winner is set
 	Fouls      [2]int    // 9-ball: consecutive fouls by seat; the third loses (WPA 5.8)
 	PushOut    bool      // 9-ball: Turn may push out (the shot right after the break)
 
@@ -397,8 +411,15 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 		// 4.8: the 8-ball must be the shooter's legal target and drop in the
 		// called pocket on a shot without a foul; anything else loses (3.8).
 		r.Winner = opponent
-		if legal && onEight && !s.Call.Safety && eightPocket == s.Call.Pocket {
-			r.Winner = shooter
+		switch {
+		case !legal:
+			r.End = EndEightFoul
+		case !onEight:
+			r.End = EndEightEarly
+		case s.Call.Safety || eightPocket != s.Call.Pocket:
+			r.End = EndEightPocket
+		default:
+			r.Winner, r.End = shooter, EndMade
 			res.Made = true
 		}
 		r.Phase = PhaseGameOver
@@ -494,7 +515,7 @@ func (r *Rules) foul(seat int) {
 	r.Fouls[seat]++
 	r.Turn, r.BallInHand, r.Kitchen = 1-seat, true, false
 	if r.Fouls[seat] >= 3 {
-		r.Winner = 1 - seat
+		r.Winner, r.End = 1-seat, EndThreeFouls
 		r.Phase = PhaseGameOver
 		r.BallInHand = false
 	}
@@ -576,7 +597,7 @@ func (r *Rules) resolveNine(s Shot) ShotResult {
 	r.Phase = PhaseOpen
 	if ninePocketed {
 		if legal && !pushOut {
-			r.Winner, r.Phase = shooter, PhaseGameOver
+			r.Winner, r.End, r.Phase = shooter, EndMade, PhaseGameOver
 			res.Made = true
 			return res
 		}

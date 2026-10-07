@@ -53,8 +53,8 @@ type Options struct {
 	AimLine float64
 	// WS tunes the connections (keepalive pings).
 	WS ws.Options
-	// Breaker picks the seat that breaks a room's first rack. Later racks
-	// alternate. Nil means random.
+	// Breaker picks the seat that breaks the first rack of a room's first
+	// match. Later racks follow the room's break rule. Nil means random.
 	Breaker func() int
 }
 
@@ -125,9 +125,34 @@ func New(opts Options) *Hub {
 // ErrRoomLimit is returned by CreateRoom when MaxRooms rooms already exist.
 var ErrRoomLimit = errors.New("room limit reached")
 
+// RoomSettings are what a room is created with: the game, the race and break
+// rule of its matches (both changeable between matches), or a practice table.
+type RoomSettings struct {
+	Mode     game.Mode      `json:"mode"`
+	Race     int            `json:"race"`
+	Breaks   game.BreakRule `json:"breaks"`
+	Practice bool           `json:"practice"`
+}
+
+// fill sets the zero fields to their defaults: 8-ball, a race to 1 (one rack
+// per match), alternating breaks.
+func (s *RoomSettings) fill() {
+	if s.Mode == "" {
+		s.Mode = game.ModeEight
+	}
+	if s.Race == 0 {
+		s.Race = 1
+	}
+	if s.Breaks == "" {
+		s.Breaks = game.BreakAlternate
+	}
+}
+
 // CreateRoom starts a new empty room and returns its code. It fails with
-// ErrRoomLimit when MaxRooms rooms already exist.
-func (h *Hub) CreateRoom(mode game.Mode, practice bool) (string, error) {
+// ErrRoomLimit when MaxRooms rooms already exist. Zero settings take their
+// defaults; the others must be valid.
+func (h *Hub) CreateRoom(settings RoomSettings) (string, error) {
+	settings.fill()
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.rooms) >= h.opts.MaxRooms {
@@ -138,7 +163,7 @@ func (h *Hub) CreateRoom(mode game.Mode, practice bool) (string, error) {
 		if _, taken := h.rooms[code]; taken {
 			continue
 		}
-		r := newRoom(h, code, mode, practice)
+		r := newRoom(h, code, settings)
 		h.rooms[code] = r
 		go r.run()
 		return code, nil
@@ -147,10 +172,12 @@ func (h *Hub) CreateRoom(mode game.Mode, practice bool) (string, error) {
 
 // RoomInfo is the public summary of a room, for the room list.
 type RoomInfo struct {
-	RoomCode string     `json:"roomCode"`
-	Mode     game.Mode  `json:"mode"`
-	Players  [2]string  `json:"players"` // names; "" for an empty seat
-	Phase    game.Phase `json:"phase"`
+	RoomCode string         `json:"roomCode"`
+	Mode     game.Mode      `json:"mode"`
+	Race     int            `json:"race"`
+	Breaks   game.BreakRule `json:"breaks"`
+	Players  [2]string      `json:"players"` // names; "" for an empty seat
+	Phase    game.Phase     `json:"phase"`
 	// Seated counts taken seats, including seats held for a reconnect;
 	// a room with Seated < 2 can be joined.
 	Seated int `json:"seated"`
@@ -206,25 +233,28 @@ func (h *Hub) remove(r *room) {
 
 // HandleCreateRoom is the POST handler that creates a room and answers
 // {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
-// MaxRooms rooms already exist. An optional JSON body {"mode": "9ball",
-// "practice": true} picks the game (8-ball by default) and makes a private
-// room for one player who plays both sides.
+// MaxRooms rooms already exist. An optional JSON body, RoomSettings
+// ({"mode": "9ball", "race": 5, "breaks": "winner"} or {"practice": true}),
+// picks the game (8-ball by default), the race (1) and the break rule
+// (alternate), or makes a private room for one player who plays both sides.
 func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	var body struct {
-		Mode     game.Mode `json:"mode"`
-		Practice bool      `json:"practice"`
-	}
+	var body RoomSettings
 	json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<10)).Decode(&body) // an empty or bad body is the default
-	if body.Mode == "" {
-		body.Mode = game.ModeEight
-	}
-	if !body.Mode.Valid() {
+	body.fill()
+	bad := func(code, message string) {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": protocol.ErrBadMode, "message": "unknown game mode"})
+		json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
+	}
+	switch {
+	case !body.Mode.Valid():
+		bad(protocol.ErrBadMode, "unknown game mode")
+		return
+	case !game.ValidRace(body.Race) || !body.Breaks.Valid():
+		bad(protocol.ErrBadRace, fmt.Sprintf("the race must be 1 to %d, the breaks alternate or winner", game.MaxRace))
 		return
 	}
-	code, err := h.CreateRoom(body.Mode, body.Practice)
+	code, err := h.CreateRoom(body)
 	if err != nil {
 		w.WriteHeader(http.StatusConflict)
 		json.NewEncoder(w).Encode(map[string]string{

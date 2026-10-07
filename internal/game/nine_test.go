@@ -84,7 +84,7 @@ func TestNineAnyBallKeepsTheTurnAndTheNineWins(t *testing.T) {
 		t.Errorf("nothing down: %+v, turn %d", res, r.Turn)
 	}
 	// A combination on the 9 wins.
-	if res := r.Resolve(shot(noCall, 3, 9)); !res.Made || r.Winner != 1 || r.Phase != PhaseGameOver {
+	if res := r.Resolve(shot(noCall, 3, 9)); !res.Made || r.Winner != 1 || r.Phase != PhaseGameOver || r.End != EndMade {
 		t.Errorf("3 into the 9: %+v, rules %+v", res, r)
 	}
 }
@@ -162,7 +162,7 @@ func TestNineThreeFoulsLose(t *testing.T) {
 	}
 	r.Resolve(shot(noCall, 2)) // 1
 	r.TimeFoul()               // 0: third foul by the clock
-	if r.Winner != 1 || r.Phase != PhaseGameOver {
+	if r.Winner != 1 || r.Phase != PhaseGameOver || r.End != EndThreeFouls {
 		t.Errorf("after three fouls: %+v", r)
 	}
 

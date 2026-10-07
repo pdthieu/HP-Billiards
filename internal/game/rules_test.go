@@ -286,17 +286,18 @@ func TestEightBallEndsTheGame(t *testing.T) {
 		rules      *Rules
 		shot       Shot
 		wantWinner int
+		wantEnd    End
 	}{
-		{"8-ball in the called pocket wins", onEight(0), shot(into(pot), EightBall, EightBall), 0},
-		{"seat 1 wins the same way", onEight(1), shot(into(pot), EightBall, EightBall), 1},
-		{"open table with a group cleared: 8-ball wins", openRules(0, allStripes...), shot(into(pot), EightBall, EightBall), 0},
-		{"8-ball in the wrong pocket loses", onEight(0), shot(into(5), EightBall, EightBall), 1},
-		{"8-ball on a safety loses", onEight(0), shot(safety, EightBall, EightBall), 1},
-		{"8-ball and cue ball together lose", onEight(0), shot(into(pot), EightBall, EightBall, CueBall), 1},
-		{"8-ball without contact loses", onEight(0), shot(into(pot), -1, EightBall), 1},
-		{"early 8-ball loses", assignedRules(0, 1, 2), shot(noCall, 3, EightBall), 1},
-		{"early 8-ball on an open table loses", openRules(0), shot(noCall, 3, EightBall), 1},
-		{"last group ball and 8-ball in one shot lose", assignedRules(0, 1, 2, 3, 4, 5, 6), shot(noCall, 7, 7, EightBall), 1},
+		{"8-ball in the called pocket wins", onEight(0), shot(into(pot), EightBall, EightBall), 0, EndMade},
+		{"seat 1 wins the same way", onEight(1), shot(into(pot), EightBall, EightBall), 1, EndMade},
+		{"open table with a group cleared: 8-ball wins", openRules(0, allStripes...), shot(into(pot), EightBall, EightBall), 0, EndMade},
+		{"8-ball in the wrong pocket loses", onEight(0), shot(into(5), EightBall, EightBall), 1, EndEightPocket},
+		{"8-ball on a safety loses", onEight(0), shot(safety, EightBall, EightBall), 1, EndEightPocket},
+		{"8-ball and cue ball together lose", onEight(0), shot(into(pot), EightBall, EightBall, CueBall), 1, EndEightFoul},
+		{"8-ball without contact loses", onEight(0), shot(into(pot), -1, EightBall), 1, EndEightFoul},
+		{"early 8-ball loses", assignedRules(0, 1, 2), shot(noCall, 3, EightBall), 1, EndEightEarly},
+		{"early 8-ball on an open table loses", openRules(0), shot(noCall, 3, EightBall), 1, EndEightEarly},
+		{"last group ball and 8-ball in one shot lose", assignedRules(0, 1, 2, 3, 4, 5, 6), shot(noCall, 7, 7, EightBall), 1, EndEightEarly},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -305,8 +306,8 @@ func TestEightBallEndsTheGame(t *testing.T) {
 			if r.Phase != PhaseGameOver {
 				t.Fatalf("phase = %q, want game over", r.Phase)
 			}
-			if r.Winner != tc.wantWinner {
-				t.Errorf("winner = %d, want %d", r.Winner, tc.wantWinner)
+			if r.Winner != tc.wantWinner || r.End != tc.wantEnd {
+				t.Errorf("winner = %d, end = %q, want %d, %q", r.Winner, r.End, tc.wantWinner, tc.wantEnd)
 			}
 			if r.BallInHand {
 				t.Error("ball in hand set after the game ended")

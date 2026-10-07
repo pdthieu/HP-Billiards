@@ -188,7 +188,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	h := New(Options{MaxRooms: 200})
 	seen := map[string]bool{}
 	for i := 0; i < 200; i++ {
-		code, err := h.CreateRoom(game.ModeEight, false)
+		code, err := h.CreateRoom(RoomSettings{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -208,7 +208,7 @@ func TestRoomCodeFormat(t *testing.T) {
 	if h.RoomCount() != 200 {
 		t.Errorf("RoomCount = %d, want 200", h.RoomCount())
 	}
-	if _, err := h.CreateRoom(game.ModeEight, false); err != ErrRoomLimit {
+	if _, err := h.CreateRoom(RoomSettings{}); err != ErrRoomLimit {
 		t.Errorf("201st room: err = %v, want ErrRoomLimit", err)
 	}
 }
@@ -511,11 +511,15 @@ func TestLeavingHoldsTheSeatThenAbandonsTheGame(t *testing.T) {
 	if st["phase"] != "lobby" || players(st)[0].(msg)["ready"] != false || players(st)[1].(msg)["name"] != "" {
 		t.Errorf("state after the opponent left: %v", st)
 	}
+	// Not coming back in time forfeits the match.
+	if m := matchOf(t, st); m["winner"] != 0.0 || len(m["racks"].([]any)) != 1 || m["racks"].([]any)[0].(msg)["end"] != "forfeit" {
+		t.Errorf("match after the hold ran out = %v", m)
+	}
 
-	// The seat is free again.
+	// The seat is free again, and the new player starts a new match.
 	c2 := dial(t, srv)
-	if w, _ := c2.join(code, "Cat"); w["seat"] != 1.0 {
-		t.Errorf("new player got seat %v, want 1", w["seat"])
+	if w, st := c2.join(code, "Cat"); w["seat"] != 1.0 || matchOf(t, st)["winner"] != nil || len(matchOf(t, st)["racks"].([]any)) != 0 {
+		t.Errorf("new player got seat %v, match %v", w["seat"], st["match"])
 	}
 	if h.RoomCount() != 1 {
 		t.Errorf("RoomCount = %d, want 1", h.RoomCount())
@@ -1193,5 +1197,221 @@ func TestShotImpactsAreSentOnceInOrder(t *testing.T) {
 	}
 	if got[0]["k"] != "ball" || got[0]["v"].(float64) < 5 {
 		t.Errorf("first impact %v, want the cue ball into the rack", got[0])
+	}
+}
+
+func matchOf(t *testing.T, m msg) msg {
+	t.Helper()
+	mt, ok := m["match"].(msg)
+	if !ok {
+		t.Fatalf("no match in %v", m)
+	}
+	return mt
+}
+
+// waitState skips messages until a room_state or settled satisfies ok.
+func (c *testClient) waitState(ok func(msg) bool) msg {
+	c.t.Helper()
+	for {
+		_, m := c.read()
+		if (m["type"] == "room_state" || m["type"] == "settled") && ok(m) {
+			return m
+		}
+	}
+}
+
+func phaseIs(p string) func(msg) bool { return func(m msg) bool { return m["phase"] == p } }
+
+// clockMatchOptions make 9-ball racks end by themselves: after the break
+// nobody shoots, and the third foul on the clock loses.
+func clockMatchOptions() Options {
+	opts := fastOptions()
+	opts.ShotClock = 150 * time.Millisecond
+	opts.LongShotClock = 200 * time.Millisecond
+	return opts
+}
+
+// startMatch creates a room with body, seats Ann and Bob and readies both.
+func startMatch(t *testing.T, srv *httptest.Server, body string) (c0, c1 *testClient, code string) {
+	t.Helper()
+	res, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	var created struct{ RoomCode string }
+	json.NewDecoder(res.Body).Decode(&created)
+	code = created.RoomCode
+	c0, c1 = dial(t, srv), dial(t, srv)
+	c0.join(code, "Ann")
+	c1.join(code, "Bob")
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	return c0, c1, code
+}
+
+// playRackByClock breaks (st is the state at the start of the rack) and lets
+// the clock foul both players until the rack is lost; it returns the final
+// state as seen by c0 and c1.
+func playRackByClock(t *testing.T, c0, c1 *testClient, st msg) [2]msg {
+	t.Helper()
+	breaker := []*testClient{c0, c1}[int(st["turn"].(float64))]
+	breaker.send(msg{"type": "shoot", "angle": 0, "power": 1})
+	return [2]msg{c0.waitState(phaseIs("game_over")), c1.waitState(phaseIs("game_over"))}
+}
+
+func TestRaceMatchWithAlternatingBreaks(t *testing.T) {
+	_, srv := newServer(t, clockMatchOptions())
+	c0, c1, _ := startMatch(t, srv, `{"mode":"9ball","race":2}`)
+	st := c0.waitState(phaseIs("breaking"))
+	c1.waitState(phaseIs("breaking"))
+	if m := matchOf(t, st); m["race"] != 2.0 || m["breaks"] != "alternate" || m["winner"] != nil || st["race"] != 2.0 {
+		t.Fatalf("match at the start = %v", m)
+	}
+
+	var m msg
+	for rack := 0; ; rack++ {
+		if rack > 2 {
+			t.Fatal("a race to 2 took more than 3 racks")
+		}
+		if st["turn"] != float64(rack%2) {
+			t.Fatalf("rack %d broken by %v, want %d (alternating)", rack+1, st["turn"], rack%2)
+		}
+		end := playRackByClock(t, c0, c1, st)
+		m = matchOf(t, end[0])
+		racks := m["racks"].([]any)
+		last := racks[len(racks)-1].(msg)
+		score := m["score"].([]any)
+		if len(racks) != rack+1 || last["end"] != "three_fouls" || last["breaker"] != float64(rack%2) ||
+			score[0].(float64)+score[1].(float64) != float64(rack+1) || last["winner"] != end[0]["winner"] {
+			t.Fatalf("match after rack %d = %v", rack+1, m)
+		}
+		if m["winner"] != nil {
+			break
+		}
+		// Between racks the settings are locked.
+		c0.send(msg{"type": "set_mode", "mode": "8ball"})
+		c0.expectError("wrong_phase")
+		c0.send(msg{"type": "set_match", "race": 5})
+		c0.expectError("wrong_phase")
+		c1.send(msg{"type": "rematch"})
+		st = c0.waitState(phaseIs("breaking"))
+		c1.waitState(phaseIs("breaking"))
+	}
+	w := int(m["winner"].(float64))
+	if m["score"].([]any)[w] != 2.0 {
+		t.Errorf("match winner %d with score %v", w, m["score"])
+	}
+
+	// After the match: new settings, kept apart from the finished match.
+	c0.send(msg{"type": "set_match", "race": 26})
+	c0.expectError("bad_race")
+	c0.send(msg{"type": "set_match", "race": 3, "breaks": "winner"})
+	for _, c := range []*testClient{c0, c1} {
+		st := c.waitState(phaseIs("game_over"))
+		if st["race"] != 3.0 || st["breaks"] != "winner" || matchOf(t, st)["race"] != 2.0 || matchOf(t, st)["winner"] != m["winner"] {
+			t.Errorf("state after set_match = %v", st)
+		}
+	}
+	// A new match: the other player opens, the score is clear.
+	c0.send(msg{"type": "rematch"})
+	st = c1.waitState(phaseIs("breaking"))
+	if nm := matchOf(t, st); st["turn"] != 1.0 || nm["race"] != 3.0 || nm["breaks"] != "winner" || nm["winner"] != nil || len(nm["racks"].([]any)) != 0 {
+		t.Errorf("new match: turn %v, match %v", st["turn"], nm)
+	}
+}
+
+func TestWinnerBreaks(t *testing.T) {
+	_, srv := newServer(t, clockMatchOptions())
+	c0, c1, _ := startMatch(t, srv, `{"mode":"9ball","race":3,"breaks":"winner"}`)
+	st := c0.waitState(phaseIs("breaking"))
+	c1.waitState(phaseIs("breaking"))
+	end := playRackByClock(t, c0, c1, st)
+	won := end[0]["winner"]
+	c0.send(msg{"type": "rematch"})
+	st = c0.waitState(phaseIs("breaking"))
+	if st["turn"] != won {
+		t.Errorf("rack 2 broken by %v, want the winner of rack 1, %v", st["turn"], won)
+	}
+}
+
+func TestLeaveForfeitsTheMatch(t *testing.T) {
+	h, srv := newServer(t, fastOptions())
+	c0, c1, code := startMatch(t, srv, `{"race":3}`)
+	c0.waitState(phaseIs("breaking"))
+	c1.waitState(phaseIs("breaking"))
+
+	c1.send(msg{"type": "leave"})
+	if p := c0.expect("player"); p["seat"] != 1.0 || p["name"] != "" {
+		t.Errorf("leave announcement = %v", p)
+	}
+	st := c0.expect("room_state")
+	m := matchOf(t, st)
+	if st["phase"] != "lobby" || m["winner"] != 0.0 || m["score"].([]any)[0] != 0.0 || len(m["racks"].([]any)) != 1 {
+		t.Fatalf("state after the opponent left = %v", st)
+	}
+	if r := m["racks"].([]any)[0].(msg); r["end"] != "forfeit" || r["winner"] != 0.0 || r["breaker"] != 0.0 {
+		t.Errorf("forfeited rack = %v", r)
+	}
+	// The leaver's socket is closed and the seat is free at once.
+	ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
+	defer cancel()
+	if _, _, err := c1.conn.Read(ctx); websocket.CloseStatus(err) != websocket.StatusNormalClosure {
+		t.Errorf("leaver's socket: %v", err)
+	}
+	if l := h.Rooms(); len(l.Rooms) != 1 || l.Rooms[0].Seated != 1 || l.Rooms[0].Race != 3 {
+		t.Errorf("room list after leaving = %+v", l)
+	}
+
+	// Leaving the lobby forfeits nothing.
+	c2 := dial(t, srv)
+	c2.join(code, "Cat")
+	c0.expect("player")
+	c2.send(msg{"type": "leave"})
+	c0.expect("player")
+	c0.send(msg{"type": "ready"})
+	c0.expect("player")
+	c3 := dial(t, srv)
+	if _, st := c3.join(code, "Dan"); matchOf(t, st)["winner"] != nil || st["phase"] != "lobby" {
+		t.Errorf("state for a new player = %v", st)
+	}
+}
+
+func TestCreateRoomRejectsABadRace(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	for _, body := range []string{`{"race":0.5}`, `{"race":26}`, `{"race":-1}`, `{"breaks":"loser"}`} {
+		res, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out map[string]string
+		json.NewDecoder(res.Body).Decode(&out)
+		res.Body.Close()
+		if body == `{"race":0.5}` {
+			continue // not an integer: a bad body, the defaults
+		}
+		if res.StatusCode != http.StatusBadRequest || out["error"] != "bad_race" {
+			t.Errorf("%s: %d %v", body, res.StatusCode, out)
+		}
+	}
+}
+
+// The break rule decides who breaks the next rack, whoever broke the last.
+func TestNextBreakerFollowsTheRule(t *testing.T) {
+	for _, tc := range []struct {
+		rule game.BreakRule
+		want int
+	}{{game.BreakAlternate, 1}, {game.BreakWinner, 0}} {
+		r := newRoom(New(fastOptions()), "TEST", RoomSettings{Mode: game.ModeEight, Race: 3, Breaks: tc.rule})
+		r.startRack(0)
+		r.game.Rules.Phase, r.game.Rules.Winner = game.PhaseGameOver, 0
+		r.endRack(game.FoulNone)
+		if err := r.handleRematch(); err != nil {
+			t.Fatal(err)
+		}
+		if r.game.Rules.Turn != tc.want || r.match.Score != [2]int{1, 0} {
+			t.Errorf("%s: rack 2 broken by %d (want %d), score %v", tc.rule, r.game.Rules.Turn, tc.want, r.match.Score)
+		}
+		r.stopClock()
 	}
 }

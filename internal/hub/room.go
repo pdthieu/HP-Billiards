@@ -78,6 +78,7 @@ var (
 	errBadMode     = errors.New("unknown game mode")
 	errNoUndo      = errors.New("there is no shot to take back")
 	errNotPractice = errors.New("only in a practice room")
+	errBadRace     = errors.New("the race must be 1 to 25 and the breaks alternate or winner")
 )
 
 // maxUndo is how many shots a practice room can take back.
@@ -94,7 +95,12 @@ type room struct {
 	// republishes it after every event; anyone may Load it.
 	info atomic.Pointer[RoomInfo]
 
-	mode game.Mode // the game played; can change between games
+	mode game.Mode // the game played; can change between matches
+	// race and breaks are the settings of the next match; match is the
+	// current one, or the last one until a new player sits down.
+	race   int
+	breaks game.BreakRule
+	match  game.Match
 	// practice: one player plays both seats, seat 0 holds the socket and
 	// history the positions before the last shots, for undo.
 	practice    bool
@@ -114,14 +120,17 @@ type room struct {
 	timerGen int
 }
 
-func newRoom(h *Hub, code string, mode game.Mode, practice bool) *room {
+func newRoom(h *Hub, code string, settings RoomSettings) *room {
 	r := &room{
 		hub:      h,
 		code:     code,
 		inbox:    make(chan event, 16),
 		done:     make(chan struct{}),
-		mode:     mode,
-		practice: practice,
+		mode:     settings.Mode,
+		race:     settings.Race,
+		breaks:   settings.Breaks,
+		match:    game.NewMatch(settings.Race, settings.Breaks),
+		practice: settings.Practice,
 	}
 	r.resetGame()
 	r.publishInfo()
@@ -136,7 +145,7 @@ func (r *room) resetGame() {
 
 // publishInfo refreshes the room-list summary.
 func (r *room) publishInfo() {
-	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Phase: r.game.Rules.Phase, Practice: r.practice}
+	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Phase: r.game.Rules.Phase, Practice: r.practice}
 	for i := range r.seats {
 		info.Players[i] = r.seats[i].name
 		if !r.seats[i].empty() {
@@ -293,6 +302,7 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 		token:  randomHex(16), // 128 bits
 		name:   cleanName(msg.Name, s),
 	}
+	r.newMatch() // a new opponent: the last match is history
 	r.welcome(c, s)
 	if r.practice {
 		r.startRack(0) // nobody to wait for
@@ -399,10 +409,16 @@ func (r *room) handleAbandon(gen int) {
 	r.stopTicker()
 	r.stopClock()
 	r.resetGame()
+	r.newMatch() // nobody won it
 }
 
-// vacate empties a seat and, if a game was on, abandons it.
+// vacate empties a seat and, if a game was on, abandons it. A player who
+// leaves a match in progress, or does not come back to it in time, forfeits
+// it.
 func (r *room) vacate(s int) {
+	if r.matchLive() {
+		r.match.Forfeit(s, r.lastBreaker)
+	}
 	r.seats[s] = seat{}
 	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 
@@ -453,6 +469,10 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 		err = r.handleExtend(s)
 	case protocol.TypeSetMode:
 		err = r.handleSetMode(msg.Mode)
+	case protocol.TypeSetMatch:
+		err = r.handleSetMatch(msg.Race, msg.Breaks)
+	case protocol.TypeLeave:
+		r.handleQuit(s)
 	case protocol.TypeJoin:
 		r.sendError(s, protocol.ErrBadMessage, "already joined")
 	default:
@@ -475,21 +495,93 @@ func (r *room) handleReady(s int) error {
 
 	other := &r.seats[1-s]
 	if other.client != nil && other.ready {
+		r.newMatch()
 		r.startRack(r.hub.opts.Breaker() & 1)
 	}
 	return nil
 }
 
+// handleRematch starts the next rack of the match, or a new match once it
+// is over.
 func (r *room) handleRematch() error {
 	if r.game.Rules.Phase != game.PhaseGameOver {
 		return game.ErrWrongPhase
 	}
-	if r.practice {
+	switch {
+	case r.practice:
 		r.startRack(0)
-		return nil
+	case r.match.Over():
+		opener := r.match.Opener(1 - r.lastBreaker)
+		r.newMatch()
+		r.startRack(opener)
+	default:
+		r.startRack(r.match.NextBreaker())
 	}
-	r.startRack(1 - r.lastBreaker) // breaks alternate
 	return nil
+}
+
+// newMatch replaces the match with an unplayed one of the room's settings.
+func (r *room) newMatch() {
+	r.match = game.NewMatch(r.race, r.breaks)
+}
+
+// matchLive reports whether a match is being played: a rack is on, or one
+// has ended and the race is not won yet.
+func (r *room) matchLive() bool {
+	return !r.practice && r.game.Rules.Phase != game.PhaseLobby && !r.match.Over()
+}
+
+// endRack records the rack in the match once the game is over; foul is the
+// foul of the shot that ended it, if any.
+func (r *room) endRack(foul game.Foul) {
+	rules := r.game.Rules
+	if r.practice || rules.Phase != game.PhaseGameOver {
+		return
+	}
+	rack := game.Rack{Winner: rules.Winner, Breaker: r.lastBreaker, End: rules.End}
+	if rules.End == game.EndEightFoul {
+		rack.Foul = foul
+	}
+	r.match.Record(rack)
+}
+
+// handleSetMatch changes the race and the break rule (zero values keep
+// them), between matches only. In the lobby both players must be ready
+// again.
+func (r *room) handleSetMatch(race int, breaks game.BreakRule) error {
+	ph := r.game.Rules.Phase
+	switch {
+	case r.practice || r.matchLive():
+		return game.ErrWrongPhase
+	case race != 0 && !game.ValidRace(race), breaks != "" && !breaks.Valid():
+		return errBadRace
+	case ph != game.PhaseLobby && ph != game.PhaseGameOver:
+		return game.ErrWrongPhase
+	}
+	if race != 0 {
+		r.race = race
+	}
+	if breaks != "" {
+		r.breaks = breaks
+	}
+	if !r.match.Started() {
+		r.newMatch()
+	}
+	if ph == game.PhaseLobby {
+		for i := range r.seats {
+			r.seats[i].ready = false
+		}
+	}
+	r.broadcast(r.roomState())
+	return nil
+}
+
+// handleQuit gives up seat s for good: a match in progress is forfeited
+// (see vacate) and the socket is closed.
+func (r *room) handleQuit(s int) {
+	c := r.seats[s].client
+	r.vacate(s)
+	c.Close(websocket.StatusNormalClosure, "left the room")
 }
 
 // placeFree moves a ball anywhere it fits (practice only).
@@ -540,14 +632,14 @@ func (r *room) handleRerack(mode game.Mode) error {
 	return nil
 }
 
-// handleSetMode changes the game played, between games only. In the lobby
+// handleSetMode changes the game played, between matches only. In the lobby
 // both players must be ready again for the new game.
 func (r *room) handleSetMode(mode game.Mode) error {
 	ph := r.game.Rules.Phase
 	switch {
 	case !mode.Valid():
 		return errBadMode
-	case ph != game.PhaseLobby && ph != game.PhaseGameOver:
+	case ph != game.PhaseLobby && ph != game.PhaseGameOver, r.matchLive():
 		return game.ErrWrongPhase
 	case mode == r.mode:
 		return nil
@@ -648,6 +740,7 @@ func (r *room) tick() {
 	}
 	r.startClock(limit)
 
+	r.endRack(res.Foul)
 	st := r.game.State()
 	pocketed := res.Pocketed
 	if pocketed == nil {
@@ -674,6 +767,7 @@ func (r *room) tick() {
 		Fouls:        st.Fouls,
 		PushOut:      st.PushOut,
 		Undos:        len(r.history),
+		Match:        r.matchInfo(),
 	})
 }
 
@@ -782,6 +876,7 @@ func (r *room) handleClockExpired(gen int) {
 		if r.game.TimeFoul(s) != nil {
 			return
 		}
+		r.endRack(game.FoulNone) // a third foul in a row loses a 9-ball rack
 		r.startClock(r.hub.opts.ShotClock)
 	}
 	r.noteRack() // a time foul on the break hands the break over (a no-op after choose)
@@ -875,7 +970,23 @@ func (r *room) roomState() protocol.RoomState {
 		Fouls:      st.Fouls,
 		PushOut:    st.PushOut,
 		Undos:      len(r.history),
+		Race:       r.race,
+		Breaks:     r.breaks,
+		Match:      r.matchInfo(),
 	}
+}
+
+// matchInfo is the match as sent to the clients; nil in practice.
+func (r *room) matchInfo() *protocol.Match {
+	if r.practice {
+		return nil
+	}
+	m := &r.match
+	racks := m.Racks
+	if racks == nil {
+		racks = []game.Rack{}
+	}
+	return &protocol.Match{Race: m.Race, Breaks: m.Breaks, Score: m.Score, Racks: racks, Winner: winner(m.Winner)}
 }
 
 func (r *room) playerInfo(s int) protocol.PlayerInfo {
@@ -986,6 +1097,8 @@ func errorCode(err error) string {
 		return protocol.ErrNoUndo
 	case errors.Is(err, errNotPractice):
 		return protocol.ErrNotPractice
+	case errors.Is(err, errBadRace):
+		return protocol.ErrBadRace
 	case errors.Is(err, game.ErrNoPushOut):
 		return protocol.ErrBadCall
 	}
