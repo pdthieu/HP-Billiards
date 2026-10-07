@@ -51,6 +51,12 @@ type Options struct {
 	// path after contact (the cue ball's deflection gets half). Negative
 	// hides both: players then judge the cut themselves.
 	AimLine float64
+	// MaxSpectators caps how many spectators a room may let watch; each
+	// room picks its own number up to it. Negative allows none.
+	MaxSpectators int
+	// ChatCooldown is how long anyone must wait between two comments.
+	// Negative turns the wait off.
+	ChatCooldown time.Duration
 	// WS tunes the connections (keepalive pings).
 	WS ws.Options
 	// Breaker picks the seat that breaks the first rack of a room's first
@@ -69,6 +75,8 @@ func DefaultOptions() Options {
 		ShotClock:      30 * time.Second,
 		LongShotClock:  40 * time.Second,
 		AimLine:        0.1,
+		MaxSpectators:  10,
+		ChatCooldown:   5 * time.Second,
 		WS:             ws.DefaultOptions(),
 	}
 }
@@ -109,6 +117,13 @@ func New(opts Options) *Hub {
 	if opts.AimLine == 0 {
 		opts.AimLine = def.AimLine
 	}
+	if opts.MaxSpectators == 0 {
+		opts.MaxSpectators = def.MaxSpectators
+	}
+	opts.MaxSpectators = max(0, opts.MaxSpectators)
+	if opts.ChatCooldown == 0 {
+		opts.ChatCooldown = def.ChatCooldown
+	}
 	if opts.WS == (ws.Options{}) {
 		opts.WS = def.WS
 	}
@@ -126,17 +141,33 @@ func New(opts Options) *Hub {
 var ErrRoomLimit = errors.New("room limit reached")
 
 // RoomSettings are what a room is created with: the game, the race and break
-// rule of its matches (both changeable between matches), or a practice table.
+// rule of its matches (both changeable between matches), how many spectators
+// may watch (changeable any time), or a practice table.
 type RoomSettings struct {
 	Mode     game.Mode      `json:"mode"`
 	Race     int            `json:"race"`
 	Breaks   game.BreakRule `json:"breaks"`
 	Practice bool           `json:"practice"`
+	// Spectators: nil is DefaultSpectators (or the server's limit if lower).
+	Spectators *int `json:"spectators"`
 }
 
+// DefaultSpectators is how many spectators a room lets watch unless its
+// creator picks another number.
+const DefaultSpectators = 3
+
 // fill sets the zero fields to their defaults: 8-ball, a race to 1 (one rack
-// per match), alternating breaks.
-func (s *RoomSettings) fill() {
+// per match), alternating breaks, DefaultSpectators up to limit. A practice
+// table has no spectators.
+func (s *RoomSettings) fill(limit int) {
+	if s.Spectators == nil {
+		n := min(DefaultSpectators, limit)
+		s.Spectators = &n
+	}
+	if s.Practice {
+		n := 0
+		s.Spectators = &n
+	}
 	if s.Mode == "" {
 		s.Mode = game.ModeEight
 	}
@@ -152,7 +183,10 @@ func (s *RoomSettings) fill() {
 // ErrRoomLimit when MaxRooms rooms already exist. Zero settings take their
 // defaults; the others must be valid.
 func (h *Hub) CreateRoom(settings RoomSettings) (string, error) {
-	settings.fill()
+	settings.fill(h.opts.MaxSpectators)
+	if n := *settings.Spectators; n < 0 || n > h.opts.MaxSpectators {
+		return "", errBadSpectators
+	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.rooms) >= h.opts.MaxRooms {
@@ -181,6 +215,10 @@ type RoomInfo struct {
 	// Seated counts taken seats, including seats held for a reconnect;
 	// a room with Seated < 2 can be joined.
 	Seated int `json:"seated"`
+	// Spectators watch now; one more may join while it is below
+	// MaxSpectators.
+	Spectators    int `json:"spectators"`
+	MaxSpectators int `json:"maxSpectators"`
 	// Practice rooms are private: counted against MaxRooms, never listed.
 	Practice bool `json:"-"`
 }
@@ -234,14 +272,15 @@ func (h *Hub) remove(r *room) {
 // HandleCreateRoom is the POST handler that creates a room and answers
 // {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
 // MaxRooms rooms already exist. An optional JSON body, RoomSettings
-// ({"mode": "9ball", "race": 5, "breaks": "winner"} or {"practice": true}),
-// picks the game (8-ball by default), the race (1) and the break rule
-// (alternate), or makes a private room for one player who plays both sides.
+// ({"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 5} or
+// {"practice": true}), picks the game (8-ball by default), the race (1), the
+// break rule (alternate) and how many may watch (3), or makes a private room
+// for one player who plays both sides.
 func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var body RoomSettings
 	json.NewDecoder(http.MaxBytesReader(w, req.Body, 1<<10)).Decode(&body) // an empty or bad body is the default
-	body.fill()
+	body.fill(h.opts.MaxSpectators)
 	bad := func(code, message string) {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": code, "message": message})
@@ -252,6 +291,9 @@ func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 		return
 	case !game.ValidRace(body.Race) || !body.Breaks.Valid():
 		bad(protocol.ErrBadRace, fmt.Sprintf("the race must be 1 to %d, the breaks alternate or winner", game.MaxRace))
+		return
+	case *body.Spectators < 0 || *body.Spectators > h.opts.MaxSpectators:
+		bad(protocol.ErrBadSpectator, fmt.Sprintf("spectators must be 0 to %d", h.opts.MaxSpectators))
 		return
 	}
 	code, err := h.CreateRoom(body)

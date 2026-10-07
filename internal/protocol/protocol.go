@@ -31,6 +31,11 @@ const (
 	TypePlaceBall = "place_ball"
 	TypeUndo      = "undo"
 	TypeRerack    = "rerack"
+	// TypeChat posts a comment to everyone in the room, players and
+	// spectators alike; the server relays it as Chat. TypeSetAudience
+	// changes how many spectators may watch (players only).
+	TypeChat        = "chat"
+	TypeSetAudience = "set_audience"
 	// TypePing may be sent at any time, even before join; the server answers
 	// with TypePong. Lets a client notice a dead connection quickly.
 	TypePing = "ping"
@@ -46,8 +51,10 @@ const (
 	TypePlayer    = "player"
 	TypeError     = "error"
 	TypePong      = "pong"
-	TypeClock     = "clock"   // the shot clock changed: extension, pause or resume
-	TypeTimeout   = "timeout" // a player's shot clock ran out
+	TypeClock     = "clock"    // the shot clock changed: extension, pause or resume
+	TypeTimeout   = "timeout"  // a player's shot clock ran out
+	TypeChatLog   = "chat_log" // the room's recent comments, after welcome
+	TypeAudience  = "audience" // who is watching changed, or how many may
 )
 
 // Error codes carried by the error message.
@@ -60,16 +67,20 @@ const (
 	ErrBallsMoving  = "balls_moving"   // a shot is still in progress
 	ErrNotYourTurn  = "not_your_turn"
 	ErrNoBallInHand = "no_ball_in_hand"
-	ErrBadPlacement = "bad_placement" // place_cue off the table, on a ball or outside the kitchen
-	ErrBadInput     = "bad_input"     // angle or power is not a finite number
-	ErrBadCall      = "bad_call"      // shoot at the 8-ball without a pocket, a pocket outside 0–5, or a push out that is not allowed
-	ErrNoDecision   = "no_decision"   // choose with nothing to decide
-	ErrBadOption    = "bad_option"    // choose with an option that was not offered
-	ErrNoExtension  = "no_extension"  // extend after the sender used their extension this game
-	ErrBadMode      = "bad_mode"      // set_mode (or room creation) with an unknown mode
-	ErrNoUndo       = "no_undo"       // undo with no shot to take back
-	ErrNotPractice  = "not_practice"  // place_ball, undo or rerack outside a practice room
-	ErrBadRace      = "bad_race"      // set_match (or room creation) with a race outside 1–25 or an unknown break rule
+	ErrBadPlacement = "bad_placement"  // place_cue off the table, on a ball or outside the kitchen
+	ErrBadInput     = "bad_input"      // angle or power is not a finite number
+	ErrBadCall      = "bad_call"       // shoot at the 8-ball without a pocket, a pocket outside 0–5, or a push out that is not allowed
+	ErrNoDecision   = "no_decision"    // choose with nothing to decide
+	ErrBadOption    = "bad_option"     // choose with an option that was not offered
+	ErrNoExtension  = "no_extension"   // extend after the sender used their extension this game
+	ErrBadMode      = "bad_mode"       // set_mode (or room creation) with an unknown mode
+	ErrNoUndo       = "no_undo"        // undo with no shot to take back
+	ErrNotPractice  = "not_practice"   // place_ball, undo or rerack outside a practice room
+	ErrBadRace      = "bad_race"       // set_match (or room creation) with a race outside 1–25 or an unknown break rule
+	ErrAudienceFull = "audience_full"  // join with watch when no more spectators may watch (or none at all)
+	ErrSpectator    = "spectator"      // a spectator sent something other than chat or leave
+	ErrChatCooldown = "chat_cooldown"  // a comment too soon after the sender's last; see Error.RetryMs
+	ErrBadSpectator = "bad_spectators" // set_audience (or room creation) with a number outside 0 to the server's limit
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -82,6 +93,14 @@ type ClientMessage struct {
 	RoomCode string `json:"roomCode"`
 	Token    string `json:"token"`
 	Name     string `json:"name"`
+	// join: watch, without a seat (see Welcome.Spectator)
+	Watch bool `json:"watch"`
+
+	// chat
+	Text string `json:"text"`
+
+	// set_audience
+	Spectators *int `json:"spectators"`
 
 	// aim, shoot
 	Angle float64 `json:"angle"` // radians, 0 = +x, y down
@@ -190,6 +209,31 @@ type Welcome struct {
 	// AimLine is the length, in millimetres, of the aim guide's object-ball
 	// line after contact; 0 means the guide stops at the ghost ball.
 	AimLine int `json:"aimLine"`
+	// Spectator: the client watches (Seat is -1, no token); it may only
+	// chat and leave.
+	Spectator bool `json:"spectator,omitempty"`
+}
+
+// Chat is one comment, relayed to everyone in the room.
+type Chat struct {
+	Type string `json:"type"`
+	From string `json:"from"`
+	Seat int    `json:"seat"` // the player's seat, -1 for a spectator
+	Text string `json:"text"`
+	At   int64  `json:"at"` // Unix milliseconds
+}
+
+// ChatLog carries the room's recent comments, oldest first.
+type ChatLog struct {
+	Type     string `json:"type"`
+	Messages []Chat `json:"messages"`
+}
+
+// Audience says who is watching and how many may.
+type Audience struct {
+	Type  string   `json:"type"`
+	Names []string `json:"names"`
+	Max   int      `json:"max"`
 }
 
 // PlayerInfo describes one seat. A seat with a Name but Connected false is
@@ -233,6 +277,10 @@ type RoomState struct {
 	Race   int            `json:"race"`
 	Breaks game.BreakRule `json:"breaks"`
 	Match  *Match         `json:"match"` // null in practice
+	// Spectators are the names of who is watching, in the order they came;
+	// MaxSpectators how many may (set_audience).
+	Spectators    []string `json:"spectators"`
+	MaxSpectators int      `json:"maxSpectators"`
 }
 
 // Match is the race the two players are playing: the first to win Race
@@ -308,6 +356,8 @@ type Error struct {
 	Type    string `json:"type"`
 	Code    string `json:"code"`
 	Message string `json:"message"`
+	// RetryMs: chat_cooldown only, how long until a comment is accepted.
+	RetryMs int `json:"retryMs,omitempty"`
 }
 
 // NewError builds an error message.

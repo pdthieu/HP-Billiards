@@ -20,9 +20,11 @@ import (
 )
 
 const (
-	tickRate      = 60 // server ticks per second while balls move
-	snapshotEvery = 3  // ticks between snapshots: 20 Hz
-	maxNameLength = 20 // runes
+	tickRate      = 60  // server ticks per second while balls move
+	snapshotEvery = 3   // ticks between snapshots: 20 Hz
+	maxNameLength = 20  // runes
+	maxChatLength = 200 // runes
+	chatLogSize   = 30  // comments kept for whoever joins later
 )
 
 type eventKind int
@@ -54,9 +56,19 @@ type seat struct {
 	token  string
 	name   string
 	ready  bool
+	// lastChat is when the player last commented (ChatCooldown).
+	lastChat time.Time
 }
 
 func (s *seat) empty() bool { return s.name == "" }
+
+// watcher is a spectator: a socket that sees everything the players see and
+// may comment, without a seat. It does not survive its socket.
+type watcher struct {
+	client   *ws.Client
+	name     string
+	lastChat time.Time
+}
 
 // clock is the shot clock of the player who must act next. It runs only
 // while that player is connected.
@@ -74,11 +86,12 @@ type clock struct {
 // errNoExtension rejects a second extend in one game; errBadMode an unknown
 // mode.
 var (
-	errNoExtension = errors.New("you have already used your extension this game")
-	errBadMode     = errors.New("unknown game mode")
-	errNoUndo      = errors.New("there is no shot to take back")
-	errNotPractice = errors.New("only in a practice room")
-	errBadRace     = errors.New("the race must be 1 to 25 and the breaks alternate or winner")
+	errNoExtension   = errors.New("you have already used your extension this game")
+	errBadMode       = errors.New("unknown game mode")
+	errNoUndo        = errors.New("there is no shot to take back")
+	errNotPractice   = errors.New("only in a practice room")
+	errBadRace       = errors.New("the race must be 1 to 25 and the breaks alternate or winner")
+	errBadSpectators = errors.New("that many spectators are not allowed here")
 )
 
 // maxUndo is how many shots a practice room can take back.
@@ -118,6 +131,12 @@ type room struct {
 	// timerGen is bumped whenever the away-timers are re-armed; a timer
 	// event carrying an older generation is stale and ignored.
 	timerGen int
+	// watchers are the spectators, in the order they came; at most
+	// maxSpectators may join (set_audience). chatLog holds the last
+	// comments.
+	watchers      []*watcher
+	maxSpectators int
+	chatLog       []protocol.Chat
 }
 
 func newRoom(h *Hub, code string, settings RoomSettings) *room {
@@ -131,6 +150,9 @@ func newRoom(h *Hub, code string, settings RoomSettings) *room {
 		breaks:   settings.Breaks,
 		match:    game.NewMatch(settings.Race, settings.Breaks),
 		practice: settings.Practice,
+	}
+	if settings.Spectators != nil && !settings.Practice {
+		r.maxSpectators = *settings.Spectators
 	}
 	r.resetGame()
 	r.publishInfo()
@@ -146,7 +168,10 @@ func (r *room) resetGame() {
 
 // publishInfo refreshes the room-list summary.
 func (r *room) publishInfo() {
-	info := &RoomInfo{RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Phase: r.game.Rules.Phase, Practice: r.practice}
+	info := &RoomInfo{
+		RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Phase: r.game.Rules.Phase, Practice: r.practice,
+		Spectators: len(r.watchers), MaxSpectators: r.maxSpectators,
+	}
 	for i := range r.seats {
 		info.Players[i] = r.seats[i].name
 		if !r.seats[i].empty() {
@@ -186,6 +211,7 @@ func (r *room) join(c *ws.Client, msg protocol.ClientMessage) bool {
 // idle timeout.
 func (r *room) run() {
 	defer close(r.done)
+	defer r.closeWatchers()
 	timeout := r.hub.opts.IdleTimeout
 	idle := time.NewTimer(timeout)
 	defer idle.Stop()
@@ -244,10 +270,19 @@ func (r *room) seatOf(c *ws.Client) int {
 	return -1
 }
 
+// watcherOf returns c's place among the spectators, or -1.
+func (r *room) watcherOf(c *ws.Client) int {
+	return slices.IndexFunc(r.watchers, func(w *watcher) bool { return w.client == c })
+}
+
 func (r *room) handle(ev event) {
 	switch ev.kind {
 	case evJoin:
-		ev.joined <- r.handleJoin(ev.client, ev.msg)
+		if ev.msg.Watch {
+			ev.joined <- r.handleWatch(ev.client, ev.msg)
+		} else {
+			ev.joined <- r.handleJoin(ev.client, ev.msg)
+		}
 	case evLeave:
 		r.handleLeave(ev.client)
 	case evHoldExpired:
@@ -259,6 +294,8 @@ func (r *room) handle(ev event) {
 	case evMessage:
 		if s := r.seatOf(ev.client); s >= 0 {
 			r.handleMessage(s, ev.msg)
+		} else if w := r.watcherOf(ev.client); w >= 0 {
+			r.handleWatcherMessage(r.watchers[w], ev.msg)
 		}
 	}
 }
@@ -275,7 +312,7 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 		resumed := r.syncClock()
 		r.welcome(c, s)
 		if resumed {
-			r.sendTo(1-s, r.clockUpdate())
+			r.sendOthers(s, r.clockUpdate())
 		}
 		if r.game.Rules.Phase != game.PhaseLobby {
 			r.rearmAwayTimers()
@@ -337,13 +374,18 @@ func (r *room) welcome(c *ws.Client, s int) {
 		AimLine:  int(math.Round(max(0, r.hub.opts.AimLine) * 1000)),
 	})
 	c.SendJSON(r.roomState())
-	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	r.sendChatLog(c)
+	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 }
 
 // handleLeave runs when a socket closes. In the lobby the seat is freed at
 // once; during a game it is held so the player can come back with their
 // token (see rearmAwayTimers for how long).
 func (r *room) handleLeave(c *ws.Client) {
+	if w := r.watcherOf(c); w >= 0 {
+		r.dropWatcher(w)
+		return
+	}
 	s := r.seatOf(c)
 	if s < 0 {
 		return // not seated, or already replaced by a reconnect
@@ -353,9 +395,9 @@ func (r *room) handleLeave(c *ws.Client) {
 		return
 	}
 	r.seats[s].client = nil
-	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 	if r.syncClock() {
-		r.sendTo(1-s, r.clockUpdate())
+		r.sendOthers(s, r.clockUpdate())
 	}
 	r.rearmAwayTimers()
 }
@@ -410,7 +452,8 @@ func (r *room) handleAbandon(gen int) {
 	r.stopTicker()
 	r.stopClock()
 	r.resetGame()
-	r.newMatch() // nobody won it
+	r.newMatch()               // nobody won it
+	r.broadcast(r.roomState()) // the spectators, if any, see the empty table
 }
 
 // vacate empties a seat and, if a game was on, abandons it. A player who
@@ -421,7 +464,7 @@ func (r *room) vacate(s int) {
 		r.match.Forfeit(s, r.lastBreaker)
 	}
 	r.seats[s] = seat{}
-	r.sendTo(1-s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 
 	// A game cannot go on with an empty seat: back to the lobby.
 	if r.game.Rules.Phase != game.PhaseLobby {
@@ -474,6 +517,11 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 		err = r.handleSetMatch(msg.Race, msg.Breaks)
 	case protocol.TypeLeave:
 		r.handleQuit(s)
+	case protocol.TypeChat:
+		st := &r.seats[s]
+		r.handleChat(st.client, st.name, s, &st.lastChat, msg.Text)
+	case protocol.TypeSetAudience:
+		err = r.handleSetAudience(msg.Spectators)
 	case protocol.TypeJoin:
 		r.sendError(s, protocol.ErrBadMessage, "already joined")
 	default:
@@ -673,7 +721,8 @@ func (r *room) noteRack() {
 	}
 }
 
-// handleAim relays the shooter's aim preview unchanged to the other player.
+// handleAim relays the shooter's aim preview unchanged to the other player
+// and the spectators.
 // Aim from anyone else is dropped silently: it is only cosmetic.
 func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 	if r.practice || !r.game.Rules.InPlay() || r.game.Moving() || r.game.Rules.Turn != s {
@@ -682,12 +731,18 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 	if math.IsNaN(msg.Angle) || math.IsInf(msg.Angle, 0) || math.IsNaN(msg.Power) {
 		return
 	}
-	r.sendDroppableTo(1-s, protocol.Aim{
+	aim := protocol.Aim{
 		Type:  protocol.TypeAim,
 		Seat:  s,
 		Angle: msg.Angle,
 		Power: math.Max(0, math.Min(1, msg.Power)),
-	})
+	}
+	r.sendDroppableTo(1-s, aim)
+	if data, err := json.Marshal(aim); err == nil {
+		for _, w := range r.watchers {
+			w.client.SendDroppable(data)
+		}
+	}
 }
 
 func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
@@ -974,6 +1029,9 @@ func (r *room) roomState() protocol.RoomState {
 		Race:       r.race,
 		Breaks:     r.breaks,
 		Match:      r.matchInfo(),
+
+		Spectators:    r.watcherNames(),
+		MaxSpectators: r.maxSpectators,
 	}
 }
 
@@ -998,7 +1056,8 @@ func (r *room) playerInfo(s int) protocol.PlayerInfo {
 	return protocol.PlayerInfo{Seat: s, Name: st.name, Connected: st.client != nil, Ready: st.ready}
 }
 
-// broadcast encodes msg once and queues it for every connected player.
+// broadcast encodes msg once and queues it for every connected player and
+// every spectator.
 func (r *room) broadcast(msg any) {
 	data, err := json.Marshal(msg)
 	if err != nil {
@@ -1008,6 +1067,24 @@ func (r *room) broadcast(msg any) {
 		if c := r.seats[i].client; c != nil {
 			c.Send(data)
 		}
+	}
+	for _, w := range r.watchers {
+		w.client.Send(data)
+	}
+}
+
+// sendOthers queues msg for everyone but the player in seat s: the other
+// player and the spectators.
+func (r *room) sendOthers(s int, msg any) {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return
+	}
+	if c := r.seats[1-s].client; c != nil {
+		c.Send(data)
+	}
+	for _, w := range r.watchers {
+		w.client.Send(data)
 	}
 }
 
@@ -1022,6 +1099,9 @@ func (r *room) broadcastDroppable(msg any) {
 		if c := r.seats[i].client; c != nil {
 			c.SendDroppable(data)
 		}
+	}
+	for _, w := range r.watchers {
+		w.client.SendDroppable(data)
 	}
 }
 
@@ -1100,6 +1180,8 @@ func errorCode(err error) string {
 		return protocol.ErrNotPractice
 	case errors.Is(err, errBadRace):
 		return protocol.ErrBadRace
+	case errors.Is(err, errBadSpectators):
+		return protocol.ErrBadSpectator
 	case errors.Is(err, game.ErrNoPushOut):
 		return protocol.ErrBadCall
 	}

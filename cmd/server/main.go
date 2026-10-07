@@ -31,6 +31,8 @@ func main() {
 	idle := flag.Duration("idle", def.IdleTimeout, "how long an empty room is kept")
 	maxRooms := flag.Int("max-rooms", def.MaxRooms, "how many rooms may exist at once")
 	shotClock := flag.Duration("shot-clock", def.ShotClock, "time for each shot or decision; 0 turns the shot clock off")
+	maxSpectators := flag.Int("max-spectators", def.MaxSpectators, "the most spectators a room may let watch (each room picks up to this); 0 allows none")
+	chatCooldown := flag.Duration("chat-cooldown", def.ChatCooldown, "how long anyone waits between two comments; 0 turns the wait off")
 	longClock := flag.Duration("shot-clock-long", def.LongShotClock, "time for the first shot after the break, and what a player's one extension per game resets the clock to")
 	defAim := int(math.Round(def.AimLine * 1000))
 	if v := os.Getenv("AIM_LINE_MM"); v != "" {
@@ -53,6 +55,14 @@ func main() {
 	opts.AbandonTimeout = *abandon
 	opts.IdleTimeout = *idle
 	opts.MaxRooms = *maxRooms
+	opts.MaxSpectators = *maxSpectators
+	if *maxSpectators <= 0 {
+		opts.MaxSpectators = -1 // none; zero would mean the default
+	}
+	opts.ChatCooldown = *chatCooldown
+	if *chatCooldown <= 0 {
+		opts.ChatCooldown = -1 // off
+	}
 	opts.ShotClock = *shotClock
 	if *shotClock <= 0 {
 		opts.ShotClock = -1 // off; zero would mean the default

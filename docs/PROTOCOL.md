@@ -4,8 +4,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "practice": false}` picks the game (`8ball`, the default, or `9ball`), the race of its matches (1–25, default 1) and who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
-- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. Sorted by code.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "practice": false}` picks the game (`8ball`, the default, or `9ball`), the race of its matches (1–25, default 1), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches) and how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
 
@@ -24,7 +24,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 | type | fields | notes |
 |---|---|---|
-| `join` | `roomCode`, `name`, `token?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. |
+| `join` | `roomCode`, `name`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
 | `aim` | `angle`, `power` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
 | `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
@@ -38,6 +38,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `set_mode` | `mode` | Between matches only (`lobby`, or `game_over` once the match is won); either player. Changes the room's game (`8ball` or `9ball`); in the lobby both players must press ready again. Both get a `room_state`. |
 | `set_match` | `race?`, `breaks?` | Between matches only, as `set_mode`. Sets the race (1–25) and the break rule of the next match; a field left out (or 0, `""`) is kept. Both get a `room_state`. |
 | `leave` | – | Gives up the seat at once. During a match it forfeits the match (see Matches). The server closes the socket (1000, `left the room`). |
+| `chat` | `text` | Anyone in the room, players and spectators: a comment of 1–200 characters (whitespace collapsed), relayed to everyone as `chat`. At most one per sender every 5 seconds (`-chat-cooldown`). |
+| `set_audience` | `spectators` | Players only, at any time: how many spectators may watch, 0 to the server's limit. Lowering it sends nobody away. Everyone gets `audience`. |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
 The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket": 4}` or `{"safety": true}`. Object balls are not called (a house-rule relaxation of WPA 1.7): any ball of the shooter's group that drops counts, and on an open table the first object ball legally pocketed decides the groups. The 8-ball must go into the called pocket.
@@ -104,11 +106,33 @@ WPA section 5. Balls `1`–`9` are racked in a diamond with the 1 on the foot sp
 - **Push out:** the shot right after the break, whoever takes it, may be sent with `call: {"pushOut": true}` while `pushOut` is true. It needs no contact and no rail; a scratch is still a foul. Balls it pockets stay down (the 9 is spotted). The opponent then gets a `decision` with `take_shot` and `pass_back`. A push out at any other time is refused with `bad_call`.
 - **Three fouls:** `fouls[seat]` counts each player's consecutive fouls, reset by a legal shot. The third in a row loses the rack. Time fouls count, except on the break, where the opponent simply breaks instead.
 
+## Spectators and chat
+
+A spectator joins with `{"type": "join", "roomCode", "name", "watch": true}`. It gets `welcome` with `seat` -1, `spectator` true and no token, then `room_state`, then `chat_log` if there are comments. From then on it gets what the players get: `room_state`, `snapshot`, `settled`, `player`, `clock`, `timeout`, and the shooter's `aim`.
+
+- A room lets `maxSpectators` watch (chosen at creation, changed by either player with `set_audience`). Beyond that, in a room that allows none, and in practice rooms, `join` with `watch` fails with `audience_full`; the socket stays open for another try.
+- A spectator may only send `chat` and `leave` (and `ping`); anything else fails with `spectator`. `leave` closes its socket (1000, `left the room`). It has no seat to hold: after a lost connection it simply watches again.
+- Spectators do not keep a room alive: the idle timeout (see Lifetime) counts players only. When the room is deleted their sockets are closed (1001, `room closed`).
+- Whenever someone starts or stops watching, or the limit changes, everyone gets `audience` `{names, max}`; `room_state` carries the same as `spectators` and `maxSpectators`.
+- Comments are one thread for the whole room. A comment sooner than 5 seconds (`-chat-cooldown`) after the sender's previous one fails with `chat_cooldown`, whose `retryMs` says how long to wait. The last 30 comments are sent to whoever joins, players included, as `chat_log`.
+
 ## Server → client
+
+### `chat`
+
+`{type, from, seat, text, at}`: a comment, from a player (`seat` 0 or 1) or a spectator (`seat` -1); `at` is Unix milliseconds.
+
+### `chat_log`
+
+`{type, messages}`: the room's last comments, oldest first, as `chat` objects. Sent after `room_state` to whoever joins or reconnects, when there are any.
+
+### `audience`
+
+`{type, names, max}`: who is watching, in the order they came, and how many may.
 
 ### `welcome`
 
-`{type, v, playerId, seat, token, roomCode, aimLine}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect. `aimLine` is how long, in millimetres, the client draws the object ball's path after contact in the aim guide (100 by default, `-aim-line` / `AIM_LINE_MM`); `0` means the guide stops at the ghost ball.
+`{type, v, playerId, seat, token, roomCode, aimLine}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect. `aimLine` is how long, in millimetres, the client draws the object ball's path after contact in the aim guide (100 by default, `-aim-line` / `AIM_LINE_MM`); `0` means the guide stops at the ghost ball. A spectator's `welcome` has `seat` -1, `spectator` true and an empty `token`.
 
 ### `room_state`
 
@@ -236,6 +260,10 @@ Ends a shot. Positions are exact; clients snap to them.
 | `no_decision` | `choose` with nothing to decide. |
 | `bad_option` | `choose` with an option that was not offered. |
 | `no_extension` | `extend` after the sender already used their extension this game. |
+| `audience_full` | `join` with `watch` when no more spectators may watch, or none may. |
+| `spectator` | A spectator sent something other than `chat` or `leave`. |
+| `chat_cooldown` | A comment within 5 seconds of the sender's last; `retryMs` says how long to wait. |
+| `bad_spectators` | `set_audience` (or room creation) with a number outside 0 to the server's limit, or in a practice room. |
 
 ## Shot clock
 
@@ -268,5 +296,5 @@ The player who must act has 30 seconds (`-shot-clock`) for each shot, ball-in-ha
 
 ## Lifetime
 
-- A room with no connected player for 10 minutes (`-idle`) is deleted. Held seats do not count as connected.
+- A room with no connected player for 10 minutes (`-idle`) is deleted. Held seats and spectators do not count as connected.
 - Each client has an outbound queue of 32 messages. When it is full, the oldest queued `snapshot` or `aim` is discarded to make room (the next one supersedes it). If none can be discarded the client is disconnected with status 1008 and reason `outbound buffer full`.
