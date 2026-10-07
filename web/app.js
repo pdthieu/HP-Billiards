@@ -192,6 +192,14 @@ const S = {
   lastBreaker: -1,       // who broke the current rack, for the game-over note
   shotWasBreak: false,   // the shot in progress (or just settled) is a break
   resultReason: '',      // why the rack ended, for the result banner
+
+  // match
+  match: null,           // {race, breaks, score, racks, winner} from the server; null in practice
+  race: 1,               // settings of the next match (set_match)
+  breaks: 'alternate',
+  shownScore: null,      // {score, race} last drawn in the header, for the tick
+  matchJustWon: false,   // open the match dialog after this update
+  oppLeft: false,        // the opponent left on purpose (not a lost connection)
 };
 
 // ---------------------------------------------------------------------------
@@ -418,6 +426,8 @@ function applyRules(msg) {
   S.kitchen = msg.kitchen;
   S.decision = msg.decision || null;
   S.winner = msg.winner === undefined ? null : msg.winner;
+  if (msg.race !== undefined) { S.race = msg.race; S.breaks = msg.breaks; } // room_state only
+  if (msg.match !== undefined) setMatch(msg.match);
   return turnChanged;
 }
 
@@ -449,15 +459,24 @@ function onRoomState(msg) {
     S.resultReason = `${nameOf(loser)} fouled three times in a row`;
     setStatus(`${S.resultReason}. ${isMe(S.winner) ? 'You win!' : `${nameOf(S.winner)} wins.`}`, 'foul');
   } else if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
-    setStatus('The game was abandoned.', 'foul');
-    const gone = S.players[1 - S.seat];
-    if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
+    const m = S.match;
+    const last = m && m.racks.length ? m.racks[m.racks.length - 1] : null;
+    const who = S.lastOppName || 'Your opponent';
+    if (last && last.end === 'forfeit' && isMe(m.winner)) {
+      setStatus(`${who} ${S.oppLeft ? 'left' : 'didn’t come back'}. You win the match ${m.score[S.seat]}–${m.score[1 - S.seat]}.`);
+      S.lobbyNote = S.oppLeft ? `${who} left the room.` : `${who} didn’t come back in time.`;
+    } else {
+      setStatus('The game was abandoned.', 'foul');
+      const gone = S.players[1 - S.seat];
+      if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
+    }
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
     setStatus(`${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'}. Place the cue ball in the kitchen and shoot.`);
   } else if (msg.phase === 'lobby') {
     setStatus('');
   }
   refreshPanels();
+  showMatchIfWon(0);
 }
 
 function onSnapshot(msg) {
@@ -509,6 +528,7 @@ function onSettled(msg) {
   newTurn();
   describeShot(msg);
   refreshPanels();
+  showMatchIfWon(1600); // after the result banner
 }
 
 function onPlayer(msg) {
@@ -519,11 +539,16 @@ function onPlayer(msg) {
   if (msg.seat !== S.seat) {
     if (msg.connected && !was.connected) {
       S.lobbyNote = '';
+      if (!was.name && S.phase === 'lobby' && S.match && S.match.racks.length) {
+        // The server clears the score for a new opponent.
+        S.match = { race: S.race, breaks: S.breaks, score: [0, 0], racks: [], winner: null };
+      }
       toast(was.name ? `${msg.name} is back` : `${msg.name} joined`);
     } else if (!msg.connected && was.connected && msg.name) {
       toast(`${msg.name} lost connection`);
       setStatus(`${msg.name} lost connection. Their seat is held for ${SEAT_HOLD_S} seconds.`, 'foul');
     } else if (!msg.connected && !msg.name && was.name) {
+      S.oppLeft = was.connected; // still connected: they pressed Leave
       toast(`${was.name} left`);
     }
   }
@@ -604,6 +629,10 @@ function resetToLanding(error) {
   S.fouls = [0, 0];
   S.pushOut = false;
   S.lastBreaker = -1;
+  S.match = null;
+  S.shownScore = null;
+  S.oppLeft = false;
+  for (const id of ['matchDialog', 'matchSettings', 'leaveConfirm']) $(id).hidden = true;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
     { seat: 1, name: '', connected: false, ready: false },
@@ -2108,6 +2137,7 @@ canvas.addEventListener('pointerleave', () => { S.hoverBall = null; });
 document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
+  if (document.querySelector('.scrim:not([hidden])')) return; // keys belong to the dialog
   if (S.practice && S.seat >= 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (e.key === 'z' || e.key === 'Z') { undo(); e.preventDefault(); return; }
     if (e.key === 'm' || e.key === 'M') { toggleMoveTool(); e.preventDefault(); return; }
@@ -2328,7 +2358,7 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
     const chip = li.querySelector('.chip');
     chip.className = `chip chip--${phase}`;
-    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'} · ${phase}`;
+    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${room.race > 1 ? ` · race ${room.race}` : ''} · ${phase}`;
     const btn = li.querySelector('button');
     const open = room.seated < 2;
     btn.textContent = open ? 'Join' : 'Full';
@@ -2564,6 +2594,9 @@ function refreshPanels() {
   renderModes();
   renderSeat(0);
   renderSeat(1);
+  renderScore();
+  if (!$('matchDialog').hidden) renderMatchDialog();
+  if (!$('matchSettings').hidden) setMatchPick($('roomMatch'), S.race, S.breaks);
   if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
   renderTrays();
@@ -2593,10 +2626,10 @@ function refreshPanels() {
       $('lobbySub').textContent = 'Their seat is held for a moment.';
     } else if (me.ready) {
       setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
-      $('lobbySub').textContent = 'The game starts when both players are ready. Changing the game makes you both ready again.';
+      $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game or the race makes you both ready again.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
-      $('lobbySub').textContent = 'After the first rack the break alternates.';
+      $('lobbySub').textContent = `First to ${S.race} ${S.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[S.breaks]}`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -2624,12 +2657,7 @@ function refreshPanels() {
     setPanelMsg('waitText', msg);
     $('waitSub').textContent = sub;
   }
-  if (panel === 'overPanel') {
-    $('overText').textContent = winnerTitle();
-    $('rematch').textContent = S.practice ? 'Rack again' : 'Rematch';
-    const next = S.lastBreaker >= 0 ? 1 - S.lastBreaker : -1;
-    $('rematchNote').textContent = S.practice ? `Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.` : (next < 0 ? 'The break alternates.' : `${nameOf(next)} ${isMe(next) ? 'break' : 'breaks'} the next rack; the break alternates.`) + ` Next: ${MODE_NAME[S.mode]}.`;
-  }
+  if (panel === 'overPanel') renderOverPanel();
   refreshDecision();
 }
 
@@ -2637,7 +2665,14 @@ function refreshPanels() {
 // game-over pickers.
 function renderModes() {
   $('roomEyebrow').textContent = S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
-  $('copyLink').hidden = S.practice;
+  // On a phone the invite gives way to the score once the opponent is here.
+  const oppHere = S.seat >= 0 && !!S.players[1 - S.seat].name;
+  $('copyLink').hidden = S.practice || (compactMedia.matches && oppHere);
+  $('leaveBtn').hidden = S.seat < 0 || S.practice;
+  for (const id of ['lobbyMatch', 'overMatch']) {
+    $(id).textContent = `Race to ${S.race}`;
+    $(id).title = `Race and break for the next match · ${S.breaks === 'winner' ? 'winner breaks' : 'alternate breaks'}`;
+  }
   document.body.classList.toggle('is-practice', S.practice && S.seat >= 0);
   for (const id of ['lobbyMode', 'overMode']) setSeg($(id), S.mode);
 }
@@ -2863,18 +2898,256 @@ function renderResult() {
   let el = $('tableWrap').querySelector('.result');
   if (S.phase !== 'game_over' || S.winner === null) { if (el) el.remove(); return; }
   const win = isMe(S.winner) && !S.practice;
-  const title = winnerTitle();
-  if (el && el.dataset.title === title) return;
+  const m = S.practice ? null : S.match;
+  const matchWon = m && m.race > 1 && m.winner !== null;
+  const title = matchWon ? matchTitle(m) : winnerTitle();
+  const reason = m && m.race > 1 && m.racks.length ? `${S.resultReason} · ${m.score[0]}–${m.score[1]}` : S.resultReason;
+  if (el && el.dataset.title === title + reason) return;
   if (el) el.remove();
   el = document.createElement('div');
   el.className = 'result' + (win ? ' result--win' : '');
   el.setAttribute('role', 'status');
-  el.dataset.title = title;
+  el.dataset.title = title + reason;
   el.innerHTML = '<p class="result__title"></p><p class="result__reason"></p>';
   el.querySelector('.result__title').textContent = title;
-  el.querySelector('.result__reason').textContent = S.resultReason;
+  el.querySelector('.result__reason').textContent = reason;
   $('tableWrap').append(el);
 }
+
+// ---------------------------------------------------------------------------
+// match: race, score, rack history, leaving
+
+const RACE_MAX = 25;
+const BREAKS_TEXT = { alternate: 'The break alternates.', winner: 'The winner of a rack breaks the next.' };
+
+// setMatch takes the match from the server and notes when it was just won.
+function setMatch(m) {
+  const prev = S.match;
+  S.match = m || null;
+  if (m && prev && prev.winner === null && m.winner !== null && m.racks.length > prev.racks.length) {
+    const last = m.racks[m.racks.length - 1];
+    S.matchJustWon = m.race > 1 || last.end === 'forfeit'; // a race to 1 is just the rack
+  }
+}
+
+// matchLive reports whether leaving now forfeits a match.
+function matchLive() {
+  return !S.practice && S.seat >= 0 && !!S.match && S.match.winner === null && S.phase !== 'lobby';
+}
+
+// matchName names a seat in the match history, even after its player left.
+function matchName(seat) {
+  if (isMe(seat)) return 'You';
+  return S.players[seat].name || S.lastOppName || `Player ${seat + 1}`;
+}
+
+function matchTitle(m) {
+  return isMe(m.winner) ? 'You win the match' : `${matchName(m.winner)} wins the match`;
+}
+
+// rackWhy says how a rack of the match ended.
+function rackWhy(r) {
+  const loser = matchName(1 - r.winner);
+  switch (r.end) {
+    case 'made': return S.mode === '9ball' ? '9-ball pocketed' : '8-ball in the called pocket';
+    case 'eight_foul': return `${loser} fouled on the 8-ball${r.foul ? `: ${FOUL_TEXT[r.foul] || r.foul}` : ''}`;
+    case 'eight_early': return `${loser} pocketed the 8-ball early`;
+    case 'eight_pocket': return `${loser} pocketed the 8-ball in the wrong pocket`;
+    case 'three_fouls': return `${loser} fouled three times in a row`;
+    case 'forfeit': return `${loser} left the match`;
+  }
+  return '';
+}
+
+function showMatchIfWon(delay) {
+  if (!S.matchJustWon) return;
+  S.matchJustWon = false;
+  const last = S.match.racks[S.match.racks.length - 1];
+  setTimeout(() => { if (S.seat >= 0 && S.match) openMatchDialog(); }, last.end === 'forfeit' ? 0 : delay);
+}
+
+// renderScore draws the header score; a digit that went up ticks.
+function renderScore() {
+  const el = $('score');
+  const m = S.seat >= 0 && !S.practice ? S.match : null;
+  const compact = compactMedia.matches ? ' score--compact' : '';
+  el.disabled = !m;
+  if (!m) {
+    el.className = 'score score--empty' + compact;
+    if (el.dataset.k !== 'vs') {
+      el.innerHTML = '<span class="score__vs">vs</span>';
+      el.dataset.k = 'vs';
+      el.setAttribute('aria-label', 'No score yet');
+      el.removeAttribute('title');
+    }
+    S.shownScore = null;
+    return;
+  }
+  el.className = 'score' + (m.racks.length ? '' : ' score--empty') + compact;
+  el.setAttribute('aria-label', `Score ${m.score[0]} to ${m.score[1]}, race to ${m.race}. Show the racks.`);
+  el.title = 'Show the racks';
+  const key = `${m.score[0]}-${m.score[1]}-${m.race}`;
+  if (el.dataset.k === key) return;
+  const old = S.shownScore;
+  const tick = old && old.race === m.race && !reduceMotion.matches;
+  const slot = (i) => {
+    const n = m.score[i];
+    if (tick && n > old.score[i]) return `<span class="score__slot"><span class="score__old">${old.score[i]}</span><span class="score__new">${n}</span></span>`;
+    return `<span class="score__slot"><span>${n}</span></span>`;
+  };
+  el.innerHTML = `<span class="score__nums">${slot(0)}<span class="score__sep">–</span>${slot(1)}</span><span class="score__race">race to ${m.race}</span>`;
+  el.dataset.k = key;
+  S.shownScore = { score: [...m.score], race: m.race };
+}
+
+function openMatchDialog() {
+  if (!S.match) return;
+  renderMatchDialog();
+  $('matchDialog').hidden = false;
+  $('matchClose').focus();
+}
+
+// renderMatchDialog fills the match dialog: score, result and every rack.
+function renderMatchDialog() {
+  const m = S.match;
+  if (!m) { $('matchDialog').hidden = true; return; }
+  const over = m.winner !== null;
+  const last = m.racks[m.racks.length - 1];
+  $('matchEyebrow').textContent = `${MODE_NAME[S.mode]} · race to ${m.race}`;
+  $('matchTitle').textContent = over ? matchTitle(m) : 'Match';
+  let text;
+  if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
+  else if (over) text = `${m.score[m.winner]}–${m.score[1 - m.winner]} after ${m.racks.length} ${m.racks.length === 1 ? 'rack' : 'racks'}.`;
+  else text = `First to ${m.race} ${m.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[m.breaks]}`;
+  $('matchText').textContent = text;
+  $('matchName0').textContent = matchName(0);
+  $('matchName1').textContent = matchName(1);
+  $('matchNums').textContent = `${m.score[0]} – ${m.score[1]}`;
+  const list = $('matchRacks');
+  list.replaceChildren();
+  if (!m.racks.length) {
+    list.append(Object.assign(document.createElement('li'), { className: 'racks__empty', textContent: 'No rack finished yet.' }));
+    return;
+  }
+  const run = [0, 0];
+  m.racks.forEach((r, i) => {
+    if (r.end !== 'forfeit') run[r.winner]++;
+    const li = document.createElement('li');
+    li.className = 'rack';
+    const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
+    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: matchName(r.winner) });
+    const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: `${run[0]}–${run[1]}` });
+    const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
+    const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
+    li.append(n, who, sc, why);
+    list.append(li);
+  });
+  list.lastElementChild.scrollIntoView({ block: 'nearest' });
+}
+
+function openLeaveConfirm() {
+  const m = S.match;
+  const opp = matchName(1 - S.seat);
+  const score = m.racks.length ? `The score is ${m.score[S.seat]}–${m.score[1 - S.seat]} (you first). ` : '';
+  $('leaveText').textContent = `${score}Leaving now gives ${opp} the match.`;
+  $('leaveConfirm').hidden = false;
+  $('leaveStay').focus();
+}
+
+// renderOverPanel: between racks the next rack, after the match a new one
+// (the game and the race can change then).
+function renderOverPanel() {
+  const m = S.practice ? null : S.match;
+  const live = matchLive();
+  $('overMode').hidden = live;
+  $('overMatch').hidden = live || S.practice;
+  if (S.practice) {
+    $('overText').textContent = winnerTitle();
+    $('rematch').textContent = 'Rack again';
+    $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.`;
+    return;
+  }
+  const breaks = (seat) => `${nameOf(seat)} ${isMe(seat) ? 'break' : 'breaks'}`;
+  if (live) {
+    const next = m.breaks === 'winner' ? S.winner : 1 - S.lastBreaker;
+    $('overText').textContent = winnerTitle();
+    $('rematch').textContent = 'Next rack';
+    $('rematchNote').textContent = `${m.score[0]}–${m.score[1]}, race to ${m.race}. ${breaks(next)} the next rack.`;
+    return;
+  }
+  const opener = m && m.racks.length ? 1 - m.racks[0].breaker : -1;
+  const long = m && m.race > 1;
+  $('overText').textContent = long ? `${matchTitle(m)} ${m.score[m.winner]}–${m.score[1 - m.winner]}` : winnerTitle();
+  $('rematch').textContent = long ? 'New match' : 'Rematch';
+  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, race to ${S.race}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`);
+}
+
+// Match pickers: race (quick picks or a number) and who breaks.
+function setMatchPick(root, race, breaks) {
+  for (const b of root.querySelectorAll('.js-race .seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.race) === race));
+  const input = root.querySelector('.js-race-input');
+  if (document.activeElement !== input) input.value = String(race);
+  for (const b of root.querySelectorAll('.js-breaks .seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.breaks === breaks));
+}
+
+function wireMatchPick(root, current, onChange) {
+  root.querySelector('.js-race').addEventListener('click', (e) => {
+    const b = e.target.closest('.seg__btn');
+    if (b) onChange({ race: Number(b.dataset.race) });
+  });
+  const input = root.querySelector('.js-race-input');
+  input.addEventListener('change', () => {
+    const n = Number(input.value);
+    if (Number.isInteger(n) && n >= 1 && n <= RACE_MAX) onChange({ race: n });
+    else {
+      toast(`The race is 1 to ${RACE_MAX} racks`, true);
+      input.value = String(current().race);
+    }
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); } // commit, never submit the form
+  });
+  root.querySelector('.js-breaks').addEventListener('click', (e) => {
+    const b = e.target.closest('.seg__btn');
+    if (b) onChange({ breaks: b.dataset.breaks });
+  });
+}
+
+// The landing picker sets up a new room (remembered); the room's picker
+// changes the next match for both players.
+let landingRace = Number(readSetting('pool:race')) || 3;
+if (!(landingRace >= 1 && landingRace <= RACE_MAX)) landingRace = 3;
+let landingBreaks = readSetting('pool:breaks') === 'winner' ? 'winner' : 'alternate';
+setMatchPick($('landingMatch'), landingRace, landingBreaks);
+wireMatchPick($('landingMatch'), () => ({ race: landingRace }), (c) => {
+  if (c.race) { landingRace = c.race; writeSetting('pool:race', String(c.race)); }
+  if (c.breaks) { landingBreaks = c.breaks; writeSetting('pool:breaks', c.breaks); }
+  setMatchPick($('landingMatch'), landingRace, landingBreaks);
+});
+wireMatchPick($('roomMatch'), () => ({ race: S.race }), (c) => {
+  if ((c.race && c.race !== S.race) || (c.breaks && c.breaks !== S.breaks)) send({ type: 'set_match', ...c });
+});
+
+function openMatchSettings() {
+  setMatchPick($('roomMatch'), S.race, S.breaks);
+  $('matchSettings').hidden = false;
+  $('matchSettingsClose').focus();
+}
+
+// closable wires a dialog's close button, backdrop and Escape.
+function closable(scrimId, closeId) {
+  const close = () => { $(scrimId).hidden = true; };
+  $(closeId).onclick = close;
+  $(scrimId).addEventListener('click', (e) => { if (e.target === $(scrimId)) close(); });
+  $(scrimId).addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+}
+closable('matchDialog', 'matchClose');
+closable('matchSettings', 'matchSettingsClose');
+closable('leaveConfirm', 'leaveStay');
+$('score').onclick = openMatchDialog;
+$('lobbyMatch').onclick = openMatchSettings;
+$('overMatch').onclick = openMatchSettings;
+$('leaveForfeit').onclick = () => { $('leaveConfirm').hidden = true; leaveRoom(); };
 
 // ---------------------------------------------------------------------------
 // wiring
@@ -2954,7 +3227,7 @@ async function createRoom(practice) {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: landingMode, practice }),
+      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingRace, breaks: landingBreaks }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
@@ -3022,6 +3295,7 @@ $('hintsReset').onclick = () => {
 };
 
 function leaveRoom() {
+  send({ type: 'leave' }); // frees the seat now (and forfeits a match in progress)
   S.intentionalClose = true;
   if (S.ws) S.ws.close();
   S.ws = null;
@@ -3030,6 +3304,7 @@ function leaveRoom() {
   resetToLanding();
 }
 $('leave').onclick = leaveRoom;
+$('leaveBtn').onclick = () => { if (matchLive()) openLeaveConfirm(); else leaveRoom(); };
 $('leaveGame').onclick = leaveRoom;
 $('lobbyCopy').onclick = () => $('copyLink').click();
 $('hintClose').onclick = () => {

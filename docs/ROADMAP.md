@@ -33,6 +33,15 @@ Xong khi: chơi một ván trên điện thoại có đủ tiếng và rung; t�
 
 ## Phase 7 · Lý do chơi ván tiếp (M)
 
+> Đã làm (2026-10-07), khác bản kế hoạch dưới đây ở mấy điểm:
+> - race 1–25, đặt khi tạo phòng và đổi được giữa các trận;
+> - luật phá: luân phiên hoặc người thắng phá;
+> - `match` trong `room_state` và `settled`;
+> - bảng lịch sử từng ván;
+> - nút Leave, rời giữa trận bị xử thua.
+>
+> Còn lại: mục 3 (tóm tắt ván).
+
 Mục tiêu: Rematch có ý nghĩa.
 
 1. **Tỉ số trong phòng** (`internal/hub/room.go`, `protocol.go`):

@@ -18,9 +18,24 @@ body {
 [hidden] { display: none !important; }
 button { cursor: pointer; }
 
-/* header: the design's .hdr; the score block is a placeholder until a
-   match score exists */
+/* header: the design's .hdr. The score block is a button: it opens the
+   match dialog. */
 .hdr { flex: none; }
+button.score { padding: 2px 8px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+button.score:disabled { cursor: default; color: var(--text); }
+button.score:not(:disabled):hover { background: var(--surface-2); }
+button.score:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.score__race { white-space: nowrap; }
+.score__slot { justify-content: flex-start; min-width: .6em; }
+.score__slot > span { display: block; }
+.score__slot .score__old { position: absolute; inset: 0 auto auto 0; animation: pool-tick-out var(--dur-4) var(--ease-out) forwards; }
+.score__slot .score__new { animation: pool-tick-in var(--dur-4) var(--ease-spring), score-brass 1.2s var(--ease-out) var(--dur-4) backwards; }
+@keyframes score-brass { from { color: var(--accent-text); } to { color: var(--text); } }
+#leaveBtn { color: var(--text-muted); }
+.match-btn { white-space: nowrap; }
+.btn--danger { background: var(--foul); color: var(--bg); }
+.btn--danger:hover { filter: brightness(1.08); }
+.btn--danger:active { transform: scale(.98); }
 .score__vs { font: 600 13px/16px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-disabled); }
 .hold__arc { transition: stroke-dashoffset 1s linear; }
 .hold--big { width: 40px; height: 40px; }
@@ -142,6 +157,27 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .splash__bar span { animation: pool-splash 1.2s var(--ease-inout) infinite alternate; }
 @keyframes pool-splash { from { transform: translateX(-40%); } to { transform: translateX(110%); } }
 
+/* match: race picker (landing, match settings) and the match dialog */
+.match-pick { display: flex; flex-direction: column; gap: 10px; }
+.match-pick__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.match-pick__row > .field__label { min-width: 56px; }
+.match-pick .seg { display: inline-flex; flex-wrap: nowrap; gap: 2px; }
+.match-pick .seg__btn { padding: 0 11px; }
+.input--race { width: 64px; min-height: 38px; padding: 0 8px; text-align: center; font: 600 16px/1 var(--font-ui); }
+.dialog--match { max-width: 440px; gap: 16px; max-height: calc(100dvh - 32px); }
+.match-score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
+.match-score__name { font: 600 15px/20px var(--font-ui); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match-score__name--right { text-align: right; }
+.match-score__nums { font: 600 40px/44px var(--font-display); font-variant-numeric: tabular-nums; }
+.racks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+.rack { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.rack__n { font: 600 13px/18px var(--font-display); color: var(--text-muted); }
+.rack__who { font: 600 15px/20px var(--font-ui); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rack__who--me { color: var(--accent-text); }
+.rack__score { font: 600 15px/20px var(--font-display); font-variant-numeric: tabular-nums; color: var(--text-muted); }
+.rack__why { grid-column: 2 / -1; font: 400 14px/20px var(--font-ui); color: var(--text-muted); }
+.racks__empty { padding: 8px 0; color: var(--text-muted); font: 400 15px/22px var(--font-ui); }
+
 /* settings */
 .dialog--settings { max-width: 400px; gap: 18px; }
 .setting { display: flex; flex-direction: column; gap: 8px; }
@@ -183,7 +219,8 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .hdr__code { font-size: 17px; letter-spacing: .12em; }
   #copyLink span { display: none; }
   #copyLink { padding: 0 8px; min-height: 32px; }
-  #settingsBtn { width: 32px; height: 32px; }
+  #settingsBtn, #leaveBtn { width: 32px; height: 32px; }
+  button.score { padding: 0 2px; }
   .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; gap: 6px; }
   .seat { flex: 0 1 auto; min-width: 0; }
   .seat--compact { max-width: 124px; padding: 0 8px; }

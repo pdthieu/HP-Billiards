@@ -4,7 +4,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "practice": true}` picks the game (`8ball`, the default, or `9ball`) and, with `practice`, makes a practice room (see Practice); an unknown mode answers `400 {"error": "bad_mode", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "practice": false}` picks the game (`8ball`, the default, or `9ball`), the race of its matches (1–25, default 1) and who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
 - `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
@@ -30,12 +30,14 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
-| `rematch` | – | `game_over` only; either player. Starts a new rack, the break alternates. |
+| `rematch` | – | `game_over` only; either player. Starts the next rack of the match, or a new match once it is won (see Matches). |
 | `extend` | – | Only for the player the shot clock is running for, once per game: their clock is set back to the long limit (see Shot clock). |
 | `place_ball` | `id`, `x`, `y` | Practice only: moves a ball on the table, the cue ball included, wherever it fits. |
 | `undo` | – | Practice only: puts the table, turn and rules back as they were before the last shot (up to 20 shots). |
 | `rerack` | `mode?` | Practice only: a fresh rack, of `mode` if given. |
-| `set_mode` | `mode` | `lobby` or `game_over` only; either player. Changes the room's game (`8ball` or `9ball`) for the next rack; in the lobby both players must press ready again. Both get a `room_state`. |
+| `set_mode` | `mode` | Between matches only (`lobby`, or `game_over` once the match is won); either player. Changes the room's game (`8ball` or `9ball`); in the lobby both players must press ready again. Both get a `room_state`. |
+| `set_match` | `race?`, `breaks?` | Between matches only, as `set_mode`. Sets the race (1–25) and the break rule of the next match; a field left out (or 0, `""`) is kept. Both get a `room_state`. |
+| `leave` | – | Gives up the seat at once. During a match it forfeits the match (see Matches). The server closes the socket (1000, `left the room`). |
 | `ping` | – | Allowed at any time, even before `join`. Answered with `pong`. |
 
 The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket": 4}` or `{"safety": true}`. Object balls are not called (a house-rule relaxation of WPA 1.7): any ball of the shooter's group that drops counts, and on an open table the first object ball legally pocketed decides the groups. The 8-ball must go into the called pocket.
@@ -67,6 +69,25 @@ A practice room (`POST /api/rooms` with `"practice": true`) is private: it is no
 - `place_cue` works at any time between shots and anywhere on the table, not only with ball in hand; `place_ball` moves any other ball. The rules are not touched: a ball moved stays the same ball, pocketed balls stay pocketed. A cue ball left above the head string while `kitchen` is true still counts as played from there.
 - `undo` takes back the last shot (`undos` in `room_state` and `settled` says how many can be); `rerack` and `rematch` start a new rack and clear that history.
 - `place_ball`, `undo` and `rerack` in any other room fail with `not_practice`; `undo` with nothing to take back fails with `no_undo`.
+
+## Matches
+
+Two players play a match: the first to win `race` racks wins it. A race of 1 is one rack per match.
+
+- The first rack of a room's first match is broken by a random player. After that:
+  - `alternate`: the player who did not break the last rack breaks;
+  - `winner`: the winner of the last rack breaks.
+- The first rack of a new match is broken by the player who did not break the first rack of the previous one.
+- When a rack ends (`phase` `game_over`), it is added to `match.racks` and the winner's `score` goes up. Either player's `rematch` starts the next rack. The game and the race cannot change until the match is won (`set_mode` and `set_match` fail with `wrong_phase`).
+- When a rack makes the race, `match.winner` is set; `rematch` then starts a new match (score 0–0, the room's current `race`, `breaks` and game).
+- Each rack is `{"winner", "breaker", "end", "foul"?}`. `end` says why it ended:
+  - `made`: the winner pocketed the 8-ball in its called pocket, or the 9-ball, legally;
+  - `eight_foul`: the loser pocketed the 8-ball on a foul (`foul` says which);
+  - `eight_early`: the loser pocketed the 8-ball before it was their target;
+  - `eight_pocket`: the loser pocketed the 8-ball in another pocket than called, or on a safety;
+  - `three_fouls`: 9-ball, the loser's third foul in a row;
+  - `forfeit`: the loser left (see below). The score does not change.
+- Leaving forfeits a match in progress (`leave`, or a seat hold that runs out): the other player wins the match, the rack in progress is listed with `end` `forfeit`, and the room goes back to the lobby. That player gets `player` (the seat empty) and `room_state` with the finished `match`. The match stays in `room_state` until a new player takes the free seat, which starts a new one.
 
 ## 9-ball
 
@@ -108,7 +129,10 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
   "moving": false,
   "practice": false,
   "undos": 0,
-  "clock": {"seat": 0, "left": 29450, "limit": 30000, "paused": false, "extension": 40000, "extensions": [true, true]}
+  "clock": {"seat": 0, "left": 29450, "limit": 30000, "paused": false, "extension": 40000, "extensions": [true, true]},
+  "race": 5,
+  "breaks": "alternate",
+  "match": {"race": 5, "breaks": "alternate", "score": [1, 0], "racks": [{"winner": 0, "breaker": 1, "end": "made"}], "winner": null}
 }
 ```
 
@@ -120,6 +144,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 - `mode`: `8ball` or `9ball`.
 - `practice`: a practice room; `undos`: shots `undo` can take back there (always 0 elsewhere).
 - `fouls`: 9-ball consecutive fouls by seat (always `[0, 0]` in 8-ball). `pushOut`: 9-ball, the player in `turn` may push out on this shot.
+- `race`, `breaks`: the settings of the next match (`set_match`). `match`: the match being played, or the last one (see Matches); `null` in practice.
 - `clock`: the shot clock of the player who must act next (shoot, or answer the `decision`), or `null` while nobody has to (lobby, game over, balls moving, clock turned off). `left` is milliseconds left when the message was sent: count down from its arrival rather than comparing clocks. `limit` is what the clock was last set to, `paused` is true while that player is offline, `extension` is what an `extend` sets the clock to and `extensions[seat]` whether that seat may still extend.
 
 ### `snapshot`
@@ -160,6 +185,7 @@ Ends a shot. Positions are exact; clients snap to them.
 - `pushedOut`: 9-ball, this shot was a push out. `fouls` and `pushOut` as in `room_state`.
 - `winner`: present only when the game is over.
 - `clock`: as in `room_state`, started for whoever acts next.
+- `match`: as in `room_state`; a shot that ends a rack has it in `racks` already.
 - After a scratch the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
 
 ### `aim`
@@ -200,6 +226,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_input` | `angle` or `power` is not a finite number. |
 | `bad_call` | `shoot` at the 8-ball without a `pocket`, a `pocket` outside 0–5, or a 9-ball push out that is not allowed. |
 | `bad_mode` | `set_mode` or `rerack` with a mode other than `8ball` or `9ball`. |
+| `bad_race` | `set_match` with a race outside 1–25 or a break rule other than `alternate` or `winner`. |
 | `no_undo` | `undo` with no shot to take back. |
 | `not_practice` | `place_ball`, `undo` or `rerack` outside a practice room. |
 | `no_decision` | `choose` with nothing to decide. |
@@ -227,7 +254,7 @@ The player who must act has 30 seconds (`-shot-clock`) for each shot, ball-in-ha
   - **One player connected**: the absent player's seat is held for 60 seconds (`-hold`), counted from the moment they became the only absent one.
   - **Nobody connected**: nobody is waiting, so the game survives 5 minutes (`-abandon`). If one player returns in that time the game continues and the other's 60 seconds start then. Otherwise the game is cancelled and both seats are freed; a later `join` with an old token is a plain join into the lobby (if the room still exists).
 - `join` with the seat's `token` reclaims it at any time while it is held, **and also while its old socket is still open** (a phone that changed networks reconnects long before the dead socket is noticed). The old socket is closed with status 1008 and reason `replaced by a new connection`. The reconnecting client gets `welcome` (same `seat`, `playerId` and `token`; `name` in the join is ignored) and a fresh `room_state`; the other player gets `player` with `connected` true.
-- If a single hold expires the seat is emptied (`player` with `name` `""`) and the game is abandoned (`room_state` with phase `lobby`).
+- If a single hold expires the seat is emptied (`player` with `name` `""`) and the game is abandoned (`room_state` with phase `lobby`). A match in progress is forfeited by the player who did not come back, as with `leave`; when both are gone until the abandon timeout, the match is cancelled.
 - A `join` whose `token` matches nothing is treated as a plain join.
 
 ## Keepalive

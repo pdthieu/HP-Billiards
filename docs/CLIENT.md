@@ -33,6 +33,41 @@ game in each row's chip. In 9-ball:
   and the status line warns that a third loses;
 - the tray under the table is a single "Pocketed" row.
 
+Rooms play matches. Under the game switch the landing page has the race:
+quick picks 1 · 3 · 5 · 7 · 9 or any number from 1 to 25 in the field next
+to them (Enter commits, never submits the form). Below it is the break
+rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
+(default 3) and `pool:breaks`. The room list chip adds "race 5".
+
+- **Changing the settings.** In the lobby, and on the game-over panel once
+  the match is won, a *Race to N* button opens the *Next match* dialog with
+  the same pickers. Changes go to both players with `set_match`; in the
+  lobby both press ready again.
+- **Header score.** The score between the seats reads "2 – 1, race to 5"
+  and is a button.
+  - A digit that goes up ticks: the old digit slides out, the new one
+    springs in and stays brass for 1.2 s.
+  - Clicking the score opens the match dialog: the score, and one row per
+    finished rack with its number, winner, the running score, why it ended
+    and who broke.
+  - The dialog opens by itself when the match is won, after the result
+    banner, or at once on a forfeit. A race to 1 does not open it.
+- **Game-over panel.**
+  - Between racks: "You win the rack", the score and who breaks next, and
+    *Next rack*. The game and race pickers are hidden.
+  - After the match: "You win the match 5–3", the pickers for the next
+    match and *New match*. A race to 1 keeps *Rematch*.
+- **Leaving.** The header has a Leave button (an exit icon) next to
+  Settings.
+  - During a match it asks first: "Leave and forfeit the match?", showing
+    the score, with *Stay* and *Leave and forfeit*.
+  - Otherwise it leaves at once.
+  - Leaving sends `leave`, so the seat is freed immediately. The player
+    who stays gets "Ann left. You win the match 2–1." and the match dialog,
+    and waits in the lobby: "Ann left the room."
+- **Phones.** Once the opponent is in, the phone header drops *Copy link*
+  to make room for the score.
+
 *Practice alone* on the landing page opens a private practice room of the
 picked game. The player plays both sides under the full rules: the header
 shows "Side A" and "Side B" (groups, fouls and whose turn it is), the side
