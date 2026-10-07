@@ -116,6 +116,34 @@ async function shootAndSettle(page, angle, power) {
     await A.screenshot({ path: path.join(shots, 'practice-A.png') });
     console.log('rack ok');
 
+    // The spin's words change, their box does not: nothing beside it moves.
+    const spinBoxes = await A.evaluate(() => {
+      const out = new Set();
+      for (const [x, y] of [[0, 0], [0, 1], [-1, 0], [0.7, 0.7], [0.71, -0.71], [0.3, 0.2]]) {
+        setSpin(x, y);
+        const m = document.querySelector('.spin__meta').getBoundingClientRect();
+        out.add(`${m.width}x${m.height}`);
+      }
+      setSpin(0, 0);
+      return [...out];
+    });
+    if (spinBoxes.length !== 1) fail(`the spin label resizes: ${spinBoxes}`);
+    // Fine aim: the wheel turns 0.02° per px dragged, clockwise to the right;
+    // focused, the arrow keys turn 0.05°.
+    const jog = await A.locator('#aimJog').boundingBox();
+    const j0 = await A.evaluate(() => S.angle);
+    await A.mouse.move(jog.x + jog.width / 2, jog.y + jog.height / 2);
+    await A.mouse.down();
+    await A.mouse.move(jog.x + jog.width / 2 + 50, jog.y + jog.height / 2, { steps: 4 });
+    await A.mouse.move(jog.x + jog.width / 2 + 100, jog.y + jog.height / 2, { steps: 4 });
+    await A.mouse.up();
+    const j1 = await A.evaluate(() => S.angle);
+    await A.keyboard.press('ArrowLeft'); // the wheel has focus
+    const j2 = await A.evaluate(() => S.angle);
+    const deg = (a, b) => (b - a) * 180 / Math.PI;
+    if (Math.abs(deg(j0, j1) - 2) > 0.01 || Math.abs(deg(j1, j2) + 0.05) > 0.001) fail(`fine aim turned ${deg(j0, j1)}° then ${deg(j1, j2)}°`);
+    console.log('spin label and fine aim ok');
+
     // Settings: sound on by default, a volume slider.
     await A.click('#settingsBtn');
     if ((await A.getAttribute('#soundToggle', 'aria-pressed')) !== 'true') fail('sound off by default');
@@ -153,6 +181,16 @@ async function shootAndSettle(page, angle, power) {
     await P.click('#shotSheet .nudge[data-deg="5"]');
     const sheet = await P.evaluate((a) => ({ spin: S.spin, turned: Math.round((S.angle - a) / DEG), dot: document.getElementById('optsDot').style.top }), a0);
     if (!(sheet.spin.y > 0.3) || sheet.turned !== 5 || sheet.dot === '50%') fail(`sheet ${JSON.stringify(sheet)}`);
+    // the fine aim wheel is in the sheet too, under the finger
+    const pj = await P.locator('#shotSheet #aimJog').boundingBox();
+    const p0 = await P.evaluate(() => S.angle);
+    await P.touchscreen.tap(pj.x + 10, pj.y + pj.height / 2); // a tap alone turns nothing
+    await P.mouse.move(pj.x + 20, pj.y + pj.height / 2);
+    await P.mouse.down();
+    await P.mouse.move(pj.x + 70, pj.y + pj.height / 2, { steps: 5 });
+    await P.mouse.up();
+    const pturn = (await P.evaluate(() => S.angle) - p0) * 180 / Math.PI;
+    if (Math.abs(pturn - 1) > 0.01) fail(`the sheet's wheel turned ${pturn}°`);
     await P.waitForTimeout(300);
     await P.screenshot({ path: path.join(shots, 'practice-phone-sheet.png') });
     await P.click('#sheetClose');

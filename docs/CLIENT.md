@@ -149,7 +149,10 @@ The tray row is hidden to make room.
      stun shot, bent forward or back by the top or bottom spin set on the
      spin pad (a tendency, not a prediction). Arrow keys nudge the angle
      (0.5°, Shift for 0.05°) and power; the `«‹›»` buttons nudge by 5° and
-     0.25°.
+     0.25°. Under them the fine aim wheel (`#aimJog`) turns the cue 0.02°
+     per px dragged sideways (100 px = 2°), without end, clockwise to the
+     right; its ticks roll with the finger, and focused, the arrow keys turn
+     it 0.05° (Shift 0.01°). The readout shows hundredths.
    - *Power and shooting*: the bar beside the table. Press it, pull down to
      set the power (the cue draws back on the table) and release to shoot;
      releasing in the top 8 % cancels. The bar is quadratic: a pull to f
@@ -162,7 +165,9 @@ The tray row is hidden to make room.
      should strike (limited to the dashed circle, the no-miscue zone); above
      centre is top spin, below is draw, left and right are english. Reset
      returns to a centre hit, and every new turn starts centred. Sent as
-     `spin` with the shot.
+     `spin` with the shot. The words beside it ("top + right") sit in a box
+     of fixed size, with "at limit" on a line of its own that keeps its
+     place while hidden, so nothing around them moves as the dot does.
    - Hovering a ball with the mouse shows its number and group above it; on
      touch the label shows for 1.5 s after a tap.
    - The panel slot and the status line have fixed heights, so the table
@@ -201,8 +206,8 @@ The tray row is hidden to make room.
      - on the right, a small cue ball showing the spin (`#optionsBtn`).
 
      Tapping that cue ball opens the *Spin and fine aim* sheet over the
-     bottom of the screen: the spin pad, the angle readout and its four
-     buttons. `placeShotOptions` moves those nodes there from the panel
+     bottom of the screen: the spin pad, the angle readout, its four
+     buttons and the fine aim wheel. `placeShotOptions` moves those nodes there from the panel
      whenever the phone layout applies. Done, Escape, a touch anywhere else
      or the shot closes the sheet; the table stays live above it.
    - **Naming balls.** The numbers on balls under 16 px across are too

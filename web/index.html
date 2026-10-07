@@ -99,10 +99,11 @@
         <div class="angle__row">
           <button class="nudge" data-deg="-5" aria-label="Rotate minus 5 degrees">−5°</button>
           <button class="nudge" data-deg="-0.25" aria-label="Rotate minus 0.25 degrees">−0.25°</button>
-          <output id="angleText" class="angle__readout">0.0°</output>
+          <output id="angleText" class="angle__readout">0.00°</output>
           <button class="nudge" data-deg="0.25" aria-label="Rotate plus 0.25 degrees">+0.25°</button>
           <button class="nudge" data-deg="5" aria-label="Rotate plus 5 degrees">+5°</button>
         </div>
+        <div id="aimJog" class="jog" role="slider" tabindex="0" aria-label="Fine aim: drag sideways, 2 degrees per 100 pixels" aria-valuetext="0.00°" title="Drag sideways for fine aim (← → with this focused: 0.05°, Shift 0.01°)"><span id="jogTicks" class="jog__ticks"></span><span class="jog__mark"></span></div>
       </div>
       <div class="panel__sep"></div>
       <div class="spin">
@@ -113,7 +114,7 @@
         </div>
         <div class="spin__meta">
           <span class="field__label">Spin</span>
-          <span id="spinText" class="spin__label">centre</span>
+          <span class="spin__words"><span id="spinText" class="spin__label">centre</span><span id="spinNote" class="spin__note">at limit</span></span>
           <button id="spinReset" class="btn btn--quiet btn--small">Reset</button>
         </div>
       </div>

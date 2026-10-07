@@ -1023,8 +1023,9 @@ function renderSpin(spring) {
   const atLimit = Math.hypot(S.spin.x, S.spin.y) >= 0.999;
   $('spinLimit').classList.toggle('spin__limit--max', atLimit);
   const words = spinWords();
-  $('spinText').textContent = atLimit ? `${words} · at limit` : words;
-  spinPad.setAttribute('aria-valuetext', words);
+  $('spinText').textContent = words;
+  $('spinNote').classList.toggle('is-on', atLimit);
+  spinPad.setAttribute('aria-valuetext', atLimit ? `${words}, at the limit` : words);
   $('spinReset').disabled = !S.spin.x && !S.spin.y;
   // the phone's options button is a small cue ball showing the same spin
   const mini = $('optsDot');
@@ -1128,7 +1129,8 @@ function queueAim() {
 
 function setAngle(a) {
   S.angle = Math.atan2(Math.sin(a), Math.cos(a));
-  $('angleText').textContent = `${((S.angle / DEG + 360) % 360).toFixed(1).replace(/^360\.0$/, '0.0')}°`;
+  // two decimals: the fine aim wheel turns by hundredths
+  $('angleText').textContent = `${((S.angle / DEG + 360) % 360).toFixed(2).replace(/^360\.00$/, '0.00')}°`;
   queueAim();
 }
 
@@ -3825,6 +3827,46 @@ $('extend').onclick = extend;
 for (const b of document.querySelectorAll('.nudge')) {
   b.onclick = () => setAngle(S.angle + Number(b.dataset.deg) * DEG);
 }
+
+// --- fine aim: a wheel dragged sideways ---------------------------------------
+// 0.02° per px (100 px turn the cue 2°), without end; to the right turns
+// clockwise, like +0.25°. Its ticks roll with the finger. Focused, the arrow
+// keys turn 0.05° (Shift 0.01°) instead of the table's 0.5°.
+
+const aimJog = $('aimJog');
+const JOG_DEG_PER_PX = 0.02;
+let jogFrom = null; // the pointer's x while dragging
+let jogRolled = 0;  // px the ticks have rolled
+function turnJog(px) {
+  if (!isMyShot()) return;
+  setAngle(S.angle + px * JOG_DEG_PER_PX * DEG);
+  jogRolled += px;
+  aimJog.style.setProperty('--jog-x', `${jogRolled}px`);
+  aimJog.setAttribute('aria-valuetext', $('angleText').textContent);
+}
+aimJog.addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  aimJog.focus({ preventScroll: true }); // the arrows go on in its steps
+  jogFrom = e.clientX;
+  aimJog.setPointerCapture(e.pointerId);
+  aimJog.classList.add('jog--drag');
+});
+aimJog.addEventListener('pointermove', (e) => {
+  if (jogFrom === null) return;
+  const dx = e.clientX - jogFrom;
+  jogFrom = e.clientX;
+  turnJog(dx);
+});
+const endJog = () => { jogFrom = null; aimJog.classList.remove('jog--drag'); };
+aimJog.addEventListener('pointerup', endJog);
+aimJog.addEventListener('pointercancel', endJog);
+aimJog.addEventListener('keydown', (e) => {
+  const dir = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  if (!dir) return;
+  e.preventDefault();
+  e.stopPropagation(); // not the table's 0.5° step
+  turnJog(dir * (e.shiftKey ? 0.01 : 0.05) / JOG_DEG_PER_PX);
+});
 // copyInvite shares (phones) or copies the room's invite link.
 async function copyInvite() {
   const url = `${location.origin}/?room=${S.roomCode}`;

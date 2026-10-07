@@ -135,6 +135,25 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .call__line--enter { animation: pool-row-in var(--dur-3) var(--ease-out) both; }
 .hint__close { width: 28px; height: 28px; margin: -6px 0; }
 .spin__reset-dot { transition: none; }
+/* The spin's words change with the dot; their box does not, so nothing
+   around it moves: one line as wide as the longest ("draw + right"), and
+   the "at limit" line keeps its place while hidden. */
+.spin__meta { width: 7em; }
+.spin__words { display: flex; flex-direction: column; }
+.spin__label { white-space: nowrap; }
+.spin__note { font: 600 11px/14px var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--ball-3); visibility: hidden; }
+.spin__note.is-on { visibility: visible; }
+/* the angle reads to hundredths (the wheel turns by them): room for 359.75° */
+.angle__readout { min-width: 96px; }
+/* fine aim: a wheel rolled sideways; the ticks move with the finger */
+.jog { position: relative; height: 30px; border-radius: var(--r-pill); border: 1px solid var(--hairline-strong); background: var(--surface-2);
+  overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize; }
+.jog:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.jog--drag { background: var(--surface-3); border-color: var(--text-muted); }
+.jog__ticks { position: absolute; inset: 7px 0; opacity: .55;
+  background: repeating-linear-gradient(90deg, var(--text-muted) 0 1px, transparent 1px 10px) var(--jog-x, 0px) 4px / auto 8px repeat-x,
+              repeating-linear-gradient(90deg, var(--text) 0 1.5px, transparent 1.5px 50px) var(--jog-x, 0px) 0 / auto 100% repeat-x; }
+.jog__mark { position: absolute; left: 50%; top: 4px; bottom: 4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent); }
 .spin__limit--max { border-color: var(--ball-3); }
 .tray--right { justify-content: flex-end; }
 .trays { flex: none; }
@@ -194,6 +213,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .sheet .spin { flex: none; flex-direction: column; gap: 8px; }
 .sheet .spin__pad { --pad: 88px; }
 .sheet .spin__meta { flex-direction: row; align-items: center; gap: 8px; width: auto; }
+.sheet .spin__words { width: 92px; }
 .sheet .angle { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .sheet .angle__row { display: flex; flex-wrap: wrap; gap: 6px; }
 .sheet .angle__readout { order: -1; flex: 1 0 100%; text-align: center; font-size: 20px; }
