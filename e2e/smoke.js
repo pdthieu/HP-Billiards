@@ -72,7 +72,7 @@ async function waitFor(page, pred, what, ms = 15000) {
   await L.waitForFunction((c) => !!document.querySelector(`#roomList li.room-row[data-code="${c}"]`), code);
   const row = await L.evaluate((c) => {
     const li = document.querySelector(`#roomList li.room-row[data-code="${c}"]`);
-    return { who: li.querySelector('.room-row__who').textContent, btn: li.querySelector('button').textContent };
+    return { who: li.querySelector('.room-row__who').textContent, btn: li.querySelector('.room-row__join').textContent };
   }, code);
   if (!row.who.includes('Ann') || row.btn !== 'Join') fail(`room row: ${JSON.stringify(row)}`);
   const suggested = await L.inputValue('#name');

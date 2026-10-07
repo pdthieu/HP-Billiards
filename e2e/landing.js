@@ -54,7 +54,7 @@ require('fs').mkdirSync(shots, { recursive: true });
   const note = await page.textContent('#createNote');
   if (!/1 rooms? are in use/.test(note)) throw new Error('note: ' + note);
   if (!/1 of 1 in use/.test(await page.textContent('#roomsCount'))) throw new Error('rooms count');
-  const joinBtn = await page.textContent('#roomList li button');
+  const joinBtn = await page.textContent('#roomList li .room-row__join');
   if (joinBtn !== 'Join') throw new Error('empty room not joinable: ' + joinBtn);
   await page.screenshot({ path: path.join(shots, '12-room-limit.png') });
   if (errors.length) throw new Error(errors.join('\n'));

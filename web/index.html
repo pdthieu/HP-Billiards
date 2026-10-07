@@ -43,6 +43,8 @@
     <canvas id="table" class="stage__table"></canvas>
     <button id="camTopBtn" class="icon-btn cam-top" type="button" aria-pressed="false" aria-label="Look from above" title="Look from above (T)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="12" cy="12" r="1.5"></circle><path d="M12 2v3M12 19v3"></path></svg></button>
     <div id="replayTag" class="replay-tag" hidden>Replay · ½ speed</div>
+    <div id="chatBubbles" class="chat-bubbles" aria-hidden="true"></div>
+    <div id="voiceCaption" class="voice-caption" aria-live="polite" hidden></div>
     <div id="powerBar" class="pbar" hidden>
       <div id="powerTrack" class="pbar__track" role="slider" tabindex="0" aria-label="Shot power: press and pull down, release to shoot" aria-valuemin="0" aria-valuemax="100" aria-valuenow="60">
         <div id="powerLast" class="pbar__last"></div>
@@ -57,6 +59,7 @@
   <div id="status" class="status" aria-live="polite">
     <span class="status__pill status__layer is-active" hidden></span>
     <span class="status__pill status__layer" hidden></span>
+    <button id="chatBtn" class="icon-btn status__chat" type="button" aria-label="Chat" aria-expanded="false" aria-controls="chatPanel" title="Chat (C)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span id="chatBadge" class="chat-badge" hidden></span></button>
     <button id="replayBtn" class="icon-btn status__replay" type="button" aria-label="Replay the last shot" title="Replay the last shot (R)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
   </div>
 
@@ -187,6 +190,10 @@
           <span class="field__label">Break</span>
           <div class="seg js-breaks" role="group" aria-label="Who breaks"><button type="button" class="seg__btn" data-breaks="alternate">Alternate</button><button type="button" class="seg__btn" data-breaks="winner">Winner breaks</button></div>
         </div>
+        <div class="match-pick__row">
+          <span class="field__label">Spectators</span>
+          <div class="seg js-audience" id="landingAudience" role="group" aria-label="How many may watch"><button type="button" class="seg__btn" data-n="0">0</button><button type="button" class="seg__btn" data-n="1">1</button><button type="button" class="seg__btn" data-n="3">3</button><button type="button" class="seg__btn" data-n="5">5</button><button type="button" class="seg__btn" data-n="10">10</button></div>
+        </div>
       </div>
       <button type="button" id="create" class="btn btn--primary btn--lg btn--block">Create a room</button>
       <button type="button" id="practice" class="btn btn--secondary btn--block">Practice alone</button>
@@ -207,6 +214,7 @@
       </div>
       <button type="submit" id="join" class="btn btn--secondary">Join</button>
     </div>
+    <button type="button" id="watchInvite" class="btn btn--secondary btn--block" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>Watch instead</button>
     <p id="landingError" class="note note--foul" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
     <p id="switchMode" class="landing__switch" hidden><a class="link" href="/">Create your own room instead</a></p>
   </form>
@@ -273,6 +281,11 @@
         </div>
       </div>
       </div>
+      <div class="setting" id="settingsAudienceRow">
+        <span class="field__label" id="roomAudienceLabel">Spectators</span>
+        <div class="seg js-audience" id="roomAudience" role="group" aria-labelledby="roomAudienceLabel"><button type="button" class="seg__btn" data-n="0">0</button><button type="button" class="seg__btn" data-n="1">1</button><button type="button" class="seg__btn" data-n="3">3</button><button type="button" class="seg__btn" data-n="5">5</button><button type="button" class="seg__btn" data-n="10">10</button></div>
+        <p class="caption">How many may watch and comment. Changes at once; nobody watching is sent away.</p>
+      </div>
       <div class="setting" id="settingsInviteRow">
         <span class="field__label">Invite</span>
         <div class="invite-row">
@@ -300,6 +313,10 @@
       <button id="leftyToggle" class="toggle" aria-pressed="false"><span class="toggle__box"></span>On the left (left-handed)</button>
     </div>
     <div class="setting">
+      <span class="field__label">Chat</span>
+      <button id="bubblesToggle" class="toggle" aria-pressed="true"><span class="toggle__box"></span>Show new comments over the table while the chat is closed</button>
+    </div>
+    <div class="setting">
       <span class="field__label">Aiming</span>
       <button id="aimFrontToggle" class="toggle" aria-pressed="false"><span class="toggle__box"></span>Point at the target instead of holding the cue's butt</button>
     </div>
@@ -309,6 +326,8 @@
         <button id="soundToggle" class="toggle" aria-pressed="true"><span class="toggle__box"></span>Sound effects</button>
         <input id="volume" class="volume" type="range" min="0" max="100" step="5" value="80" aria-label="Volume">
       </div>
+      <button id="voiceToggle" class="toggle" aria-pressed="true"><span class="toggle__box"></span>Commentator (Vietnamese lines on great shots, misses and wins)</button>
+      <button id="strongToggle" class="toggle" aria-pressed="true"><span class="toggle__box"></span>Strong language</button>
     </div>
     <div class="setting" id="installTip" hidden>
       <span class="field__label">Full screen</span>
@@ -368,6 +387,18 @@
   <div class="splash__bar" aria-hidden="true"><span></span></div>
 </div>
 
+<section id="chatPanel" class="chat" role="dialog" aria-labelledby="chatTitle" hidden>
+  <header class="chat__head">
+    <span id="chatTitle" class="chat__title">Chat</span>
+    <span id="chatWho" class="chat__who"></span>
+    <button id="chatClose" class="icon-btn chat__close" type="button" aria-label="Close the chat"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+  </header>
+  <ol id="chatList" class="chat__list" aria-live="polite"></ol>
+  <form id="chatForm" class="chat__form" autocomplete="off">
+    <input id="chatInput" class="input chat__input" maxlength="200" placeholder="Say something…" aria-label="Comment" enterkeyhint="send">
+    <button id="chatSend" class="btn btn--primary btn--small chat__send" type="submit">Send</button>
+  </form>
+</section>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="/app.js"></script>

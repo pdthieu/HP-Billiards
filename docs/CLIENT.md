@@ -314,6 +314,58 @@ loudness within its kind:
 | `cue-1` to `cue-4` | "S02-22 Billiards cue stick hits ball" by craigsmith, freesound.org/s/675330 |
 | `pocket-1` | "B_1 pool ball falling" by Yarmonics, freesound.org/s/441857 |
 
+### Commentary
+
+A commentator says a short line in Vietnamese after some shots, picked at
+random from `web/voice/lines.json` (69 lines in 9 kinds), never the same twice
+in a row and at most one every 3 s. The line also shows as a caption over the
+table, also with the sound off. Replays stay quiet.
+
+| kind | when | how often |
+|---|---|---|
+| `break` | the break pockets a ball | always |
+| `great` | two balls or more drop, or one that travelled more than 1.2 m | always |
+| `nice` | one ball drops | 35 % |
+| `miss` | nothing drops, no foul, no safety called by you, not a push out | 50 % |
+| `scratch` | the cue ball drops | always |
+| `foul` | any other foul | always |
+| `win` / `lose` | the rack ends: the shooter won it / lost it (8-ball early, on a foul…) | always |
+| `timeout` | a shot clock runs out | always |
+
+Practice has no fouls, wins or losses, so only the shot lines and `scratch`
+play there.
+
+- **The lines** are trending phrases ("Đỉnh nóc, kịch trần, bay phấp phới!",
+  "Ảo ma Canada!", "Ét o ét!", "Gét gô!"…). Those marked `strong` use strong
+  language ("Cái đéo má…"). Settings → Sound → *Strong language* leaves them
+  out; *Commentator* turns the voice off (`pool:voice:strong`, `pool:voice`).
+- **The recordings.** Each line is `web/voice/<id>.m4a` (AAC, 32 kbit/s, about
+  580 KB in all), fetched and decoded once audio starts. They are spoken by
+  macOS's Vietnamese voice "Linh" (`node scripts/make-voices.js`), which
+  Apple's licence allows for personal, non-commercial use. To use your own
+  voice, record a line and save it over the file with the same name; the
+  script keeps existing files unless run with `--force`. A new line is one
+  more entry in `lines.json` (`id`, `kind`, `text`, `strong`) and its file.
+
+## Spectators and chat
+
+- **Watching.** A room lets up to its number of spectators watch: 0, 1, 3
+  (the default), 5 or 10, picked under *Spectators* when creating it and
+  changed by either player in Settings → Room. The room list shows *Watch*
+  while there is room, and "2 watching" in the chip; an invite link to a full
+  room offers *Watch instead*.
+- **A spectator** (`S.spectator`, seat -1) sees everything the players see,
+  the shooter's aim and the 3D camera included, under "Watching · 8-ball".
+  There is no power bar and no shot panel, only the waiting panel; the
+  Leave button leaves. A reload watches again (the session keeps `watch`).
+- **Chat.** One thread for the room. The button at the left of the status
+  line (or `C`) opens it: who is watching, the last comments (players with
+  their seat colour, spectators with an eye) and a field of 200 characters.
+  After each comment Send counts down the 5 s the server makes everyone
+  wait. While the chat is closed new comments float over the top left of the
+  table for 4 s and the button counts them; Settings → Chat turns the
+  floating off (`pool:bubbles`). Comments are text only, never HTML.
+
 ## 3D view
 
 The table can also be shown in 3D (`web/view3d.js`, Three.js r186). Settings →

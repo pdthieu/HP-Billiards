@@ -31,6 +31,8 @@ Mục tiêu: bàn không còn "câm". Không đổi server.
    mặc định trên máy tính, 2D trên điện thoại; camera tự đứng sau gậy khi
    ngắm, nâng lên theo bi khi đánh, nhìn từ trên khi đặt bi; nút Replay phát
    lại cú vừa rồi chậm 0,5×. Xem CLIENT.md, mục *3D view*.
+5. ~~**Bình luận viên**~~ Đã làm (10/2026): 69 câu trending tiếng Việt
+   (`web/voice`), có câu tục tắt được. Xem CLIENT.md, mục *Commentary*.
 
 Xong khi: chơi một ván trên điện thoại có đủ tiếng và rung; tắt tiếng được;
 `go test ./web` kiểm tra file âm thanh được nhúng.
@@ -125,8 +127,11 @@ gây `error` từ server (test chạy 100 ván bot với bot).
 
 ## Phase 11 · Xã hội (M)
 
-1. **Người xem**: `join` với `spectate: true`, nhận mọi message nhưng không
-   gửi được hành động; `room_state` có `spectators: n`. Giới hạn 10 mỗi phòng.
+1. ~~**Người xem**~~ Đã làm (10/2026), khác bản nháp: `join` với
+   `watch: true`; mỗi phòng tự chọn số người xem (mặc định 3, trần
+   `-max-spectators` 10); có chat chung cho người chơi và khán giả, mỗi
+   người 5 giây một tin (`-chat-cooldown`). Xem PROTOCOL.md, mục
+   *Spectators and chat*.
 2. **Emote**: message `emote` với 6 giá trị cố định, hiện bong bóng cạnh tên 3
    giây, giới hạn 1 cái/2 giây. Không chat tự do để khỏi lọc nội dung.
 3. **Phòng riêng**: `POST /api/rooms` với `{"private": true}`; không hiện

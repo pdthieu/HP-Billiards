@@ -117,6 +117,46 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .status.has-replay { padding-left: 60px; padding-right: 60px; }
 .status__replay { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: auto; }
 
+/* chat: the button opens the room's thread; comments float over the table
+   while it is closed */
+.status__chat { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); pointer-events: auto; }
+.status:has(.status__chat:not([hidden])) { padding-left: 60px; padding-right: 60px; }
+.chat-badge { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px;
+  background: var(--accent); color: var(--on-accent, #10141a); font: 700 10px/16px var(--font-ui); text-align: center; }
+.chat { position: fixed; z-index: var(--z-banner); right: 16px; bottom: 216px; width: min(340px, calc(100vw - 32px)); max-height: min(420px, calc(100vh - 300px));
+  display: flex; flex-direction: column; background: var(--surface-1); border: 1px solid var(--hairline-strong); border-radius: var(--r-lg);
+  box-shadow: 0 16px 40px -18px rgba(0,0,0,.6); animation: sheet-in var(--dur-3) var(--ease-out) both; }
+.chat__head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--hairline); }
+.chat__title { font: 600 12px/16px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.chat__who { flex: 1; min-width: 0; font: 400 12px/16px var(--font-ui); color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat__close { width: 32px; height: 32px; }
+.chat__list { flex: 1; min-height: 80px; margin: 0; padding: 8px 14px; list-style: none; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.chat__line { font: 400 14px/19px var(--font-ui); overflow-wrap: anywhere; }
+.chat__from { font-weight: 600; margin-right: 6px; }
+.chat__from::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 5px; border-radius: 50%; vertical-align: 1px; background: var(--text-muted); }
+.chat__from--p0::before { background: var(--accent); }
+.chat__from--p1::before { background: var(--ball-2); }
+.chat__from--watcher::before { width: 10px; height: 7px; border-radius: 50% / 60%; background: none; border: 1.5px solid var(--text-muted); box-sizing: border-box; }
+.chat__form { display: flex; gap: 8px; padding: 8px; border-top: 1px solid var(--hairline); }
+.chat__input { flex: 1; min-width: 0; }
+.chat__send { min-width: 64px; font-variant-numeric: tabular-nums; }
+.chat-bubbles { position: absolute; top: 12px; left: 12px; z-index: 2; display: flex; flex-direction: column; gap: 6px; max-width: min(320px, 70%); pointer-events: none; }
+.chat-bubble { padding: 6px 12px; border-radius: 14px; background: rgba(13, 18, 24, .78); color: #E8ECF1; font: 400 14px/19px var(--font-ui);
+  overflow-wrap: anywhere; animation: sheet-in var(--dur-2) var(--ease-out) both; transition: opacity var(--dur-2) var(--ease-in); }
+.chat-bubble.is-leaving { opacity: 0; }
+.chat-bubble .chat__from { color: #FFFFFF; }
+.room-row__actions { display: flex; gap: 6px; align-items: center; flex: none; }
+#watchInvite { margin-top: -4px; }
+
+/* the commentator's line, under the top of the table */
+.voice-caption { position: absolute; top: 14%; left: 50%; z-index: 2; transform: translateX(-50%); pointer-events: none; max-width: 80%;
+  padding: 6px 16px; border-radius: var(--r-pill); background: rgba(13, 18, 24, .8); color: #FFE2B4; text-align: center;
+  font: 600 18px/24px var(--font-ui); letter-spacing: .01em; }
+.voice-caption::before { content: "🎙 "; }
+.voice-caption.is-on { animation: caption-in 2.2s var(--ease-out) both; }
+@keyframes caption-in { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.96); } 10%, 82% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .voice-caption.is-on { animation: none; } }
+
 /* 3D view: the WebGL canvas lies under the 2D one, which stays on top
    (transparent) for the ball labels and the pointer */
 .stage__table3d { position: absolute; display: block; pointer-events: none; }
@@ -292,6 +332,10 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 
 /* portrait phones */
 @media (max-width: 600px) {
+  .chat { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 55vh; }
+  .chat-bubbles { top: 6px; left: 6px; }
+  .chat-bubble { font-size: 13px; line-height: 17px; padding: 5px 10px; }
+  .room-row__watch { padding: 0 8px; }
   .hdr { height: 52px; padding: 0 8px 0 12px; gap: 6px; }
   .hdr .eyebrow { display: none; }
   .hdr__room { flex: none; gap: 2px; }
@@ -333,6 +377,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 
 /* landscape phones: table | bar on the left, the shot panel as a sidebar */
 @media (orientation: landscape) and (max-height: 500px) {
+  .chat { right: 8px; bottom: 8px; max-height: calc(100vh - 16px); }
   .hdr { height: 36px; padding: 0 4px; border-bottom: 0; background: transparent; gap: 10px; }
   .hdr .eyebrow { display: none; }
   .hdr__code { font-size: 16px; letter-spacing: .12em; }

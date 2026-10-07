@@ -210,6 +210,14 @@ const S = {
   shotWasBreak: false,   // the shot in progress (or just settled) is a break
   resultReason: '',      // why the rack ended, for the result banner
 
+  // spectators and comments
+  spectator: false,      // watching: no seat (S.seat is -1); may only comment and leave
+  wantWatch: false,      // the join in flight is a watch
+  audience: { names: [], max: 0 }, // who watches the room, how many may
+  chat: [],              // the room's comments, oldest first: {from, seat, text, at}
+  chatUnread: 0,
+  chatReadyAt: 0,        // performance.now() when the next comment may be sent
+
   // match
   match: null,           // {race, breaks, score, racks, winner} from the server; null in practice
   race: 1,               // settings of the next match (set_match)
@@ -229,13 +237,17 @@ function loadSession(roomCode) {
   try { return JSON.parse(sessionStorage.getItem(sessionKey(roomCode))) || null; } catch { return null; }
 }
 function saveSession() {
-  try { sessionStorage.setItem(sessionKey(S.roomCode), JSON.stringify({ token: S.token, name: S.name })); } catch { /* unavailable */ }
+  const data = S.spectator ? { watch: true, name: S.name } : { token: S.token, name: S.name };
+  try { sessionStorage.setItem(sessionKey(S.roomCode), JSON.stringify(data)); } catch { /* unavailable */ }
 }
+
+// inRoom: seated or watching.
+const inRoom = () => S.seat >= 0 || S.spectator;
 function clearSession(roomCode) {
   try { sessionStorage.removeItem(sessionKey(roomCode)); } catch { /* unavailable */ }
 }
 
-function connectAndJoin(roomCode, name, token) {
+function connectAndJoin(roomCode, name, token, watch) {
   if (S.ws) { S.intentionalClose = true; S.ws.close(); }
   S.intentionalClose = false;
   clearTimeout(S.reconnectTimer);
@@ -245,9 +257,11 @@ function connectAndJoin(roomCode, name, token) {
   S.ws = ws;
   S.roomCode = roomCode;
   S.name = name;
+  S.wantWatch = !!watch;
   ws.onopen = () => {
     const join = { type: 'join', roomCode, name };
     if (token) join.token = token;
+    if (watch) join.watch = true;
     send(join);
     startHeartbeat();
   };
@@ -261,8 +275,13 @@ function connectAndJoin(roomCode, name, token) {
     S.ws = null;
     stopHeartbeat();
     if (S.intentionalClose) return;
-    if (S.seat < 0) {
+    if (!inRoom()) {
       showLanding(`Could not join: ${e.reason || 'connection closed'}`);
+      return;
+    }
+    if (S.spectator && /room closed/.test(e.reason)) {
+      clearSession(S.roomCode);
+      resetToLanding('The room closed.');
       return;
     }
     if (/replaced/.test(e.reason)) {
@@ -291,8 +310,8 @@ function scheduleReconnect() {
   clearTimeout(S.reconnectTimer);
   S.reconnectTimer = setTimeout(() => {
     S.reconnectTimer = 0;
-    if (S.seat < 0 || S.ws) return;
-    connectAndJoin(S.roomCode, S.name, S.token);
+    if (!inRoom() || S.ws) return;
+    connectAndJoin(S.roomCode, S.name, S.token, S.spectator);
   }, delay);
 }
 
@@ -306,7 +325,7 @@ function showConn(kind) {
   $('connTitle').textContent = taken ? 'Playing somewhere else?' : 'Connection lost';
   $('disconnectedText').textContent = taken
     ? 'This seat was taken over by another connection, probably another tab or device. Only one can hold a seat.'
-    : `Reconnecting… Your seat is held for ${SEAT_HOLD_S} seconds.`;
+    : S.spectator ? 'Reconnecting…' : `Reconnecting… Your seat is held for ${SEAT_HOLD_S} seconds.`;
   $('retry').hidden = taken;
   $('connNote').hidden = !taken;
   $('rejoin').className = taken ? 'btn btn--primary' : 'btn btn--secondary';
@@ -346,7 +365,7 @@ function renderRetry() {
   const next = Math.max(0, (S.reconnectDue - now) / 1000);
   $('retryTry').textContent = S.ws ? `Try ${attempt} · connecting…` : `Try ${attempt} · next in ${next.toFixed(1)} s`;
   const held = Math.max(0, SEAT_HOLD_S - (now - S.discSince) / 1000);
-  $('retryHold').textContent = `Seat held ${Math.ceil(held)} s`;
+  $('retryHold').textContent = S.spectator ? '' : `Seat held ${Math.ceil(held)} s`;
 }
 
 // The splash covers a reload inside a room: shown only after 150 ms so an
@@ -356,7 +375,7 @@ function showSplash(code) {
   clearTimeout(S.splashTimer);
   clearTimeout(S.splashFallback);
   S.splashTimer = setTimeout(() => { S.splashTimer = 0; $('splash').hidden = false; }, 150);
-  S.splashFallback = setTimeout(() => { if (!$('splash').hidden && S.seat >= 0) { S.reconnectAttempt = Math.max(1, S.reconnectAttempt); showConn('lost'); } }, 4000);
+  S.splashFallback = setTimeout(() => { if (!$('splash').hidden && inRoom()) { S.reconnectAttempt = Math.max(1, S.reconnectAttempt); showConn('lost'); } }, 4000);
 }
 function hideSplash() {
   clearTimeout(S.splashTimer);
@@ -409,12 +428,18 @@ function handle(msg) {
     case 'timeout': onTimeout(msg); break;
     case 'pong': clearTimeout(S.pongTimer); S.pongTimer = 0; break;
     case 'error': onError(msg); break;
+    case 'chat': onChat(msg); break;
+    case 'chat_log': S.chat = msg.messages || []; renderChat(); break;
+    case 'audience': S.audience = { names: msg.names || [], max: msg.max || 0 }; renderChatHead(); renderAudienceSetting(); break;
   }
 }
 
 function onWelcome(msg) {
-  const reconnected = S.seat >= 0 && S.reconnectAttempt > 0;
+  const reconnected = inRoom() && S.reconnectAttempt > 0;
   S.seat = msg.seat;
+  S.spectator = !!msg.spectator;
+  S.chat = []; // chat_log follows when there is any
+  renderChat();
   if (typeof msg.aimLine === 'number') S.aimLine = msg.aimLine / 1000;
   S.token = msg.token;
   S.roomCode = msg.roomCode;
@@ -455,6 +480,8 @@ function setBalls(list) {
 
 function onRoomState(msg) {
   const prevPhase = S.phase;
+  S.audience = { names: msg.spectators || [], max: msg.maxSpectators || 0 };
+  renderChatHead();
   S.players = msg.players;
   S.moving = msg.moving;
   setBalls(msg.balls);
@@ -576,6 +603,7 @@ function onSettled(msg) {
   setClock(msg.clock);
   newTurn();
   describeShot(msg);
+  voiceFor(msg);
   refreshPanels();
   showMatchIfWon(1600); // after the result banner
 }
@@ -605,12 +633,17 @@ function onPlayer(msg) {
 }
 
 function onError(msg) {
+  if (msg.code === 'chat_cooldown') {
+    S.chatReadyAt = performance.now() + (msg.retryMs || CHAT_COOLDOWN_MS);
+    renderChatSend();
+    return;
+  }
   toast(msg.message || msg.code, true);
   if (msg.code === 'bad_placement' || msg.code === 'no_ball_in_hand' || msg.code === 'balls_moving') {
     S.drag = null;
     S.placedAt = null;
   }
-  if (msg.code === 'room_not_found' || msg.code === 'room_full') {
+  if (msg.code === 'room_not_found' || msg.code === 'room_full' || msg.code === 'audience_full') {
     // The join failed: the room is gone or our held seat expired and was
     // taken. Nothing to come back to.
     S.intentionalClose = true;
@@ -655,6 +688,7 @@ function onTimeout(msg) {
   S.clock = null;
   toast(text, isMe(msg.seat));
   setStatus(text, 'foul');
+  speak('timeout');
 }
 
 // resetToLanding forgets the room and shows the landing form.
@@ -665,7 +699,14 @@ function resetToLanding(error) {
   hideConn();
   hideSplash();
   S.seat = -1;
+  S.spectator = false;
+  S.wantWatch = false;
   S.token = '';
+  S.chat = [];
+  S.chatUnread = 0;
+  S.audience = { names: [], max: 0 };
+  closeChat();
+  renderChat();
   S.phase = 'lobby';
   S.moving = false;
   S.snaps = [];
@@ -890,6 +931,7 @@ function shoot() {
   if (send(msg)) {
     playStrike(S.power);
     SND.ownStrike = performance.now();
+    S.shotSafety = !!(S.call && S.call.safety);
     const cue = displayBalls().get(0);
     if (cue) {
       const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
@@ -2419,6 +2461,12 @@ const SND = {
   ownStrike: 0,  // when we last played our own cue strike
   takes: { clack: [], cue: [], pocket: [] }, // decoded recordings, filled once loaded
   last: {},      // the take each kind played last, not to repeat it
+  voice: readSetting('pool:voice') !== 'off',          // the commentator speaks
+  strong: readSetting('pool:voice:strong') !== 'off',  // ...strong language too
+  lines: [],     // web/voice/lines.json: {id, kind, text, strong?, buf?}
+  lastLine: '',  // the id spoken last, not to repeat it
+  spokeAt: -Infinity, // performance.now() of the last line
+  voices: 0,     // lines spoken so far, for tests
 };
 
 const SOUND_TAKES = { clack: 7, cue: 4, pocket: 1 };
@@ -2481,6 +2529,7 @@ function audio() {
     for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     SND.ctx = ctx;
     loadTakes(ctx);
+    loadVoices(ctx);
   }
   if (SND.ctx.state === 'suspended') SND.ctx.resume();
   return SND.ctx;
@@ -2597,7 +2646,7 @@ const REPLAY_SPEED = 0.5;
 const REPLAY_LEAD_MS = 700; // the cue's draw back and strike before the balls run
 const REPLAY_HOLD_MS = 600; // the last frame stays this long
 
-function canReplay() { return !!S.lastShot && !S.moving && !S.replay && S.seat >= 0; }
+function canReplay() { return !!S.lastShot && !S.moving && !S.replay && inRoom(); }
 
 function startReplay() {
   if (!canReplay()) return;
@@ -2733,6 +2782,102 @@ function setVolume(v) {
   SND.volume = v;
   writeSetting('pool:volume', String(v));
   if (SND.master) SND.master.gain.value = v;
+}
+
+// --- the commentator -----------------------------------------------------------
+// Short lines in Vietnamese on a great shot, a miss, a foul, a win or a loss
+// (CLIENT.md, "Commentary"). web/voice/lines.json lists them; each is
+// web/voice/<id>.m4a, recorded by scripts/make-voices.js and replaceable by
+// a recording of your own under the same name. Lines marked strong use
+// strong language; Settings → Sound can leave them out. Each machine picks
+// its own line, at most one every 3 s, and shows it as a caption.
+
+const VOICE_GAP_MS = 3000;
+const VOICE_DELAY_MS = 250; // after the balls have had their say
+
+function loadVoices(ctx) {
+  fetch('/voice/lines.json')
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(r.status))))
+    .then((lines) => {
+      SND.lines = lines;
+      for (const line of lines) {
+        fetch(`/voice/${line.id}.m4a`)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status))))
+          .then((data) => ctx.decodeAudioData(data))
+          .then((buf) => { line.buf = buf; })
+          .catch(() => { /* that line stays silent */ });
+      }
+    })
+    .catch(() => { /* no commentator */ });
+}
+
+// pickLine chooses a line of kind, not the last one spoken, without strong
+// language unless allowed. Lines not loaded yet still count (as captions).
+function pickLine(kind) {
+  let pool = SND.lines.filter((l) => l.kind === kind && (SND.strong || !l.strong));
+  if (pool.length > 1) pool = pool.filter((l) => l.id !== SND.lastLine);
+  return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+}
+
+function speak(kind) {
+  if (!SND.voice || S.replay) return;
+  const now = performance.now();
+  if (now - SND.spokeAt < VOICE_GAP_MS) return;
+  const line = pickLine(kind);
+  if (!line) return;
+  SND.spokeAt = now;
+  SND.lastLine = line.id;
+  SND.voices++;
+  const ctx = SND.on ? audio() : null;
+  if (ctx && line.buf) {
+    const src = ctx.createBufferSource();
+    src.buffer = line.buf;
+    const g = ctx.createGain();
+    g.gain.value = 1.1;
+    src.connect(g).connect(SND.master);
+    src.start(ctx.currentTime + VOICE_DELAY_MS / 1000);
+  }
+  caption(line.text);
+}
+
+// caption shows the line over the table for a moment, also with the sound off.
+function caption(text) {
+  const el = $('voiceCaption');
+  el.textContent = text;
+  el.hidden = false;
+  el.classList.remove('is-on');
+  void el.offsetWidth;
+  el.classList.add('is-on');
+  clearTimeout(caption.timer);
+  caption.timer = setTimeout(() => { el.hidden = true; }, 2200);
+}
+
+// voiceFor picks what the commentator says about a settled shot.
+function voiceFor(msg) {
+  const made = msg.pocketed.filter((id) => id !== 0);
+  const scratch = msg.pocketed.includes(0) || msg.foul === 'scratch';
+  const over = msg.winner !== undefined && msg.winner !== null;
+  const safety = S.shotSafety;
+  S.shotSafety = false;
+  if (!S.practice) {
+    if (over) { speak(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
+    if (scratch) { speak('scratch'); return; }
+    if (msg.foul) { speak('foul'); return; }
+  } else if (scratch) { speak('scratch'); return; }
+  if (S.shotWasBreak) { if (made.length) speak('break'); return; }
+  if (made.length >= 2 || longPot(made)) { speak('great'); return; }
+  if (made.length === 1) { if (Math.random() < 0.35) speak('nice'); return; }
+  if (!safety && !msg.pushedOut && Math.random() < 0.5) speak('miss');
+}
+
+// longPot: one of the balls made travelled more than 1.2 m to its pocket.
+function longPot(made) {
+  const start = S.lastShot && S.lastShot.snaps[0].balls;
+  if (!start) return false;
+  return made.some((id) => {
+    const p = start.get(id);
+    return p && nearestPocket(p).d > 1.2;
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -3015,6 +3160,7 @@ document.addEventListener('keydown', (e) => {
     if (k === 't' && v3) { toggleCamTop(); e.preventDefault(); return; }
     if (k === 'r' && canReplay()) { startReplay(); e.preventDefault(); return; }
     if (k === 'f' && canFullscreen) { toggleFullscreen(); e.preventDefault(); return; }
+    if (k === 'c' && inRoom() && !S.practice) { openChat(); e.preventDefault(); return; }
   }
   if (S.practice && S.seat >= 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
     if (e.key === 'z' || e.key === 'Z') { undo(); e.preventDefault(); return; }
@@ -3138,6 +3284,7 @@ function showLanding(error) {
   $('code').hidden = invited;
   $('join').className = invited ? 'btn btn--primary btn--lg btn--block' : 'btn btn--secondary';
   $('switchMode').hidden = !invited;
+  $('watchInvite').hidden = true; // describeInvite shows it for a full room
   setTimeout(() => $('name').focus(), 0);
   if (invited) { stopRoomsPoll(); describeInvite(code); } else startRoomsPoll();
 }
@@ -3160,7 +3307,11 @@ async function describeInvite(code) {
     const room = list.rooms.find((r) => r.roomCode === code);
     if (!room || $('landingCode').textContent !== code) return;
     const host = room.players.find(Boolean);
-    if (room.seated >= 2) $('landingLead').textContent = 'This room is full right now.';
+    if (room.seated >= 2) {
+      const canWatch = room.spectators < room.maxSpectators;
+      $('landingLead').textContent = canWatch ? 'Both seats are taken. You can watch the game.' : 'This room is full right now.';
+      $('watchInvite').hidden = !canWatch;
+    }
     else if (host) $('landingLead').textContent = `${host} is at the table and waiting for an opponent.`;
   } catch { /* keep the generic lead */ }
 }
@@ -3216,11 +3367,15 @@ function renderRooms(list) {
       li.className = 'room-row';
       li.dataset.code = room.roomCode;
       li.style.animationDelay = `${40 * added++}ms`;
-      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div><button class="btn btn--secondary btn--small" type="button"></button>';
+      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div><div class="room-row__actions"><button class="btn btn--quiet btn--small room-row__watch" type="button">Watch</button><button class="btn btn--secondary btn--small room-row__join" type="button"></button></div>';
       li.querySelector('.room-row__code').textContent = room.roomCode;
-      li.querySelector('button').onclick = () => {
+      li.querySelector('.room-row__join').onclick = () => {
         const name = landingName();
         if (name) connectAndJoin(li.dataset.code, name);
+      };
+      li.querySelector('.room-row__watch').onclick = () => {
+        const name = landingName();
+        if (name) connectAndJoin(li.dataset.code, name, null, true);
       };
       ul.append(li);
     }
@@ -3236,8 +3391,11 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
     const chip = li.querySelector('.chip');
     chip.className = `chip chip--${phase}`;
-    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${room.race > 1 ? ` · race ${room.race}` : ''} · ${phase}`;
-    const btn = li.querySelector('button');
+    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${room.race > 1 ? ` · race ${room.race}` : ''} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}`;
+    const watch = li.querySelector('.room-row__watch');
+    watch.hidden = !(room.spectators < room.maxSpectators);
+    watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
+    const btn = li.querySelector('.room-row__join');
     const open = room.seated < 2;
     btn.textContent = open ? 'Join' : 'Full';
     btn.disabled = !open;
@@ -3492,7 +3650,7 @@ function refreshPanels() {
   powerTrack.tabIndex = myShot ? 0 : -1;
   if (!myShot && S.powerDrag) { S.powerDrag = false; powerClasses(); }
   if (!barHidden) renderPower();
-  const panel = S.phase === 'lobby' && !S.practice ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
+  const panel = S.spectator ? 'waitPanel' : S.phase === 'lobby' && !S.practice ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
   renderPracticeBar();
   showPanel(panel);
   // On a phone the slot is one row while the rack is played; the table
@@ -3527,7 +3685,14 @@ function refreshPanels() {
     const hold = $('waitHold');
     hold.hidden = true;
     let msg, sub = '';
-    if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
+    if (S.spectator && S.phase === 'lobby') {
+      const seated = S.players.filter((p) => p.name).map((p) => `<strong>${esc(p.name)}</strong>`);
+      msg = seated.length === 2 ? `${seated.join(' and ')} are getting ready.` : seated.length ? `${seated[0]} is waiting for an opponent.` : 'Nobody is at the table yet.';
+      sub = 'You are watching. Say something in the chat.';
+    } else if (S.spectator && S.phase === 'game_over') {
+      msg = `<strong>${esc(winnerTitle())}</strong>`;
+      sub = 'You are watching.';
+    } else if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
     else if (S.practice) { msg = '<span class="muted">Setting up the table…</span>'; }
     else if (opp && opp.name && !opp.connected) {
       msg = `Waiting for <strong>${esc(opp.name)}</strong> to reconnect…`;
@@ -3554,8 +3719,10 @@ function refreshPanels() {
 // renderModes shows the room's game in the header and on the lobby and
 // game-over pickers.
 function renderModes() {
-  $('roomEyebrow').textContent = S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
-  $('leaveBtn').hidden = S.seat < 0 || S.practice;
+  $('roomEyebrow').textContent = S.spectator ? `Watching · ${MODE_NAME[S.mode]}` : S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
+  $('leaveBtn').hidden = !inRoom() || S.practice;
+  $('chatBtn').hidden = !inRoom() || S.practice;
+  document.body.classList.toggle('is-watching', S.spectator);
   document.body.classList.toggle('is-practice', S.practice && S.seat >= 0);
 }
 
@@ -4142,7 +4309,7 @@ async function createRoom(practice) {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingRace, breaks: landingBreaks }),
+      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingRace, breaks: landingBreaks, spectators: landingAudience }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
@@ -4154,6 +4321,10 @@ async function createRoom(practice) {
     showLanding(`Could not create a room: ${err.message}`);
   }
 }
+$('watchInvite').onclick = () => {
+  const name = landingName();
+  if (name) connectAndJoin($('code').value.trim().toUpperCase(), name, null, true);
+};
 $('create').onclick = () => createRoom(false);
 $('practice').onclick = () => createRoom(true);
 $('landingForm').onsubmit = (e) => {
@@ -4170,6 +4341,137 @@ $('rejoin').onclick = () => {
   $('retryTry').textContent = 'Connecting…';
   connectAndJoin(S.roomCode, S.name, S.token);
 };
+// --- chat ----------------------------------------------------------------------
+// One thread for the room, players and spectators alike (PROTOCOL.md,
+// "Spectators and chat"). The server lets each sender comment once every
+// 5 s; the Send button counts that down. While the panel is closed, new
+// comments float over the table for a moment (Settings → Chat turns that
+// off) and the button counts them.
+
+const CHAT_COOLDOWN_MS = 5000;
+const CHAT_KEEP = 50;
+let chatTicker = 0;
+
+function onChat(msg) {
+  S.chat.push(msg);
+  if (S.chat.length > CHAT_KEEP) S.chat.splice(0, S.chat.length - CHAT_KEEP);
+  appendChat(msg);
+  if ($('chatPanel').hidden) {
+    S.chatUnread++;
+    renderChatBadge();
+    chatBubble(msg);
+  }
+}
+
+// chatLine builds one comment: the sender (a player's seat dot or a
+// spectator's eye) and the text, never parsed as HTML.
+function chatLine(m) {
+  const li = document.createElement('li');
+  li.className = 'chat__line';
+  const who = document.createElement('span');
+  who.className = `chat__from chat__from--${m.seat >= 0 ? `p${m.seat}` : 'watcher'}`;
+  who.textContent = m.from;
+  const text = document.createElement('span');
+  text.className = 'chat__text';
+  text.textContent = m.text;
+  li.append(who, text);
+  return li;
+}
+function renderChat() {
+  $('chatList').replaceChildren(...S.chat.map(chatLine));
+  scrollChat();
+  renderChatHead();
+}
+function appendChat(m) {
+  $('chatList').append(chatLine(m));
+  while ($('chatList').children.length > CHAT_KEEP) $('chatList').firstElementChild.remove();
+  scrollChat();
+}
+function scrollChat() { const l = $('chatList'); l.scrollTop = l.scrollHeight; }
+function renderChatHead() {
+  const n = S.audience.names.length;
+  $('chatWho').textContent = !inRoom() || S.practice ? '' : n ? `${n} watching: ${S.audience.names.join(', ')}` : 'Nobody watching';
+}
+function renderChatBadge() {
+  const b = $('chatBadge');
+  b.hidden = !S.chatUnread;
+  b.textContent = S.chatUnread > 9 ? '9+' : String(S.chatUnread);
+  $('chatBtn').setAttribute('aria-label', S.chatUnread ? `Chat, ${S.chatUnread} new` : 'Chat');
+}
+// renderChatSend counts down the wait before the next comment.
+function renderChatSend() {
+  const left = S.chatReadyAt - performance.now();
+  const btn = $('chatSend');
+  btn.disabled = left > 0;
+  btn.textContent = left > 0 ? `${Math.ceil(left / 1000)}s` : 'Send';
+  if (left > 0 && !chatTicker) chatTicker = setInterval(renderChatSend, 200);
+  if (left <= 0 && chatTicker) { clearInterval(chatTicker); chatTicker = 0; }
+}
+function chatBubble(m) {
+  if (readSetting('pool:bubbles') === 'off') return;
+  const box = $('chatBubbles');
+  const b = document.createElement('div');
+  b.className = 'chat-bubble';
+  b.append(...chatLine(m).childNodes);
+  box.append(b);
+  while (box.children.length > 3) box.firstElementChild.remove();
+  setTimeout(() => { b.classList.add('is-leaving'); setTimeout(() => b.remove(), 200); }, 4000);
+}
+function openChat() {
+  if (!inRoom() || S.practice) return;
+  closeSheet();
+  $('chatPanel').hidden = false;
+  $('chatBtn').setAttribute('aria-expanded', 'true');
+  $('chatBubbles').replaceChildren();
+  S.chatUnread = 0;
+  renderChatBadge();
+  renderChatHead();
+  renderChatSend();
+  scrollChat();
+  $('chatInput').focus({ preventScroll: true });
+}
+function closeChat() {
+  $('chatPanel').hidden = true;
+  $('chatBtn').setAttribute('aria-expanded', 'false');
+}
+const toggleChat = () => ($('chatPanel').hidden ? openChat() : closeChat());
+$('chatBtn').onclick = toggleChat;
+$('chatClose').onclick = closeChat;
+$('chatPanel').addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeChat(); e.stopPropagation(); } });
+$('chatForm').onsubmit = (e) => {
+  e.preventDefault();
+  const text = $('chatInput').value.replace(/\s+/g, ' ').trim();
+  if (!text || performance.now() < S.chatReadyAt) return;
+  if (!send({ type: 'chat', text })) return;
+  $('chatInput').value = '';
+  S.chatReadyAt = performance.now() + CHAT_COOLDOWN_MS;
+  renderChatSend();
+};
+
+// --- spectators: how many may watch ------------------------------------------
+// The landing picker sets it for a new room (remembered); the room's picker
+// changes it for the room at once.
+let landingAudience = Number(readSetting('pool:audience') ?? 3);
+if (![0, 1, 3, 5, 10].includes(landingAudience)) landingAudience = 3;
+function setAudiencePick(seg, n) {
+  for (const b of seg.querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.n) === n));
+}
+setAudiencePick($('landingAudience'), landingAudience);
+$('landingAudience').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b) return;
+  landingAudience = Number(b.dataset.n);
+  writeSetting('pool:audience', String(landingAudience));
+  setAudiencePick($('landingAudience'), landingAudience);
+});
+function renderAudienceSetting() {
+  setAudiencePick($('roomAudience'), S.audience.max);
+}
+$('roomAudience').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (b && Number(b.dataset.n) !== S.audience.max) send({ type: 'set_audience', spectators: Number(b.dataset.n) });
+});
+
 // --- settings ----------------------------------------------------------------
 function readSetting(key) { try { return localStorage.getItem(key); } catch { return null; } }
 function writeSetting(key, value) { try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* unavailable */ } }
@@ -4241,7 +4543,9 @@ function renderRoomSettings() {
   $('roomSettings').hidden = !inRoom;
   if (!inRoom) return;
   $('settingsMatchRow').hidden = S.practice;
+  $('settingsAudienceRow').hidden = S.practice;
   $('settingsInviteRow').hidden = S.practice;
+  renderAudienceSetting();
   const locked = !S.practice && (matchLive() || !(S.phase === 'lobby' || S.phase === 'game_over'));
   setSeg($('settingsMode'), S.mode);
   for (const b of $('roomSettings').querySelectorAll('#settingsMode .seg__btn, #roomMatch button, #roomMatch input')) b.disabled = locked;
@@ -4280,7 +4584,11 @@ function renderSettings() {
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
   $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
+  $('bubblesToggle').setAttribute('aria-pressed', String(readSetting('pool:bubbles') !== 'off'));
   renderViewControls();
+  $('voiceToggle').setAttribute('aria-pressed', String(SND.voice));
+  $('strongToggle').setAttribute('aria-pressed', String(SND.strong));
+  $('strongToggle').disabled = !SND.voice;
   $('volume').value = String(Math.round(SND.volume * 100));
   $('volume').disabled = !SND.on;
 }
@@ -4308,6 +4616,11 @@ $('viewSeg').addEventListener('click', (e) => {
 $('viewBtn').onclick = () => setView(S.view === '3d' ? '2d' : '3d', true);
 $('camTopBtn').onclick = toggleCamTop;
 $('replayBtn').onclick = startReplay;
+$('bubblesToggle').onclick = () => {
+  writeSetting('pool:bubbles', readSetting('pool:bubbles') === 'off' ? null : 'off');
+  if (readSetting('pool:bubbles') === 'off') $('chatBubbles').replaceChildren();
+  renderSettings();
+};
 $('leftyToggle').onclick = () => {
   applyLefty(!S.lefty);
   writeSetting('pool:lefty', S.lefty ? '1' : null);
@@ -4318,6 +4631,16 @@ $('hapticsToggle').onclick = () => {
   S.haptics = !S.haptics;
   writeSetting('pool:haptics', S.haptics ? null : 'off');
   if (S.haptics && canVibrate) try { navigator.vibrate(15); } catch { /* not allowed */ }
+  renderSettings();
+};
+$('voiceToggle').onclick = () => {
+  SND.voice = !SND.voice;
+  writeSetting('pool:voice', SND.voice ? null : 'off');
+  renderSettings();
+};
+$('strongToggle').onclick = () => {
+  SND.strong = !SND.strong;
+  writeSetting('pool:voice:strong', SND.strong ? null : 'off');
   renderSettings();
 };
 $('volume').addEventListener('input', () => setVolume(Number($('volume').value) / 100));
@@ -4372,7 +4695,12 @@ function applyTheme(theme) {
   requestAnimationFrame(draw);
   // A reloaded tab goes straight back to its seat.
   const saved = room ? loadSession(room) : null;
-  if (saved && saved.token) {
+  if (saved && saved.watch) {
+    hideLanding();
+    showSplash(room);
+    S.spectator = true; // a failed watch is handled as a lost connection
+    connectAndJoin(room, saved.name || 'Guest', null, true);
+  } else if (saved && saved.token) {
     hideLanding();
     showSplash(room);
     S.seat = 0; // pretend we are seated so a failed join is handled as a lost connection
