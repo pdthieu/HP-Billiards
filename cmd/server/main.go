@@ -75,8 +75,9 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store")
 		fmt.Fprintln(w, "ok")
 	})
-	static := http.FileServerFS(web.Files)
+	static := gzipStatic(web.Files, http.FileServerFS(web.Files))
 	mux.Handle("GET /fonts/", immutable(static))
+	mux.Handle("GET /vendor/", immutable(static)) // versioned paths: vendor/three-r186/…
 	mux.Handle("GET /", noCache(static))
 
 	srv := &http.Server{
@@ -88,9 +89,10 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-// immutable lets browsers keep the fonts: they never change without a new
-// file name, and embed.FS gives the file server no validator to revalidate
-// with, so no-cache would mean a full download on every visit.
+// immutable lets browsers keep the fonts and the vendored libraries: they
+// never change without a new file name, and embed.FS gives the file server
+// no validator to revalidate with, so no-cache would mean a full download
+// on every visit.
 func immutable(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")

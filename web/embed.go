@@ -8,10 +8,10 @@ import (
 
 // Files is the content served at the site root: the game client
 // (index.html, app.js, the stylesheets, fonts, icons, the recorded sounds
-// and the web app manifest that lets a phone add it to the home screen)
-// and the protocol debug page.
+// and the web app manifest that lets a phone add it to the home screen),
+// the 3D library under vendor/ and the protocol debug page.
 //
-//go:embed *.html *.js *.css *.webmanifest fonts/*.woff2 icons sounds
+//go:embed *.html *.js *.css *.webmanifest fonts/*.woff2 icons sounds vendor
 var Files embed.FS
 
 func init() {
