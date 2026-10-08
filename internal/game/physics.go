@@ -208,16 +208,34 @@ func (t *Table) Shoot(angle, power float64) { t.ShootSpin(angle, power, Vec{}) }
 // disc. Top or bottom spin becomes Ball.Roll, side spin Ball.Side.
 func (t *Table) ShootSpin(angle, power float64, spin Vec) { t.ShootElevated(angle, power, spin, 0) }
 
-// MaxElevation is the steepest the cue can be raised for a jump shot, in
-// radians above the horizontal.
-const MaxElevation = 60 * math.Pi / 180
+// MaxElevation is the steepest the cue can be raised, in radians above the
+// horizontal: up to about 60° for a jump shot, steeper for a massé.
+const MaxElevation = 85 * math.Pi / 180
+
+// pinElevation is where the raised cue comes to stand over the cue ball.
+// Steeper, its follow-through keeps the ball down on the slate: the bounce
+// off the strike shrinks in proportion, to nothing at 90°.
+const pinElevation = 60 * math.Pi / 180
 
 // ShootElevated is ShootSpin with the butt of the cue raised elevation
-// radians (clamped to [0, MaxElevation]): a jump shot. The cue drives the
-// ball along its axis, so the part of the speed that goes into the slate
-// bounces the ball up off it (see land) and only the rest carries it
-// forward; the slate's friction during that bounce takes some of the
-// forward speed and turns it into roll. At 0 it is ShootSpin.
+// radians (clamped to [0, MaxElevation]): a jump shot or a massé. At 0 it
+// is ShootSpin.
+//
+// The cue drives the ball along its axis, so the part of the speed that
+// goes into the slate bounces the ball up off it (see land, and
+// pinElevation past 60°) and only the rest carries it forward; the slate's
+// friction during that bounce takes some of the forward speed and turns it
+// into roll.
+//
+// The tip offset is taken square to the cue, so its spin tilts with it: top
+// or bottom spin still turns the ball about the horizontal axis across the
+// shot, but side spin turns it about the cue's own axis, which is upright
+// for a raised cue. The upright part is english (Spin); the part along the
+// shot rolls the ball sideways (Roll across Vel). The cloth's friction on
+// that sideways slip curves the ball toward the side the tip struck, along
+// a parabola, until it rolls: a massé. Left to the cloth rather than spent
+// in the strike's bounce, the curve keeps the shape high-speed video shows
+// (Alciatore) instead of a kink at the cue ball.
 func (t *Table) ShootElevated(angle, power float64, spin Vec, elevation float64) {
 	power = math.Max(0, math.Min(1, power))
 	speed := power * t.Cfg.MaxCueSpeed
@@ -229,12 +247,20 @@ func (t *Table) ShootElevated(angle, power float64, spin Vec, elevation float64)
 	t.ClearEvents()
 	cue := &t.Balls[CueBall]
 	dir := Vec{math.Cos(angle), math.Sin(angle)}
+	right := Vec{-dir.Y, dir.X} // as the shooter sees it
+	k := 2.5 * t.Cfg.TipOffset
 	cue.Vel = dir.Scale(ahead)
-	cue.Roll = dir.Scale(2.5 * t.Cfg.TipOffset * spin.Y * ahead)
-	cue.Spin = -2.5 * t.Cfg.TipOffset * spin.X * ahead // tip right of centre: clockwise from above
+	cue.Roll = dir.Scale(k * spin.Y * speed)
+	cue.Spin = -k * spin.X * ahead // tip right of centre: clockwise from above
 	if down > 0 {
 		t.land(cue, down)
+		if elevation > pinElevation {
+			if cue.VZ *= (math.Pi/2 - elevation) / (math.Pi/2 - pinElevation); cue.VZ < hopStop {
+				cue.VZ = 0
+			}
+		}
 	}
+	cue.Roll = cue.Roll.Add(right.Scale(k * spin.X * down))
 }
 
 // Settled reports whether every ball on the table is at rest: neither

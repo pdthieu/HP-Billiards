@@ -183,7 +183,7 @@ const S = {
   angle: 0,
   power: 0.3,            // fraction of MAX_CUE_SPEED sent with the shot; the bar maps to it quadratically
   spin: { x: 0, y: 0 },  // cue tip offset, unit disc; y > 0 is top spin
-  elev: 0,               // cue elevation in whole degrees, 0 (level) to ELEV_MAX: raised, the cue ball jumps
+  elev: 0,               // cue elevation in whole degrees, 0 (level) to ELEV_MAX: raised, the cue ball jumps; steep, with english, it curves
   powerDrag: false,      // the power bar is being pulled
   powerBefore: 0.3,      // power before the current pull, restored on cancel
   lastPower: 0,          // power of the last shot, shown faintly in the bar
@@ -911,10 +911,19 @@ function lowestBall() {
   return low;
 }
 
-// Jump shots, as the server works them out (Table.ShootElevated, land):
-// mirrors of game.DefaultConfig.
+// Jump shots and massés, as the server works them out (Table.ShootElevated,
+// land, integrate): mirrors of game.DefaultConfig.
 const SLATE_E = 0.5, CLOTH_MU = 0.2, TIP_OFFSET = 0.5, GRAVITY = 9.81;
 const NOSE_H = 2 * R * 0.635; // the cushion nose above the slate: a ball whose bottom is higher flies over
+const PIN_ELEV = 60 * DEG;    // steeper, the cue's follow-through keeps the ball down (game.pinElevation)
+
+// strikeBounce is how fast a cue raised elev (radians) sends the cue ball up
+// off the slate when it drives it down at down m/s.
+function strikeBounce(elev, down) {
+  let vz = SLATE_E * down;
+  if (elev > PIN_ELEV) vz *= (Math.PI / 2 - elev) / (Math.PI / 2 - PIN_ELEV);
+  return vz < 0.1 ? 0 : vz;
+}
 
 // jumpFlight predicts the cue ball's first hop off a raised cue: its speed
 // along the table once it has bounced off the slate, how fast it rises, and
@@ -925,12 +934,58 @@ function jumpFlight(power, spinY, elev) {
   if (!elev) return null;
   const speed = power * MAX_CUE_SPEED;
   const ahead = speed * Math.cos(elev), down = speed * Math.sin(elev);
-  const slip = ahead * (1 - 2.5 * TIP_OFFSET * spinY);
+  const slip = ahead - 2.5 * TIP_OFFSET * spinY * speed;
   const v = ahead - Math.sign(slip) * 2 / 7 * Math.min(Math.abs(slip), 3.5 * CLOTH_MU * (1 + SLATE_E) * down);
-  const vz = SLATE_E * down;
-  if (vz < 0.1 || v <= 1e-3) return null;
+  const vz = strikeBounce(elev, down);
+  if (!vz || v <= 1e-3) return null;
   const land = v * 2 * vz / GRAVITY;
   return { land, z: (s) => (s >= land ? 0 : vz * (s / v) - GRAVITY / 2 * (s / v) ** 2) };
+}
+
+// massePath follows a cue ball struck with english off a raised cue, which
+// curves toward the english until it rolls (a massé). It steps the cue
+// ball alone as the server does and returns its course in the shot's frame
+// (s along the aim, l to the shooter's right, z its height) up to where it
+// rolls, the direction it then rolls on (dir, also in that frame), and
+// whether that is still moving. null when the shot would not curve.
+function massePath(power, spin, elev) {
+  if (!elev || !spin.x || !power) return null;
+  const k = 2.5 * TIP_OFFSET;
+  const speed = power * MAX_CUE_SPEED;
+  const ahead = speed * Math.cos(elev), down = speed * Math.sin(elev);
+  const b = { s: 0, l: 0, z: 0, vs: ahead, vl: 0, rs: k * spin.y * speed, rl: 0, vz: 0 };
+  // slide closes up to d of the slip between speed and roll, as cloth
+  // friction does (integrate, land)
+  const slide = (d) => {
+    const ss = b.vs - b.rs, sl = b.vl - b.rl, n = Math.hypot(ss, sl);
+    if (!n) return;
+    d = Math.min(n, d);
+    b.vs -= ss / n * 2 / 7 * d; b.vl -= sl / n * 2 / 7 * d;
+    if (d === n) { b.rs = b.vs; b.rl = b.vl; } else { b.rs += ss / n * 5 / 7 * d; b.rl += sl / n * 5 / 7 * d; }
+  };
+  const land = (vn) => {
+    slide(3.5 * CLOTH_MU * (1 + SLATE_E) * vn);
+    b.z = 0; b.vz = SLATE_E * vn < 0.1 ? 0 : SLATE_E * vn;
+  };
+  if (down > 0) { slide(3.5 * CLOTH_MU * (1 + SLATE_E) * down); b.vz = strikeBounce(elev, down); }
+  b.rl = k * spin.x * down;
+  const dt = 1 / 600;
+  const pts = [{ s: 0, l: 0, z: 0 }];
+  for (let i = 0; i < 6 / dt; i++) {
+    if (b.z > 0 || b.vz) {
+      b.s += b.vs * dt; b.l += b.vl * dt;
+      b.z += b.vz * dt - GRAVITY / 2 * dt * dt;
+      b.vz -= GRAVITY * dt;
+      if (b.z <= 0) land(-b.vz);
+    } else {
+      if (b.vs === b.rs && b.vl === b.rl) break;
+      slide(3.5 * CLOTH_MU * GRAVITY * dt);
+      b.s += b.vs * dt; b.l += b.vl * dt;
+    }
+    pts.push({ s: b.s, l: b.l, z: b.z });
+  }
+  const v = Math.hypot(b.vs, b.vl);
+  return { pts, dir: v ? { s: b.vs / v, l: b.vl / v } : null };
 }
 
 // castAim finds where the cue ball, sent along angle, first touches a ball or
@@ -986,6 +1041,54 @@ function castAim(balls, cue, angle, flight) {
     cueDir = cl > 1e-6 ? { x: cueDir.x / cl, y: cueDir.y / cl } : null;
   }
   return { ghost, hit, dir: d, objDir, cueDir, land, offTable, flight: !!flight };
+}
+
+// castMasse is castAim along a massé's curve (massePath): where the cue
+// ball first touches a ball or a cushion, the curve up to there (curve, in
+// table metres, each point with its height) and, once it rolls straight,
+// the rest as castAim finds it. dir is the way the cue ball is going when
+// it gets there.
+function castMasse(balls, cue, angle, path) {
+  const d = { x: Math.cos(angle), y: Math.sin(angle) }, r = { x: -d.y, y: d.x };
+  const at = (p) => ({ x: cue.x + d.x * p.s + r.x * p.l, y: cue.y + d.y * p.s + r.y * p.l, z: p.z });
+  const curve = [at(path.pts[0])];
+  let land = null;
+  const touches = (p, b) => (p.x - b.x) ** 2 + (p.y - b.y) ** 2 + p.z * p.z < 4 * R * R;
+  const off = (p) => p.x < R || p.x > W - R || p.y < R || p.y > H - R;
+  for (let i = 1; i < path.pts.length; i++) {
+    const a = curve[curve.length - 1], p = at(path.pts[i]);
+    if (!land && a.z > 0 && p.z <= 0) land = { x: p.x, y: p.y };
+    let hit = null;
+    for (const [id, b] of balls) if (id !== 0 && touches(p, b)) { hit = id; break; }
+    if (hit === null && !off(p)) { curve.push(p); continue; }
+    // between a and p: halve down to where it first touches
+    const mix = (f) => ({ x: a.x + (p.x - a.x) * f, y: a.y + (p.y - a.y) * f, z: a.z + (p.z - a.z) * f });
+    const hits = (q) => (hit !== null ? touches(q, balls.get(hit)) : off(q));
+    let lo = 0, hi = 1;
+    for (let n = 0; n < 12; n++) { const m = (lo + hi) / 2; if (hits(mix(m))) hi = m; else lo = m; }
+    const ghost = mix(lo);
+    curve.push(ghost);
+    const len = Math.hypot(p.x - a.x, p.y - a.y) || 1;
+    const dir = { x: (p.x - a.x) / len, y: (p.y - a.y) / len };
+    const offTable = hit === null && ghost.z >= NOSE_H;
+    let objDir = null, cueDir = null;
+    if (hit !== null) {
+      const b = balls.get(hit);
+      const n = { x: b.x - ghost.x, y: b.y - ghost.y };
+      const nl = Math.hypot(n.x, n.y) || 1;
+      objDir = { x: n.x / nl, y: n.y / nl };
+      const dot = dir.x * objDir.x + dir.y * objDir.y;
+      cueDir = { x: dir.x - dot * objDir.x, y: dir.y - dot * objDir.y };
+      const cl = Math.hypot(cueDir.x, cueDir.y);
+      cueDir = cl > 1e-6 ? { x: cueDir.x / cl, y: cueDir.y / cl } : null;
+    }
+    return { ghost: { x: ghost.x, y: ghost.y }, hit, dir, objDir, cueDir, land, offTable, flight: true, curve, onCurve: true };
+  }
+  const end = curve[curve.length - 1];
+  if (!path.dir) return { ghost: { x: end.x, y: end.y }, hit: null, dir: d, objDir: null, cueDir: null, land, offTable: false, flight: true, curve, onCurve: true };
+  // rolling straight from here on
+  const rest = castAim(balls, end, Math.atan2(d.y * path.dir.s + r.y * path.dir.l, d.x * path.dir.s + r.x * path.dir.l), null);
+  return { ...rest, land, flight: true, curve };
 }
 
 function canShoot() {
@@ -1261,11 +1364,13 @@ $('spinReset').onclick = () => setSpin(0, 0, true);
 // --- jump: how far the butt of the cue is raised ---------------------------
 //
 // A raised cue drives the cue ball down into the slate and it bounces up off
-// it: a jump shot (the server's Table.ShootElevated). The slider sets the
-// angle above the horizontal; the cue in the picture beside it tilts to
-// match. Every new turn starts level.
+// it: a jump shot (the server's Table.ShootElevated). Stood up past
+// PIN_ELEV the cue keeps the ball down instead, and with english the ball
+// curves: a massé, which the label then names. The slider sets the angle
+// above the horizontal; the cue in the picture beside it tilts to match.
+// Every new turn starts level.
 
-const ELEV_MAX = 60; // degrees; mirrors game.MaxElevation
+const ELEV_MAX = 85; // degrees; mirrors game.MaxElevation
 const elevRange = $('elevRange');
 const elevBox = document.querySelector('#shotPanel .elev');
 
@@ -1276,6 +1381,7 @@ function setElev(deg) {
   elevRange.value = String(v);
   elevRange.setAttribute('aria-valuetext', v ? `${v} degrees` : 'level');
   $('elevText').textContent = v ? `${v}°` : 'level';
+  $('elevLabel').textContent = v > Math.round(PIN_ELEV / DEG) ? 'Massé' : 'Jump';
   $('elevCue').style.transform = `rotate(${v}deg)`;
   elevBox.classList.toggle('elev--on', v > 0);
   renderOptsBtn();
@@ -2596,14 +2702,25 @@ function drawCue(cue, dir, back, alpha, elev = 0) {
 // is red, with no ghost ball.
 function aimGuide(balls, cue, aim) {
   const { angle, mine } = aim;
-  const flight = jumpFlight(aim.power, mine ? S.spin.y : 0, aim.elev || 0);
-  const cast = castAim(balls, cue, angle, flight);
+  const path = mine ? massePath(aim.power, S.spin, aim.elev || 0) : null;
+  const flight = path ? null : jumpFlight(aim.power, mine ? S.spin.y : 0, aim.elev || 0);
+  const cast = path ? castMasse(balls, cue, angle, path) : castAim(balls, cue, angle, flight);
   const d = cast.dir;
   const line = cast.offTable ? PAL.warn : mine ? '#FFFFFF' : PAL.oppAim;
   const brass = mine ? PAL.brassLine : PAL.oppAim;
   const end = { x: cast.ghost.x - d.x * R, y: cast.ghost.y - d.y * R };
   const lines = [];
-  if (flight) {
+  if (cast.curve) {
+    // a massé: the curve, then straight on once the cue ball rolls
+    const c = cast.curve;
+    let len = 0;
+    for (let i = 1; i < c.length; i++) len += Math.hypot(c[i].x - c[i - 1].x, c[i].y - c[i - 1].y);
+    lines.push(...curveLines(c, R, cast.onCurve ? len - R : len, line));
+    const last = c[c.length - 1];
+    if (!cast.onCurve && Math.hypot(end.x - last.x, end.y - last.y) > 1e-4) {
+      lines.push({ a: { x: last.x, y: last.y }, b: end, w: 0.003, color: line, alpha: 0.78, dash: [0.020, 0.014] });
+    }
+  } else if (flight) {
     // dotted while the ball is in the air, then dashed as usual
     const up = cast.land || end;
     lines.push({ a: { x: cue.x + d.x * R, y: cue.y + d.y * R }, b: up, w: 0.003, color: line, alpha: 0.78, dash: [0.004, 0.012] });
@@ -2651,6 +2768,28 @@ function aimGuide(balls, cue, aim) {
     }
   }
   return { cast, lines, marks, ghost: { x: cast.ghost.x, y: cast.ghost.y, color: line }, alpha: mine ? 1 : 0.5 };
+}
+
+// curveLines lays the stretch of pts ({x, y, z}, table metres) from arc
+// length from to to out as guide lines, dashed on the cloth and dotted in
+// the air as a straight path is. The dashes follow the curve, so each one
+// is a line of its own.
+function curveLines(pts, from, to, color) {
+  const lines = [];
+  for (let i = 1, s = 0; i < pts.length && s < to; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    const [on, gap] = a.z > 0 ? [0.004, 0.012] : [0.020, 0.014];
+    const at = (u) => ({ x: a.x + (b.x - a.x) * u / len, y: a.y + (b.y - a.y) * u / len });
+    for (let u = Math.max(0, from - s), stop = Math.min(len, to - s); u < stop;) {
+      const ph = (s + u - from) % (on + gap);
+      const next = Math.min(stop, u + (ph < on - 1e-9 ? on : on + gap) - ph);
+      if (ph < on - 1e-9) lines.push({ a: at(u), b: at(next), w: 0.003, color, alpha: 0.78 });
+      u = next;
+    }
+    s += len;
+  }
+  return lines;
 }
 
 // drawAim draws the guide on the 2D table and returns its cast.

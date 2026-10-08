@@ -128,6 +128,23 @@ async function shootAndSettle(page, angle, power) {
     await A.waitForFunction(() => S.undos === 0);
     console.log('jump ok, the cue ball rose', flew.z.toFixed(3), 'm');
 
+    // Massé: past 60° the slider reads Massé; with right english the guide
+    // curves right round the blocker and the cue ball follows it.
+    await A.evaluate(() => { send({ type: 'place_cue', x: 0.6, y: 0.3 }); send({ type: 'place_ball', id: 3, x: 0.75, y: 0.3 }); send({ type: 'place_ball', id: 5, x: 0.9, y: 0.75 }); });
+    await A.waitForFunction(() => S.balls.get(0).x === 0.6 && S.balls.get(3).x === 0.75 && S.balls.get(5).x === 0.9, null, { timeout: 5000 });
+    const masse = await A.evaluate(() => {
+      setAngle(0); setPower(0.4); setSpin(1, 0); setElev(80);
+      const g = aimGuide(S.balls, S.balls.get(0), { angle: 0, power: 0.4, elev: S.elev * DEG, mine: true });
+      return { label: document.getElementById('elevLabel').textContent, hit: g.cast.hit, curve: !!g.cast.curve };
+    });
+    if (masse.label !== 'Massé' || masse.hit !== 5 || !masse.curve) fail(`massé aim ${JSON.stringify(masse)}`);
+    await shootAndSettle(A, 0, 0.4);
+    const curved = await A.evaluate(() => ({ three: [S.balls.get(3).x, S.balls.get(3).y], five: [S.balls.get(5).x, S.balls.get(5).y], label: document.getElementById('elevLabel').textContent }));
+    if (!near(curved.three, [0.75, 0.3]) || near(curved.five, [0.9, 0.75]) || curved.label !== 'Jump') fail(`massé shot ${JSON.stringify(curved)}`);
+    await A.keyboard.press('z');
+    await A.waitForFunction(() => S.undos === 0);
+    console.log('massé ok');
+
     // Rack a 9-ball game from Settings; no match or invite there in practice.
     await A.click('#settingsBtn');
     if (await A.isVisible('#settingsMatchRow') || await A.isVisible('#settingsInviteRow')) fail('match or invite settings in practice');

@@ -27,7 +27,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `join` | `roomCode`, `name`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
 | `aim` | `angle`, `power`, `elevation?` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
-| `shoot` | `angle`, `power`, `call?`, `spin?`, `elevation?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. `elevation` is how far the butt of the cue is raised, in radians above the horizontal, clamped to [0, π/3]; omitted or 0 is a level cue (see Jump shots). |
+| `shoot` | `angle`, `power`, `call?`, `spin?`, `elevation?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. `elevation` is how far the butt of the cue is raised, in radians above the horizontal, clamped to [0, 85°]; omitted or 0 is a level cue (see Jump shots and Massé). |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts the next rack of the match, or a new match once it is won (see Matches). |
@@ -48,8 +48,8 @@ The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket":
 - A shooter whose target is the 8-ball must send a `pocket` (0–5) unless the shot is a safety; otherwise the shot is refused with `bad_call`. A pocket sent on any other shot is ignored.
 - The shooter keeps the turn if a ball that counts for them drops on a shot without a foul. After a safety the turn always passes and whatever dropped stays down.
 - Pocketing the 8-ball wins only when it was the shooter's legal target, it dropped in the called pocket and the shot was not a foul and not a safety; in every other case it loses the game.
-- Balls slide, then roll: a ball keeps 5⁄7 of its speed once cloth friction has matched its spin to its velocity, and only then slows gently under rolling friction. Top/bottom spin sets the cue ball's initial roll, so follow and draw come out of the same model (a cue ball with draw slides on its back spin and comes back after a full hit; the longer the shot, the less draw is left). Cushions rebound the normal speed with a restitution of 0.78 that falls off for hard hits (a rolling ball comes back with about half its speed), and their nose has friction: it scrubs off the roll into the rail (a rolling ball dies after a rail), takes speed off an oblique rebound, and turns side spin into a throw along the rail (right english → toward the shooter's right), spending part of the spin. Side spin otherwise fades with the distance rolled. There is no squirt, swerve or throw off object balls.
-- Jump shots: see below.
+- Balls slide, then roll: a ball keeps 5⁄7 of its speed once cloth friction has matched its spin to its velocity, and only then slows gently under rolling friction. Top/bottom spin sets the cue ball's initial roll, so follow and draw come out of the same model (a cue ball with draw slides on its back spin and comes back after a full hit; the longer the shot, the less draw is left). Cushions rebound the normal speed with a restitution of 0.78 that falls off for hard hits (a rolling ball comes back with about half its speed), and their nose has friction: it scrubs off the roll into the rail (a rolling ball dies after a rail), takes speed off an oblique rebound, and turns side spin into a throw along the rail (right english → toward the shooter's right), spending part of the spin. Side spin otherwise fades with the distance rolled. There is no squirt or throw off object balls; a raised cue with english curves the cue ball (see Massé).
+- Jump shots and massés: see below.
 
 ## Jump shots
 
@@ -72,6 +72,13 @@ A shot with an `elevation` drives the cue ball along the cue, partly down into t
 | `take_shot` | 9-ball push out | The chooser shoots from where the balls lie. |
 | `pass_back` | 9-ball push out | The player who pushed out shoots again. |
 
+
+## Massé
+
+The tip offset in `spin` is taken square to the cue, so on a raised cue it tilts with it. Top and bottom spin still turn the cue ball about the horizontal axis across the shot (with the cue's full speed, not only the part along the table). English turns it about the cue's own axis: the upright part of that is side spin as on a level cue, and the part along the shot rolls the ball sideways. The cloth's friction on that sideways slip curves the cue ball, along a parabola, toward the side the tip struck (right english → to the shooter's right) until it rolls, and it then runs straight. The steeper the cue and the more english, the sharper the curve: at 80° with full right english and 40 % power the cue ball turns about 70° and goes round a ball 15 cm in front of it.
+
+- Past 60° the cue stands over the cue ball and its follow-through keeps it down: the bounce off the strike shrinks in proportion, to nothing at 90°. A full-power massé at 85° hops about 2 cm.
+- A level cue's english does not curve the ball.
 ## Practice
 
 A practice room (`POST /api/rooms` with `"practice": true`) is private: it is not in the room list and a second `join` gets `room_full` (the player's own token still reconnects). It is free play, without the rules of the game; the game (`mode`) only decides the rack.

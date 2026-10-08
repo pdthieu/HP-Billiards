@@ -37,6 +37,10 @@ Mục tiêu: bàn không còn "câm". Không đổi server.
    (độ cao `z`), nảy trên mặt đá, bay qua bi và băng; bi văng khỏi bàn là
    lỗi `off_table` theo WPA (bi 8 thua, trừ khi phá; bi 9 đặt lại). Xem
    PROTOCOL.md, mục *Jump shots*.
+7. ~~**Massé**~~ Đã làm (10/2026): thanh nâng cơ lên tới 85° (nhãn đổi thành
+   *Massé* khi quá 60°); xoáy ngang với cơ dựng làm bi cong dần về phía bên
+   đánh rồi lăn thẳng; quá 60° cú đi theo của cơ giữ bi trên mặt đá. Đường
+   ngắm vẽ cả đoạn cong (`massePath`). Xem PROTOCOL.md, mục *Massé*.
 
 Xong khi: chơi một ván trên điện thoại có đủ tiếng và rung; tắt tiếng được;
 `go test ./web` kiểm tra file âm thanh được nhúng.

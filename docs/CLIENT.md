@@ -190,7 +190,8 @@ The tray row is hidden to make room.
      of fixed size, with "at limit" on a line of its own that keeps its
      place while hidden, so nothing around them moves as the dot does.
    - *Jump*: the slider beside the spin raises the butt of the cue, 0°
-     (level) to 60°, and the cue in the picture beside it tilts to match;
+     (level) to 85°, and the cue in the picture beside it tilts to match;
+     past 60° the label reads *Massé*;
      `J` raises it 5°, Shift+`J` lowers it. Sent as `elevation` (radians)
      with the shot and the aim, and every new turn starts level. Below
      1200 px it is an upright slider without the picture. The guide follows
@@ -201,6 +202,13 @@ The tray row is hidden to make room.
      ends past the rail with no ghost ball: the cue ball would leave the
      table. Later, lower hops are not predicted. On the table a raised cue
      looks shorter from above.
+   - *Massé*: with english on a raised cue the guide follows the curve
+     (`massePath` steps the cue ball as the server does, `castMasse` casts
+     along it, and `castAim` takes over once it rolls straight): dashed on
+     the cloth, dotted in the air, and the ghost ball, the object ball's
+     line and the cue ball's deflection where the curve meets a ball. The
+     opponent's spin is not relayed, so their preview of a massé is
+     straight.
    - Hovering a ball with the mouse shows its number and group above it; on
      touch the label shows for 1.5 s after a tap.
    - The panel slot and the status line have fixed heights, so the table
