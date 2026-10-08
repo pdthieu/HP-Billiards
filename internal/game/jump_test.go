@@ -143,6 +143,24 @@ func TestBallFliesOffTheTable(t *testing.T) {
 	}
 }
 
+func TestBallFlyingOverAPocketIsOffTheTable(t *testing.T) {
+	cfg := DefaultConfig()
+	// Straight over the side pocket: hard, it clears the pocket and comes
+	// down beyond the table; gently, it drops in.
+	for _, c := range []struct {
+		power float64
+		want  EventKind
+	}{{1, BallOffTable}, {0.6, BallOffTable}, {0.3, BallPocketed}} {
+		tb := emptyTable(cfg)
+		tb.place(CueBall, Vec{cfg.TableWidth / 2, 0.4}, Vec{})
+		tb.ShootElevated(-math.Pi/2, c.power, Vec{}, 45*deg)
+		fly(t, tb, CueBall)
+		if len(tb.Events) != 1 || tb.Events[0].Kind != c.want {
+			t.Errorf("power %.1f: events %v, want %v", c.power, tb.Events, c.want)
+		}
+	}
+}
+
 func TestLowFlyingBallHitsTheCushion(t *testing.T) {
 	cfg := DefaultConfig()
 	tb := emptyTable(cfg)

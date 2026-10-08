@@ -19,6 +19,8 @@ const HEAD = W / 4;        // head string; the kitchen is x <= HEAD
 const FOOT = { x: W * 3 / 4, y: H / 2 };
 const RAIL = 0.1;          // drawn wooden rail width beyond the cushions
 const CUSHION = 0.045;     // drawn cushion depth behind the nose line
+const RAIL_TOP = 0.044;    // the rail's top above the bed in 3D (view3d.js RAIL_H)
+const FLOOR_DROP = 0.78;   // the floor below the bed in 3D (view3d.js FLOOR)
 // Pocket geometry, WPA equipment specification; keep in sync with
 // game.DefaultConfig on the server.
 const INCH = 0.0254;
@@ -1627,7 +1629,7 @@ function startDrop(id, from) {
   if (offTheBed(from) && d > hole.r + 2 * R) {
     const cx = Math.max(0, Math.min(W, from.x)), cy = Math.max(0, Math.min(H, from.y));
     const l = Math.hypot(from.x - cx, from.y - cy) || 1;
-    addFx({ type: 'gone', layer: 'balls', dur: v3 ? 360 : 240, id, from, dir: { x: (from.x - cx) / l, y: (from.y - cy) / l } });
+    addFx({ type: 'gone', layer: 'balls', dur: v3 ? 600 : 240, id, from, out: l, dir: { x: (from.x - cx) / l, y: (from.y - cy) / l } });
     return;
   }
   addFx({ type: 'drop', layer: 'balls', dur: v3 ? 360 : 180, id, from, to: hole });
@@ -2147,9 +2149,14 @@ function draw3d(now, balls, st) {
     const e = EASE.out(p);
     if (f.type === 'strike') stick = { ...f.cue, dir: f.dir, ...strikePose(f.power, p, f.dur), elev: f.elev };
     else if (f.type === 'gone') {
-      // over the rail and down past it
-      const fall = EASE.in(p);
-      drops.push({ id: f.id, x: f.from.x + f.dir.x * 0.06 * fall, y: f.from.y + f.dir.y * 0.06 * fall, sink: 0.12 * fall - (f.from.z || 0), alpha: p < 1 ? 1 : 0 });
+      // A ball last seen over the rail comes down onto it and rolls off its
+      // outer edge; then, clear of the table, it falls to the floor.
+      const roll = Math.max(0, RAIL + R - f.out), a = roll ? 0.35 : 0;
+      const q = a ? clamp01(p / a) : 1, fall = a < 1 ? clamp01((p - a) / (1 - a)) : 1;
+      const z0 = f.from.z || 0, top = roll ? RAIL_TOP : z0;
+      const z = q < 1 ? z0 + (top - z0) * EASE.out(q) : top - (top + FLOOR_DROP) * fall * fall;
+      const go = roll * EASE.inout(q) + 0.15 * fall;
+      drops.push({ id: f.id, x: f.from.x + f.dir.x * go, y: f.from.y + f.dir.y * go, sink: -z, alpha: p < 1 ? 1 : 0 });
     }
     else if (f.type === 'ring') rings.push({ x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
     else if (f.type === 'rim') { const h = pocketHole(f.pk); rings.push({ x: h.x, y: h.y, r: h.r, w: 0.006, color: PAL.flash, alpha: 0.5 * (1 - e) }); }

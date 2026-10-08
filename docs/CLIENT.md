@@ -531,7 +531,8 @@ moved in practice).
   the two surrounding snapshots. A ball missing from the later snapshot stays
   at its earlier position until that snapshot's time passes, then disappears:
   into the nearest pocket, or, last seen past a cushion and away from every
-  pocket, off the table (it fades out beyond the rail).
+  pocket, off the table (in 2D it fades out beyond the rail; in 3D it
+  comes down onto the rail, rolls off its outer edge and falls to the floor).
   `settled` replaces everything with exact positions. After a reconnect in
   the middle of a shot the clock is re-aligned to the first snapshot received.
 - A ball in the air (`z` in the snapshots, interpolated like `x` and `y`)

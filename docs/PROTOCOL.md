@@ -57,7 +57,7 @@ A shot with an `elevation` drives the cue ball along the cue, partly down into t
 
 - A ball in the air flies free of the cloth under gravity, keeps its spin and bounces each time it comes down, lower every time, until it rolls.
 - It passes over balls it is clear of. Balls meet in three dimensions: one that comes down on another drives that ball into the slate, which bounces it, and goes back up itself.
-- A ball lower than the cushion nose (63.5 % of a ball's height) bounces off the cushions as usual; a higher one flies over them and leaves the table (`BallOffTable`, `offTable` in `settled`) once it is lower than the nose again, on the rail or past it. A ball in the air drops into a pocket it is over once it is lower than a ball's height.
+- A ball lower than the cushion nose (63.5 % of a ball's height) bounces off the cushions as usual; a higher one flies over them and leaves the table (`BallOffTable`, `offTable` in `settled`) once it is lower than the nose again, on the rail or past it. A ball in the air drops into a pocket whose hole it is over (no more than a mouth's width past the shelf) once it is lower than a ball's height; further out it has flown over the pocket and is off the table like any other.
 - A ball off the table is a foul, `off_table`, whatever else happened. The cue ball comes back as after a scratch. An object ball stays off (it counts as down), except: the 8-ball, which loses the game (`end` `eight_off`), but on the break is spotted; and the 9-ball, which is spotted. In practice a ball off the table stays off, and a cue ball comes back on the head spot.
 
 `option` values:

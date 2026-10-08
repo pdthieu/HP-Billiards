@@ -423,6 +423,10 @@ func (t *Table) dropZone(pos Vec) int {
 	return -1
 }
 
+// pastHole reports whether pos is beyond the back of p's hole, a mouth's
+// width past the shelf: a ball in the air there has flown over the pocket.
+func (p pocket) pastHole(pos Vec) bool { return pos.Sub(p.mouth).Dot(p.axis) > p.shelf+2*p.half }
+
 // overBed reports whether a ball centred on pos is above the playing surface
 // or a pocket opening, rather than above a cushion or off the table.
 func (t *Table) overBed(pos Vec) bool {
@@ -432,7 +436,7 @@ func (t *Table) overBed(pos Vec) bool {
 	r := t.Cfg.BallRadius
 	for _, p := range t.pockets {
 		rel := pos.Sub(p.mouth)
-		if rel.Dot(p.axis) > -r && math.Abs(rel.X*p.axis.Y-rel.Y*p.axis.X) <= p.half+r {
+		if rel.Dot(p.axis) > -r && !p.pastHole(pos) && math.Abs(rel.X*p.axis.Y-rel.Y*p.axis.X) <= p.half+r {
 			return true
 		}
 	}
@@ -460,8 +464,9 @@ func (t *Table) pocketAt(pos Vec) int {
 }
 
 // capturePockets drops the balls over a pocket and takes off the table the
-// ones that flew over a cushion. A ball in the air falls into a pocket it is
-// over once it is lower than a ball's height; one that has cleared a cushion
+// ones that flew over a cushion. A ball in the air falls into a pocket whose
+// hole it is over once it is lower than a ball's height (past the hole it
+// flew over the pocket); one that has cleared a cushion
 // is off the table as soon as it is lower than the cushion's nose, whether
 // it came down on the rail or beyond it.
 func (t *Table) capturePockets() {
@@ -471,7 +476,7 @@ func (t *Table) capturePockets() {
 			continue
 		}
 		if b.Airborne() {
-			if n := t.dropZone(b.Pos); n >= 0 && b.Z < 2*t.Cfg.BallRadius {
+			if n := t.dropZone(b.Pos); n >= 0 && !t.pockets[n].pastHole(b.Pos) && b.Z < 2*t.Cfg.BallRadius {
 				t.impact(ImpactPocket, b.Vel.Len())
 				t.pocket(b, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 			} else if !t.overBed(b.Pos) && b.Z < t.Cfg.noseHeight() {
