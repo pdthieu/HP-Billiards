@@ -280,6 +280,32 @@ function stubs() {
     await Q.close();
     console.log('pace ok');
 
+    // Graphics in Settings, on a 3x phone: Medium draws at 2x, Low at 1x and
+    // about 30 frames a second, and the choice is kept.
+    const G = await mk({ viewport: { width: 393, height: 670 }, deviceScaleFactor: 3, hasTouch: true, isMobile: true });
+    await practice(G);
+    if (await G.evaluate(() => view.dpr) !== 3) fail(`auto pixel ratio ${await G.evaluate(() => view.dpr)}`);
+    await G.click('#settingsBtn');
+    await G.click('#qualitySeg [data-quality="medium"]');
+    if (await G.evaluate(() => view.dpr) !== 2) fail(`medium pixel ratio ${await G.evaluate(() => view.dpr)}`);
+    await G.click('#qualitySeg [data-quality="low"]');
+    if (await G.evaluate(() => view.dpr) !== 1) fail(`low pixel ratio ${await G.evaluate(() => view.dpr)}`);
+    if (!(await G.textContent('#qualityNote')).includes('30 frames')) fail('no note for Low');
+    await G.click('#settingsClose');
+    const lowFrames = await G.evaluate(() => new Promise((done) => {
+      rest.hotUntil = Infinity;
+      let n = 0;
+      const real = drawLoupe;
+      drawLoupe = (...a) => { n++; return real(...a); };
+      setTimeout(() => { drawLoupe = real; done(n); }, 1000);
+    }));
+    if (lowFrames < 24 || lowFrames > 36) fail(`low drew ${lowFrames} frames in a second`);
+    await G.reload();
+    await G.waitForFunction(() => S.phase === 'open' && view.cssW > 0);
+    if (await G.evaluate(() => [S.quality, view.dpr].join()) !== 'low,1') fail(`after a reload ${await G.evaluate(() => [S.quality, view.dpr].join())}`);
+    await G.close();
+    console.log(`graphics levels ok (${lowFrames} frames a second on Low)`);
+
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);
     console.log('OK');
   } finally {

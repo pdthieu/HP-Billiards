@@ -17,6 +17,15 @@ const CUE_TILT = 6 * Math.PI / 180;
 // past a frame on a 120 Hz screen now and then; the antialiasing already
 // smooths the edges a higher ratio would.
 const MAX_PIXELS = 3.5e6;
+// LEVELS: what each Graphics choice in Settings gives: the most pixel ratio,
+// the most pixels, the shadow maps' size and whether shadows are soft.
+// 'auto' is checkSpeed's starting point; the others stay as they are.
+const LEVELS = {
+  auto: { ratio: 2, pixels: MAX_PIXELS, shadow: 1024, soft: true },
+  high: { ratio: 2, pixels: 8.3e6, shadow: 2048, soft: true },
+  medium: { ratio: 1.5, pixels: 2.5e6, shadow: 1024, soft: true },
+  low: { ratio: 1, pixels: 2e6, shadow: 512, soft: false },
+};
 const WARMUP = 10; // frames before checkSpeed starts counting
 const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 
@@ -25,7 +34,7 @@ const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 //   W, H, R, RAIL, CUSHION, HEAD, cushions (TABLE.cushions), holes ({x, y, r}
 //   per pocket), felt (a canvas of the 2D table from above, RAIL beyond the
 //   cushions on every side), colors, ballColors, cueSegments, cueLength,
-//   reduceMotion() and onLost().
+//   reduceMotion(), level (a LEVELS key) and onLost().
 // It throws when WebGL is not available.
 export function createView3D(canvas, k) {
   const { W, H, R, RAIL } = k;
@@ -49,6 +58,7 @@ export function createView3D(canvas, k) {
 
   // --- lights -----------------------------------------------------------
   scene.add(new THREE.HemisphereLight('#fff4e0', '#1a1a1a', 0.55));
+  const lamps = [];
   for (const x of [W * 0.28, W * 0.72]) {
     const lamp = new THREE.SpotLight('#fff1dc', 9, 0, 0.95, 0.75, 2);
     lamp.position.set(x, 1.15, H / 2);
@@ -60,6 +70,7 @@ export function createView3D(canvas, k) {
     lamp.shadow.bias = -0.0004;
     lamp.shadow.radius = 4;
     scene.add(lamp, lamp.target);
+    lamps.push(lamp);
   }
   // reflections: a dark room with the lamp's panel overhead
   const pmrem = new THREE.PMREMGenerator(renderer);
@@ -505,7 +516,7 @@ export function createView3D(canvas, k) {
   }
 
   // --- frame ------------------------------------------------------------
-  const timing = { warm: 0, last: 0, since: 0, gaps: [], ratio: Infinity, low: false };
+  const timing = { warm: 0, last: 0, since: 0, gaps: [], ratio: Infinity, low: false, level: LEVELS.auto, fixed: false };
   function render(frame, now) {
     for (const [id, mesh] of balls) {
       const p = frame.balls.get(id);
@@ -554,7 +565,7 @@ export function createView3D(canvas, k) {
   function checkSpeed(now) {
     const gap = timing.last ? now - timing.last : 0;
     timing.last = now;
-    if (timing.low || ++timing.warm <= WARMUP) return;
+    if (timing.fixed || timing.low || ++timing.warm <= WARMUP) return;
     if (gap > 500) { timing.gaps.length = 0; return; }
     if (!timing.gaps.length) timing.since = now;
     timing.gaps.push(gap);
@@ -572,6 +583,21 @@ export function createView3D(canvas, k) {
     timing.ratio = low ? 1 : Infinity;
     timing.gaps.length = 0;
     renderer.shadowMap.type = low ? THREE.BasicShadowMap : THREE.PCFShadowMap;
+    renderer.shadowMap.needsUpdate = true;
+    applyRatio();
+  }
+  // setLevel applies a Graphics choice (a LEVELS key) and starts the pace
+  // checks again for 'auto'.
+  function setLevel(name) {
+    const l = LEVELS[name] || LEVELS.auto;
+    Object.assign(timing, { level: l, fixed: name !== 'auto', low: false, ratio: Infinity, warm: 0, last: 0 });
+    timing.gaps.length = 0;
+    renderer.shadowMap.type = l.soft ? THREE.PCFShadowMap : THREE.BasicShadowMap;
+    for (const lamp of lamps) {
+      if (lamp.shadow.mapSize.x === l.shadow) continue;
+      lamp.shadow.mapSize.set(l.shadow, l.shadow);
+      if (lamp.shadow.map) { lamp.shadow.map.dispose(); lamp.shadow.map = null; }
+    }
     renderer.shadowMap.needsUpdate = true;
     applyRatio();
   }
@@ -615,11 +641,12 @@ export function createView3D(canvas, k) {
     applyRatio();
     cam.fresh = true;
   }
-  // applyRatio sizes the drawing buffer: the screen's ratio, at most 2,
-  // MAX_PIXELS and what checkSpeed has left.
+  // applyRatio sizes the drawing buffer: the screen's ratio, at most the
+  // level's ratio and pixels, and what checkSpeed has left.
   function applyRatio() {
     const { w, h, dpr } = size;
-    renderer.setPixelRatio(Math.max(1, Math.min(2, dpr, Math.sqrt(MAX_PIXELS / (w * h)), timing.ratio)));
+    const l = timing.level;
+    renderer.setPixelRatio(Math.max(1, Math.min(l.ratio, dpr, Math.sqrt(l.pixels / (w * h)), timing.ratio)));
     renderer.setSize(w, h, false);
   }
 
@@ -628,10 +655,15 @@ export function createView3D(canvas, k) {
     renderer.dispose();
   }
 
+  setLevel(k.level || 'auto');
+
   return {
-    render, pick, project, pxPerM, resize, dispose, setQuality,
+    render, pick, project, pxPerM, resize, dispose, setQuality, setLevel,
     get mode() { return cam.mode; },
     get settled() { return !!cam.settled; },
     get lowQuality() { return timing.low; },
+    get quality() {
+      return { ratio: renderer.getPixelRatio(), soft: renderer.shadowMap.type === THREE.PCFShadowMap, shadow: lamps[0].shadow.mapSize.x, fixed: timing.fixed };
+    },
   };
 }

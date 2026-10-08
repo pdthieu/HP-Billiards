@@ -437,7 +437,26 @@ the battery.
   shadows hard and the pixel ratio 1, and stops the checks
   (`v3.lowQuality`). Otherwise, if over a fifth of the frames miss the
   screen's refresh (taken as their shortest tenth), the pixel ratio drops by
-  0.25, down to 1. It never steps back up.
+  0.25, down to 1. It never steps back up. That is *Auto*; see Graphics.
+
+### Graphics
+
+Settings → *Graphics* (`pool:quality`, `setQuality`) picks how much the
+device draws. *Auto*, the default, is the behaviour above: sharp, stepped
+down by `checkPace` and `checkSpeed` when frames come late. The other three
+are fixed and never step:
+
+| | 2D pixel ratio | 3D pixel ratio, pixels | 3D shadows | Frames |
+|---|---|---|---|---|
+| Auto | 3, stepped down | 2, 3.5 M, stepped down | soft, 1024 | every one |
+| High | 3 | 2, 8.3 M | soft, 2048 | every one |
+| Medium | 2 | 1.5, 2.5 M | soft, 1024 | every one |
+| Low | 1 | 1, 2 M | hard, 512 | about 30 a second |
+
+All capped by the screen's own ratio. `QUALITY_DPR` in `app.js` holds the
+2D side, `LEVELS` in `view3d.js` the 3D side (`v3.setLevel`, read back by
+`v3.quality`). Low spaces frames `LOW_FRAME_MS` apart in both views. A note
+under the choice says what it does.
 
 ### Replay
 
@@ -467,7 +486,7 @@ moved in practice).
   drawing itself is timed, not the gap between frames (a phone in low power
   mode stretches that to 33 ms on its own), and when the median of 60
   frames is over 8 ms the ratio drops by half, to 1 at least, never back up.
-- At rest the flat table is drawn four times a second (`restingFrame`):
+- At rest the flat table is drawn four times a second (`skipFrame`):
   nothing on it moves by itself, so when no shot, replay, effect, drop,
   carried ball or finger is under way and no input or message has come for
   3 s, frames are skipped. A phone waiting for the opponent then spares its

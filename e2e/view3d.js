@@ -1,7 +1,7 @@
 // The 3D view: the default per device, aiming from behind the cue, the
 // camera following a shot, looking from above to place the cue ball, the
 // replay in 3D and 2D, naming a ball through the 3D camera, and the fall
-// back to 2D without WebGL.
+// back to 2D without WebGL, and the Graphics levels.
 // Usage: node view3d.js <base>
 const { chromium } = require('playwright');
 const path = require('path');
@@ -146,6 +146,22 @@ async function practice(page) {
     await P.screenshot({ path: path.join(shots, 'view3d-phone-landscape.png') });
     if (await P.evaluate(() => localStorage.getItem('pool:view')) !== '3d') fail('the choice was not kept');
     console.log('phone ok');
+
+    // Graphics in Settings: each level sets the sharpness and the shadows;
+    // only Auto steps down by itself.
+    await P.click('#settingsBtn');
+    const level = async (q) => {
+      await P.click(`#qualitySeg [data-quality="${q}"]`);
+      return P.evaluate(() => v3.quality);
+    };
+    const low = await level('low');
+    if (low.ratio !== 1 || low.soft || low.shadow !== 512 || !low.fixed) fail(`3D low ${JSON.stringify(low)}`);
+    const high = await level('high');
+    if (!high.soft || high.shadow !== 2048 || !high.fixed) fail(`3D high ${JSON.stringify(high)}`);
+    const auto = await level('auto');
+    if (!auto.soft || auto.shadow !== 1024 || auto.fixed) fail(`3D auto ${JSON.stringify(auto)}`);
+    await P.click('#settingsClose');
+    console.log('3D graphics levels ok');
 
     // No WebGL: the table stays flat, with a word why.
     const N = await mk({ viewport: { width: 1100, height: 700 } }, () => {

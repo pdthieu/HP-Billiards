@@ -105,6 +105,18 @@ const FOUL_TEXT = {
 };
 const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball' };
 
+// Graphics (Settings): 'auto' starts sharp and steps down when frames come
+// late (checkPace, and checkSpeed in 3D); the others are fixed and never
+// step. QUALITY_DPR caps the flat table's pixel ratio; view3d.js has the 3D
+// side (LEVELS). Low also draws at most 30 frames a second (LOW_FRAME_MS).
+const QUALITY_DPR = { high: 3, medium: 2, low: 1 };
+const QUALITY_NOTES = {
+  auto: 'Sharp, and lowered by itself when the frames judder.',
+  high: 'The sharpest picture and the softest shadows, at every frame. Needs a strong device.',
+  medium: 'A little less sharp. Runs cooler on most phones.',
+  low: 'Plain and 30 frames a second: saves the battery on an old or slow phone.',
+};
+
 const $ = (id) => document.getElementById(id);
 
 const S = {
@@ -159,6 +171,7 @@ const S = {
 
   // view
   view: '2d',            // '2d' from above, or '3d' (view3d.js); see initialView
+  quality: QUALITY_NOTES[readSetting('pool:quality')] ? readSetting('pool:quality') : 'auto', // Settings → Graphics; see QUALITY_DPR
   camTop: false,         // 3D: look straight down instead of from behind the cue
   aimDrag: null,         // the pointer turning the aim: {x} in 3D behind the cue, {a} for a finger in 2D (see leverAim)
 
@@ -1383,6 +1396,15 @@ function initialView() {
   return v === '2d' || v === '3d' ? v : compactLayout.matches ? '2d' : '3d';
 }
 
+function setQuality(q) {
+  S.quality = q;
+  writeSetting('pool:quality', q === 'auto' ? null : q);
+  pace.cap = 3; // a fresh start for Auto too
+  if (v3) v3.setLevel(q);
+  resize();
+  renderSettings();
+}
+
 function setView(v, save) {
   if (save) writeSetting('pool:view', v);
   S.view = v;
@@ -1445,6 +1467,7 @@ function view3dKit() {
     cueSegments: CUE_SEGMENTS,
     cueLength: CUE_LEN,
     reduceMotion: () => reduceMotion.matches,
+    level: S.quality,
     onLost: () => {
       if (!v3) return;
       canvas3d.remove();
@@ -1500,7 +1523,7 @@ function resize() {
   const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + parseFloat(cs.columnGap || cs.gap || '12') || 0;
   const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
-  const dpr = Math.min(pace.cap, window.devicePixelRatio || 1);
+  const dpr = Math.min(S.quality === 'auto' ? pace.cap : QUALITY_DPR[S.quality], window.devicePixelRatio || 1);
   pace.times = [];
   pace.skip = 10;
   wakeDraw();
@@ -1612,7 +1635,7 @@ function draw() {
   requestAnimationFrame(draw);
   if (!view.cssW) return;
   const now = performance.now();
-  if (restingFrame(now)) return;
+  if (skipFrame(now)) return;
 
   // pending pocket drops whose snapshot time has been reached
   if (S.pendingDrops.length) {
@@ -1714,6 +1737,7 @@ const PACE_SLOW_MS = 8;
 const pace = { cap: 3, times: [], skip: 10 };
 
 function checkPace(ms) {
+  if (S.quality !== 'auto') return;
   if (pace.skip > 0) { pace.skip--; return; }
   if (view.dpr <= 1) return;
   pace.times.push(ms);
@@ -1735,21 +1759,24 @@ function checkPace(ms) {
 // waiting for the opponent then barely draws, which saves the battery and
 // keeps it cool. The first touch, key or message draws at full rate again;
 // the slow frames are only a safety net. 3D keeps every frame: its camera
-// glides on its own.
+// glides on its own. Graphics → Low spaces every frame LOW_FRAME_MS apart,
+// about 30 a second, in 2D and 3D.
 
 const REST_AFTER_MS = 3000;
 const REST_FRAME_MS = 250;
+const LOW_FRAME_MS = 30; // under 33 ms: a 60 Hz screen draws every other refresh
 const rest = { hotUntil: 0, last: 0 };
 
 function wakeDraw() { rest.hotUntil = performance.now() + REST_AFTER_MS; }
 for (const t of ['pointerdown', 'pointermove', 'keydown', 'wheel']) window.addEventListener(t, wakeDraw, { capture: true, passive: true });
 document.addEventListener('visibilitychange', wakeDraw);
 
-// restingFrame reports whether this frame may be skipped.
-function restingFrame(now) {
-  if (v3 || now < rest.hotUntil) return false;
-  if (S.moving || S.snaps.length || S.replay || S.pendingDrops.length || fx.length || S.drag || S.pointer !== null) return false;
-  if (now - rest.last < REST_FRAME_MS) return true;
+// skipFrame reports whether this frame may be skipped.
+function skipFrame(now) {
+  const resting = !v3 && now >= rest.hotUntil &&
+    !(S.moving || S.snaps.length || S.replay || S.pendingDrops.length || fx.length || S.drag || S.pointer !== null);
+  const gap = resting ? REST_FRAME_MS : S.quality === 'low' ? LOW_FRAME_MS : 0;
+  if (now - rest.last < gap) return true;
   rest.last = now;
   return false;
 }
@@ -4643,6 +4670,8 @@ function renderSettings() {
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
   $('bubblesToggle').setAttribute('aria-pressed', String(readSetting('pool:bubbles') !== 'off'));
   renderViewControls();
+  for (const b of $('qualitySeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.quality === S.quality));
+  $('qualityNote').textContent = QUALITY_NOTES[S.quality];
   $('voiceToggle').setAttribute('aria-pressed', String(SND.voice));
   $('strongToggle').setAttribute('aria-pressed', String(SND.strong));
   $('strongToggle').disabled = !SND.voice;
@@ -4669,6 +4698,10 @@ $('aimFrontToggle').onclick = () => {
 $('viewSeg').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
   if (b) setView(b.dataset.view, true);
+});
+$('qualitySeg').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (b && b.dataset.quality !== S.quality) setQuality(b.dataset.quality);
 });
 $('viewBtn').onclick = () => setView(S.view === '3d' ? '2d' : '3d', true);
 $('camTopBtn').onclick = toggleCamTop;
