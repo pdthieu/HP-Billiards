@@ -134,7 +134,7 @@
           <input id="elevRange" class="elev__range" type="range" min="0" max="85" step="1" value="0" aria-label="Cue elevation: raise the butt of the cue to jump the cue ball, or stand it up and add english to curve it (massé)" aria-valuetext="level" title="Raise the cue to jump the cue ball; past 60° with english it curves (J raises, Shift+J lowers)">
         </div>
       </div>
-      <button id="optionsBtn" type="button" class="opts-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="shotSheet" aria-label="Spin, jump and fine aim: centre" title="Spin, jump and fine aim"><span id="optsDot" class="opts-btn__dot"></span></button>
+      <button id="optionsBtn" type="button" class="opts-btn" aria-haspopup="dialog" aria-expanded="false" aria-controls="spinPop" aria-label="Spin: centre" title="Spin"><span id="optsDot" class="opts-btn__dot"></span></button>
     </section>
 
     <section id="waitPanel" class="panel panel--center" aria-label="Waiting" hidden>
@@ -157,12 +157,15 @@
     </section>
   </div>
 
-  <div id="shotSheet" class="sheet" role="dialog" aria-labelledby="sheetTitle" hidden>
-    <div class="sheet__head">
-      <span id="sheetTitle" class="sheet__title">Spin, jump and fine aim</span>
-      <button id="sheetClose" type="button" class="btn btn--quiet btn--small">Done</button>
+  <div id="spinPop" class="spin-pop" role="dialog" aria-modal="true" aria-labelledby="spinPopTitle" hidden>
+    <div class="spin-pop__card">
+      <div class="spin-pop__head">
+        <span id="spinPopTitle" class="spin-pop__title">Spin</span>
+        <span class="spin-pop__hint">Tap where the cue tip strikes</span>
+      </div>
+      <div id="spinPopBody" class="spin-pop__body"></div>
+      <button id="spinPopDone" type="button" class="btn btn--primary spin-pop__done">Done</button>
     </div>
-    <div id="sheetBody" class="sheet__body"></div>
   </div>
 
   <div id="trays" class="trays" aria-label="Pocketed balls">

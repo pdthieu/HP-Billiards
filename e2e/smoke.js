@@ -273,7 +273,7 @@ async function waitFor(page, pred, what, ms = 15000) {
   await shooter.keyboard.press('ArrowRight');
   const a1 = await shooter.evaluate(() => S.angle);
   if (Math.abs(a1 - a0 - Math.PI / 360) > 1e-9) fail('ArrowRight should add 0.5°');
-  // a bit of draw via the spin pad (on a phone it is in the options sheet),
+  // a bit of draw via the spin pad (on a phone it is in the spin picker),
   // then shoot with the keyboard
   const phone = await shooter.evaluate(() => compactLayout.matches);
   if (phone) await shooter.click('#optionsBtn');
@@ -282,7 +282,7 @@ async function waitFor(page, pred, what, ms = 15000) {
   const spin = await shooter.evaluate(() => S.spin);
   if (!(spin.y < -0.3 && Math.abs(spin.x) < 0.1)) fail(`spin ${JSON.stringify(spin)}`);
   await shooter.screenshot({ path: path.join(shots, '5b-spin.png') });
-  if (phone) await shooter.click('#sheetClose');
+  if (phone) await shooter.click('#spinPopDone');
   await shooter.evaluate(() => setPower(0.3));
   await shooter.keyboard.press('Enter');
   await waitFor(shooter, (s) => s.moving, 'shooter sees the shot');

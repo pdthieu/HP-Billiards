@@ -240,18 +240,29 @@ The tray row is hidden to make room.
 9. **Phones**:
    - **Portrait.** The table stands upright whenever that is not smaller.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
-   - **The shot panel is one row** while a rack is played (`body.is-playing`,
-     a 64 px slot). The row holds:
-     - the call line (two lines at most);
-     - the situational toggles (Safety, Push out, +40s);
-     - on the right, a small cue ball showing the spin (`#optionsBtn`).
+   - **The shot panel** while a rack is played (`body.is-playing`) keeps
+     its height for every turn, so the table never resizes mid-rack. It
+     holds:
+     - the call line (two lines at most) and the situational toggles
+       (Safety, Push out, +40s);
+     - the fine aim wheel with the angle readout, and the jump slider with
+       its words (Jump or Massé, the angle), always at hand; the ±5° and
+       ±0.25° buttons are left out;
+     - on the right, a small cue ball showing the spin (`#optionsBtn`); a
+       brass ring round it says the cue is raised.
 
-     Tapping that cue ball opens the *Spin, jump and fine aim* sheet over
-     the bottom of the screen: the spin pad, the angle readout, its four
-     buttons, the fine aim wheel and the jump slider (a brass ring round the
-     small cue ball says the cue is raised). `placeShotOptions` moves those nodes there from the panel
-     whenever the phone layout applies. Done, Escape, a touch anywhere else
-     or the shot closes the sheet; the table stays live above it.
+     On a short phone (under 760 px tall, where the height limits the
+     table) the slot is 80 px: the call over the wheel and the jump slider
+     side by side, the slider getting the wider share. On a taller one the
+     table is limited by the width anyway, so the slot is 128 px and the
+     wheel and the slider each take a row the panel's width.
+
+     Tapping the small cue ball opens the spin picker (`#spinPop`): the spin
+     pad as a big cue ball in the middle of the screen (up to 280 px) over
+     the table, dimmed and lightly blurred, with the spin's words, Reset and
+     Done. `placeShotOptions` moves the spin pad there from the panel
+     whenever the phone layout applies. Done, Escape or a tap on the dimmed
+     table beside it puts it away; that tap does not aim.
    - **Naming balls.** The numbers on balls under 16 px across are too
      small to read, so:
      - a touch within a fingertip (22 px) of a ball names it for 2 s, with
@@ -271,7 +282,10 @@ The tray row is hidden to make room.
      cue-ball button: the table gets the whole height. `main.game` steps
      aside (`display: contents`) and the page is the grid. In Safari with
      its bars (about 844 × 340) the height is what limits the table, which
-     is 12 % bigger so. The sheet opens at the top right.
+     is 12 % bigger so. In the shot panel the angle readout sits beside
+     the cue-ball button, the wheel under them, then the jump slider; the
+     call takes what is left above. The spin picker lays the big cue ball
+     beside its words and buttons.
    - **Turning the phone** in the middle of an aim, a pull or a carried
      ball stops it (`cancelGestures`): no shot, no placement, the ball goes
      back. The table turns under the finger, so where it goes next means

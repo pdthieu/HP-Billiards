@@ -211,21 +211,24 @@ async function shootAndSettle(page, angle, power) {
     if (!layout.rotated || layout.ball < 9 || layout.overflow.length) fail(`phone layout ${JSON.stringify(layout)}`);
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
 
-    // Spin and fine aim live in a sheet behind the small cue ball.
+    // The fine aim wheel and the jump slider are always in the shot panel,
+    // clear of the table; the spin is behind the small cue ball.
     if (await P.isVisible('#spinPad')) fail('spin pad shown in the phone shot row');
-    await P.click('#optionsBtn');
-    await P.waitForFunction(() => !document.getElementById('shotSheet').hidden);
-    const pad = await P.locator('#spinPad').boundingBox();
-    await P.mouse.click(pad.x + pad.width / 2, pad.y + pad.height * 0.25);
-    const a0 = await P.evaluate(() => S.angle);
-    await P.click('#shotSheet .nudge[data-deg="5"]');
-    const sheet = await P.evaluate((a) => ({ spin: S.spin, turned: Math.round((S.angle - a) / DEG), dot: document.getElementById('optsDot').style.top }), a0);
-    if (!(sheet.spin.y > 0.3) || sheet.turned !== 5 || sheet.dot === '50%') fail(`sheet ${JSON.stringify(sheet)}`);
-    // the jump slider is in the sheet; a raised cue rings the small cue ball
-    await P.locator('#shotSheet #elevRange').fill('30');
-    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the sheet\'s jump slider');
-    // the fine aim wheel is in the sheet too, under the finger
-    const pj = await P.locator('#shotSheet #aimJog').boundingBox();
+    for (const id of ['aimJog', 'elevRange']) {
+      if (!(await P.isVisible(`#shotPanel #${id}`))) fail(`#${id} not in the phone shot panel`);
+    }
+    const under = await P.evaluate(() => {
+      const t = document.getElementById('table').getBoundingClientRect();
+      return ['aimJog', 'elevRange'].filter((id) => document.getElementById(id).getBoundingClientRect().top < t.bottom);
+    });
+    if (under.length) fail(`over the table: ${under}`);
+    const pj = await P.locator('#shotPanel #aimJog').boundingBox();
+    const jw = await P.locator('#shotPanel #elevRange').boundingBox();
+    if (pj.width < 60 || jw.width < 100) fail(`wheel ${pj.width}px, jump slider ${jw.width}px wide`);
+    // the jump slider; a raised cue rings the small cue ball
+    await P.locator('#shotPanel #elevRange').fill('30');
+    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the jump slider');
+    // the fine aim wheel, under the finger
     const p0 = await P.evaluate(() => S.angle);
     await P.touchscreen.tap(pj.x + 10, pj.y + pj.height / 2); // a tap alone turns nothing
     await P.mouse.move(pj.x + 20, pj.y + pj.height / 2);
@@ -233,12 +236,27 @@ async function shootAndSettle(page, angle, power) {
     await P.mouse.move(pj.x + 70, pj.y + pj.height / 2, { steps: 5 });
     await P.mouse.up();
     const pturn = (await P.evaluate(() => S.angle) - p0) * 180 / Math.PI;
-    if (Math.abs(pturn - 1) > 0.01) fail(`the sheet's wheel turned ${pturn}°`);
+    if (Math.abs(pturn - 1) > 0.01) fail(`the wheel turned ${pturn}°`);
+    // The small cue ball opens a big one in the middle of the screen.
+    await P.click('#optionsBtn');
+    await P.waitForFunction(() => !document.getElementById('spinPop').hidden);
+    const pad = await P.locator('#spinPad').boundingBox();
+    const vp = P.viewportSize();
+    if (pad.width < 200 || Math.abs(pad.x + pad.width / 2 - vp.width / 2) > 4) fail(`spin pad ${JSON.stringify(pad)}`);
+    const a0 = await P.evaluate(() => S.angle);
+    await P.mouse.click(pad.x + pad.width / 2, pad.y + pad.height * 0.25);
+    const picked = await P.evaluate((a) => ({ spin: S.spin, turned: S.angle - a, dot: document.getElementById('optsDot').style.top }), a0);
+    if (!(picked.spin.y > 0.3) || picked.turned || picked.dot === '50%') fail(`spin picker ${JSON.stringify(picked)}`);
     await P.waitForTimeout(300);
-    await P.screenshot({ path: path.join(shots, 'practice-phone-sheet.png') });
-    await P.click('#sheetClose');
-    await P.waitForFunction(() => document.getElementById('shotSheet').hidden);
-    console.log('phone sheet ok');
+    await P.screenshot({ path: path.join(shots, 'practice-phone-spin.png') });
+    // a tap on the dimmed table beside it puts it away and does not aim
+    await P.mouse.click(vp.width / 2, vp.height - 12);
+    await P.waitForFunction(() => document.getElementById('spinPop').hidden);
+    if (await P.evaluate((a) => S.angle !== a, a0)) fail('closing the spin picker turned the cue');
+    await P.click('#optionsBtn');
+    await P.click('#spinPopDone');
+    await P.waitForFunction(() => document.getElementById('spinPop').hidden);
+    console.log('phone spin picker ok');
 
     // A finger on the felt turns the cue by as much as it turns about the cue
     // ball, from wherever it lands: the aim never jumps to it.

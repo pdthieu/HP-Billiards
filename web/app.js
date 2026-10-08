@@ -1106,7 +1106,7 @@ function shoot() {
   else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   if (S.elev) msg.elevation = S.elev * DEG;
-  closeSheet();
+  closeSpinPop();
   if (send(msg)) {
     // The cue stays drawn back until the server's first snapshot says when
     // the cue ball moves; strikeAt then strikes it.
@@ -1322,11 +1322,11 @@ function renderSpin(spring) {
   renderOptsBtn();
 }
 
-// renderOptsBtn names what the phone's options button holds; a brass ring
-// round it says the cue is raised.
+// renderOptsBtn names the spin the phone's cue-ball button shows; a brass
+// ring round it says the cue is raised.
 function renderOptsBtn() {
   const btn = $('optionsBtn');
-  btn.setAttribute('aria-label', `Spin, jump and fine aim: ${spinWords()}${S.elev ? `, cue raised ${S.elev}°` : ''}`);
+  btn.setAttribute('aria-label', `Spin: ${spinWords()}`);
   btn.classList.toggle('opts-btn--jump', S.elev > 0);
 }
 
@@ -1391,47 +1391,51 @@ function setElev(deg) {
 }
 elevRange.addEventListener('input', () => setElev(Number(elevRange.value)));
 
-// --- shot options sheet (phones) ---------------------------------------------
+// --- spin picker (phones) ----------------------------------------------------
 //
-// On a phone the table gets the room: the shot panel is one row (what to
-// hit, the situational toggles and a small cue ball showing the spin). The
-// spin pad and the fine angle buttons move into a sheet that this button
-// opens over the bottom of the screen; the table stays live above it.
+// On a phone the shot panel holds what to hit, the situational toggles, the
+// fine aim wheel and the jump slider, always at hand, and a small cue ball
+// showing the spin. Tapping it opens the spin pad as a big cue ball in the
+// middle of the screen over the dimmed table, so the tip's spot is picked
+// precisely; Done, a tap beside it or Escape puts it away.
 
 const compactLayout = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
-const shotOptions = [document.querySelector('#shotPanel .angle'), document.querySelector('#shotPanel .spin'), elevBox];
-const optionHomes = shotOptions.map((el) => { const mark = document.createComment(''); el.before(mark); return mark; });
+const spinBox = document.querySelector('#shotPanel .spin');
+const spinHome = document.createComment('');
+spinBox.before(spinHome);
 
-// placeShotOptions puts the spin pad and the angle buttons in the sheet on
-// a phone and back in the shot panel elsewhere.
+// placeShotOptions puts the spin pad in the picker on a phone and back in
+// the shot panel elsewhere.
 function placeShotOptions() {
   if (compactLayout.matches) {
-    $('sheetBody').append(...shotOptions);
+    $('spinPopBody').append(spinBox);
   } else {
-    shotOptions.forEach((el, i) => optionHomes[i].after(el));
-    closeSheet();
+    spinHome.after(spinBox);
+    closeSpinPop();
   }
 }
 
-function openSheet() {
+function openSpinPop() {
   if (!compactLayout.matches || !isMyShot()) return;
-  $('shotSheet').hidden = false;
+  $('spinPop').hidden = false;
   $('optionsBtn').setAttribute('aria-expanded', 'true');
+  spinPad.focus({ preventScroll: true });
 }
 
-function closeSheet() {
-  if ($('shotSheet').hidden) return;
-  $('shotSheet').hidden = true;
+function closeSpinPop() {
+  if ($('spinPop').hidden) return;
+  $('spinPop').hidden = true;
   $('optionsBtn').setAttribute('aria-expanded', 'false');
 }
 
-$('optionsBtn').onclick = () => { if ($('shotSheet').hidden) openSheet(); else closeSheet(); };
-$('sheetClose').onclick = closeSheet;
-$('shotSheet').addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeSheet(); $('optionsBtn').focus(); } });
-// A touch anywhere else (aiming, the power bar) puts the sheet away.
-document.addEventListener('pointerdown', (e) => {
-  if (!$('shotSheet').hidden && !e.target.closest('#shotSheet, #optionsBtn')) closeSheet();
-}, true);
+$('optionsBtn').onclick = () => { if ($('spinPop').hidden) openSpinPop(); else closeSpinPop(); };
+$('spinPopDone').onclick = () => { closeSpinPop(); $('optionsBtn').focus({ preventScroll: true }); };
+// a tap on the dimmed table beside the card puts it away
+$('spinPop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSpinPop(); });
+$('spinPop').addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { closeSpinPop(); $('optionsBtn').focus({ preventScroll: true }); }
+  e.stopPropagation(); // the game's keys (aim, shoot) wait while it is open
+});
 compactLayout.addEventListener('change', () => {
   placeShotOptions();
   refreshPanels();
@@ -3402,7 +3406,7 @@ canvas.addEventListener('pointerdown', (e) => {
     if (id === null && pocket === null) {
       S.aiming = true;
       // Pointing aims at once; holding the butt waits for a move, so a
-      // touch that only closes a sheet does not swing the cue around.
+      // tap does not swing the cue around.
       if (behindCue()) S.aimDrag = { x: e.clientX };
       else if (S.aimFront) aimFrom(p, cue);
       else if (e.pointerType !== 'mouse') leverAim(p, cue);
@@ -4093,7 +4097,7 @@ function refreshPanels() {
     document.body.classList.toggle('is-playing', playing);
     resize();
   }
-  if (!myShot) closeSheet();
+  if (!myShot) closeSpinPop();
 
   if (panel === 'lobbyPanel' && me) {
     const alone = !opp.connected && !opp.name;
@@ -4853,7 +4857,7 @@ function chatBubble(m) {
 }
 function openChat() {
   if (!inRoom() || S.practice) return;
-  closeSheet();
+  closeSpinPop();
   $('chatPanel').hidden = false;
   $('chatBtn').setAttribute('aria-expanded', 'true');
   $('chatBubbles').replaceChildren();
