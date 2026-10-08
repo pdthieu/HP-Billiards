@@ -257,6 +257,13 @@ The tray row is hidden to make room.
      nothing.
    - **No pull to refresh.** `overscroll-behavior: none` on the page: a drag
      down from the header or a panel does not reload it.
+   - **No zoom, no selection.** `touch-action: manipulation` on the page
+     and its buttons: a quick second tap (−0.25°, +0.25°) does not zoom.
+     The header and the game column take pans only (`pan-x pan-y`), so a
+     pinch there does not zoom the page either; the landing and the dialogs
+     still can be. A finger held on the power bar, a button or the header
+     selects nothing and opens no callout (`-webkit-user-select`, which is
+     the only one Safari knows, and `-webkit-touch-callout`).
    - **Awake.** In a room the page holds a screen wake lock, so the phone
      does not dim and sleep (and drop the socket) while the opponent
      thinks. The browser lets it go when the tab is hidden; it is taken
@@ -460,6 +467,12 @@ moved in practice).
   drawing itself is timed, not the gap between frames (a phone in low power
   mode stretches that to 33 ms on its own), and when the median of 60
   frames is over 8 ms the ratio drops by half, to 1 at least, never back up.
+- At rest the flat table is drawn four times a second (`restingFrame`):
+  nothing on it moves by itself, so when no shot, replay, effect, drop,
+  carried ball or finger is under way and no input or message has come for
+  3 s, frames are skipped. A phone waiting for the opponent then spares its
+  battery and stays cool. Any touch, key, wheel, message or resize draws
+  every frame again at once. 3D draws every frame: its camera glides.
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays

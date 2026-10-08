@@ -19,6 +19,14 @@ body {
 }
 [hidden] { display: none !important; }
 button { cursor: pointer; }
+/* Touch. A quick second tap on a button (−0.25°, +0.25°) must not zoom the
+   page, nor a pinch on the game screen (the table takes no gestures at
+   all); the landing and the dialogs can still be pinched. A finger held
+   on the power bar, a button or the header selects nothing and opens no
+   callout: Safari only knows the prefixed user-select. */
+html, button, a, input, label { touch-action: manipulation; }
+.hdr, main.game { touch-action: pan-x pan-y; }
+.hdr, main.game, button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
 /* header: the design's .hdr. The score block is a button: it opens the
    match dialog. */

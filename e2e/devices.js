@@ -107,6 +107,33 @@ function stubs() {
     if (await P.evaluate(() => loupe.shown)) fail('the loupe stayed after the finger lifted');
     console.log('loupe ok');
 
+    // Resting: with nothing moving and no input for 3 s the flat table is
+    // drawn four times a second; a touch brings every frame back.
+    const frames = (ms) => P.evaluate((ms) => new Promise((done) => {
+      let n = 0;
+      const real = drawLoupe;
+      drawLoupe = (...a) => { n++; return real(...a); };
+      setTimeout(() => { drawLoupe = real; done(n); }, ms);
+    }), ms);
+    await P.waitForTimeout(3200);
+    const resting = await frames(1000);
+    if (resting > 6) fail(`a resting table was drawn ${resting} times in a second`);
+    await touch('touchStart', [await at(-100, 0.3)]);
+    await touch('touchEnd', []);
+    const woken = await frames(1000);
+    if (woken < 30) fail(`after a touch the table was drawn only ${woken} times in a second`);
+    console.log(`rest ok (${resting} frames resting, ${woken} after a touch)`);
+
+    // A held finger selects nothing and a double tap does not zoom; the
+    // table and the power bar take no browser gestures at all.
+    const gestures = await P.evaluate(() => Object.fromEntries(['.hdr', 'main.game', '#ready', '#table', '#powerBar'].map((s) => {
+      const c = getComputedStyle(document.querySelector(s));
+      return [s, `${c.touchAction}/${c.webkitUserSelect}`];
+    })));
+    const want = { '.hdr': 'pan-x pan-y/none', 'main.game': 'pan-x pan-y/none', '#ready': 'manipulation/none', '#table': 'none/none', '#powerBar': 'none/none' };
+    for (const [s, v] of Object.entries(want)) if (gestures[s] !== v) fail(`${s} gestures ${gestures[s]}, want ${v}`);
+    console.log('touch gestures ok');
+
     // Turning the phone stops an aim: where the finger goes next means
     // nothing on the turned table.
     await touch('touchStart', [await at(40)]);
@@ -242,6 +269,7 @@ function stubs() {
     await practice(Q);
     if (await Q.evaluate(() => view.dpr) !== 2) fail(`pixel ratio ${await Q.evaluate(() => view.dpr)}`);
     await Q.evaluate(() => {
+      rest.hotUntil = Infinity; // draw every frame, as while a shot runs
       const slow = window.__drawFx = drawFx;
       drawFx = (layer, now) => { const t = performance.now(); while (performance.now() - t < 4); slow(layer, now); };
     });

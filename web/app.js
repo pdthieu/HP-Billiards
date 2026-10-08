@@ -268,6 +268,7 @@ function connectAndJoin(roomCode, name, token, watch) {
   ws.onmessage = (e) => {
     let msg;
     try { msg = JSON.parse(e.data); } catch { return; }
+    wakeDraw();
     handle(msg);
   };
   ws.onclose = (e) => {
@@ -1502,6 +1503,7 @@ function resize() {
   const dpr = Math.min(pace.cap, window.devicePixelRatio || 1);
   pace.times = [];
   pace.skip = 10;
+  wakeDraw();
   if (v3) {
     // 3D fills the stage; the 2D canvas lies over it for labels and input
     view.rotated = false;
@@ -1610,6 +1612,7 @@ function draw() {
   requestAnimationFrame(draw);
   if (!view.cssW) return;
   const now = performance.now();
+  if (restingFrame(now)) return;
 
   // pending pocket drops whose snapshot time has been reached
   if (S.pendingDrops.length) {
@@ -1721,6 +1724,34 @@ function checkPace(ms) {
   if (median <= PACE_SLOW_MS) return;
   pace.cap = Math.max(1, view.dpr - 0.5);
   resize();
+}
+
+// --- rest --------------------------------------------------------------------
+//
+// Nothing on the flat table moves by itself: a shot, a replay, an effect, a
+// carried ball or the opponent's aim each come from a message or a finger.
+// So while none of those is under way and no input or message has come for
+// REST_AFTER_MS, the frame is drawn only every REST_FRAME_MS. A phone
+// waiting for the opponent then barely draws, which saves the battery and
+// keeps it cool. The first touch, key or message draws at full rate again;
+// the slow frames are only a safety net. 3D keeps every frame: its camera
+// glides on its own.
+
+const REST_AFTER_MS = 3000;
+const REST_FRAME_MS = 250;
+const rest = { hotUntil: 0, last: 0 };
+
+function wakeDraw() { rest.hotUntil = performance.now() + REST_AFTER_MS; }
+for (const t of ['pointerdown', 'pointermove', 'keydown', 'wheel']) window.addEventListener(t, wakeDraw, { capture: true, passive: true });
+document.addEventListener('visibilitychange', wakeDraw);
+
+// restingFrame reports whether this frame may be skipped.
+function restingFrame(now) {
+  if (v3 || now < rest.hotUntil) return false;
+  if (S.moving || S.snaps.length || S.replay || S.pendingDrops.length || fx.length || S.drag || S.pointer !== null) return false;
+  if (now - rest.last < REST_FRAME_MS) return true;
+  rest.last = now;
+  return false;
 }
 
 // --- loupe -------------------------------------------------------------------
