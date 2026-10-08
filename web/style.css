@@ -303,6 +303,10 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .invite-row .code-text { font: 600 20px/24px var(--font-display); letter-spacing: .16em; }
 #settingsMode .seg__btn:disabled, #roomMatch .seg__btn:disabled { cursor: not-allowed; opacity: .5; }
 .setting { display: flex; flex-direction: column; gap: 8px; }
+/* a long switch wraps on a phone instead of running out of the dialog;
+   its box keeps its size */
+.setting > .toggle { max-width: 100%; white-space: normal; text-align: left; padding-top: 7px; padding-bottom: 7px; border-radius: 18px; }
+.toggle__box { flex: none; }
 .seg { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- compact layouts ---------- */
