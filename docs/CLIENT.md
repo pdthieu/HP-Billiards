@@ -300,9 +300,17 @@ synthesized thump.
   stand-ins play.
 - **Timing.** Each sound is scheduled for the moment the render clock
   (100 ms behind the snapshots) reaches it, so it lands on the frame that
-  shows the contact. One that would play over 120 ms late is dropped. The
-  cue strike plays at once for your own shot and with the first snapshot
-  for the other player's.
+  shows the contact. One that would play over 120 ms late is dropped.
+- **The strike** (`strikeAt`). The cue ball first moves on screen
+  `RENDER_DELAY_MS` after the shot's first snapshot, so a network round trip
+  plus 100 ms after the release: about 0.25 s on a phone's 4G. The cue's tip
+  meets the ball and the click sounds at that very moment, for both
+  players. From the release until the first snapshot your own cue stays
+  drawn back where the power bar left it (`S.heldStrike`, a strike fx with
+  an infinite delay); then it strikes, `STRIKE_HIT_MS` (80 ms) to the ball.
+  The other player sees the same stroke from your last aim. A refused shot,
+  or none after 2 s, takes the cue away. Before this, the click and the tip
+  came at the release and the ball up to a quarter of a second later.
 - **Limiter.** It keeps a break's pile of clacks from clipping.
 - **Starting.** Browsers only start audio after a click or key press, so the
   context is created on the first one.

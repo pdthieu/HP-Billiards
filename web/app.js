@@ -35,6 +35,9 @@ const BALL_COLORS = { // design tokens --ball-1 … --ball-8
 };
 const RENDER_DELAY_MS = 100;  // how far behind the newest snapshot we draw
 const AIM_SEND_MS = 100;      // at most 10 aim messages per second
+const STRIKE_MS = 280;        // the cue's strike: forward to the ball, then fading
+const STRIKE_HIT_MS = 80;     // when in it the tip meets the ball
+const STRIKE_WAIT_MS = 2000;  // how long a released cue waits for its shot to start
 const PING_EVERY_MS = 15000;  // heartbeat; the server answers with pong
 const PONG_TIMEOUT_MS = 10000;
 const RECONNECT_MAX_MS = 8000;
@@ -203,6 +206,7 @@ const S = {
   aimTimer: 0,
 
   oppAim: null,          // {angle, power}
+  heldStrike: null,      // our cue's strike fx, drawn back from the release until the shot starts (strikeAt)
   lastDecisionReason: '',
   offlineSince: [0, 0],  // performance.now() when a seat dropped, per seat; 0 = unknown
   holdTimer: 0,
@@ -566,10 +570,7 @@ function onSnapshot(msg) {
   }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
-    // Somebody else's shot gets its cue strike now, as the cue moves.
-    if (msg.t === 0 && performance.now() - SND.ownStrike > 1500) {
-      playStrike(S.oppAim ? S.oppAim.power : 0.4, RENDER_DELAY_MS);
-    }
+    if (msg.t === 0) strikeAt(balls.get(0));
     stopReplay();
     S.rec = msg.t === 0 ? { snaps: [], impacts: [] } : null; // a shot joined midway is not replayed
     S.snaps = [];
@@ -654,6 +655,7 @@ function onError(msg) {
     renderChatSend();
     return;
   }
+  dropHeldStrike(); // a refused shot does not start
   toast(msg.message || msg.code, true);
   if (msg.code === 'bad_placement' || msg.code === 'no_ball_in_hand' || msg.code === 'balls_moving') {
     S.drag = null;
@@ -945,15 +947,46 @@ function shoot() {
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
   closeSheet();
   if (send(msg)) {
-    playStrike(S.power);
-    SND.ownStrike = performance.now();
-    const cue = displayBalls().get(0);
-    if (cue) {
-      const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
-      addFx({ type: 'strike', layer: 'cue', dur: 280, cue: { ...cue }, dir, power: S.power });
-      addFx({ type: 'ring', layer: 'top', dur: 150, delay: 80, at: { ...cue } });
-    }
+    // The cue stays drawn back until the server's first snapshot says when
+    // the cue ball moves; strikeAt then strikes it.
+    dropHeldStrike();
+    const cue = displayBalls().get(0) || { x: 0, y: 0 };
+    const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
+    const f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, delay: Infinity, cue: { ...cue }, dir, power: S.power });
+    S.heldStrike = f;
+    setTimeout(() => { if (S.heldStrike === f) dropHeldStrike(); }, STRIKE_WAIT_MS);
   }
+}
+
+// strikeAt lines the cue's strike up with the cue ball's first move, which
+// the frame shows RENDER_DELAY_MS after the shot's first snapshot: the tip
+// meets the ball then and the strike sounds then, however long the network
+// took. Before, the click and the tip came at the release and the ball a
+// round trip and RENDER_DELAY_MS later (about 0.25 s on a phone's 4G). Our
+// own shot's cue has been held drawn back since the release; somebody
+// else's strikes from their last aim.
+function strikeAt(cueBall) {
+  const now = performance.now();
+  let f = S.heldStrike;
+  S.heldStrike = null;
+  if (!f && S.oppAim && cueBall) {
+    const a = oppAimAngle(now);
+    f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, cue: { ...cueBall }, dir: { x: Math.cos(a), y: Math.sin(a) }, power: S.oppAim.power });
+  }
+  playStrike(f ? f.power : 0.4, RENDER_DELAY_MS);
+  if (!f) return;
+  f.t0 = now;
+  f.delay = Math.max(0, RENDER_DELAY_MS - STRIKE_HIT_MS);
+  addFx({ type: 'ring', layer: 'top', dur: 150, t0: now, delay: RENDER_DELAY_MS, at: { ...f.cue } });
+}
+
+// dropHeldStrike takes away a cue still waiting for its shot to start: the
+// server refused the shot, or never answered.
+function dropHeldStrike() {
+  const f = S.heldStrike;
+  S.heldStrike = null;
+  const i = fx.indexOf(f);
+  if (i >= 0) fx.splice(i, 1);
 }
 
 // --- power bar: pull down, release to shoot -------------------------------
@@ -1272,15 +1305,23 @@ const screenOffset = (sx, sy) => (view.rotated ? { x: -sy, y: sx } : { x: sx, y:
 // fx entries: {type, layer: 'balls' | 'cue' | 'top', t0, delay, dur, ...}.
 const fx = [];
 function addFx(f) {
-  fx.push({ t0: performance.now(), delay: 0, ...f, dur: reduceMotion.matches ? 0 : f.dur });
+  const e = { t0: performance.now(), delay: 0, ...f, dur: reduceMotion.matches ? 0 : f.dur };
+  fx.push(e);
+  return e;
+}
+// fxProgress is how far f has run at now, null before it starts; a strike
+// shows its first pose, the cue drawn back, while it waits.
+function fxProgress(f, now) {
+  const el = now - f.t0 - f.delay;
+  if (el < 0) return f.type === 'strike' ? 0 : null;
+  return f.dur > 0 ? clamp01(el / f.dur) : 1;
 }
 function drawFx(layer, now) {
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i];
     if (f.layer !== layer) continue;
-    const el = now - f.t0 - f.delay;
-    if (el < 0) continue;
-    const p = f.dur > 0 ? clamp01(el / f.dur) : 1;
+    const p = fxProgress(f, now);
+    if (p === null) continue;
     FX[f.type](f, p);
     if (p >= 1) fx.splice(i, 1);
   }
@@ -1321,7 +1362,7 @@ const FX = {
 // strikePose: where the cue's tip is (back, metres behind the ball's
 // centre) and how visible, p of the way through a strike lasting dur ms.
 function strikePose(power, p, dur) {
-  const hit = 80 / Math.max(dur, 80);
+  const hit = STRIKE_HIT_MS / Math.max(dur, STRIKE_HIT_MS);
   if (p < hit) return { back: R + (0.02 + powerToBar(power) * 0.12) * (1 - EASE.in(p / hit)), alpha: 1 };
   return { back: R, alpha: 1 - EASE.out((p - hit) / (1 - hit)) };
 }
@@ -1918,9 +1959,8 @@ function takeFx(now) {
   const out = [];
   for (let i = fx.length - 1; i >= 0; i--) {
     const f = fx[i];
-    const el = now - f.t0 - f.delay;
-    if (el < 0) continue;
-    const p = f.dur > 0 ? clamp01(el / f.dur) : 1;
+    const p = fxProgress(f, now);
+    if (p === null) continue;
     out.push({ f, p });
     if (p >= 1) fx.splice(i, 1);
   }
@@ -2517,7 +2557,6 @@ const SND = {
   on: readSetting('pool:sound') !== 'off',
   volume: Math.min(1, Math.max(0, Number(readSetting('pool:volume') ?? 0.8))),
   played: 0,     // sounds scheduled so far, for tests
-  ownStrike: 0,  // when we last played our own cue strike
   takes: { clack: [], cue: [], pocket: [] }, // decoded recordings, filled once loaded
   last: {},      // the take each kind played last, not to repeat it
   voice: readSetting('pool:voice') !== 'off',          // the commentator speaks

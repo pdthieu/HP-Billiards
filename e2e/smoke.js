@@ -165,8 +165,31 @@ async function waitFor(page, pred, what, ms = 15000) {
   await breaker.mouse.move(bar.x + bar.width / 2, bar.y + bar.height * 0.97, { steps: 4 });
   const pulled = await breaker.evaluate(() => S.power);
   if (pulled < 0.9) fail(`pulled power ${pulled}`);
+  // The strike: the breaker's cue stays drawn back until the shot starts,
+  // then the tip meets the ball, and the click sounds, as the cue ball first
+  // moves (RENDER_DELAY_MS after the first snapshot); the other player sees
+  // the same stroke from the breaker's last aim.
+  const watchStrike = () => {
+    window.__strike = null;
+    const real = strikeAt;
+    strikeAt = (cueBall) => {
+      const now = performance.now();
+      const held = !!S.heldStrike && !Number.isFinite(S.heldStrike.delay);
+      real(cueBall);
+      const f = fx.find((e) => e.type === 'strike');
+      window.__strike = { held, tipLag: f ? Math.round(f.t0 + f.delay + STRIKE_HIT_MS - (now + RENDER_DELAY_MS)) : null };
+    };
+  };
+  await breaker.evaluate(watchStrike);
+  await other.evaluate(watchStrike);
   await breaker.mouse.up();
+  if (!(await breaker.evaluate(() => fx.some((e) => e.type === 'strike')))) fail('no cue drawn back after the release');
   await waitFor(breaker, (s) => s.moving, 'moving after break');
+  for (const [who, page, held] of [['breaker', breaker, true], ['other', other, false]]) {
+    const st = await page.evaluate(() => window.__strike);
+    if (!st || st.held !== held || st.tipLag === null || Math.abs(st.tipLag) > 2) fail(`${who} strike ${JSON.stringify(st)}`);
+  }
+  console.log('strike lined up with the cue ball ok');
   await sleep(600);
   await breaker.screenshot({ path: path.join(shots, '3-rolling.png') });
   const s1 = await waitFor(A, (s) => !s.moving && s.phase !== 'breaking', 'break settled', 30000);
