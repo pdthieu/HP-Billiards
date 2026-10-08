@@ -166,6 +166,42 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 @keyframes caption-in { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.96); } 10%, 82% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .voice-caption.is-on { animation: none; } }
 
+/* your move: the table lights up (gold), red in the shot clock's last ten
+   seconds and pulsing faster in the last five; resize() lays the light
+   over the table canvas */
+.turn-glow { position: absolute; z-index: 1; pointer-events: none; border-radius: 10px; opacity: 0;
+  --glow: var(--accent); --glow-soft: var(--accent-ring);
+  box-shadow: 0 0 0 2px var(--glow), 0 0 22px 4px var(--glow-soft);
+  transition: opacity var(--dur-3) var(--ease-out); }
+.is-my-turn .turn-glow { opacity: .75; }
+.is-turn-start .turn-glow { animation: turn-flash 1.4s var(--ease-out) both; }
+.is-hurry .turn-glow { --glow: var(--foul); --glow-soft: rgba(228, 80, 64, .6); opacity: 1; animation: hurry-pulse 1s var(--ease-inout) infinite; }
+.is-hurry-last .turn-glow { animation-duration: .5s; }
+@keyframes turn-flash { 0%, 40%, 80% { opacity: 1; } 20%, 60% { opacity: .35; } 100% { opacity: .75; } }
+@keyframes hurry-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+
+.turn-banner { position: absolute; top: 50%; left: 50%; z-index: 2; pointer-events: none; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 28px; border-radius: var(--r-lg); background: rgba(13, 18, 24, .78); color: #FFE2B4;
+  box-shadow: 0 0 0 2px var(--accent), 0 8px 30px rgba(0, 0, 0, .35); }
+.turn-banner__title { font: 700 30px/36px var(--font-ui); letter-spacing: .02em; }
+.turn-banner__sub { font: 600 14px/18px var(--font-ui); color: #E8ECF1; opacity: .85; }
+.turn-banner__sub:empty { display: none; }
+.turn-banner.is-on { animation: banner-in 1.6s var(--ease-out) both; }
+@keyframes banner-in { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.85); } 12%, 75% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(1.04); } }
+
+.clock-big { position: absolute; top: 50%; left: 50%; z-index: 2; pointer-events: none; transform: translate(-50%, -50%);
+  font: 800 120px/1 var(--font-ui); color: rgba(255, 110, 96, .55); text-shadow: 0 2px 18px rgba(0, 0, 0, .35); font-variant-numeric: tabular-nums; }
+.clock-big.is-on { animation: count-in .9s var(--ease-out) both; }
+@keyframes count-in { 0% { opacity: 0; transform: translate(-50%, -50%) scale(1.35); } 25% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 100% { opacity: .55; transform: translate(-50%, -50%) scale(.96); } }
+@media (max-width: 700px) {
+  .clock-big { font-size: 84px; }
+  .turn-banner__title { font-size: 24px; line-height: 30px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .is-turn-start .turn-glow, .is-hurry .turn-glow, .turn-banner.is-on, .clock-big.is-on { animation: none; }
+}
+
 /* 3D view: the WebGL canvas lies under the 2D one, which stays on top
    (transparent) for the ball labels and the pointer */
 .stage__table3d { position: absolute; display: block; pointer-events: none; }

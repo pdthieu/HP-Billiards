@@ -31,7 +31,7 @@ Mục tiêu: bàn không còn "câm". Không đổi server.
    mặc định trên máy tính, 2D trên điện thoại; camera tự đứng sau gậy khi
    ngắm, nâng lên theo bi khi đánh, nhìn từ trên khi đặt bi; nút Replay phát
    lại cú vừa rồi chậm 0,5×. Xem CLIENT.md, mục *3D view*.
-5. ~~**Bình luận viên**~~ Đã làm (10/2026): 69 câu trending tiếng Việt
+5. ~~**Bình luận viên**~~ Đã làm (10/2026): 78 câu trending tiếng Việt
    (`web/voice`), có câu tục tắt được. Xem CLIENT.md, mục *Commentary*.
 6. ~~**Nhảy bi**~~ Đã làm (10/2026): thanh *Jump* nâng cơ 0–60°, bi bay
    (độ cao `z`), nảy trên mặt đá, bay qua bi và băng; bi văng khỏi bàn là

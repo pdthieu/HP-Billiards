@@ -2,7 +2,8 @@
 // Records the commentary lines of web/voice/lines.json with macOS's
 // Vietnamese voice "Linh" into web/voice/<id>.m4a (AAC at 32 kbit/s, a few
 // KB each), in a style per kind to make them funnier: good news comes high
-// and fast like a cartoon, bad news deep and slow, the shot clock sleepy.
+// and fast like a cartoon, bad news deep and slow, the shot clock sleepy
+// (and breathless in its last seconds).
 // A style is a pitch factor (the recording is played back that much faster
 // or slower, which moves pitch and pace together) and the speaking rate
 // before it; a line may name its own "style". A file that is already there
@@ -28,11 +29,12 @@ const STYLES = {
   hype: { pitch: 1.3, rate: 175 },   // squeaky and thrilled
   sad: { pitch: 0.78, rate: 200 },   // deep, slow, a little mocking
   sleepy: { pitch: 0.7, rate: 185 }, // dragging, for the shot clock
+  rush: { pitch: 1.15, rate: 240 },  // breathless, hurrying the shooter
 };
 const KIND_STYLE = {
   break: 'hype', nice: 'hype', great: 'hype', win: 'hype',
   miss: 'sad', foul: 'sad', scratch: 'sad', lose: 'sad',
-  timeout: 'sleepy',
+  timeout: 'sleepy', hurry: 'rush',
 };
 const RATE = 22050; // say's sample rate, and the files'
 

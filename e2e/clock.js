@@ -61,6 +61,11 @@ async function ring(page, seat) {
     if ((await shooter.textContent('#extend')) !== '+13s') fail(`extension label ${await shooter.textContent('#extend')}`);
     console.log('ring and extension button ok');
 
+    // The shooter's table lights up with a chime; the other's does not.
+    await shooter.waitForFunction(() => $('tableWrap').classList.contains('is-my-turn') && SND.chimes >= 1, null, { timeout: 3000 });
+    if (await waiter.evaluate(() => $('tableWrap').classList.contains('is-my-turn') || SND.chimes > 0)) fail('the waiting player got the your-turn cue');
+    console.log('your-turn cue ok');
+
     // Under ten seconds: red ring and a warning for the shooter.
     await shooter.waitForFunction((t) => document.querySelector(`#seat${t} .hold--low`), turn, { timeout: 5000 });
     await shooter.waitForFunction(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('seconds left')), null, { timeout: 3000 });
@@ -68,11 +73,24 @@ async function ring(page, seat) {
     await B.screenshot({ path: path.join(shots, 'clock-low-B.png') });
     console.log('low-time warning ok');
 
+    // The last ten seconds: a red light and a tick a second for the shooter
+    // alone; the last five count down over the table and hurry them along.
+    await shooter.waitForFunction(() => $('tableWrap').classList.contains('is-hurry') && SND.ticks >= 1, null, { timeout: 3000 });
+    if (await waiter.evaluate(() => $('tableWrap').classList.contains('is-hurry') || SND.ticks > 0)) fail('the waiting player is hurried');
+    await shooter.waitForFunction(() => $('tableWrap').classList.contains('is-hurry-last') && !$('clockBig').hidden, null, { timeout: 7000 });
+    const last = await shooter.evaluate(() => ({ n: Number($('clockBig').textContent), ticks: SND.ticks, line: SND.lastLine }));
+    if (!(last.n >= 1 && last.n <= 5)) fail(`countdown ${last.n}`);
+    if (last.ticks < 4) fail(`only ${last.ticks} ticks by ${last.n}s`);
+    if (!last.line.startsWith('hurry-')) fail(`no hurry line, last line ${last.line}`);
+    await shooter.screenshot({ path: path.join(shots, 'clock-hurry.png') });
+    console.log('hurry ok:', JSON.stringify(last));
+
     // The extension resets the clock to 13 s, once.
     await shooter.click('#extend');
     await waiter.waitForFunction((t) => Number(document.querySelector(`#seat${t} .hold__num`)?.textContent) >= 12, turn, { timeout: 3000 });
     await shooter.waitForFunction(() => document.getElementById('extend').hidden);
     if ((await ring(shooter, turn)).low) fail('ring still red after the extension');
+    await shooter.waitForFunction(() => !$('tableWrap').classList.contains('is-hurry') && $('clockBig').hidden, null, { timeout: 2000 });
     console.log('extension ok');
 
     // Let it run out: the other player breaks instead.
@@ -83,6 +101,8 @@ async function ring(page, seat) {
     if (!/ran out of time/.test(status) || !/break instead/.test(status)) fail(`status after the time foul: ${status}`);
     if (await waiter.isHidden('#shotPanel')) fail('the new breaker has no shot panel');
     if (!(await ring(A, 1 - turn))) fail('no ring for the new breaker');
+    await waiter.waitForFunction(() => $('tableWrap').classList.contains('is-my-turn') && SND.chimes >= 1, null, { timeout: 3000 });
+    await shooter.waitForFunction(() => !$('tableWrap').className.match(/is-my-turn|is-hurry/), null, { timeout: 3000 });
     await waiter.screenshot({ path: path.join(shots, 'clock-timeout.png') });
     console.log('time foul ok:', status.trim());
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);

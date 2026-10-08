@@ -67,5 +67,14 @@
   {"id": "lose-06", "kind": "lose", "text": "Đéo cứu được!", "strong": true},
   {"id": "timeout-01", "kind": "timeout", "text": "Ngủ gật à?"},
   {"id": "timeout-02", "kind": "timeout", "text": "Nhanh lên nào!"},
-  {"id": "timeout-03", "kind": "timeout", "text": "Tua nhanh đi bạn ơi!"}
+  {"id": "timeout-03", "kind": "timeout", "text": "Tua nhanh đi bạn ơi!"},
+  {"id": "hurry-01", "kind": "hurry", "text": "Nhanh lên!"},
+  {"id": "hurry-02", "kind": "hurry", "text": "Còn năm giây!"},
+  {"id": "hurry-03", "kind": "hurry", "text": "Lẹ lên ba ơi!"},
+  {"id": "hurry-04", "kind": "hurry", "text": "Đánh đi chứ, nghĩ gì nữa!"},
+  {"id": "hurry-05", "kind": "hurry", "text": "Run tay rồi à?"},
+  {"id": "hurry-06", "kind": "hurry", "text": "Gấp gấp gấp!"},
+  {"id": "hurry-07", "kind": "hurry", "text": "Hết giờ tới nơi rồi!"},
+  {"id": "hurry-08", "kind": "hurry", "text": "Nhanh cái tay lên!"},
+  {"id": "hurry-09", "kind": "hurry", "text": "Đánh lẹ đi, đéo chờ nữa đâu!", "strong": true}
 ]

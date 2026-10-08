@@ -45,6 +45,7 @@ const PONG_TIMEOUT_MS = 10000;
 const RECONNECT_MAX_MS = 8000;
 const SEAT_HOLD_S = 60;       // how long the server holds a seat (PROTOCOL.md)
 const CLOCK_LOW_S = 10;       // the shot clock turns red and warns from here
+const CLOCK_HURRY_S = 5;      // ...and from here counts down over the table
 const ROOMS_POLL_MS = 3000;
 
 // buildTable lays out cushions and pockets like Table.buildRails on the server.
@@ -217,6 +218,8 @@ const S = {
   clock: null,           // the server's shot clock plus at: performance.now() when it arrived
   clockTimer: 0,
   clockWarned: false,    // the low-time toast was shown for this clock
+  clockTick: 0,          // the last whole second ticked for this clock
+  turnCued: false,       // it is my move, and the cue for it was given
 
   // canvas motion
   pendingDrops: [],      // balls that vanished from a snapshot, awaiting their drop animation
@@ -680,8 +683,8 @@ function onError(msg) {
 // setClock takes the shot clock from the server (null: nobody has to act).
 // Its time is counted from arrival, so the two machines' clocks never mix.
 function setClock(c) {
-  if (!c) { S.clock = null; return; }
-  if (!S.clock || c.seat !== S.clock.seat || c.left > CLOCK_LOW_S * 1000) S.clockWarned = false;
+  if (!c) { S.clock = null; setHurry(0); return; }
+  if (!S.clock || c.seat !== S.clock.seat || c.left > CLOCK_LOW_S * 1000) { S.clockWarned = false; S.clockTick = 0; }
   S.clock = { ...c, at: performance.now() };
 }
 
@@ -1811,6 +1814,7 @@ function resize() {
     const top = $('camTopBtn');
     top.style.left = `${canvas.offsetLeft + view.cssW - 52}px`;
     top.style.top = `${canvas.offsetTop + 8}px`;
+    placeGlow();
     tableCache = null;
     return;
   }
@@ -1832,7 +1836,17 @@ function resize() {
   canvas.style.width = `${view.cssW}px`;
   canvas.style.height = `${view.cssH}px`;
   view.dpr = dpr;
+  placeGlow();
   renderTableCache();
+}
+
+// placeGlow lays the your-move light over the table canvas.
+function placeGlow() {
+  const g = $('turnGlow').style;
+  g.left = `${canvas.offsetLeft}px`;
+  g.top = `${canvas.offsetTop}px`;
+  g.width = `${view.cssW}px`;
+  g.height = `${view.cssH}px`;
 }
 
 // toTable converts a pointer position (CSS px within the canvas) to meters.
@@ -2868,6 +2882,8 @@ const SND = {
   lastLine: '',  // the id spoken last
   spokeAt: -Infinity, // performance.now() of the last line
   voices: 0,     // lines spoken so far, for tests
+  chimes: 0,     // your-turn chimes so far, for tests
+  ticks: 0,      // shot clock ticks so far, for tests
 };
 
 const SOUND_TAKES = { clack: 7, cue: 4, pocket: 1 };
@@ -3021,6 +3037,26 @@ function playStrike(power, delay = 0) {
   if (!ctx) return;
   tock(ctx, ctx.currentTime + delay / 1000, power);
   SND.played++;
+}
+
+// chime is the your-turn ding: two bright notes going up.
+function chime() {
+  const ctx = audio();
+  if (!ctx) return;
+  const at = ctx.currentTime + 0.02;
+  tone(ctx, at, 880, 0.16, 0.5);
+  tone(ctx, at + 0.12, 1318.5, 0.16, 0.7);
+  SND.chimes++;
+}
+
+// clockTick is a shot clock second: a soft wooden tick, sharper and
+// louder in the last five.
+function clockTick(last) {
+  const ctx = audio();
+  if (!ctx) return;
+  const at = ctx.currentTime + 0.01;
+  tone(ctx, at, last ? 1568 : 1046.5, last ? 0.18 : 0.09, last ? 0.12 : 0.07);
+  SND.ticks++;
 }
 
 // playImpacts schedules a shot's contacts at the moment the animation shows
@@ -3949,13 +3985,98 @@ function updateClock(wrap) {
 
 function tickClock() {
   const left = clockLeft();
-  if (left === null) { clearInterval(S.clockTimer); S.clockTimer = 0; return; }
+  if (left === null) { clearInterval(S.clockTimer); S.clockTimer = 0; setHurry(0); return; }
   document.querySelectorAll('.hold--clock').forEach(updateClock);
   if (!$('decision').hidden) renderDecisionClock();
-  if (isMe(S.clock.seat) && !S.clock.paused && left <= CLOCK_LOW_S && left > 0 && !S.clockWarned) {
+  const mine = isMe(S.clock.seat) && !S.clock.paused && left > 0;
+  if (mine && left <= CLOCK_LOW_S && !S.clockWarned) {
     S.clockWarned = true;
     toast(`${CLOCK_LOW_S} seconds left` + (canExtend() ? ' · X extends' : ''), true);
   }
+  hurry(mine ? left : null);
+}
+
+// --- your move -------------------------------------------------------------
+// The player who has to act is told so beyond the seat's pulse: the table
+// lights up, "Your turn" crosses it with a chime (and a buzz on a phone),
+// and a tab in the background says so in its title. In the shot clock's
+// last ten seconds the light turns red and each second ticks; in the last
+// five it pulses faster, counts down over the table and the commentator
+// hurries them along. Only the player who has to act gets any of this.
+
+const BASE_TITLE = document.title;
+
+// myMove: I have a shot or a choice to make.
+const myMove = () => !S.practice && S.seat >= 0 && !S.moving && (isMyShot() || (!!S.decision && isMe(S.decision.seat)));
+
+// renderTurn keeps the table lit while it is my move, and cues its start.
+function renderTurn() {
+  const mine = myMove();
+  $('tableWrap').classList.toggle('is-my-turn', mine);
+  if (mine && !S.turnCued) turnCue();
+  S.turnCued = mine;
+  if (!mine) { setHurry(0); setTitle(''); }
+}
+
+function turnCue() {
+  const wrap = $('tableWrap');
+  wrap.classList.remove('is-turn-start');
+  void wrap.offsetWidth; // restart the flash
+  wrap.classList.add('is-turn-start');
+  const banner = $('turnBanner');
+  banner.querySelector('.turn-banner__sub').textContent = S.decision ? 'choose how to continue' : S.ballInHand ? 'ball in hand' : '';
+  banner.hidden = false;
+  banner.classList.remove('is-on');
+  void banner.offsetWidth;
+  banner.classList.add('is-on');
+  clearTimeout(turnCue.timer);
+  turnCue.timer = setTimeout(() => { banner.hidden = true; wrap.classList.remove('is-turn-start'); }, 1600);
+  chime();
+  nudge([40, 60, 40]);
+  if (document.hidden) setTitle('● Your turn');
+}
+
+// hurry follows my shot clock's last seconds (left: seconds, or null when
+// it is not mine or not running).
+function hurry(left) {
+  if (left === null || left > CLOCK_LOW_S) { setHurry(0); return; }
+  const sec = Math.ceil(left);
+  setHurry(sec <= CLOCK_HURRY_S ? 2 : 1, sec);
+  if (document.hidden) setTitle(`⏰ ${sec}s · Your turn`);
+  if (sec === S.clockTick) return;
+  S.clockTick = sec;
+  clockTick(sec <= CLOCK_HURRY_S);
+  if (sec === CLOCK_LOW_S || sec === CLOCK_HURRY_S) nudge(sec === CLOCK_HURRY_S ? [80, 80, 80] : 80);
+  if (sec === CLOCK_HURRY_S) speak('hurry', Math.random); // mine alone, so no shared seed
+}
+
+// setHurry shows level 0 (none), 1 (red light) or 2 (faster, with the
+// countdown over the table).
+function setHurry(level, sec) {
+  const wrap = $('tableWrap');
+  wrap.classList.toggle('is-hurry', level >= 1);
+  wrap.classList.toggle('is-hurry-last', level === 2);
+  const big = $('clockBig');
+  big.hidden = level !== 2;
+  if (level === 2 && big.textContent !== String(sec)) {
+    big.textContent = String(sec);
+    big.classList.remove('is-on');
+    void big.offsetWidth;
+    big.classList.add('is-on');
+  }
+}
+
+// setTitle marks the tab's title while the page is in the background.
+function setTitle(mark) {
+  const t = mark ? `${mark} · ${BASE_TITLE}` : BASE_TITLE;
+  if (document.title !== t) document.title = t;
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTitle(''); });
+
+// nudge vibrates a phone that can, unless haptics are off.
+function nudge(pattern) {
+  if (!S.haptics || !canVibrate) return;
+  try { navigator.vibrate(pattern); } catch { /* not allowed */ }
 }
 
 const canExtend = () => !!S.clock && isMe(S.clock.seat) && S.clock.extensions[S.seat];
@@ -4076,6 +4197,7 @@ function refreshPanels() {
   if (!$('settings').hidden) renderRoomSettings();
   if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
+  renderTurn();
   renderTrays();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;

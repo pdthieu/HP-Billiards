@@ -123,7 +123,24 @@ The tray row is hidden to make room.
    shooter also gets a "10 seconds left" toast. The ring counts from the
    arrival of the server's `left`, so the two machines' clocks never mix.
    The decision dialog repeats the countdown and names the option taken
-   when it runs out. A `timeout` is shown as a toast and in the status
+   when it runs out.
+
+   **Your move** (`renderTurn`, `hurry`). The player who has to act, a shot
+   or a decision, is told beyond the seat's pulse; the other player and
+   spectators get none of this:
+   - when it becomes their move the table gets a gold light (flashing,
+     then steady for the whole turn), "Your turn" crosses the table for
+     1.6 s (with "ball in hand" or "choose how to continue" under it), a
+     two-note chime plays, a phone buzzes (Settings → *Haptics*), and a
+     tab in the background is titled "● Your turn · Pool";
+   - in the clock's last 10 s the light turns red and pulses, each second
+     ticks and the phone buzzes once; a background tab counts the seconds
+     in its title;
+   - in the last 5 s the light pulses twice as fast, the ticks are higher
+     and louder, the seconds count down in large type over the table, the
+     phone buzzes again and the commentator hurries them (`hurry`).
+   A paused clock is silent. With reduced motion the light only changes
+   colour. A `timeout` is shown as a toast and in the status
    line ("Bob ran out of time. You have ball in hand.").
 3. **Your shot** (shot panel visible):
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
@@ -368,7 +385,7 @@ loudness within its kind:
 ### Commentary
 
 A commentator says a short line in Vietnamese after some shots, picked from
-`web/voice/lines.json` (69 lines in 9 kinds), at most one every 3 s. The line
+`web/voice/lines.json` (78 lines in 10 kinds), at most one every 3 s. The line
 also shows as a caption over the table, also with the sound off. Replays stay
 quiet.
 
@@ -390,6 +407,7 @@ same kind instead of a strong one.
 | `foul` | any other foul | always |
 | `win` / `lose` | the rack ends: the shooter won it / lost it (8-ball early, on a foul…) | always |
 | `timeout` | a shot clock runs out | always |
+| `hurry` | 5 s left on your shot clock; only you hear it, so it is not seeded | always |
 
 Practice has no fouls, wins or losses, so only the shot lines and `scratch`
 play there.
@@ -402,9 +420,9 @@ play there.
   `scripts/make-voices.js`: good news (`break`, `nice`, `great`, `win`)
   high and quick like a cartoon (played back 1.3× faster), bad news
   (`miss`, `foul`, `scratch`, `lose`) deep and slow (0.78×), the shot clock
-  sleepy (0.7×). A line in `lines.json` may name its own `style`.
+  sleepy (0.7×), the hurry lines breathless (1.15×, said fast). A line in `lines.json` may name its own `style`.
 - **The recordings.** Each line is `web/voice/<id>.m4a` (AAC, 32 kbit/s, about
-  580 KB in all), fetched and decoded once audio starts. They are spoken by
+  630 KB in all), fetched and decoded once audio starts. They are spoken by
   macOS's Vietnamese voice "Linh" (`node scripts/make-voices.js`), which
   Apple's licence allows for personal, non-commercial use. To use your own
   voice, record a line and save it over the file with the same name; the
