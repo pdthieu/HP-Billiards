@@ -1,9 +1,13 @@
 package game
 
-import "math"
+import (
+	"math"
+	"math/rand/v2"
+)
 
 // rackOrder lists ball ids row by row from the apex. The 8-ball is in the
 // center of the triangle and the two back corners hold one solid and one stripe.
+// It is the fixed rack Rack uses; games shuffle with EightOrder.
 var rackOrder = [15]int{
 	1,
 	9, 2,
@@ -13,8 +17,63 @@ var rackOrder = [15]int{
 }
 
 // nineRack lists the 9-ball diamond row by row from the apex: the 1-ball on
-// the foot spot, the 9-ball in the centre (WPA 5.1).
-var nineRack = [][]int{{1}, {2, 3}, {4, 9, 5}, {6, 7}, {8}}
+// the foot spot, the 9-ball in the centre (WPA 5.1). It is the fixed rack
+// RackNine uses; games shuffle with NineOrder.
+var nineRack = [9]int{1, 2, 3, 4, 9, 5, 6, 7, 8}
+
+// nineRows is how many balls each row of the 9-ball diamond holds.
+var nineRows = [5]int{1, 2, 3, 2, 1}
+
+// Rack slots in rackOrder: the middle of the third row and the back corners.
+const (
+	eightSlot       = 4
+	leftCornerSlot  = 10
+	rightCornerSlot = 14
+)
+
+// EightOrder returns a random legal 8-ball rack, row by row from the apex
+// (WPA 3.2): the 8-ball in the middle of the triangle, a solid in one back
+// corner and a stripe in the other, every other ball anywhere, so no two
+// games start from the same pattern.
+func EightOrder() [15]int {
+	solids := rand.Perm(7)  // 0–6 → balls 1–7
+	stripes := rand.Perm(7) // 0–6 → balls 9–15
+	var order [15]int
+	order[eightSlot] = EightBall
+	order[leftCornerSlot], order[rightCornerSlot] = solids[0]+1, stripes[0]+9
+	if rand.IntN(2) == 0 {
+		order[leftCornerSlot], order[rightCornerSlot] = order[rightCornerSlot], order[leftCornerSlot]
+	}
+	rest := make([]int, 0, 12)
+	for _, i := range solids[1:] {
+		rest = append(rest, i+1)
+	}
+	for _, i := range stripes[1:] {
+		rest = append(rest, i+9)
+	}
+	rand.Shuffle(len(rest), func(i, j int) { rest[i], rest[j] = rest[j], rest[i] })
+	for n := range order {
+		if n != eightSlot && n != leftCornerSlot && n != rightCornerSlot {
+			order[n], rest = rest[0], rest[1:]
+		}
+	}
+	return order
+}
+
+// NineOrder returns a random legal 9-ball rack, row by row from the apex
+// (WPA 5.2): the 1-ball on the foot spot, the 9-ball in the centre and the
+// other balls in no planned pattern.
+func NineOrder() [9]int {
+	order := nineRack
+	rest := []int{2, 3, 4, 5, 6, 7, 8}
+	rand.Shuffle(len(rest), func(i, j int) { rest[i], rest[j] = rest[j], rest[i] })
+	for n := range order {
+		if order[n] != 1 && order[n] != NineBall {
+			order[n], rest = rest[0], rest[1:]
+		}
+	}
+	return order
+}
 
 // segment is a straight piece of cushion rubber: a rail between two pocket
 // noses, or a jaw leading from a nose into a pocket. Balls bounce off it,
@@ -139,9 +198,12 @@ func (t *Table) Pockets() (mouths, axes [NumPockets]Vec) {
 	return
 }
 
-// Rack puts all 16 balls back: cue ball on the head spot, the triangle with
-// its apex on the foot spot. Events are cleared.
-func (t *Table) Rack() {
+// Rack puts all 16 balls back in the fixed rackOrder.
+func (t *Table) Rack() { t.RackEight(rackOrder) }
+
+// RackEight puts all 16 balls back: cue ball on the head spot, the triangle
+// of order (row by row) with its apex on the foot spot. Events are cleared.
+func (t *Table) RackEight(order [15]int) {
 	for i := range t.Balls {
 		t.Balls[i] = Ball{ID: i}
 	}
@@ -153,7 +215,7 @@ func (t *Table) Rack() {
 	n := 0
 	for row := 0; row < 5; row++ {
 		for j := 0; j <= row; j++ {
-			id := rackOrder[n]
+			id := order[n]
 			n++
 			t.Balls[id].Pos = Vec{
 				X: foot.X + float64(row)*rowDX,
@@ -164,10 +226,13 @@ func (t *Table) Rack() {
 	t.ClearEvents()
 }
 
-// RackNine sets up a 9-ball break: balls 1–9 in a diamond, the cue ball on
-// the head spot, and balls 10–15 off the table (pocketed, so the simulation
-// ignores them).
-func (t *Table) RackNine() {
+// RackNine sets up a 9-ball break in the fixed nineRack.
+func (t *Table) RackNine() { t.RackNineOrder(nineRack) }
+
+// RackNineOrder sets up a 9-ball break: balls 1–9 in a diamond of order
+// (row by row), the cue ball on the head spot, and balls 10–15 off the table
+// (pocketed, so the simulation ignores them).
+func (t *Table) RackNineOrder(order [9]int) {
 	for i := range t.Balls {
 		t.Balls[i] = Ball{ID: i, Pocketed: i > NineBall}
 	}
@@ -176,11 +241,14 @@ func (t *Table) RackNine() {
 	foot := t.Cfg.FootSpot()
 	d := 2*t.Cfg.BallRadius + t.Cfg.RackGap
 	rowDX := d * math.Sqrt(3) / 2
-	for row, ids := range nineRack {
-		for j, id := range ids {
+	n := 0
+	for row, size := range nineRows {
+		for j := 0; j < size; j++ {
+			id := order[n]
+			n++
 			t.Balls[id].Pos = Vec{
 				X: foot.X + float64(row)*rowDX,
-				Y: foot.Y + (float64(j)-float64(len(ids)-1)/2)*d,
+				Y: foot.Y + (float64(j)-float64(size-1)/2)*d,
 			}
 		}
 	}

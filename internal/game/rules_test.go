@@ -864,8 +864,10 @@ func TestGameIllegalBreak(t *testing.T) {
 	if st := g.State(); st.Phase != PhaseBreaking || st.Turn != 0 || len(st.Balls) != NumBalls {
 		t.Errorf("state after re-rack: %+v", st)
 	}
-	if g.Table.Balls[1].Pos != g.Table.Cfg.FootSpot() {
-		t.Error("balls were not racked again")
+	for i, b := range g.Table.Balls {
+		if b.Pocketed || (i != CueBall && b.Pos.X < g.Table.Cfg.FootSpot().X) {
+			t.Fatalf("ball %d at %v pocketed=%v: balls were not racked again", i, b.Pos, b.Pocketed)
+		}
 	}
 }
 

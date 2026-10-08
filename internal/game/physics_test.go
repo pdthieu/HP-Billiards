@@ -512,3 +512,64 @@ func TestImpactsAreRecordedInOrder(t *testing.T) {
 		t.Errorf("an impact at %v after the clock %v", last, g.Table.Clock)
 	}
 }
+
+func TestEightOrder(t *testing.T) {
+	seen := map[[15]int]bool{}
+	for range 200 {
+		order := EightOrder()
+		seen[order] = true
+		var count [NumBalls]int
+		for _, id := range order {
+			count[id]++
+		}
+		for id := 1; id < NumBalls; id++ {
+			if count[id] != 1 {
+				t.Fatalf("%v: ball %d appears %d times", order, id, count[id])
+			}
+		}
+		// WPA 3.2: the 8-ball in the middle, a solid and a stripe in the back corners.
+		if order[eightSlot] != EightBall {
+			t.Fatalf("%v: 8-ball not in the middle of the rack", order)
+		}
+		l, r := order[leftCornerSlot], order[rightCornerSlot]
+		if (l < EightBall) == (r < EightBall) {
+			t.Fatalf("%v: back corners %d and %d are not one solid and one stripe", order, l, r)
+		}
+	}
+	if len(seen) < 190 {
+		t.Errorf("only %d different racks in 200", len(seen))
+	}
+
+	cfg := DefaultConfig()
+	tbl := NewTable(cfg)
+	tbl.RackEight(EightOrder())
+	rowDX := (2*cfg.BallRadius + cfg.RackGap) * math.Sqrt(3) / 2
+	want := Vec{cfg.FootSpot().X + 2*rowDX, cfg.TableHeight / 2}
+	if d := want.Dist(tbl.Balls[EightBall].Pos); d > 1e-9 {
+		t.Errorf("8-ball at %v, want the middle of the third row %v", tbl.Balls[EightBall].Pos, want)
+	}
+}
+
+func TestNineOrder(t *testing.T) {
+	seen := map[[9]int]bool{}
+	for range 200 {
+		order := NineOrder()
+		seen[order] = true
+		var count [NineBall + 1]int
+		for _, id := range order {
+			count[id]++
+		}
+		for id := 1; id <= NineBall; id++ {
+			if count[id] != 1 {
+				t.Fatalf("%v: ball %d appears %d times", order, id, count[id])
+			}
+		}
+		// WPA 5.2: the 1-ball at the apex, the 9-ball in the centre.
+		if order[0] != 1 || order[4] != NineBall {
+			t.Fatalf("%v: want the 1-ball first and the 9-ball in the centre", order)
+		}
+	}
+	if len(seen) < 100 {
+		t.Errorf("only %d different racks in 200", len(seen))
+	}
+}

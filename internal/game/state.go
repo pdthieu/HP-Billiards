@@ -341,11 +341,13 @@ func (g *Game) Start(breaker int) {
 	g.rack()
 }
 
+// rack sets up a fresh, randomly ordered rack for the mode, so every game
+// starts from a different pattern.
 func (g *Game) rack() {
 	if g.Rules.Mode == ModeNine {
-		g.Table.RackNine()
+		g.Table.RackNineOrder(NineOrder())
 	} else {
-		g.Table.Rack()
+		g.Table.RackEight(EightOrder())
 	}
 	g.shooting = false
 	g.cueInKitchen = true
