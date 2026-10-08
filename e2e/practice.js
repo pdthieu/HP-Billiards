@@ -105,6 +105,29 @@ async function shootAndSettle(page, angle, power) {
     for (const id of Object.keys(before)) if (!after[id] || !near(before[id], after[id])) fail(`ball ${id} not restored`);
     console.log('free play and undo ok');
 
+    // Jump: J raises the cue 5° a press; the guide passes over a ball the
+    // cue ball clears, and so does the shot. The next turn starts level.
+    await A.evaluate(() => { send({ type: 'place_cue', x: 0.5, y: 0.635 }); send({ type: 'place_ball', id: 3, x: 0.65, y: 0.635 }); });
+    await A.waitForFunction(() => S.balls.get(0).x === 0.5 && S.balls.get(3).x === 0.65, null, { timeout: 5000 });
+    await A.evaluate(() => { setAngle(0); setPower(0.5); document.activeElement.blur(); });
+    for (let i = 0; i < 9; i++) await A.keyboard.press('j');
+    const jump = await A.evaluate(() => {
+      const cast = castAim(S.balls, S.balls.get(0), 0, jumpFlight(S.power, 0, S.elev * DEG));
+      return { elev: S.elev, text: document.getElementById('elevText').textContent, hit: cast.hit, land: !!cast.land, level: castAim(S.balls, S.balls.get(0), 0).hit };
+    });
+    if (jump.elev !== 45 || jump.text !== '45°' || jump.hit === 3 || !jump.land || jump.level !== 3) fail(`jump aim ${JSON.stringify(jump)}`);
+    await A.evaluate(() => {
+      window.__maxZ = 0;
+      const look = () => { for (const s of S.snaps) window.__maxZ = Math.max(window.__maxZ, (s.balls.get(0) || {}).z || 0); if (S.moving || !window.__maxZ) requestAnimationFrame(look); };
+      look();
+    });
+    await shootAndSettle(A, 0, 0.5);
+    const flew = await A.evaluate(() => ({ z: window.__maxZ, three: [S.balls.get(3).x, S.balls.get(3).y], elev: S.elev, replay: S.lastShot.elev }));
+    if (!(flew.z > 0.05) || !near(flew.three, [0.65, 0.635]) || flew.elev !== 0 || !(flew.replay > 0.7)) fail(`jump shot ${JSON.stringify(flew)}`);
+    await A.keyboard.press('z');
+    await A.waitForFunction(() => S.undos === 0);
+    console.log('jump ok, the cue ball rose', flew.z.toFixed(3), 'm');
+
     // Rack a 9-ball game from Settings; no match or invite there in practice.
     await A.click('#settingsBtn');
     if (await A.isVisible('#settingsMatchRow') || await A.isVisible('#settingsInviteRow')) fail('match or invite settings in practice');
@@ -181,6 +204,9 @@ async function shootAndSettle(page, angle, power) {
     await P.click('#shotSheet .nudge[data-deg="5"]');
     const sheet = await P.evaluate((a) => ({ spin: S.spin, turned: Math.round((S.angle - a) / DEG), dot: document.getElementById('optsDot').style.top }), a0);
     if (!(sheet.spin.y > 0.3) || sheet.turned !== 5 || sheet.dot === '50%') fail(`sheet ${JSON.stringify(sheet)}`);
+    // the jump slider is in the sheet; a raised cue rings the small cue ball
+    await P.locator('#shotSheet #elevRange').fill('30');
+    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the sheet\'s jump slider');
     // the fine aim wheel is in the sheet too, under the finger
     const pj = await P.locator('#shotSheet #aimJog').boundingBox();
     const p0 = await P.evaluate(() => S.angle);

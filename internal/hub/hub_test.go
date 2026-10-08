@@ -436,6 +436,40 @@ func TestAimIsRelayedToTheOtherPlayer(t *testing.T) {
 	c0.expectError("wrong_phase")
 }
 
+func TestJumpShot(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	c0, c1, _ := startGame(t, srv)
+
+	c0.send(msg{"type": "aim", "angle": 0, "power": 0.4, "elevation": 0.5})
+	if a := c1.expect("aim"); a["elevation"] != 0.5 {
+		t.Errorf("relayed aim = %v, want elevation 0.5", a)
+	}
+	c0.send(msg{"type": "aim", "angle": 0, "power": 0.4, "elevation": 3})
+	if a := c1.expect("aim"); a["elevation"] != game.MaxElevation {
+		t.Errorf("relayed aim = %v, want the elevation clamped to %v", a, game.MaxElevation)
+	}
+	c0.send(msg{"type": "aim", "angle": 0, "power": 0.4})
+	if raw, _ := c1.read(); strings.Contains(string(raw), "elevation") {
+		t.Errorf("level aim %s carries an elevation", raw)
+	}
+
+	// A jump at the rack: the cue ball shows up in the air.
+	c0.send(msg{"type": "shoot", "angle": 0, "power": 0.4, "elevation": 0.8})
+	for {
+		_, m := c1.read()
+		if m["type"] == "settled" {
+			t.Fatal("shot settled without a snapshot of the cue ball in the air")
+		}
+		if m["type"] != "snapshot" {
+			continue
+		}
+		cue := m["balls"].([]any)[0].(map[string]any) // sorted by id
+		if z, _ := cue["z"].(float64); cue["id"] == 0.0 && z > 0 {
+			break
+		}
+	}
+}
+
 func TestPlaceCue(t *testing.T) {
 	_, srv := newServer(t, fastOptions())
 	c0, c1, _ := startGame(t, srv)

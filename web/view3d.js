@@ -382,7 +382,8 @@ export function createView3D(canvas, k) {
     cue.visible = !!c && c.alpha > 0;
     if (!cue.visible) return;
     const ux = -c.dir.x, uy = -c.dir.y; // tip → butt, on the table
-    const cos = Math.cos(CUE_TILT), sin = Math.sin(CUE_TILT);
+    const tilt = Math.max(CUE_TILT, c.elev || 0); // raised for a jump
+    const cos = Math.cos(tilt), sin = Math.sin(tilt);
     const s = c.back + k.cueLength / 2;
     cue.position.set(c.x + ux * s * cos, R + s * sin, c.y + uy * s * cos);
     cue.quaternion.setFromUnitVectors(yAxis, new THREE.Vector3(-ux * cos, -sin, -uy * cos));
@@ -523,7 +524,7 @@ export function createView3D(canvas, k) {
       mesh.visible = !!p;
       if (!p) continue;
       const lift = frame.lifted && frame.lifted.id === id ? frame.lifted.lift * 0.03 : 0;
-      placeBall(mesh, id, p, frame.orient(id), lift);
+      placeBall(mesh, id, p, frame.orient(id), lift + (p.z || 0));
     }
     for (const d of frame.drops) {
       const mesh = balls.get(d.id);
@@ -536,13 +537,14 @@ export function createView3D(canvas, k) {
     ghost.visible = false;
     if (frame.guide) {
       const g = frame.guide, a = g.alpha;
-      const [path, ...rest] = g.lines;
-      marks.line(path.a, path.b, path.w * 1.4, path.color, path.alpha * a, path.dash);
-      for (const l of rest) marks.line(l.a, l.b, l.w * 1.4, l.color, l.alpha * a, l.dash);
-      marks.circle(g.ghost.x, g.ghost.y, R, 0.002, g.ghost.color, 0.7 * a);
-      ghost.visible = true;
-      ghost.position.set(g.ghost.x, R, g.ghost.y);
-      ghost.material.opacity = 0.12 * a;
+      for (const l of g.lines) marks.line(l.a, l.b, l.w * 1.4, l.color, l.alpha * a, l.dash);
+      for (const m of g.marks || []) marks.circle(m.x, m.y, m.r, 0.003, m.color, 0.8 * a);
+      if (g.ghost) {
+        marks.circle(g.ghost.x, g.ghost.y, R, 0.002, g.ghost.color, 0.7 * a);
+        ghost.visible = true;
+        ghost.position.set(g.ghost.x, R, g.ghost.y);
+        ghost.material.opacity = 0.12 * a;
+      }
     }
     for (const r of frame.rings) marks.circle(r.x, r.y, r.r, r.w, r.color, r.alpha, 0.0009);
     if (frame.kitchenLine) marks.line({ x: k.HEAD, y: 0 }, { x: k.HEAD, y: H }, 0.003, k.colors.ok, 0.75, [0.016, 0.010]);

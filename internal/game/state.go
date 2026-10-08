@@ -52,7 +52,17 @@ type Ball struct {
 	// negative). It fades with the distance rolled and is partly spent
 	// gripping a cushion; see Table.collideCushions.
 	Spin float64
+	// Z is how far the ball is off the slate (the height of its lowest
+	// point, 0 on the cloth) and VZ its vertical velocity, up positive. A
+	// ball with either set is in the air: it flies free of the cloth, clears
+	// cushions and balls it passes above, and bounces when it comes down.
+	// Only a jump shot (Table.ShootElevated) or a ball landing on another
+	// puts a ball in the air.
+	Z, VZ float64
 }
+
+// Airborne reports whether the ball is off the slate or about to leave it.
+func (b *Ball) Airborne() bool { return b.Z > 0 || b.VZ != 0 }
 
 // EventKind identifies what happened in an Event.
 type EventKind int
@@ -67,6 +77,9 @@ const (
 	// HeadStringCrossed: the cue ball rolled out of the kitchen, across the
 	// head string. Recorded at most once per shot.
 	HeadStringCrossed
+	// BallOffTable: Ball flew over a cushion and left the table. It is out
+	// of play like a pocketed ball.
+	BallOffTable
 )
 
 func (k EventKind) String() string {
@@ -79,6 +92,8 @@ func (k EventKind) String() string {
 		return "CushionHit"
 	case HeadStringCrossed:
 		return "HeadStringCrossed"
+	case BallOffTable:
+		return "BallOffTable"
 	}
 	return "Unknown"
 }
@@ -101,6 +116,7 @@ const (
 	ImpactBall    ImpactKind = iota // two balls
 	ImpactCushion                   // a ball on a cushion or jaw
 	ImpactPocket                    // a ball dropping into a pocket
+	ImpactSlate                     // a ball in the air coming down on the cloth
 )
 
 // Impact is a contact loud enough to hear, for the clients' sound: when it
@@ -117,10 +133,12 @@ type Impact struct {
 const minImpact = 0.02 // m/s
 
 // BallState is the JSON-serializable position of a ball that is on the table.
+// Z is its height off the slate (Ball.Z), left out while it is on the cloth.
 type BallState struct {
 	ID int     `json:"id"`
 	X  float64 `json:"x"`
 	Y  float64 `json:"y"`
+	Z  float64 `json:"z,omitempty"`
 }
 
 // Config holds every tunable constant of the simulation. Units are meters and
@@ -180,6 +198,11 @@ type Config struct {
 	TipOffset       float64
 	SpinDecayLength float64
 
+	// Jumping. A ball driven into the slate, by an elevated cue or by coming
+	// down from the air, bounces back up with SlateRestitution of its
+	// speed into it; the cloth's SlidingFriction acts during the bounce.
+	SlateRestitution float64
+
 	// RackGap is the space left between neighbouring balls in the rack so a
 	// resting rack never registers as overlapping.
 	RackGap float64
@@ -203,6 +226,8 @@ const (
 // here are used to; fast worsted tournament cloth is nearer 0.01), and a
 // cushion that, with μ 0.2 at the nose, sends a
 // rolling ball back with about half its speed as high-speed video shows.
+// A ball bounces off the slate with about half the speed it hits it with
+// (Alciatore, jump shot analysis: 0.5).
 func DefaultConfig() Config {
 	return Config{
 		TableWidth:      100 * inch,
@@ -231,6 +256,8 @@ func DefaultConfig() Config {
 		TipOffset:       0.5,
 		SpinDecayLength: 2.5,
 		RackGap:         0.0005,
+
+		SlateRestitution: 0.5,
 	}
 }
 
@@ -349,10 +376,16 @@ func (g *Game) Shoot(seat int, angle, power float64, call Call) error {
 // ShootSpin is Shoot with english: spin is the cue tip offset, see Ball.Spin.
 // It is clamped to the unit disc.
 func (g *Game) ShootSpin(seat int, angle, power float64, call Call, spin Vec) error {
+	return g.ShootElevated(seat, angle, power, call, spin, 0)
+}
+
+// ShootElevated is ShootSpin with the cue raised elevation radians above
+// the horizontal, a jump shot; see Table.ShootElevated.
+func (g *Game) ShootElevated(seat int, angle, power float64, call Call, spin Vec, elevation float64) error {
 	if err := g.checkTurn(seat); err != nil {
 		return err
 	}
-	if math.IsNaN(angle) || math.IsInf(angle, 0) || math.IsNaN(power) ||
+	if math.IsNaN(angle) || math.IsInf(angle, 0) || math.IsNaN(power) || math.IsNaN(elevation) ||
 		math.IsNaN(spin.X) || math.IsInf(spin.X, 0) || math.IsNaN(spin.Y) || math.IsInf(spin.Y, 0) {
 		return ErrBadInput
 	}
@@ -360,7 +393,7 @@ func (g *Game) ShootSpin(seat int, angle, power float64, call Call, spin Vec) er
 		return err
 	}
 	g.shot = Shot{Call: call, FromKitchen: g.Rules.BallInHand && g.Rules.Kitchen && g.cueInKitchen}
-	g.Table.ShootSpin(angle, power, spin)
+	g.Table.ShootElevated(angle, power, spin, elevation)
 	g.shooting = true
 	return nil
 }

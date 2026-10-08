@@ -206,18 +206,35 @@ func (t *Table) Shoot(angle, power float64) { t.ShootSpin(angle, power, Vec{}) }
 // ShootSpin is Shoot with english: spin is the cue tip offset in units of
 // Cfg.TipOffset·R (x right, y up as the shooter sees it), clamped to the unit
 // disc. Top or bottom spin becomes Ball.Roll, side spin Ball.Side.
-func (t *Table) ShootSpin(angle, power float64, spin Vec) {
+func (t *Table) ShootSpin(angle, power float64, spin Vec) { t.ShootElevated(angle, power, spin, 0) }
+
+// MaxElevation is the steepest the cue can be raised for a jump shot, in
+// radians above the horizontal.
+const MaxElevation = 60 * math.Pi / 180
+
+// ShootElevated is ShootSpin with the butt of the cue raised elevation
+// radians (clamped to [0, MaxElevation]): a jump shot. The cue drives the
+// ball along its axis, so the part of the speed that goes into the slate
+// bounces the ball up off it (see land) and only the rest carries it
+// forward; the slate's friction during that bounce takes some of the
+// forward speed and turns it into roll. At 0 it is ShootSpin.
+func (t *Table) ShootElevated(angle, power float64, spin Vec, elevation float64) {
 	power = math.Max(0, math.Min(1, power))
 	speed := power * t.Cfg.MaxCueSpeed
 	if l := spin.Len(); l > 1 {
 		spin = spin.Scale(1 / l)
 	}
+	elevation = math.Max(0, math.Min(MaxElevation, elevation))
+	ahead, down := speed*math.Cos(elevation), speed*math.Sin(elevation)
 	t.ClearEvents()
 	cue := &t.Balls[CueBall]
 	dir := Vec{math.Cos(angle), math.Sin(angle)}
-	cue.Vel = dir.Scale(speed)
-	cue.Roll = dir.Scale(2.5 * t.Cfg.TipOffset * spin.Y * speed)
-	cue.Spin = -2.5 * t.Cfg.TipOffset * spin.X * speed // tip right of centre: clockwise from above
+	cue.Vel = dir.Scale(ahead)
+	cue.Roll = dir.Scale(2.5 * t.Cfg.TipOffset * spin.Y * ahead)
+	cue.Spin = -2.5 * t.Cfg.TipOffset * spin.X * ahead // tip right of centre: clockwise from above
+	if down > 0 {
+		t.land(cue, down)
+	}
 }
 
 // Settled reports whether every ball on the table is at rest: neither
@@ -225,7 +242,7 @@ func (t *Table) ShootSpin(angle, power float64, spin Vec) {
 func (t *Table) Settled() bool {
 	for i := range t.Balls {
 		b := &t.Balls[i]
-		if !b.Pocketed && (b.Vel != (Vec{}) || b.Roll != (Vec{})) {
+		if !b.Pocketed && (b.Vel != (Vec{}) || b.Roll != (Vec{}) || b.Airborne()) {
 			return false
 		}
 	}
@@ -238,7 +255,7 @@ func (t *Table) Snapshot() []BallState {
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if !b.Pocketed {
-			out = append(out, BallState{ID: b.ID, X: b.Pos.X, Y: b.Pos.Y})
+			out = append(out, BallState{ID: b.ID, X: b.Pos.X, Y: b.Pos.Y, Z: b.Z})
 		}
 	}
 	return out
@@ -263,11 +280,28 @@ func (t *Table) Step(dt float64) {
 // dead centre keeps 5⁄7 of its speed once it rolls. A rolling ball loses
 // speed to rolling resistance alone. Follow, draw and the way a ball dies
 // after a cushion all come out of this.
+//
+// A ball in the air feels gravity alone and keeps its spin until it comes
+// down on the slate, where it bounces (see land).
 func (t *Table) integrate(dt float64) {
 	cfg := &t.Cfg
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if b.Pocketed {
+			continue
+		}
+		if b.Airborne() {
+			prevX := b.Pos.X
+			b.Pos = b.Pos.Add(b.Vel.Scale(dt))
+			b.Z += b.VZ*dt - gravity*dt*dt/2
+			b.VZ -= gravity * dt
+			if b.Z <= 0 {
+				vn := -b.VZ
+				t.impact(ImpactSlate, vn)
+				t.land(b, vn)
+				t.Collided = t.Collided || b.VZ > 0
+			}
+			t.crossHead(b, prevX)
 			continue
 		}
 		if slip := b.Vel.Sub(b.Roll); slip != (Vec{}) {
@@ -304,15 +338,54 @@ func (t *Table) integrate(dt float64) {
 			// as long as follow or draw would.
 			b.Spin *= math.Exp(-speed * dt / (2 * cfg.SpinDecayLength))
 		}
-		if head := cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
-			t.crossedHead = true
-			t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
-		}
+		t.crossHead(b, prevX)
 	}
 }
 
-// pocketAt returns the index of the pocket whose drop zone holds pos, or -1.
-func (t *Table) pocketAt(pos Vec) int {
+// crossHead records the cue ball leaving the kitchen, if b, which was at x
+// = prevX, is the cue ball and has just crossed the head string.
+func (t *Table) crossHead(b *Ball, prevX float64) {
+	if head := t.Cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
+		t.crossedHead = true
+		t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
+	}
+}
+
+// hopStop is the slowest a ball bounces back up off the slate; a slower
+// bounce (under half a millimetre high) leaves it on the cloth.
+const hopStop = 0.1 // m/s
+
+// land bounces b off the slate, which it hits at vn (m/s, > 0) from above:
+// it goes back up with SlateRestitution of that, and the cloth's sliding
+// friction, μ times the impulse, works on the slip between its speed and its
+// roll as it would over a long slide (see integrate), so a ball comes down
+// from a jump rolling more naturally each bounce.
+func (t *Table) land(b *Ball, vn float64) {
+	e := t.Cfg.SlateRestitution
+	j := (1 + e) * vn
+	if slip := b.Vel.Sub(b.Roll); slip != (Vec{}) {
+		sl := slip.Len()
+		d := math.Min(sl, 3.5*t.Cfg.SlidingFriction*j)
+		u := slip.Scale(1 / sl)
+		b.Vel = b.Vel.Sub(u.Scale(2.0 / 7 * d))
+		if d == sl {
+			b.Roll = b.Vel
+		} else {
+			b.Roll = b.Roll.Add(u.Scale(5.0 / 7 * d))
+		}
+	}
+	b.Z, b.VZ = 0, e*vn
+	if b.VZ < hopStop {
+		b.VZ = 0
+	}
+}
+
+// noseHeight is how high the cushion nose stands above the slate. A ball
+// whose lowest point is above it flies over the cushions.
+func (c *Config) noseHeight() float64 { return 2 * c.BallRadius * c.CushionNose }
+
+// dropZone returns the index of the pocket whose drop zone holds pos, or -1.
+func (t *Table) dropZone(pos Vec) int {
 	for n, p := range t.pockets {
 		rel := pos.Sub(p.mouth)
 		depth := rel.Dot(p.axis)
@@ -321,8 +394,32 @@ func (t *Table) pocketAt(pos Vec) int {
 			return n
 		}
 	}
-	// A ball that somehow got clear of the rails is lost down the nearest
-	// pocket rather than left rolling forever.
+	return -1
+}
+
+// overBed reports whether a ball centred on pos is above the playing surface
+// or a pocket opening, rather than above a cushion or off the table.
+func (t *Table) overBed(pos Vec) bool {
+	if pos.X >= 0 && pos.X <= t.Cfg.TableWidth && pos.Y >= 0 && pos.Y <= t.Cfg.TableHeight {
+		return true
+	}
+	r := t.Cfg.BallRadius
+	for _, p := range t.pockets {
+		rel := pos.Sub(p.mouth)
+		if rel.Dot(p.axis) > -r && math.Abs(rel.X*p.axis.Y-rel.Y*p.axis.X) <= p.half+r {
+			return true
+		}
+	}
+	return false
+}
+
+// pocketAt returns the index of the pocket whose drop zone holds pos, or -1.
+// A ball on the cloth that somehow got clear of the rails is lost down the
+// nearest pocket rather than left rolling forever.
+func (t *Table) pocketAt(pos Vec) int {
+	if n := t.dropZone(pos); n >= 0 {
+		return n
+	}
 	m := 2 * t.Cfg.BallRadius
 	if pos.X < -m || pos.Y < -m || pos.X > t.Cfg.TableWidth+m || pos.Y > t.Cfg.TableHeight+m {
 		best, bestD := 0, math.Inf(1)
@@ -336,30 +433,51 @@ func (t *Table) pocketAt(pos Vec) int {
 	return -1
 }
 
+// capturePockets drops the balls over a pocket and takes off the table the
+// ones that flew over a cushion. A ball in the air falls into a pocket it is
+// over once it is lower than a ball's height; one that has cleared a cushion
+// is off the table as soon as it is lower than the cushion's nose, whether
+// it came down on the rail or beyond it.
 func (t *Table) capturePockets() {
 	for i := range t.Balls {
 		b := &t.Balls[i]
 		if b.Pocketed {
 			continue
 		}
+		if b.Airborne() {
+			if n := t.dropZone(b.Pos); n >= 0 && b.Z < 2*t.Cfg.BallRadius {
+				t.impact(ImpactPocket, b.Vel.Len())
+				t.pocket(b, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
+			} else if !t.overBed(b.Pos) && b.Z < t.Cfg.noseHeight() {
+				t.pocket(b, Event{Kind: BallOffTable, Ball: b.ID})
+			}
+			continue
+		}
 		if n := t.pocketAt(b.Pos); n >= 0 {
 			t.impact(ImpactPocket, b.Vel.Len())
-			b.Pocketed = true
-			b.Vel, b.Roll, b.Spin = Vec{}, Vec{}, 0
-			t.Events = append(t.Events, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
+			t.pocket(b, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
 		}
 	}
+}
+
+// pocket takes b out of play, as e records.
+func (t *Table) pocket(b *Ball, e Event) {
+	b.Pocketed = true
+	b.Vel, b.Roll, b.Spin, b.Z, b.VZ = Vec{}, Vec{}, 0, 0, 0
+	t.Events = append(t.Events, e)
 }
 
 // collideCushions bounces balls off the cushions and pocket jaws. A ball
 // overlapping a segment is pushed out along the contact normal and, if it was
 // moving into it, gets an impulse at the cushion nose (see bounce). Segment
-// ends act as the rounded noses they are.
+// ends act as the rounded noses they are. A ball in the air higher than the
+// nose passes over them.
 func (t *Table) collideCushions() {
 	r := t.Cfg.BallRadius
+	nose := t.Cfg.noseHeight()
 	for i := range t.Balls {
 		b := &t.Balls[i]
-		if b.Pocketed {
+		if b.Pocketed || b.Z >= nose {
 			continue
 		}
 		hit := false
@@ -467,6 +585,11 @@ func (t *Table) impact(k ImpactKind, speed float64) {
 // at the end of the step would be off by up to 13° on a hard cut, so the
 // object ball would not leave where the aim guide points. Balls that overlap
 // without closing are pushed apart.
+//
+// Heights count: a ball in the air passes over one it is clear of, and one
+// that comes down on another hits it on the line of centres in three
+// dimensions, which drives the lower ball into the slate (it bounces off it,
+// see integrate) and the upper one back up.
 func (t *Table) collideBalls(dt float64) {
 	minDist := 2 * t.Cfg.BallRadius
 	e := t.Cfg.BallRestitution
@@ -480,40 +603,41 @@ func (t *Table) collideBalls(dt float64) {
 			if b.Pocketed {
 				continue
 			}
-			delta := b.Pos.Sub(a.Pos)
-			dist := delta.Len()
+			delta, dz := b.Pos.Sub(a.Pos), b.Z-a.Z
+			dist := math.Hypot(delta.Len(), dz)
 			if dist >= minDist {
 				continue
 			}
-			rel := b.Vel.Sub(a.Vel)
-			back := contactTime(delta, rel, minDist, dt)
+			rel, relZ := b.Vel.Sub(a.Vel), b.VZ-a.VZ
+			back := contactTime(delta, dz, rel, relZ, minDist, dt)
 			if back > 0 {
-				a.Pos = a.Pos.Sub(a.Vel.Scale(back))
-				b.Pos = b.Pos.Sub(b.Vel.Scale(back))
-				delta = b.Pos.Sub(a.Pos)
-				dist = delta.Len()
+				a.Pos, a.Z = a.Pos.Sub(a.Vel.Scale(back)), a.Z-a.VZ*back
+				b.Pos, b.Z = b.Pos.Sub(b.Vel.Scale(back)), b.Z-b.VZ*back
+				delta, dz = b.Pos.Sub(a.Pos), b.Z-a.Z
+				dist = math.Hypot(delta.Len(), dz)
 			}
-			n := Vec{1, 0}
+			// n, nz: the unit line of centres from a to b
+			n, nz := Vec{1, 0}, 0.0
 			if dist > 0 {
-				n = delta.Scale(1 / dist)
+				n, nz = delta.Scale(1/dist), dz/dist
 			}
 			if dist < minDist {
-				push := n.Scale((minDist - dist) / 2)
-				a.Pos = a.Pos.Sub(push)
-				b.Pos = b.Pos.Add(push)
+				push := (minDist - dist) / 2
+				a.Pos, a.Z = a.Pos.Sub(n.Scale(push)), math.Max(0, a.Z-nz*push)
+				b.Pos, b.Z = b.Pos.Add(n.Scale(push)), math.Max(0, b.Z+nz*push)
 			}
 
-			vn := rel.Dot(n)
+			vn := rel.Dot(n) + relZ*nz
 			if vn < 0 {
 				t.impact(ImpactBall, -vn)
-				impulse := n.Scale(-(1 + e) / 2 * vn)
-				a.Vel = a.Vel.Sub(impulse)
-				b.Vel = b.Vel.Add(impulse)
+				j := -(1 + e) / 2 * vn
+				a.Vel, a.VZ = a.Vel.Sub(n.Scale(j)), a.VZ-nz*j
+				b.Vel, b.VZ = b.Vel.Add(n.Scale(j)), b.VZ+nz*j
 				t.Collided = true
 			}
 			// the rest of the step, with the new velocities
-			a.Pos = a.Pos.Add(a.Vel.Scale(back))
-			b.Pos = b.Pos.Add(b.Vel.Scale(back))
+			a.Pos, a.Z = a.Pos.Add(a.Vel.Scale(back)), math.Max(0, a.Z+a.VZ*back)
+			b.Pos, b.Z = b.Pos.Add(b.Vel.Scale(back)), math.Max(0, b.Z+b.VZ*back)
 			if vn >= 0 {
 				continue // already separating
 			}
@@ -536,17 +660,17 @@ func (t *Table) collideBalls(dt float64) {
 	}
 }
 
-// contactTime returns how long ago two balls at separation delta (b − a),
-// closing at relative velocity rel (b − a), were minDist apart, at most dt;
-// 0 when they are not closing.
-func contactTime(delta, rel Vec, minDist, dt float64) float64 {
-	dr := delta.Dot(rel)
-	rr := rel.Dot(rel)
+// contactTime returns how long ago two balls at separation delta (b − a)
+// and dz in height, closing at relative velocity rel and relZ (b − a), were
+// minDist apart, at most dt; 0 when they are not closing.
+func contactTime(delta Vec, dz float64, rel Vec, relZ, minDist, dt float64) float64 {
+	dr := delta.Dot(rel) + dz*relZ
+	rr := rel.Dot(rel) + relZ*relZ
 	if dr >= 0 || rr == 0 {
 		return 0
 	}
 	// |delta − rel·τ| = minDist, the root with τ > 0
-	c := delta.Dot(delta) - minDist*minDist
+	c := delta.Dot(delta) + dz*dz - minDist*minDist
 	tau := (dr + math.Sqrt(dr*dr-rr*c)) / rr
 	return math.Max(0, math.Min(tau, dt))
 }

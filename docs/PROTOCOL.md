@@ -26,8 +26,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 |---|---|---|
 | `join` | `roomCode`, `name`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
 | `ready` | – | Lobby only. The rack starts when both seated players are ready. |
-| `aim` | `angle`, `power` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
-| `shoot` | `angle`, `power`, `call?`, `spin?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. |
+| `aim` | `angle`, `power`, `elevation?` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
+| `shoot` | `angle`, `power`, `call?`, `spin?`, `elevation?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. `elevation` is how far the butt of the cue is raised, in radians above the horizontal, clamped to [0, π/3]; omitted or 0 is a level cue (see Jump shots). |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
 | `rematch` | – | `game_over` only; either player. Starts the next rack of the match, or a new match once it is won (see Matches). |
@@ -49,6 +49,16 @@ The rules below are 8-ball; see 9-ball for the other game. `call` is `{"pocket":
 - The shooter keeps the turn if a ball that counts for them drops on a shot without a foul. After a safety the turn always passes and whatever dropped stays down.
 - Pocketing the 8-ball wins only when it was the shooter's legal target, it dropped in the called pocket and the shot was not a foul and not a safety; in every other case it loses the game.
 - Balls slide, then roll: a ball keeps 5⁄7 of its speed once cloth friction has matched its spin to its velocity, and only then slows gently under rolling friction. Top/bottom spin sets the cue ball's initial roll, so follow and draw come out of the same model (a cue ball with draw slides on its back spin and comes back after a full hit; the longer the shot, the less draw is left). Cushions rebound the normal speed with a restitution of 0.78 that falls off for hard hits (a rolling ball comes back with about half its speed), and their nose has friction: it scrubs off the roll into the rail (a rolling ball dies after a rail), takes speed off an oblique rebound, and turns side spin into a throw along the rail (right english → toward the shooter's right), spending part of the spin. Side spin otherwise fades with the distance rolled. There is no squirt, swerve or throw off object balls.
+- Jump shots: see below.
+
+## Jump shots
+
+A shot with an `elevation` drives the cue ball along the cue, partly down into the slate. That part bounces it up with half its speed (the slate's restitution, `SlateRestitution`), the rest carries it forward, and the cloth's friction during the bounce turns some of the forward speed into roll. At 45° and half power the cue ball rises about 10 cm and comes down some 60 cm on.
+
+- A ball in the air flies free of the cloth under gravity, keeps its spin and bounces each time it comes down, lower every time, until it rolls.
+- It passes over balls it is clear of. Balls meet in three dimensions: one that comes down on another drives that ball into the slate, which bounces it, and goes back up itself.
+- A ball lower than the cushion nose (63.5 % of a ball's height) bounces off the cushions as usual; a higher one flies over them and leaves the table (`BallOffTable`, `offTable` in `settled`) once it is lower than the nose again, on the rail or past it. A ball in the air drops into a pocket it is over once it is lower than a ball's height.
+- A ball off the table is a foul, `off_table`, whatever else happened. The cue ball comes back as after a scratch. An object ball stays off (it counts as down), except: the 8-ball, which loses the game (`end` `eight_off`), but on the break is spotted; and the 9-ball, which is spotted. In practice a ball off the table stays off, and a cue ball comes back on the head spot.
 
 `option` values:
 
@@ -91,6 +101,7 @@ Two players play a match: the first to win `race` racks wins it. A race of 1 is 
   - `eight_foul`: the loser pocketed the 8-ball on a foul (`foul` says which);
   - `eight_early`: the loser pocketed the 8-ball before it was their target;
   - `eight_pocket`: the loser pocketed the 8-ball in another pocket than called, or on a safety;
+  - `eight_off`: the loser drove the 8-ball off the table (see Jump shots);
   - `three_fouls`: 9-ball, the loser's third foul in a row;
   - `forfeit`: the loser left (see below). The score does not change.
 - Leaving forfeits a match in progress (`leave`, or a seat hold that runs out): the other player wins the match, the rack in progress is listed with `end` `forfeit`, and the room goes back to the lobby. That player gets `player` (the seat empty) and `room_state` with the finished `match`. The match stays in `room_state` until a new player takes the free seat, which starts a new one.
@@ -102,7 +113,7 @@ WPA section 5. Balls `1`–`9` are racked in a diamond with the 1 on the foot sp
 - The cue ball must first hit the lowest-numbered ball on the table, the 1 on the break. Any ball pocketed on a legal shot keeps the turn; nothing is called and there is no safety.
 - The 9-ball pocketed on a legal shot wins, also on the break or by combination. Pocketed on a foul or a push out, it goes back on the foot spot (`settled` lists it in `pocketed`, and it reappears in `balls`).
 - A break must pocket a ball or drive at least four object balls to a rail; otherwise it is a foul `bad_break` (with `illegalBreak` true). There is no re-rack choice.
-- Fouls (`scratch`, `no_contact`, `wrong_ball`, `no_rail`, `bad_break`, and running out of time) give the opponent ball in hand anywhere. Balls pocketed on a foul stay down, except the 9.
+- Fouls (`scratch`, `no_contact`, `wrong_ball`, `no_rail`, `bad_break`, `off_table`, and running out of time) give the opponent ball in hand anywhere. Balls pocketed on a foul or driven off the table stay down, except the 9.
 - **Push out:** the shot right after the break, whoever takes it, may be sent with `call: {"pushOut": true}` while `pushOut` is true. It needs no contact and no rail; a scratch is still a foul. Balls it pockets stay down (the 9 is spotted). The opponent then gets a `decision` with `take_shot` and `pass_back`. A push out at any other time is refused with `bad_call`.
 - **Three fouls:** `fouls[seat]` counts each player's consecutive fouls, reset by a legal shot. The third in a row loses the rack. Time fouls count, except on the break, where the opponent simply breaks instead.
 
@@ -177,9 +188,9 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 
 ### `snapshot`
 
-`{type, t, balls}` — sent when a shot starts (`t` = 0), then at 20 Hz while balls move, plus one at the moment of the first bounce (ball or cushion) inside any 60 Hz server tick, so that interpolating clients do not cut the corner of a bounce. `t` is simulated milliseconds since the shot, strictly increasing but not evenly spaced; positions are rounded to 4 decimals (0.1 mm). Clients interpolate between snapshots.
+`{type, t, balls}` — sent when a shot starts (`t` = 0), then at 20 Hz while balls move, plus one at the moment of the first bounce (ball or cushion) inside any 60 Hz server tick, so that interpolating clients do not cut the corner of a bounce. `t` is simulated milliseconds since the shot, strictly increasing but not evenly spaced; positions are rounded to 4 decimals (0.1 mm). Clients interpolate between snapshots. A ball in the air (a jump shot) has `z`, the height of its lowest point above the slate in metres, left out while it is on the cloth.
 
-`impacts` (omitted when empty) lists the contacts since the previous snapshot, for sound: `{"t": 412, "k": "ball", "v": 1.85}` with `t` on the same clock as the snapshot's, `k` one of `ball` (two balls), `rail` (a cushion or jaw) or `pocket` (a ball dropping), and `v` the closing speed along the contact normal (for `pocket`, the ball's speed) in m/s. Contacts slower than 0.02 m/s are left out. Each impact is sent once; those after the last snapshot come with `settled`. A dropped snapshot loses its impacts, which only costs a sound.
+`impacts` (omitted when empty) lists the contacts since the previous snapshot, for sound: `{"t": 412, "k": "ball", "v": 1.85}` with `t` on the same clock as the snapshot's, `k` one of `ball` (two balls), `rail` (a cushion or jaw), `pocket` (a ball dropping) or `slate` (a ball in the air coming down on the cloth), and `v` the closing speed along the contact normal (for `pocket`, the ball's speed) in m/s. Contacts slower than 0.02 m/s are left out. Each impact is sent once; those after the last snapshot come with `settled`. A dropped snapshot loses its impacts, which only costs a sound.
 
 ### `settled`
 
@@ -206,8 +217,9 @@ Ends a shot. Positions are exact; clients snap to them.
 ```
 
 - `pocketed`: ids pocketed by this shot, in order; includes `0` for a scratch.
+- `offTable`: ids driven off the table by this shot, in order, `0` included; omitted when none.
 - `impacts`: the shot's last contacts, as in `snapshot`.
-- `foul`: omitted for a legal shot, otherwise `scratch`, `no_contact`, `wrong_ball`, `kitchen` (cue ball in hand above the head string hit a ball there without crossing the head string first) or `no_rail` (nothing pocketed and no ball reached a rail after contact).
+- `foul`: omitted for a legal shot, otherwise `scratch`, `no_contact`, `wrong_ball`, `kitchen` (cue ball in hand above the head string hit a ball there without crossing the head string first), `no_rail` (nothing pocketed and no ball reached a rail after contact) or `off_table` (a ball left the table).
 - `made`: a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket.
 - `illegalBreak`: break that pocketed nothing and drove fewer than four object balls to a rail; in 8-ball a `decision` for the opponent follows, in 9-ball it is the foul `bad_break`.
 - `pushedOut`: 9-ball, this shot was a push out. `fouls` and `pushOut` as in `room_state`.
@@ -215,11 +227,11 @@ Ends a shot. Positions are exact; clients snap to them.
 - `winner`: present only when the game is over.
 - `clock`: as in `room_state`, started for whoever acts next.
 - `match`: as in `room_state`; a shot that ends a rack has it in `racks` already.
-- After a scratch the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
+- After a scratch, or the cue ball off the table, the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
 
 ### `aim`
 
-`{type, seat, angle, power}` — the other player's aim preview.
+`{type, seat, angle, power, elevation?}` — the other player's aim preview; `elevation` (radians, clamped as in `shoot`) only while their cue is raised.
 
 ### `player`
 

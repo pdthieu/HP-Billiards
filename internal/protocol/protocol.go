@@ -109,6 +109,10 @@ type ClientMessage struct {
 	Call *Call `json:"call"`
 	// shoot: optional english, see Spin
 	Spin *Spin `json:"spin"`
+	// aim, shoot: optional, how far the butt of the cue is raised, in
+	// radians above the horizontal; 0 is a level cue, more makes the cue
+	// ball jump. The server clamps it to [0, game.MaxElevation].
+	Elevation float64 `json:"elevation"`
 
 	// place_cue, place_ball (ID is the ball)
 	ID int     `json:"id"`
@@ -306,19 +310,20 @@ type Snapshot struct {
 // Impact is a contact for the client to play a sound for.
 type Impact struct {
 	T int     `json:"t"` // milliseconds since the shot, on the snapshot clock
-	K string  `json:"k"` // "ball", "rail" or "pocket"
+	K string  `json:"k"` // "ball", "rail", "pocket" or "slate" (a ball coming down from a jump)
 	V float64 `json:"v"` // closing speed, m/s
 }
 
 // ImpactKinds maps game.ImpactKind to Impact.K.
-var ImpactKinds = [...]string{game.ImpactBall: "ball", game.ImpactCushion: "rail", game.ImpactPocket: "pocket"}
+var ImpactKinds = [...]string{game.ImpactBall: "ball", game.ImpactCushion: "rail", game.ImpactPocket: "pocket", game.ImpactSlate: "slate"}
 
 // Settled ends a shot: exact positions plus what the rules decided.
 type Settled struct {
 	Type         string           `json:"type"`
 	Balls        []game.BallState `json:"balls"`
 	Shooter      int              `json:"shooter"`
-	Pocketed     []int            `json:"pocketed"` // ids in order, cue ball (0) included
+	Pocketed     []int            `json:"pocketed"`           // ids in order, cue ball (0) included
+	OffTable     []int            `json:"offTable,omitempty"` // ids driven off the table, in order, cue ball included
 	Foul         game.Foul        `json:"foul,omitempty"`
 	Made         bool             `json:"made"`
 	IllegalBreak bool             `json:"illegalBreak"`
@@ -345,6 +350,8 @@ type Aim struct {
 	Seat  int     `json:"seat"`
 	Angle float64 `json:"angle"`
 	Power float64 `json:"power"`
+	// Elevation of the cue in radians, left out while it is level.
+	Elevation float64 `json:"elevation,omitempty"`
 }
 
 // Pong answers a ping.

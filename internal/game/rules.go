@@ -4,8 +4,10 @@ import "slices"
 
 // The rules follow the WPA "Rules of Play" for 8-ball (section 4) and 9-ball
 // (section 5), with the general rules and fouls of sections 1–3. Rules that need a referee or a
-// physical table (lag, foot on floor, double hits, balls off the table,
-// stalemate) do not apply to a simulated game. The hub runs a shot clock in
+// physical table (lag, foot on floor, double hits, stalemate) do not apply
+// to a simulated game. A ball jumped off the table is a foul and stays off,
+// except the 8-ball, which loses the game (but is spotted after the break),
+// and the 9-ball, which is spotted. The hub runs a shot clock in
 // place of the slow-play rule; TimeFoul is its penalty.
 
 // Mode is the game played. Its values are the wire representation.
@@ -73,6 +75,7 @@ const (
 	FoulKitchen   Foul = "kitchen"    // 3.11: bad play from above the head string
 	FoulNoRail    Foul = "no_rail"    // 3.3: nothing pocketed and no rail after contact
 	FoulBadBreak  Foul = "bad_break"  // 9-ball 5.3: nothing pocketed and fewer than four balls to a rail
+	FoulOffTable  Foul = "off_table"  // a ball, the cue ball included, was driven off the table
 )
 
 // Call is the shooter's declaration before a shot. Object balls are not
@@ -146,6 +149,7 @@ const (
 	EndEightFoul   End = "eight_foul"   // the 8-ball dropped on a foul
 	EndEightEarly  End = "eight_early"  // the 8-ball dropped before it was the shooter's target
 	EndEightPocket End = "eight_pocket" // the 8-ball dropped in another pocket than called, or on a safety
+	EndEightOff    End = "eight_off"    // the 8-ball was driven off the table (not on the break)
 	EndThreeFouls  End = "three_fouls"  // 9-ball: a third foul in a row
 	EndForfeit     End = "forfeit"      // a player left the match (only in Match)
 )
@@ -159,7 +163,8 @@ type ShotResult struct {
 	Shooter      int
 	Foul         Foul
 	Pocketed     []int // every ball pocketed this shot, in order, cue ball included
-	CuePocketed  bool  // the cue ball must be put back on the table
+	OffTable     []int // every ball driven off the table this shot, in order, cue ball included
+	CuePocketed  bool  // the cue ball must be put back on the table: pocketed or off the table
 	Made         bool  // a ball that counts for the shooter dropped: one of their group, any object ball on an open table, or the 8-ball in its called pocket; in 9-ball any ball on a legal shot
 	IllegalBreak bool  // break shot that pocketed nothing and drove too few balls to a rail
 	PushOut      bool  // 9-ball: the shot was a push out
@@ -312,15 +317,19 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 func (r *Rules) resolveFree(s Shot) ShotResult {
 	res := ShotResult{Shooter: r.Turn}
 	for _, e := range s.Events {
-		if e.Kind != BallPocketed {
+		switch e.Kind {
+		case BallPocketed:
+			res.Pocketed = append(res.Pocketed, e.Ball)
+		case BallOffTable:
+			res.OffTable = append(res.OffTable, e.Ball)
+		default:
 			continue
 		}
-		res.Pocketed = append(res.Pocketed, e.Ball)
 		if e.Ball == CueBall {
 			res.CuePocketed = true
 		} else {
 			r.pocketed[e.Ball] = true
-			res.Made = true
+			res.Made = res.Made || e.Kind == BallPocketed
 		}
 	}
 	return res
@@ -349,6 +358,7 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 		railAfter      bool // a ball reached a rail after the first contact
 		eightPocketed  bool
 		eightPocket    int
+		eightOff       bool
 		objectPocketed bool // an object ball other than the 8
 		firstObject    = -1 // the first object ball other than the 8 to drop
 		toRail         [NumBalls]bool
@@ -382,15 +392,26 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 					res.Made = true
 				}
 			}
+		case BallOffTable:
+			res.OffTable = append(res.OffTable, e.Ball)
+			toRail[e.Ball] = true // it went over one
+			switch e.Ball {
+			case CueBall:
+				res.CuePocketed = true
+			case EightBall:
+				eightOff = true
+			}
 		}
 	}
-	for _, id := range res.Pocketed {
+	for _, id := range slices.Concat(res.Pocketed, res.OffTable) {
 		if id != CueBall && id != EightBall {
 			r.pocketed[id] = true
 		}
 	}
 
 	switch {
+	case len(res.OffTable) > 0:
+		res.Foul = FoulOffTable
 	case res.CuePocketed:
 		res.Foul = FoulScratch
 	case first < 0:
@@ -414,6 +435,9 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 			}
 		}
 		res.IllegalBreak = !eightPocketed && !objectPocketed && railed < minBreakRails
+		if eightOff {
+			res.Respot = EightBall // the break is not lost on it
+		}
 
 		switch {
 		case eightPocketed:
@@ -441,6 +465,10 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 		return res
 	}
 
+	if eightOff {
+		r.Winner, r.End, r.Phase = opponent, EndEightOff, PhaseGameOver
+		return res
+	}
 	if eightPocketed {
 		// 4.8: the 8-ball must be the shooter's legal target and drop in the
 		// called pocket on a shot without a foul; anything else loses (3.8).
@@ -572,6 +600,7 @@ func (r *Rules) resolveNine(s Shot) ShotResult {
 	var (
 		railAfter    bool
 		ninePocketed bool
+		nineOff      bool
 		toRail       [NumBalls]bool
 	)
 	for _, e := range s.Events {
@@ -591,6 +620,15 @@ func (r *Rules) resolveNine(s Shot) ShotResult {
 			case NineBall:
 				ninePocketed = true
 			}
+		case BallOffTable:
+			res.OffTable = append(res.OffTable, e.Ball)
+			toRail[e.Ball] = true // it went over one
+			switch e.Ball {
+			case CueBall:
+				res.CuePocketed = true
+			case NineBall:
+				nineOff = true
+			}
 		}
 	}
 	objects := 0 // object balls pocketed, the 9 included
@@ -598,12 +636,16 @@ func (r *Rules) resolveNine(s Shot) ShotResult {
 		if id != CueBall {
 			objects++
 		}
+	}
+	for _, id := range slices.Concat(res.Pocketed, res.OffTable) {
 		if id != CueBall && id != NineBall {
 			r.pocketed[id] = true
 		}
 	}
 
 	switch {
+	case len(res.OffTable) > 0:
+		res.Foul = FoulOffTable
 	case res.CuePocketed:
 		res.Foul = FoulScratch
 	case pushOut:
@@ -629,6 +671,9 @@ func (r *Rules) resolveNine(s Shot) ShotResult {
 
 	r.BallInHand, r.Kitchen, r.PushOut = false, false, false
 	r.Phase = PhaseOpen
+	if nineOff {
+		res.Respot = NineBall
+	}
 	if ninePocketed {
 		if legal && !pushOut {
 			r.Winner, r.End, r.Phase = shooter, EndMade, PhaseGameOver

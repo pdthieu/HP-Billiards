@@ -731,11 +731,15 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 	if math.IsNaN(msg.Angle) || math.IsInf(msg.Angle, 0) || math.IsNaN(msg.Power) {
 		return
 	}
+	if math.IsNaN(msg.Elevation) {
+		msg.Elevation = 0
+	}
 	aim := protocol.Aim{
-		Type:  protocol.TypeAim,
-		Seat:  s,
-		Angle: msg.Angle,
-		Power: math.Max(0, math.Min(1, msg.Power)),
+		Type:      protocol.TypeAim,
+		Seat:      s,
+		Angle:     msg.Angle,
+		Power:     math.Max(0, math.Min(1, msg.Power)),
+		Elevation: math.Max(0, math.Min(game.MaxElevation, msg.Elevation)),
 	}
 	r.sendDroppableTo(1-s, aim)
 	if data, err := json.Marshal(aim); err == nil {
@@ -751,7 +755,7 @@ func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 	if r.practice {
 		before = r.game.Save()
 	}
-	if err := r.game.ShootSpin(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec()); err != nil {
+	if err := r.game.ShootElevated(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec(), msg.Elevation); err != nil {
 		return err
 	}
 	r.breakShot = breaking
@@ -807,6 +811,7 @@ func (r *room) tick() {
 		Balls:        st.Balls,
 		Shooter:      res.Shooter,
 		Pocketed:     pocketed,
+		OffTable:     res.OffTable,
 		Foul:         res.Foul,
 		Made:         res.Made,
 		IllegalBreak: res.IllegalBreak,
@@ -983,6 +988,7 @@ func (r *room) snapshotOf(balls []game.BallState, ms int) protocol.Snapshot {
 	for i := range balls {
 		balls[i].X = round4(balls[i].X)
 		balls[i].Y = round4(balls[i].Y)
+		balls[i].Z = round4(balls[i].Z)
 	}
 	r.lastSnapT = ms
 	return protocol.Snapshot{Type: protocol.TypeSnapshot, T: ms, Balls: balls, Impacts: r.newImpacts()}

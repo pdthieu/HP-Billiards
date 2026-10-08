@@ -105,6 +105,7 @@ const FOUL_TEXT = {
   kitchen: 'illegal shot from the kitchen',
   no_rail: 'no rail after contact',
   bad_break: 'fewer than four balls reached a rail',
+  off_table: 'a ball left the table',
 };
 const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball' };
 
@@ -182,6 +183,7 @@ const S = {
   angle: 0,
   power: 0.3,            // fraction of MAX_CUE_SPEED sent with the shot; the bar maps to it quadratically
   spin: { x: 0, y: 0 },  // cue tip offset, unit disc; y > 0 is top spin
+  elev: 0,               // cue elevation in whole degrees, 0 (level) to ELEV_MAX: raised, the cue ball jumps
   powerDrag: false,      // the power bar is being pulled
   powerBefore: 0.3,      // power before the current pull, restored on cancel
   lastPower: 0,          // power of the last shot, shown faintly in the bar
@@ -205,7 +207,7 @@ const S = {
   lastAimSent: 0,
   aimTimer: 0,
 
-  oppAim: null,          // {angle, power}
+  oppAim: null,          // {angle, power, elev}; elev in radians
   heldStrike: null,      // our cue's strike fx, drawn back from the release until the shot starts (strikeAt)
   lastDecisionReason: '',
   offlineSince: [0, 0],  // performance.now() when a seat dropped, per seat; 0 = unknown
@@ -438,7 +440,7 @@ function handle(msg) {
       if (msg.seat !== S.seat) {
         S.oppAimPrev = S.oppAim;
         S.oppAimAt = performance.now();
-        S.oppAim = { angle: msg.angle, power: msg.power };
+        S.oppAim = { angle: msg.angle, power: msg.power, elev: msg.elevation || 0 };
       }
       break;
     case 'player': onPlayer(msg); break;
@@ -561,7 +563,7 @@ function sameObjectBalls(a, b) {
 }
 
 function onSnapshot(msg) {
-  const balls = new Map(msg.balls.map((b) => [b.id, { x: b.x, y: b.y }]));
+  const balls = new Map(msg.balls.map((b) => [b.id, b.z ? { x: b.x, y: b.y, z: b.z } : { x: b.x, y: b.y }]));
   if (msg.t > 0 && S.moving && S.snaps.length) {
     // A ball missing from this snapshot was pocketed: animate it dropping
     // once the render clock reaches this snapshot.
@@ -570,9 +572,9 @@ function onSnapshot(msg) {
   }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
-    if (msg.t === 0) strikeAt(balls.get(0));
+    const elev = msg.t === 0 ? strikeAt(balls.get(0)) : 0;
     stopReplay();
-    S.rec = msg.t === 0 ? { snaps: [], impacts: [] } : null; // a shot joined midway is not replayed
+    S.rec = msg.t === 0 ? { snaps: [], impacts: [], elev } : null; // a shot joined midway is not replayed
     S.snaps = [];
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
@@ -763,6 +765,7 @@ function newTurn() {
   S.drag = null;
   S.placedAt = null;
   S.spin = { x: 0, y: 0 };
+  setElev(0);
   if (isMyShot()) {
     const cue = S.balls.get(0);
     const targets = legalTargets();
@@ -786,13 +789,16 @@ function describeShot(msg) {
   const who = nameOf(msg.shooter);
   const me = isMe(msg.shooter);
   const made = msg.pocketed.filter((id) => id !== 0);
+  const off = msg.offTable || [];
   const over = msg.winner !== undefined && msg.winner !== null;
   const nine = isNine();
   if (msg.illegalBreak && !nine) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
   if (msg.pushedOut) parts.push(me ? 'You pushed out.' : `${who} pushed out.`);
   if (msg.foul) parts.push(`${me ? 'Your foul' : `Foul by ${who}`}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
   if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
-  if (nine && !over && made.includes(9)) parts.push('The 9 goes back on the foot spot.');
+  if (off.length) parts.push(`Off the table: ${off.map(offName).join(', ')}.`);
+  if (nine && !over && (made.includes(9) || off.includes(9))) parts.push('The 9 goes back on the foot spot.');
+  if (!nine && !over && off.includes(8)) parts.push('The 8 goes back on the foot spot.');
   if (nine && !over && msg.foul && msg.fouls && msg.fouls[msg.shooter] === 2) {
     parts.push(`${me ? 'You are' : `${who} is`} on two fouls: a third loses the rack.`);
   }
@@ -820,12 +826,18 @@ function describeShot(msg) {
 // describeFreeShot says what a practice shot did: no fouls, no turns.
 function describeFreeShot(msg) {
   const made = msg.pocketed.filter((id) => id !== 0);
+  const off = (msg.offTable || []).filter((id) => id !== 0);
   const parts = [];
   if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
+  if (off.length) parts.push(`Off the table: ${off.map(ballName).join(', ')}.`);
   if (msg.pocketed.includes(0)) parts.push('The cue ball dropped; it is back on the head spot.');
+  else if ((msg.offTable || []).includes(0)) parts.push('The cue ball left the table; it is back on the head spot.');
   if (![...S.balls.keys()].some((id) => id > 0)) parts.push('Table cleared! Rack again for more.');
   setStatus(parts.join(' ') || 'Nothing dropped.', made.length ? 'good' : '');
 }
+
+// offName names a ball that left the table.
+const offName = (id) => (id === 0 ? 'the cue ball' : ballName(id));
 
 // nineResultReason says why a 9-ball rack ended with this shot.
 function nineResultReason(msg, who) {
@@ -838,6 +850,7 @@ function eightResultReason(msg, who, made) {
   const g = S.groups[msg.shooter];
   const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
   if (msg.winner === msg.shooter) return '8-ball pocketed in the called pocket';
+  if ((msg.offTable || []).includes(8)) return `${who} jumped the 8-ball off the table`;
   if (msg.foul) return `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
   return early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
 }
@@ -898,9 +911,34 @@ function lowestBall() {
   return low;
 }
 
+// Jump shots, as the server works them out (Table.ShootElevated, land):
+// mirrors of game.DefaultConfig.
+const SLATE_E = 0.5, CLOTH_MU = 0.2, TIP_OFFSET = 0.5, GRAVITY = 9.81;
+const NOSE_H = 2 * R * 0.635; // the cushion nose above the slate: a ball whose bottom is higher flies over
+
+// jumpFlight predicts the cue ball's first hop off a raised cue: its speed
+// along the table once it has bounced off the slate, how fast it rises, and
+// so where it comes down (land, metres from the cue ball) and how high its
+// bottom is on the way (z(s)). null for a level cue or a hop too small to
+// leave the cloth. Later, lower hops are left out.
+function jumpFlight(power, spinY, elev) {
+  if (!elev) return null;
+  const speed = power * MAX_CUE_SPEED;
+  const ahead = speed * Math.cos(elev), down = speed * Math.sin(elev);
+  const slip = ahead * (1 - 2.5 * TIP_OFFSET * spinY);
+  const v = ahead - Math.sign(slip) * 2 / 7 * Math.min(Math.abs(slip), 3.5 * CLOTH_MU * (1 + SLATE_E) * down);
+  const vz = SLATE_E * down;
+  if (vz < 0.1 || v <= 1e-3) return null;
+  const land = v * 2 * vz / GRAVITY;
+  return { land, z: (s) => (s >= land ? 0 : vz * (s / v) - GRAVITY / 2 * (s / v) ** 2) };
+}
+
 // castAim finds where the cue ball, sent along angle, first touches a ball or
 // a cushion. Returns the ghost-ball position plus, for a ball, its direction.
-function castAim(balls, cue, angle) {
+// With a flight (jumpFlight) it passes over what it clears: balls, and a
+// cushion it is higher than, which sends it off the table (offTable); land
+// is where it first comes down, if before that.
+function castAim(balls, cue, angle, flight) {
   const d = { x: Math.cos(angle), y: Math.sin(angle) };
   let t = Infinity;
   let hit = null;
@@ -911,14 +949,31 @@ function castAim(balls, cue, angle) {
     const c = fx * fx + fy * fy - 4 * R * R;
     const disc = bq * bq - 4 * c;
     if (disc < 0) continue;
-    const tt = (-bq - Math.sqrt(disc)) / 2;
+    let tt = (-bq - Math.sqrt(disc)) / 2;
+    if (flight && tt < flight.land) {
+      // in the air: the first point of the pass where the balls touch
+      const t2 = (-bq + Math.sqrt(disc)) / 2;
+      const h2 = (s) => s * s + bq * s + c + 4 * R * R; // squared distance across the table
+      tt = Infinity;
+      for (let s = Math.max(0, (-bq - Math.sqrt(disc)) / 2); s <= t2; s += R / 8) {
+        const z = flight.z(s);
+        if (h2(s) + z * z < 4 * R * R) { tt = s; break; }
+      }
+      if (tt === Infinity && flight.land < t2) tt = flight.land; // comes down on it
+    }
     if (tt > 1e-6 && tt < t) { t = tt; hit = id; }
   }
   const tx = d.x > 1e-9 ? (W - R - cue.x) / d.x : d.x < -1e-9 ? (R - cue.x) / d.x : Infinity;
   const ty = d.y > 1e-9 ? (H - R - cue.y) / d.y : d.y < -1e-9 ? (R - cue.y) / d.y : Infinity;
   const tc = Math.max(0, Math.min(tx, ty));
-  if (tc < t) { t = tc; hit = null; }
+  let offTable = false;
+  if (tc < t) {
+    t = tc; hit = null;
+    // over the cushion: the cue ball goes on past the rail and is gone
+    if (flight && flight.z(tc) >= NOSE_H) { offTable = true; t = tc + 2 * R; }
+  }
   const ghost = { x: cue.x + d.x * t, y: cue.y + d.y * t };
+  const land = flight && flight.land < t ? { x: cue.x + d.x * flight.land, y: cue.y + d.y * flight.land } : null;
   let objDir = null, cueDir = null;
   if (hit !== null) {
     const b = balls.get(hit);
@@ -930,7 +985,7 @@ function castAim(balls, cue, angle) {
     const cl = Math.hypot(cueDir.x, cueDir.y);
     cueDir = cl > 1e-6 ? { x: cueDir.x / cl, y: cueDir.y / cl } : null;
   }
-  return { ghost, hit, dir: d, objDir, cueDir };
+  return { ghost, hit, dir: d, objDir, cueDir, land, offTable, flight: !!flight };
 }
 
 function canShoot() {
@@ -945,6 +1000,7 @@ function shoot() {
   else if (S.call && S.call.pushOut) msg.call = { pushOut: true };
   else if (S.call && S.call.pocket !== undefined) msg.call = { pocket: S.call.pocket };
   if (S.spin.x || S.spin.y) msg.spin = { x: S.spin.x, y: S.spin.y };
+  if (S.elev) msg.elevation = S.elev * DEG;
   closeSheet();
   if (send(msg)) {
     // The cue stays drawn back until the server's first snapshot says when
@@ -952,7 +1008,7 @@ function shoot() {
     dropHeldStrike();
     const cue = displayBalls().get(0) || { x: 0, y: 0 };
     const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
-    const f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, delay: Infinity, cue: { ...cue }, dir, power: S.power });
+    const f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, delay: Infinity, cue: { ...cue }, dir, power: S.power, elev: S.elev * DEG });
     S.heldStrike = f;
     setTimeout(() => { if (S.heldStrike === f) dropHeldStrike(); }, STRIKE_WAIT_MS);
   }
@@ -964,20 +1020,22 @@ function shoot() {
 // took. Before, the click and the tip came at the release and the ball a
 // round trip and RENDER_DELAY_MS later (about 0.25 s on a phone's 4G). Our
 // own shot's cue has been held drawn back since the release; somebody
-// else's strikes from their last aim.
+// else's strikes from their last aim. Returns the cue's elevation, for the
+// replay.
 function strikeAt(cueBall) {
   const now = performance.now();
   let f = S.heldStrike;
   S.heldStrike = null;
   if (!f && S.oppAim && cueBall) {
     const a = oppAimAngle(now);
-    f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, cue: { ...cueBall }, dir: { x: Math.cos(a), y: Math.sin(a) }, power: S.oppAim.power });
+    f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, cue: { ...cueBall }, dir: { x: Math.cos(a), y: Math.sin(a) }, power: S.oppAim.power, elev: S.oppAim.elev });
   }
   playStrike(f ? f.power : 0.4, RENDER_DELAY_MS);
-  if (!f) return;
+  if (!f) return 0;
   f.t0 = now;
   f.delay = Math.max(0, RENDER_DELAY_MS - STRIKE_HIT_MS);
   addFx({ type: 'ring', layer: 'top', dur: 150, t0: now, delay: RENDER_DELAY_MS, at: { ...f.cue } });
+  return f.elev || 0;
 }
 
 // dropHeldStrike takes away a cue still waiting for its shot to start: the
@@ -1156,7 +1214,15 @@ function renderSpin(spring) {
   const mini = $('optsDot');
   mini.style.left = `${50 + S.spin.x * SPIN_RANGE}%`;
   mini.style.top = `${50 - S.spin.y * SPIN_RANGE}%`;
-  $('optionsBtn').setAttribute('aria-label', `Spin and fine aim: ${words}`);
+  renderOptsBtn();
+}
+
+// renderOptsBtn names what the phone's options button holds; a brass ring
+// round it says the cue is raised.
+function renderOptsBtn() {
+  const btn = $('optionsBtn');
+  btn.setAttribute('aria-label', `Spin, jump and fine aim: ${spinWords()}${S.elev ? `, cue raised ${S.elev}°` : ''}`);
+  btn.classList.toggle('opts-btn--jump', S.elev > 0);
 }
 
 function setSpin(x, y, spring) {
@@ -1192,6 +1258,31 @@ spinPad.addEventListener('keydown', (e) => {
 });
 $('spinReset').onclick = () => setSpin(0, 0, true);
 
+// --- jump: how far the butt of the cue is raised ---------------------------
+//
+// A raised cue drives the cue ball down into the slate and it bounces up off
+// it: a jump shot (the server's Table.ShootElevated). The slider sets the
+// angle above the horizontal; the cue in the picture beside it tilts to
+// match. Every new turn starts level.
+
+const ELEV_MAX = 60; // degrees; mirrors game.MaxElevation
+const elevRange = $('elevRange');
+const elevBox = document.querySelector('#shotPanel .elev');
+
+function setElev(deg) {
+  const v = Math.max(0, Math.min(ELEV_MAX, Math.round(deg) || 0));
+  const changed = v !== S.elev;
+  S.elev = v;
+  elevRange.value = String(v);
+  elevRange.setAttribute('aria-valuetext', v ? `${v} degrees` : 'level');
+  $('elevText').textContent = v ? `${v}°` : 'level';
+  $('elevCue').style.transform = `rotate(${v}deg)`;
+  elevBox.classList.toggle('elev--on', v > 0);
+  renderOptsBtn();
+  if (changed) queueAim();
+}
+elevRange.addEventListener('input', () => setElev(Number(elevRange.value)));
+
 // --- shot options sheet (phones) ---------------------------------------------
 //
 // On a phone the table gets the room: the shot panel is one row (what to
@@ -1200,7 +1291,7 @@ $('spinReset').onclick = () => setSpin(0, 0, true);
 // opens over the bottom of the screen; the table stays live above it.
 
 const compactLayout = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
-const shotOptions = [document.querySelector('#shotPanel .angle'), document.querySelector('#shotPanel .spin')];
+const shotOptions = [document.querySelector('#shotPanel .angle'), document.querySelector('#shotPanel .spin'), elevBox];
 const optionHomes = shotOptions.map((el) => { const mark = document.createComment(''); el.before(mark); return mark; });
 
 // placeShotOptions puts the spin pad and the angle buttons in the sheet on
@@ -1246,7 +1337,9 @@ function queueAim() {
   const due = S.lastAimSent + AIM_SEND_MS - now;
   if (due <= 0) {
     S.lastAimSent = now;
-    send({ type: 'aim', angle: S.angle, power: S.power });
+    const msg = { type: 'aim', angle: S.angle, power: S.power };
+    if (S.elev) msg.elevation = S.elev * DEG;
+    send(msg);
   } else if (!S.aimTimer) {
     S.aimTimer = setTimeout(() => { S.aimTimer = 0; queueAim(); }, due);
   }
@@ -1281,7 +1374,7 @@ const PAL = {
   railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', railLip: '#FFE2B4',
   feltCenter: '#36745C', felt: '#2C614C', feltEdge: '#1B3F31', cushion: '#1F4B3A',
   sight: '#E6D7B4', ivory: '#F4EFE2', disc: '#FAF7EF', ink: '#111316',
-  brass: '#D9A441', brassLine: '#E3B25C', ok: '#71C99D', oppAim: '#A9C1DD',
+  brass: '#D9A441', brassLine: '#E3B25C', ok: '#71C99D', oppAim: '#A9C1DD', warn: '#E0614F',
   labelBg: '#0D1218', labelText: '#E8ECF1', labelStroke: '#AABED7', flash: '#FFE2B4',
 };
 
@@ -1330,7 +1423,7 @@ const FX = {
   // the cue advances to the ball, then fades
   strike(f, p) {
     const { back, alpha } = strikePose(f.power, p, f.dur);
-    drawCue(f.cue, f.dir, back, alpha);
+    drawCue(f.cue, f.dir, back, alpha, f.elev);
   },
   ring(f, p) {
     const e = EASE.out(p);
@@ -1349,6 +1442,12 @@ const FX = {
     const alpha = p < fadeStart ? 1 : 1 - (p - fadeStart) / (1 - fadeStart);
     if (alpha <= 0) return;
     drawBall(f.id, { x, y }, { scale: 1 - 0.4 * e, alpha });
+  },
+  // a ball that flew off the table falls out of sight beyond the rail
+  gone(f, p) {
+    const e = EASE.in(p);
+    const x = f.from.x + f.dir.x * 0.06 * e, y = f.from.y + f.dir.y * 0.06 * e;
+    drawBall(f.id, { x, y }, { scale: heightScale(f.from) * (1 - 0.3 * e), alpha: 1 - p });
   },
   rim(f, p) {
     const e = EASE.out(p);
@@ -1414,11 +1513,24 @@ function nearestPocket(p) {
 function queueDrop(id, from, t) {
   S.pendingDrops.push({ id, from, t });
 }
+// startDrop animates a ball leaving play from where it was last seen: into
+// the nearest pocket, or, when it was last seen over a rail and away from
+// every pocket, falling off the table (it jumped).
 function startDrop(id, from) {
-  const { pk, hole } = nearestPocket(from);
+  const { d, pk, hole } = nearestPocket(from);
+  if (offTheBed(from) && d > hole.r + 2 * R) {
+    const cx = Math.max(0, Math.min(W, from.x)), cy = Math.max(0, Math.min(H, from.y));
+    const l = Math.hypot(from.x - cx, from.y - cy) || 1;
+    addFx({ type: 'gone', layer: 'balls', dur: v3 ? 360 : 240, id, from, dir: { x: (from.x - cx) / l, y: (from.y - cy) / l } });
+    return;
+  }
   addFx({ type: 'drop', layer: 'balls', dur: v3 ? 360 : 180, id, from, to: hole });
   addFx({ type: 'rim', layer: 'top', dur: 120, pk });
 }
+// offTheBed: a ball at p has its centre beyond a cushion nose.
+const offTheBed = (p) => p.x < 0 || p.x > W || p.y < 0 || p.y > H;
+// heightScale is how much bigger a ball in the air looks from above.
+const heightScale = (p) => 1 + Math.min(1, 2.2 * (p.z || 0));
 
 // --- 3D view ----------------------------------------------------------------
 // view3d.js draws the table in 3D (CLIENT.md, "3D view"). It is loaded the
@@ -1664,7 +1776,10 @@ function interpSnaps(snaps, t) {
   const out = new Map();
   for (const [id, pa] of a.balls) {
     const pb = b.balls.get(id);
-    out.set(id, pb ? { x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f } : pa);
+    if (!pb) { out.set(id, pa); continue; }
+    const p = { x: pa.x + (pb.x - pa.x) * f, y: pa.y + (pb.y - pa.y) * f };
+    if (pa.z || pb.z) p.z = (pa.z || 0) + ((pb.z || 0) - (pa.z || 0)) * f;
+    out.set(id, p);
   }
   return out;
 }
@@ -1696,9 +1811,9 @@ function draw() {
   let aim = null; // {angle, power, mine, alpha}
   if (cue && myShot && !S.drag) {
     const a = S.aimShownAt ? EASE.out(clamp01((now - S.aimShownAt) / 200)) : 1;
-    aim = { angle: S.angle, power: S.power, mine: true, alpha: reduceMotion.matches ? 1 : a };
+    aim = { angle: S.angle, power: S.power, elev: S.elev * DEG, mine: true, alpha: reduceMotion.matches ? 1 : a };
   } else if (cue && S.oppAim && inPlay() && !S.moving && !S.replay && S.turn !== S.seat) {
-    aim = { angle: oppAimAngle(now), power: S.oppAim.power, mine: false, alpha: 1 };
+    aim = { angle: oppAimAngle(now), power: S.oppAim.power, elev: S.oppAim.elev, mine: false, alpha: 1 };
   }
   const lifted = S.drag ? S.drag.id : -1;
   const lift = S.drag ? liftAmount(now) : 0;
@@ -1715,20 +1830,24 @@ function draw() {
   if (placingInKitchen) drawKitchenWash();
 
   // aim guide goes under the balls
-  const cast = aim ? drawAim(balls, cue, aim.angle, aim.mine, aim.alpha) : null;
+  const cast = aim ? drawAim(balls, cue, aim, aim.alpha) : null;
 
-  // shadows, then bodies
+  // shadows, then bodies, a ball in the air over the ones on the cloth
   for (const [id, p] of balls) drawBallShadow(p, id === lifted ? lift : 0);
-  for (const [id, p] of balls) drawBall(id, p, id === lifted && lift ? { scale: 1 + 0.05 * lift } : undefined);
+  const order = [...balls].sort((a, b) => (a[1].z || 0) - (b[1].z || 0));
+  for (const [id, p] of order) {
+    const scale = (id === lifted ? 1 + 0.05 * lift : 1) * heightScale(p);
+    drawBall(id, p, scale !== 1 ? { scale } : undefined);
+  }
   drawFx('balls', now);
 
   // cue stick above the balls
   if (aim && !striking) {
     const dir = { x: Math.cos(aim.angle), y: Math.sin(aim.angle) };
-    drawCue(cue, dir, R + 0.02 + powerToBar(aim.power) * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha);
+    drawCue(cue, dir, R + 0.02 + powerToBar(aim.power) * 0.12, aim.mine ? aim.alpha : 0.4 * aim.alpha, aim.elev);
   }
   const rc = S.replay && replayCue(now);
-  if (rc) drawCue(rc, rc.dir, rc.back, rc.alpha);
+  if (rc) drawCue(rc, rc.dir, rc.back, rc.alpha, rc.elev);
   drawFx('cue', now);
 
   // rings
@@ -1907,18 +2026,25 @@ function drawLabels(balls, cast, aim, cue, now) {
 // canvas lying over it.
 function draw3d(now, balls, st) {
   const { aim, myShot, cue, placingInKitchen, striking, lifted, lift } = st;
-  const guide = aim ? aimGuide(balls, cue, aim.angle, aim.mine) : null;
+  const guide = aim ? aimGuide(balls, cue, aim) : null;
   if (guide) guide.alpha *= aim.alpha;
   const rings = [];
   const drops = [];
   let stick = null;
   if (aim && !striking) {
+    // seen from behind, a raised cue stands in front of the shot: see through it
+    const see = aim.elev > 10 * DEG ? 0.5 : 1;
     stick = { x: cue.x, y: cue.y, dir: { x: Math.cos(aim.angle), y: Math.sin(aim.angle) },
-      back: R + 0.02 + powerToBar(aim.power) * 0.12, alpha: aim.mine ? aim.alpha : 0.4 * aim.alpha };
+      back: R + 0.02 + powerToBar(aim.power) * 0.12, alpha: (aim.mine ? aim.alpha : 0.4 * aim.alpha) * see, elev: aim.elev };
   }
   for (const { f, p } of takeFx(now)) {
     const e = EASE.out(p);
-    if (f.type === 'strike') stick = { ...f.cue, dir: f.dir, ...strikePose(f.power, p, f.dur) };
+    if (f.type === 'strike') stick = { ...f.cue, dir: f.dir, ...strikePose(f.power, p, f.dur), elev: f.elev };
+    else if (f.type === 'gone') {
+      // over the rail and down past it
+      const fall = EASE.in(p);
+      drops.push({ id: f.id, x: f.from.x + f.dir.x * 0.06 * fall, y: f.from.y + f.dir.y * 0.06 * fall, sink: 0.12 * fall - (f.from.z || 0), alpha: p < 1 ? 1 : 0 });
+    }
     else if (f.type === 'ring') rings.push({ x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
     else if (f.type === 'rim') { const h = pocketHole(f.pk); rings.push({ x: h.x, y: h.y, r: h.r, w: 0.006, color: PAL.flash, alpha: 0.5 * (1 - e) }); }
     else if (f.type === 'drop') {
@@ -2283,12 +2409,15 @@ function drawBallNumbers(id) {
 }
 
 function drawBallShadow(p, lift) {
-  const k = 1 + 0.8 * lift;
+  // a ball in the air: its shadow falls further off, bigger and fainter
+  const z = p.z || 0;
+  const k = 1 + 0.8 * lift + 40 * z;
   const o = screenOffset(0.006 * k, 0.009 * k);
-  const r = R * 1.08 * (1 + 0.05 * lift);
+  const r = R * 1.08 * (1 + 0.05 * lift + 3 * z);
+  const a = 1 / (1 + 8 * z);
   const g = ctx.createRadialGradient(p.x + o.x, p.y + o.y, 0, p.x + o.x, p.y + o.y, r);
-  g.addColorStop(0, rgba('#000000', 0.5));
-  g.addColorStop(0.7, rgba('#000000', 0.25));
+  g.addColorStop(0, rgba('#000000', 0.5 * a));
+  g.addColorStop(0.7, rgba('#000000', 0.25 * a));
   g.addColorStop(1, rgba('#000000', 0));
   ctx.fillStyle = g;
   ctx.beginPath();
@@ -2409,10 +2538,12 @@ const CUE_LEN = 1.2;
 const cueWidth = (t) => 0.012 + (0.028 - 0.012) * (t / CUE_LEN);
 
 // drawCue draws the stick with its tip `back` metres behind the cue ball's
-// centre, pointing along dir.
-function drawCue(cue, dir, back, alpha) {
+// centre, pointing along dir; elev (radians) raises its butt, which from
+// above shortens it.
+function drawCue(cue, dir, back, alpha, elev = 0) {
   if (alpha <= 0) return;
-  const u = { x: -dir.x, y: -dir.y }; // tip → butt
+  const c = Math.cos(elev);
+  const u = { x: -dir.x * c, y: -dir.y * c }; // tip → butt, as seen from above
   const n = { x: -u.y, y: u.x };
   const tip = { x: cue.x + u.x * back, y: cue.y + u.y * back };
   const at = (t, side) => ({ x: tip.x + u.x * t + n.x * side * cueWidth(t) / 2, y: tip.y + u.y * t + n.y * side * cueWidth(t) / 2 });
@@ -2460,16 +2591,30 @@ function drawCue(cue, dir, back, alpha) {
 // aimGuide lays out the guide: the path to the ghost ball, the ghost ball,
 // the object ball's direction with a chevron and the cue ball's deflection,
 // as lines in table metres for either view. Its cast (castAim) names the
-// ball the aim strikes first.
-function aimGuide(balls, cue, angle, mine) {
-  const cast = castAim(balls, cue, angle);
+// ball the aim strikes first. A jump (aim.elev) dots the part of the path
+// in the air and rings where the cue ball comes down; a path off the table
+// is red, with no ghost ball.
+function aimGuide(balls, cue, aim) {
+  const { angle, mine } = aim;
+  const flight = jumpFlight(aim.power, mine ? S.spin.y : 0, aim.elev || 0);
+  const cast = castAim(balls, cue, angle, flight);
   const d = cast.dir;
-  const line = mine ? '#FFFFFF' : PAL.oppAim;
+  const line = cast.offTable ? PAL.warn : mine ? '#FFFFFF' : PAL.oppAim;
   const brass = mine ? PAL.brassLine : PAL.oppAim;
-  const lines = [{
-    a: { x: cue.x + d.x * R, y: cue.y + d.y * R }, b: { x: cast.ghost.x - d.x * R, y: cast.ghost.y - d.y * R },
-    w: 0.003, color: line, alpha: 0.78, dash: [0.020, 0.014],
-  }];
+  const end = { x: cast.ghost.x - d.x * R, y: cast.ghost.y - d.y * R };
+  const lines = [];
+  if (flight) {
+    // dotted while the ball is in the air, then dashed as usual
+    const up = cast.land || end;
+    lines.push({ a: { x: cue.x + d.x * R, y: cue.y + d.y * R }, b: up, w: 0.003, color: line, alpha: 0.78, dash: [0.004, 0.012] });
+    if (cast.land) lines.push({ a: cast.land, b: end, w: 0.003, color: line, alpha: 0.78, dash: [0.020, 0.014] });
+  } else {
+    lines.push({ a: { x: cue.x + d.x * R, y: cue.y + d.y * R }, b: end, w: 0.003, color: line, alpha: 0.78, dash: [0.020, 0.014] });
+  }
+  const marks = cast.land ? [{ x: cast.land.x, y: cast.land.y, r: 0.6 * R, color: line }] : [];
+  if (cast.offTable) {
+    return { cast, lines, marks, ghost: null, alpha: mine ? 1 : 0.5 };
+  }
   // After contact: the object ball's path and the cue ball's deflection,
   // as long as the server's aimLine (the deflection half of it).
   const reach = S.aimLine;
@@ -2505,12 +2650,12 @@ function aimGuide(balls, cue, angle, mine) {
       });
     }
   }
-  return { cast, lines, ghost: { x: cast.ghost.x, y: cast.ghost.y, color: line }, alpha: mine ? 1 : 0.5 };
+  return { cast, lines, marks, ghost: { x: cast.ghost.x, y: cast.ghost.y, color: line }, alpha: mine ? 1 : 0.5 };
 }
 
 // drawAim draws the guide on the 2D table and returns its cast.
-function drawAim(balls, cue, angle, mine, alpha) {
-  const g = aimGuide(balls, cue, angle, mine);
+function drawAim(balls, cue, aim, alpha) {
+  const g = aimGuide(balls, cue, aim);
   ctx.save();
   ctx.globalAlpha = g.alpha * alpha;
   ctx.lineCap = 'round';
@@ -2523,16 +2668,24 @@ function drawAim(balls, cue, angle, mine, alpha) {
     ctx.lineTo(l.b.x, l.b.y);
     ctx.stroke();
   };
-  const [path, ...rest] = g.lines;
-  stroke(path);
+  for (const l of g.lines) stroke(l);
   ctx.setLineDash([]);
-  ctx.beginPath();
-  ctx.arc(g.ghost.x, g.ghost.y, R, 0, Math.PI * 2);
-  ctx.fillStyle = rgba(g.ghost.color, 0.06);
-  ctx.fill();
-  ctx.stroke();
-  for (const l of rest) stroke(l);
-  ctx.setLineDash([]);
+  for (const m of g.marks) {
+    ctx.strokeStyle = rgba(m.color, 0.8);
+    ctx.lineWidth = 0.003;
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (g.ghost) {
+    ctx.strokeStyle = rgba(g.ghost.color, 0.78);
+    ctx.lineWidth = 0.003;
+    ctx.beginPath();
+    ctx.arc(g.ghost.x, g.ghost.y, R, 0, Math.PI * 2);
+    ctx.fillStyle = rgba(g.ghost.color, 0.06);
+    ctx.fill();
+    ctx.stroke();
+  }
   ctx.restore();
   return g.cast;
 }
@@ -2694,6 +2847,14 @@ function drop(ctx, at, v) {
   tone(ctx, at + 0.15, 1800, 0.05 * g, 0.02);
 }
 
+// A ball coming down from a jump: a short low knock on the slate through
+// the cloth.
+function knock(ctx, at, v) {
+  const g = 0.7 * loudness(v, 3);
+  burst(ctx, at, 'lowpass', 380, 0.8, 0.8 * g, 0.04);
+  tone(ctx, at, 95 + 15 * Math.random(), 0.7 * g, 0.06);
+}
+
 // The tip on the cue ball: a woody tock, sharper for a hard stroke.
 function tock(ctx, at, power) {
   const p = Math.max(0, Math.min(1, power));
@@ -2730,6 +2891,7 @@ function playImpact(ctx, at, im) {
   if (im.k === 'ball') clack(ctx, at, im.v);
   else if (im.k === 'rail') thump(ctx, at, im.v);
   else if (im.k === 'pocket') drop(ctx, at, im.v);
+  else if (im.k === 'slate') knock(ctx, at, im.v);
   SND.played++;
 }
 
@@ -2842,7 +3004,7 @@ function replayCue(now) {
   else if (el < REPLAY_LEAD_MS) back = R + pull * (1 - EASE.in((el - REPLAY_LEAD_MS + 80) / 80));
   else { back = R; alpha = 1 - clamp01((el - REPLAY_LEAD_MS) / 200); }
   if (alpha <= 0) return null;
-  return { x: r.cue.x, y: r.cue.y, dir: r.dir, back, alpha };
+  return { x: r.cue.x, y: r.cue.y, dir: r.dir, back, alpha, elev: r.shot.elev || 0 };
 }
 
 // replayCamera: behind the cue for the strike, then chasing the cue ball
@@ -3301,6 +3463,8 @@ document.addEventListener('keydown', (e) => {
     case 's': case 'S': if (canCall()) toggleSafety(); else return; break;
     case 'p': case 'P': if (canPushOut()) togglePushOut(); else return; break;
     case 'x': case 'X': if (canExtend()) extend(); else return; break;
+    case 'j': setElev(S.elev + 5); break;
+    case 'J': setElev(S.elev - 5); break;
     default: return;
   }
   e.preventDefault();
@@ -4123,6 +4287,7 @@ function rackWhy(r) {
     case 'eight_foul': return `${loser} fouled on the 8-ball${r.foul ? `: ${FOUL_TEXT[r.foul] || r.foul}` : ''}`;
     case 'eight_early': return `${loser} pocketed the 8-ball early`;
     case 'eight_pocket': return `${loser} pocketed the 8-ball in the wrong pocket`;
+    case 'eight_off': return `${loser} jumped the 8-ball off the table`;
     case 'three_fouls': return `${loser} fouled three times in a row`;
     case 'forfeit': return `${loser} left the match`;
   }

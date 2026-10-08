@@ -210,6 +210,32 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
               repeating-linear-gradient(90deg, var(--text) 0 1.5px, transparent 1.5px 50px) var(--jog-x, 0px) 0 / auto 100% repeat-x; }
 .jog__mark { position: absolute; left: 50%; top: 4px; bottom: 4px; width: 2px; margin-left: -1px; border-radius: 1px; background: var(--accent); }
 .spin__limit--max { border-color: var(--ball-3); }
+/* jump: the cue seen from the side, raised by the slider */
+.elev { display: flex; align-items: center; gap: 12px; flex: none; }
+.elev__pic { width: 64px; height: 40px; flex: none; overflow: visible; }
+.elev__cloth { stroke: var(--hairline-strong); stroke-width: 1.5; }
+.elev__ball { fill: var(--ball-ivory); stroke: rgba(0,0,0,.35); stroke-width: 1; }
+.elev__cue { stroke: var(--text-muted); stroke-width: 3.5; stroke-linecap: round; transform-box: view-box; transform-origin: 48px 29px;
+  transition: transform var(--dur-2) var(--ease-out); }
+.elev--on .elev__cue { stroke: var(--accent); }
+.elev__meta { display: flex; flex-direction: column; gap: 6px; }
+.elev__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+/* fixed width: "level" and "60°" take the same room */
+.elev__readout { min-width: 3em; text-align: right; font: 600 15px/20px var(--font-ui); font-variant-numeric: tabular-nums; }
+.elev--on .elev__readout { color: var(--accent-text); }
+.elev__range { width: 112px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.elev__range:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+/* a narrower desktop: the jump is a short upright slider, no picture */
+@media (max-width: 1199px) {
+  #shotPanel { gap: 18px; }
+  #shotPanel .elev__pic { display: none; }
+  #shotPanel .elev__meta { align-items: center; gap: 2px; }
+  #shotPanel .elev__head { flex-direction: column; align-items: center; gap: 0; }
+  #shotPanel .elev__readout { min-width: 0; text-align: center; }
+  #shotPanel .elev__range { order: -1; width: 24px; height: 54px; writing-mode: vertical-lr; direction: rtl; }
+}
+/* the phone's options button: a brass ring while the cue is raised */
+.opts-btn--jump { box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 0 3px var(--accent), 0 4px 10px -4px rgba(0,0,0,.5); }
 .tray--right { justify-content: flex-end; }
 .trays { flex: none; }
 
@@ -264,7 +290,10 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 @keyframes sheet-in { from { opacity: 0; transform: translateY(16px); } }
 .sheet__head { display: flex; align-items: center; justify-content: space-between; }
 .sheet__title { font: 600 12px/16px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
-.sheet__body { display: flex; align-items: center; gap: 16px; }
+.sheet__body { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.sheet .elev { flex: 1 0 100%; }
+.sheet .elev__meta { flex: 1; }
+.sheet .elev__range { width: 100%; min-height: 32px; }
 .sheet .spin { flex: none; flex-direction: column; gap: 8px; }
 .sheet .spin__pad { --pad: 88px; }
 .sheet .spin__meta { flex-direction: row; align-items: center; gap: 8px; width: auto; }

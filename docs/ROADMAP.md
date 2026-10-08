@@ -33,6 +33,10 @@ Mục tiêu: bàn không còn "câm". Không đổi server.
    lại cú vừa rồi chậm 0,5×. Xem CLIENT.md, mục *3D view*.
 5. ~~**Bình luận viên**~~ Đã làm (10/2026): 69 câu trending tiếng Việt
    (`web/voice`), có câu tục tắt được. Xem CLIENT.md, mục *Commentary*.
+6. ~~**Nhảy bi**~~ Đã làm (10/2026): thanh *Jump* nâng cơ 0–60°, bi bay
+   (độ cao `z`), nảy trên mặt đá, bay qua bi và băng; bi văng khỏi bàn là
+   lỗi `off_table` theo WPA (bi 8 thua, trừ khi phá; bi 9 đặt lại). Xem
+   PROTOCOL.md, mục *Jump shots*.
 
 Xong khi: chơi một ván trên điện thoại có đủ tiếng và rung; tắt tiếng được;
 `go test ./web` kiểm tra file âm thanh được nhúng.

@@ -189,6 +189,18 @@ The tray row is hidden to make room.
      `spin` with the shot. The words beside it ("top + right") sit in a box
      of fixed size, with "at limit" on a line of its own that keeps its
      place while hidden, so nothing around them moves as the dot does.
+   - *Jump*: the slider beside the spin raises the butt of the cue, 0°
+     (level) to 60°, and the cue in the picture beside it tilts to match;
+     `J` raises it 5°, Shift+`J` lowers it. Sent as `elevation` (radians)
+     with the shot and the aim, and every new turn starts level. Below
+     1200 px it is an upright slider without the picture. The guide follows
+     the first hop as the server works it out (`jumpFlight`, mirroring
+     `Table.ShootElevated`): dotted while the cue ball is in the air, a ring
+     where it comes down, and it passes over the balls the cue ball clears
+     (`castAim` checks the heights). A path over a cushion turns red and
+     ends past the rail with no ghost ball: the cue ball would leave the
+     table. Later, lower hops are not predicted. On the table a raised cue
+     looks shorter from above.
    - Hovering a ball with the mouse shows its number and group above it; on
      touch the label shows for 1.5 s after a tap.
    - The panel slot and the status line have fixed heights, so the table
@@ -226,9 +238,10 @@ The tray row is hidden to make room.
      - the situational toggles (Safety, Push out, +40s);
      - on the right, a small cue ball showing the spin (`#optionsBtn`).
 
-     Tapping that cue ball opens the *Spin and fine aim* sheet over the
-     bottom of the screen: the spin pad, the angle readout, its four
-     buttons and the fine aim wheel. `placeShotOptions` moves those nodes there from the panel
+     Tapping that cue ball opens the *Spin, jump and fine aim* sheet over
+     the bottom of the screen: the spin pad, the angle readout, its four
+     buttons, the fine aim wheel and the jump slider (a brass ring round the
+     small cue ball says the cue is raised). `placeShotOptions` moves those nodes there from the panel
      whenever the phone layout applies. Done, Escape, a touch anywhere else
      or the shot closes the sheet; the table stays live above it.
    - **Naming balls.** The numbers on balls under 16 px across are too
@@ -284,7 +297,8 @@ The tray row is hidden to make room.
 
 Ball on ball, the cue and a pocket are recordings (`web/sounds`, about
 200 KB of 16-bit mono WAV, fetched once audio starts); a cushion is a
-synthesized thump.
+synthesized thump, and a ball coming down from a jump (`slate`) a shorter,
+lower knock.
 
 - **What a real clack is.** Measured on the recordings, it falls 30 dB in
   3 to 8 ms, its energy around 2 to 3 kHz, because the balls touch for only
@@ -424,7 +438,11 @@ the battery.
 - **Balls.** Each ball's markings are painted once on a sphere texture in its
   own frame; the mesh turns by the 2D orientation, so a ball shows the same
   face in both views (axes: table x → world x, table y → world z, into the
-  slate → world −y).
+  slate → world −y). A ball in the air is raised by its `z`, and the lamps
+  cast its shadow on the cloth.
+- **Cue.** It lies at 6° as a cue resting on a bridge would, or at the jump
+  elevation when that is steeper. Raised more than 10°, the cue stands in
+  front of the shot as seen from behind it, so it is drawn half transparent.
 - **Camera** (`cameraFor`), easing between poses over about 0.6 s, cutting
   with reduced motion:
   - *aim*: behind the cue ball, looking along the aim (the opponent's aim on
@@ -503,9 +521,14 @@ moved in practice).
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays
-  at its earlier position until that snapshot's time passes, then disappears.
+  at its earlier position until that snapshot's time passes, then disappears:
+  into the nearest pocket, or, last seen past a cushion and away from every
+  pocket, off the table (it fades out beyond the rail).
   `settled` replaces everything with exact positions. After a reconnect in
   the middle of a shot the clock is re-aligned to the first snapshot received.
+- A ball in the air (`z` in the snapshots, interpolated like `x` and `y`)
+  is drawn over the others and bigger the higher it is, up to twice its
+  size at 45 cm, its shadow falling further off, larger and fainter.
 - Legal first-contact balls and whether the 8-ball is on are computed
   client-side with the same rules as the server (`legalTargets` and
   `eightOn` mirror `Rules.legalTarget` and `Rules.eightOn`); the server still
