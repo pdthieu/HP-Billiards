@@ -2010,8 +2010,10 @@ function resize() {
   const wrap = $('tableWrap');
   const cs = getComputedStyle(wrap);
   const bar = $('powerBar');
-  const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + parseFloat(cs.columnGap || cs.gap || '12') || 0;
-  const availW = Math.max(100, wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - barW);
+  const gap = parseFloat(cs.columnGap || cs.gap || '12') || 0;
+  const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + gap || 0;
+  const room = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const availW = Math.max(100, room - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const dpr = Math.min(S.quality === 'auto' ? pace.cap : QUALITY_DPR[S.quality], window.devicePixelRatio || 1);
   pace.times = [];
@@ -2043,11 +2045,17 @@ function resize() {
   const fullW = W + 2 * RAIL, fullH = H + 2 * RAIL;
   const sLand = Math.min(availW / fullW, availH / fullH);
   const sPort = Math.min(availW / fullH, availH / fullW);
-  // A portrait screen gets the table upright whenever that is not smaller:
-  // with a margin, the browser bars growing or shrinking on a phone would
-  // flip it back and forth. Elsewhere only rotate when it is clearly better.
+  // A portrait screen gets the table upright unless lying down is clearly
+  // bigger (5 %): a tablet held upright, where the two come out about even,
+  // keeps it upright like a phone, without bands of nothing over and under
+  // it. Elsewhere only rotate when it is clearly better.
+  // The way round is chosen as if the power bar were there: it comes and
+  // goes with the rack, and the table must not turn with it (a tablet held
+  // upright turned it sideways for the lobby and the game over).
+  const turnW = Math.max(100, room - (bar.hidden ? (parseFloat(getComputedStyle(bar).width) || 40) + gap : barW));
+  const tLand = Math.min(turnW / fullW, availH / fullH), tPort = Math.min(turnW / fullH, availH / fullW);
   const portrait = window.innerHeight > window.innerWidth;
-  view.rotated = portrait ? sPort >= sLand : sPort > sLand * 1.15;
+  view.rotated = portrait ? tPort >= tLand * 0.95 : tPort > tLand * 1.15;
   view.s = view.rotated ? sPort : sLand;
   view.cssW = Math.floor(view.rotated ? fullH * view.s : fullW * view.s);
   view.cssH = Math.floor(view.rotated ? fullW * view.s : fullH * view.s);
@@ -4449,10 +4457,16 @@ function tickHolds() {
 
 // renderTrays lists the pocketed balls of each group under the table.
 function renderTrays() {
-  $('trays').hidden = S.phase === 'lobby' || (isCarom() && (S.practice || !S.carom));
+  const never = isCarom() && S.practice; // carom practice: nobody's line to show
+  const empty = S.phase === 'lobby' || (isCarom() && !S.carom);
+  $('trays').hidden = never;
+  // Before a rack the row keeps its room, unseen: the table then keeps its
+  // size and its way round when the rack starts (a tablet held upright
+  // turned it).
+  $('trays').style.visibility = empty ? 'hidden' : '';
   if (isCarom()) {
     // each player's line: their ball, points, innings, average, best run
-    if ($('trays').hidden) return;
+    if (never || empty) return;
     const c = S.carom;
     for (const [elId, seat] of [['traySolids', 0], ['trayStripes', 1]]) {
       const el = $(elId);
@@ -5050,7 +5064,10 @@ function renderOverPanel() {
   }
   const opener = m && m.racks.length ? 1 - m.racks[0].breaker : -1;
   const long = m && m.race > 1 && !isCarom();
-  $('overText').textContent = long ? `${matchTitle(m)} ${m.score[m.winner]}–${m.score[1 - m.winner]}` : winnerTitle();
+  if (long) { // the score never breaks over two lines
+    const score = Object.assign(document.createElement('span'), { className: 'nowrap', textContent: `${m.score[m.winner]}–${m.score[1 - m.winner]}` });
+    $('overText').replaceChildren(`${matchTitle(m)} `, score);
+  } else $('overText').textContent = winnerTitle();
   $('rematch').textContent = long ? 'New match' : 'Rematch';
   const goal = isCarom() ? `to ${points(S.race)}` : `race to ${S.race}`;
   $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`) + ' Change them in Settings.';

@@ -104,8 +104,19 @@ rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
   - Leaving sends `leave`, so the seat is freed immediately. The player
     who stays gets "Ann left. You win the match 2–1." and the match dialog,
     and waits in the lobby: "Ann left the room."
-- **Phones.** The header holds the code, Settings, Leave, the seats and the
-  score. There is no invite button there, so the score always fits.
+- **Phones.** Held upright, the header holds Settings, Leave, the seats and
+  the score, and in the lobby the room code; while a rack is played the code
+  steps aside (Settings → Invite has it) and the 2D/3D switch is in Settings
+  → View, so the seats have the width. Their clock ring and ball dots are
+  smaller there, and on a 320 px phone the seat on turn shows it by its
+  brass alone. There is no invite button there, so the score always fits.
+- **Tablets and narrow windows** (601 to 1099 px wide): one row cannot hold
+  what to hit, the aim, the spin and the jump, so the shot panel takes two
+  (what to hit and its buttons over the aim, the spin and the jump) in a
+  188 px slot, the same for every panel. Up to 959 px the header stacks the
+  room's name over its code, leaves out the "your turn" words (the seat's
+  brass says it) and full screen (Settings has it). The keyboard hint under
+  the call shows from 1200 px, as one sentence.
 
 *Practice alone* on the landing page opens a private practice room of the
 picked game. It is free play, without the tournament rules:
@@ -305,7 +316,7 @@ The tray row is hidden to make room.
    "Their seat is held for N more seconds". If the hold expires the server
    abandons the game and the lobby says the opponent did not come back.
 9. **Phones**:
-   - **Portrait.** The table stands upright whenever that is not smaller.
+   - **Portrait.** The table stands upright unless lying down is 5 % bigger.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
    - **The shot panel** while a rack is played (`body.is-playing`) keeps
      its height for every turn, so the table never resizes mid-rack. It
@@ -322,7 +333,9 @@ The tray row is hidden to make room.
      table) the slot is 80 px: the call over the wheel and the jump slider
      side by side, the slider getting the wider share. On a taller one the
      table is limited by the width anyway, so the slot is 128 px and the
-     wheel and the slider each take a row the panel's width.
+     wheel and the slider each take a row the panel's width. On a 320 px
+     phone the call gets the panel's width and the wheel and the slider a
+     row each, in a 112 px slot.
 
      Tapping the small cue ball opens the spin picker (`#spinPop`): the spin
      pad as a big cue ball in the middle of the screen (up to 280 px) over
@@ -340,19 +353,27 @@ The tray row is hidden to make room.
        on the wrong ball.
    - **Lobby and game over** keep the 134 px slot, so the table resizes
      only at the start and end of a rack. On an iPhone in Safari
-     (393 × 670) balls are about 10 px. Toasts drop from under the header.
+     (393 × 670) balls are about 10 px. Toasts drop from under the header,
+     as they do on a desktop or a tablet (at the bottom they covered the
+     panel).
+   - **Dialogs** taller than the screen scroll, from their top.
    - **Screens under 700 px tall** drop the trays.
    - **Landscape phones** show the shot panel as a sidebar, with the status
-     floating over the table. While a rack is played the sidebar is 132 px
-     and holds the header too (the code and its buttons, the seats, the
-     score), then the practice tools, then the call, the toggles and the
-     cue-ball button: the table gets the whole height. `main.game` steps
-     aside (`display: contents`) and the page is the grid. In Safari with
-     its bars (about 844 × 340) the height is what limits the table, which
-     is 12 % bigger so. In the shot panel the angle readout sits beside
-     the cue-ball button, the wheel under them, then the jump slider; the
-     call takes what is left above. The spin picker lays the big cue ball
-     beside its words and buttons.
+     floating over the table (its row keeps the chat button's height, so
+     the button stays on the screen). While a rack is played the sidebar
+     is 144 px and holds the header too: the seats over and under the
+     score, with Settings, the 2D/3D switch and Leave beside it (the room
+     code and full screen are in Settings meanwhile); then the practice
+     tools, then the call, the toggles and the cue-ball button: the table
+     gets the whole height. `main.game` steps aside (`display: contents`)
+     and the page is the grid. In Safari with its bars (about 844 × 340)
+     the height is what limits the table, which is 12 % bigger so. In the
+     shot panel what to hit and its toggles come first, then the angle
+     readout beside the cue-ball button, the wheel, the jump slider; on the
+     smallest screens (568 × 320) the panel scrolls rather than hide any of
+     it. In the lobby and at the game over the header is a 44 px row. A
+     dialog is smaller there and the decision's options sit side by side.
+     The spin picker lays the big cue ball beside its words and buttons.
    - **Turning the phone** in the middle of an aim, a pull or a carried
      ball stops it (`cancelGestures`): no shot, no placement, the ball goes
      back. The table turns under the finger, so where it goes next means
@@ -371,8 +392,9 @@ The tray row is hidden to make room.
      thinks. The browser lets it go when the tab is hidden; it is taken
      again when the tab shows, and given back on leaving.
    - **Full screen** where the page may ask for it (Android, desktops, not
-     an iPhone): the header button (not on portrait phones, where the
-     header has no room), Settings or `F`. On a phone it also holds the
+     an iPhone): the header button (not where the header has no room: a
+     phone held upright, a sideways one mid-rack, under 960 px wide),
+     Settings or `F`. On a phone it also holds the
      orientation it was entered in.
    - **Home screen.** `manifest.webmanifest` and the icons in `web/icons`
      (`icon.svg`, rendered to 192, 512 and the 180 px apple-touch-icon) let
@@ -595,8 +617,13 @@ moved in practice).
 ## Rendering
 
 - The table is drawn in meters on a canvas scaled to fit. On a portrait
-  screen it is rotated 90° whenever that is not smaller; elsewhere only when
-  it is 15 % bigger (`view.rotated`), and pointer coordinates are mapped
+  screen it is rotated 90° unless lying down is 5 % bigger (a tablet held
+  upright keeps it upright like a phone); elsewhere only when it is 15 %
+  bigger (`view.rotated`). The way round is chosen as if the
+  power bar were there, which it is not in the lobby and at the game over,
+  and the row of pocketed balls keeps its room, unseen, before a rack; so
+  a tablet held upright does not turn the table between the lobby and the
+  rack. Pointer coordinates are mapped
   back through the same transform. Labels are counter-rotated; ball markings
   are not: each ball keeps an orientation that rolls with its movement (see
   `rollBall`), its stripe, discs and numbers are drawn from that, and only the

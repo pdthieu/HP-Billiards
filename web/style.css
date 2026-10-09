@@ -215,10 +215,17 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .panel--between { justify-content: space-between; }
 .panel__group--center { align-items: center; text-align: center; }
 .panel__title { font: 600 28px/32px var(--font-display); letter-spacing: .01em; }
+.nowrap { white-space: nowrap; }
 .panel__actions { display: flex; gap: 10px; align-items: center; }
 #lobbyPanel { gap: 20px; }
 .call__line--enter { animation: pool-row-in var(--dur-3) var(--ease-out) both; }
 .hint__close { width: 28px; height: 28px; margin: -6px 0; }
+/* the keyboard hint is one sentence that wraps as text (as flex items its
+   bits of text each wrapped on their own); where the call column is too
+   narrow for it, it leaves */
+.call .hint { display: block; }
+.call .hint .hint__close { vertical-align: middle; margin: -6px 0 -6px 2px; }
+@media (max-width: 1199px) { .call .hint { display: none; } }
 .spin__reset-dot { transition: none; }
 /* The spin's words change with the dot; their box does not, so nothing
    around it moves: one line as wide as the longest ("draw + right"), and
@@ -263,6 +270,39 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   #shotPanel .elev__head { flex-direction: column; align-items: center; gap: 0; }
   #shotPanel .elev__readout { min-width: 0; text-align: center; }
   #shotPanel .elev__range { order: -1; width: 24px; height: 54px; writing-mode: vertical-lr; direction: rtl; }
+}
+/* a tablet or a narrow window (601 to 1099 px wide): one row cannot hold
+   what to hit, the aim, the spin and the jump. The shot panel takes two
+   rows (what to hit and its buttons over the aim, the spin and the jump)
+   in a taller slot, the same for every panel so the table keeps its size. */
+@media (min-width: 601px) and (max-width: 1099px) and (min-height: 501px) {
+  .slot { height: 188px; }
+  #shotPanel { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "call call call" "angle spin elev";
+    align-items: center; gap: 10px 28px; padding: 10px 20px 12px; }
+  #shotPanel .panel__sep { display: none; }
+  #shotPanel .call { grid-area: call; flex-direction: row; align-items: center; gap: 12px; min-height: 36px; }
+  #shotPanel .call__line { flex: 1; min-width: 0; }
+  #shotPanel .angle { grid-area: angle; min-width: 0; }
+  #shotPanel .spin { grid-area: spin; }
+  #shotPanel .elev { grid-area: elev; }
+}
+@media (min-width: 601px) and (max-width: 719px) and (min-height: 501px) {
+  #shotPanel .nudge[data-deg="0.25"], #shotPanel .nudge[data-deg="-0.25"] { display: none; } /* the wheel turns finely */
+}
+/* the header of a tablet held upright or a narrow window: the room's name
+   over its code, smaller buttons, no "your turn" words (the seat says it),
+   full screen in Settings (a sideways phone has its own header) */
+@media (min-width: 601px) and (max-width: 959px) and (min-height: 501px) {
+  .hdr { padding: 0 12px 0 16px; gap: 10px; }
+  .hdr__room { display: grid; grid-auto-flow: column; grid-template-rows: auto auto; align-items: center; column-gap: 2px; flex: none; }
+  .hdr__room .eyebrow { grid-row: 1; grid-column: 1; margin-right: 10px; font-size: 10px; line-height: 12px; white-space: nowrap; }
+  .hdr__code { grid-row: 2; grid-column: 1; margin-right: 10px; font-size: 20px; line-height: 24px; letter-spacing: .14em; }
+  .hdr__room .icon-btn { grid-row: 1 / span 2; width: 40px; height: 40px; }
+  #fullBtn { display: none; }
+  .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; gap: 8px; }
+  .seat { flex: 0 1 auto; min-width: 0; max-width: 210px; padding: 0 10px; gap: 6px; }
+  .seat__state { display: none; }
+  .seat__name { max-width: 12ch; }
 }
 /* the phone's options button: a brass ring while the cue is raised */
 .opts-btn--jump { box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 0 3px var(--accent), 0 4px 10px -4px rgba(0,0,0,.5); }
@@ -351,7 +391,7 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 @media (max-width: 600px), ((orientation: landscape) and (max-height: 500px)) {
   .panel { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px; }
   .panel--center { align-items: center; justify-content: center; }
-  .panel__sep, .hint { display: none; }
+  .panel__sep, .hint, .call .hint { display: none; }
   .call { flex-direction: row; align-items: center; gap: 8px; min-height: 36px; }
   .call__line { flex: 1; }
   .opts-btn { display: inline-block; }
@@ -390,12 +430,12 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   #settingsBtn { width: 36px; height: 36px; }
 }
 
-/* portrait phones */
-@media (max-width: 600px) {
+/* portrait phones (not a sideways phone under 600 px wide: its own layout
+   below takes it whole) */
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
   .chat { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 55vh; }
   .chat-bubbles { top: 6px; left: 6px; }
   .chat-bubble { font-size: 13px; line-height: 17px; padding: 5px 10px; }
-  .room-row__watch { padding: 0 8px; }
   .hdr { height: 52px; padding: 0 8px 0 12px; gap: 6px; }
   .hdr .eyebrow { display: none; }
   .hdr__room { flex: none; gap: 2px; }
@@ -448,9 +488,55 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 }
 
 /* short screens: give the table room; trays go first, the hint is already gone */
-@media (max-height: 700px) and (max-width: 600px) {
+@media (max-height: 700px) and (max-width: 600px) and (orientation: portrait) {
   .trays { display: none; }
   .stage { min-height: 340px; }
+}
+
+/* the header of a phone held upright: the view switch lives in Settings →
+   View and the room code steps aside while a rack is played (Settings →
+   Invite has it), so the seats and the score get the width; the seats'
+   clock ring and ball dots shrink, and nothing runs off the screen */
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  #viewBtn { display: none; }
+  body.is-playing .hdr__code { display: none; }
+  .hdr__match { gap: 4px; }
+  .seat--compact { max-width: none; padding: 0 7px; gap: 5px; }
+  .seat--compact .seat__name { max-width: 9ch; }
+  .seat--compact .seat__dots { gap: 1.5px; }
+  .seat--compact .seat__dots .ball { --size: 6px; }
+  .seat .hold, .seat .hold svg { width: 22px; height: 22px; }
+  .seat .hold__num { font-size: 9px; }
+}
+/* a short phone */
+@media (max-width: 600px) and (max-height: 759px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) and (max-height: 759px) {
+  /* three buttons (below) take the row's whole width: the cue ball steps down */
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { grid-template-areas: "call call call" "angle elev opts"; }
+}
+/* Push out, Safety and +40s at once (the shot after a 9-ball break; or
+   Clear on a called 8) left a phone's call line no width beside them: it
+   goes over them, on one smaller line, and everything tightens to keep the
+   slot's height, so the table does not resize for that shot */
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { row-gap: 2px; padding-top: 1px; padding-bottom: 1px; }
+  #shotPanel .call:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { flex-wrap: wrap; row-gap: 2px; }
+  #shotPanel .call:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .call__line { flex: 1 0 100%; -webkit-line-clamp: 1; font-size: 12px; line-height: 14px; }
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .call__actions :is(.toggle, .btn) { min-height: 26px; padding: 0 10px; font-size: 13px; }
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) :is(.jog, .elev__range) { height: 22px; }
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .elev__head .field__label { display: none; }
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .opts-btn { width: 28px; height: 28px; }
+  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .opts-btn::after { content: ""; position: absolute; inset: -8px; } /* still a fingertip */
+}
+/* the narrowest phones (320 px): what to hit gets the panel's width, the
+   wheel and the jump slider a row each; the seat on turn shows it by its
+   brass, without the cue */
+@media (max-width: 340px) {
+  .hdr { padding: 0 6px 0 8px; gap: 4px; }
+  .seat--compact .seat__cue { display: none; }
+  .seat--compact .seat__name { max-width: 7ch; }
+  #shotPanel { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "call call" "angle opts" "elev opts"; gap: 4px 10px; padding: 4px 8px 6px 10px; }
+  body.is-playing .slot { height: 112px; }
+  .stage { min-height: 280px; } /* room for practice's tools too */
 }
 
 /* landscape phones: table | bar on the left, the shot panel as a sidebar */
@@ -475,8 +561,8 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .seat { flex: 0 1 auto; min-width: 0; }
   /* while a rack is played the side column only holds the call and the
      options button: the table gets the width */
-  body.is-playing main.game { grid-template-columns: minmax(0, 1fr) 132px; }
-  body.is-playing .status { right: 144px; }
+  body.is-playing main.game { grid-template-columns: minmax(0, 1fr) 144px; }
+  body.is-playing .status { right: 156px; }
   #shotPanel { flex-direction: column; align-items: stretch; padding: 10px; }
   #shotPanel .call__line { -webkit-line-clamp: 6; font-size: 14px; }
   #shotPanel .call__actions { flex-wrap: wrap; }
@@ -513,7 +599,7 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
      grid: the table on the left over all rows; the header, the practice
      tools and the shot panel down the right. */
   body.is-playing {
-    display: grid; grid-template-columns: minmax(0, 1fr) 132px; grid-template-rows: auto auto minmax(0, 1fr); column-gap: 12px;
+    display: grid; grid-template-columns: minmax(0, 1fr) 144px; grid-template-rows: auto auto minmax(0, 1fr); column-gap: 12px;
     position: relative;
     padding-right: calc(env(safe-area-inset-right, 0px) + 8px); padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 6px);
   }
@@ -522,7 +608,7 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   body.is-playing .practice { grid-column: 2; grid-row: 2; grid-auto-flow: row; grid-template-columns: repeat(2, auto); }
   body.is-playing .slot { grid-column: 2; grid-row: 3; }
   body.is-practice.is-playing .slot { grid-row: 3; }
-  body.is-playing .status { left: calc(env(safe-area-inset-left, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 152px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  body.is-playing .status { left: calc(env(safe-area-inset-left, 0px) + 8px); right: calc(env(safe-area-inset-right, 0px) + 164px); bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
   body.is-playing .hdr { grid-column: 2; grid-row: 1; height: auto; flex-direction: column; align-items: stretch; gap: 4px; padding: 6px 0 0; }
   body.is-playing .hdr__room { flex-wrap: wrap; justify-content: center; gap: 0 2px; }
   body.is-playing .hdr__code { font-size: 14px; letter-spacing: .08em; margin-right: 2px; }
@@ -531,6 +617,74 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   body.is-playing .seat { max-width: none; height: 32px; }
   body.is-playing .seat__name { max-width: none; }
   body.is-playing button.score { align-self: center; }
+
+  /* the header row (lobby, game over) holds the score: 44 px, 36 px buttons */
+  .hdr { height: 44px; }
+  .hdr .icon-btn { width: 36px; height: 36px; }
+  /* the status row keeps the chat button's height, so the button stays on
+     the screen when there is nothing to say (a spectator's lost it) */
+  .status { min-height: 44px; }
+  /* While a rack is played the side column is short: what to hit and
+     Safety were pushed out of it. Full screen lives in Settings, the room
+     code steps aside (Settings → Invite), and Settings, the 2D/3D switch
+     and Leave sit beside the score, the seats over and under it. */
+  body.is-playing .hdr { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "s0 s0 s0 s0" "set view score leave" "s1 s1 s1 s1";
+    align-items: center; gap: 2px 0; }
+  body.is-playing .hdr__room, body.is-playing .hdr__match { display: contents; }
+  body.is-playing #roomEyebrow, body.is-playing .hdr__code, body.is-playing #fullBtn { display: none; }
+  body.is-playing #settingsBtn { grid-area: set; }
+  body.is-playing #viewBtn { grid-area: view; }
+  body.is-playing button.score { padding: 0 2px; min-width: 0; }
+  body.is-playing .score--compact .score__nums { font-size: 20px; line-height: 22px; gap: 2px; }
+  body.is-playing .score--compact .score__slot { height: 22px; }
+  body.is-playing #leaveBtn { grid-area: leave; }
+  body.is-playing #seat0 { grid-area: s0; }
+  body.is-playing #seat1 { grid-area: s1; }
+  body.is-playing #score { grid-area: score; justify-self: center; }
+  body.is-playing .seat { height: 30px; }
+  /* the shot panel: what to hit and Safety first, then the aim and the
+     jump; if a very short screen still cannot hold it all, it scrolls */
+  #shotPanel { grid-template-rows: repeat(4, max-content); align-content: start; overflow-y: auto; }
+  #shotPanel .call { align-self: start; overflow: visible; } /* a clipped call let its rows shrink under the buttons */
+  #shotPanel .call__actions:not(:has(> :not([hidden], #handTag))) { display: none; } /* no toggle to show: no gap for them */
+  /* practice's four tools in one row */
+  body.is-playing .practice { grid-template-columns: repeat(4, auto); gap: 4px; }
+  body.is-playing .practice .btn--small { min-width: 30px; padding: 0 6px; }
+  #shotPanel .call__line { -webkit-line-clamp: 2; }
+  /* Safety and +40s share one row of the column */
+  #shotPanel .call__actions { gap: 4px; }
+  #shotPanel .call__actions .toggle { padding: 0 8px; gap: 6px; font-size: 13px; }
+  #shotPanel .call__actions .btn--small { padding: 0 6px; font-size: 13px; }
+  #extend svg { display: none; }
+  .panel__title { text-wrap: balance; }
+  /* notices over the table, clear of the side column */
+  body.is-playing .toasts { left: calc((100% - 164px) / 2); max-width: calc(100% - 196px); }
+}
+@media (orientation: landscape) and (max-height: 360px) {
+  body.is-playing .score__race { display: none; }
+  #shotPanel { gap: 4px 8px; }
+  #shotPanel .opts-btn { width: 36px; height: 36px; }
+  #shotPanel .jog { height: 26px; }
+}
+/* a dialog taller than a sideways phone: smaller, the decision's options
+   side by side */
+@media (orientation: landscape) and (max-height: 500px) {
+  .scrim { padding: 8px 16px; }
+  .dialog { padding: 16px 20px; gap: 12px; }
+  .dialog__title { font-size: 20px; line-height: 26px; }
+  .dialog__text { font-size: 14px; line-height: 20px; }
+  #decision .dialog { max-width: 680px; }
+  .dialog__options { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .option { min-height: 56px; padding: 10px 12px; align-items: flex-start; }
+}
+
+/* any dialog taller than the screen scrolls, from its top */
+.scrim { overflow-y: auto; align-items: flex-start; }
+.scrim > * { flex: none; margin: auto; }
+/* notices drop from under the header on a desktop or a tablet too: at the
+   bottom they covered the panel (the lobby's words, the aim) */
+@media (min-width: 601px) and (min-height: 501px) {
+  .toasts { top: 76px; bottom: auto; flex-direction: column; }
 }
 
 /* ---------- entry screens: the landing page and Settings ----------
