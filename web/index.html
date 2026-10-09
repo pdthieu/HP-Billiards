@@ -181,7 +181,7 @@
   <form id="landingForm" class="card landing__card" novalidate>
     <div id="landingBrand" class="landing__brand">
       <span class="wordmark">POOL</span>
-      <span class="caption">8-ball &amp; 9-ball · WPA rules</span>
+      <span class="caption">8-ball &amp; 9-ball (WPA) · 3-cushion (UMB)</span>
     </div>
     <div id="landingInvite" class="landing__invite" hidden>
       <span class="wordmark wordmark--small">POOL</span>
@@ -197,10 +197,10 @@
       <span class="field__msg" id="nameError" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span>Enter a name so your opponent knows who you are.</span></span>
     </div>
     <div id="createRow" class="landing__create">
-      <div id="landingMode" class="seg seg--block" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
+      <div id="landingMode" class="seg seg--block" role="group" aria-label="Game"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
       <div class="match-pick" id="landingMatch">
         <div class="match-pick__row">
-          <span class="field__label">Race to</span>
+          <span class="field__label js-race-label">Race to</span>
           <div class="seg js-race" role="group" aria-label="Race to"><button type="button" class="seg__btn" data-race="1">1</button><button type="button" class="seg__btn" data-race="3">3</button><button type="button" class="seg__btn" data-race="5">5</button><button type="button" class="seg__btn" data-race="7">7</button><button type="button" class="seg__btn" data-race="9">9</button></div>
           <input class="input input--race js-race-input" type="number" min="1" max="25" step="1" inputmode="numeric" aria-label="Race to, 1 to 25">
         </div>
@@ -282,14 +282,14 @@
     <div id="roomSettings" class="settings__room" hidden>
       <div class="setting">
         <span class="field__label" id="settingsModeLabel">Game</span>
-        <div id="settingsMode" class="seg" role="group" aria-labelledby="settingsModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button></div>
+        <div id="settingsMode" class="seg" role="group" aria-labelledby="settingsModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
         <p id="settingsModeNote" class="caption" hidden></p>
       </div>
       <div class="setting" id="settingsMatchRow">
         <span class="field__label">Next match</span>
         <div class="match-pick" id="roomMatch">
         <div class="match-pick__row">
-          <span class="field__label">Race to</span>
+          <span class="field__label js-race-label">Race to</span>
           <div class="seg js-race" role="group" aria-label="Race to"><button type="button" class="seg__btn" data-race="1">1</button><button type="button" class="seg__btn" data-race="3">3</button><button type="button" class="seg__btn" data-race="5">5</button><button type="button" class="seg__btn" data-race="7">7</button><button type="button" class="seg__btn" data-race="9">9</button></div>
           <input class="input input--race js-race-input" type="number" min="1" max="25" step="1" inputmode="numeric" aria-label="Race to, 1 to 25">
         </div>

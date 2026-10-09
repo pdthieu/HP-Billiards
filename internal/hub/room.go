@@ -90,7 +90,7 @@ var (
 	errBadMode       = errors.New("unknown game mode")
 	errNoUndo        = errors.New("there is no shot to take back")
 	errNotPractice   = errors.New("only in a practice room")
-	errBadRace       = errors.New("the race must be 1 to 25 and the breaks alternate or winner")
+	errBadRace       = errors.New("the race must be 1 to 25 (3-cushion: 1 to 50 points) and the breaks alternate or winner")
 	errBadSpectators = errors.New("that many spectators are not allowed here")
 )
 
@@ -591,7 +591,19 @@ func (r *room) endRack(foul game.Foul) {
 	if rules.End == game.EndEightFoul {
 		rack.Foul = foul
 	}
+	if rules.Mode == game.ModeCarom {
+		r.match.Final(rack, rules.Carom.Points)
+		return
+	}
 	r.match.Record(rack)
+}
+
+// scorePoints copies a carom game's points into the match as they are
+// made, so the scoreboard follows the game.
+func (r *room) scorePoints() {
+	if rules := r.game.Rules; !r.practice && rules.Mode == game.ModeCarom && !r.match.Over() {
+		r.match.Score = rules.Carom.Points
+	}
 }
 
 // handleSetMatch changes the race and the break rule (zero values keep
@@ -602,7 +614,7 @@ func (r *room) handleSetMatch(race int, breaks game.BreakRule) error {
 	switch {
 	case r.practice || r.matchLive():
 		return game.ErrWrongPhase
-	case race != 0 && !game.ValidRace(race), breaks != "" && !breaks.Valid():
+	case race != 0 && !game.ValidRace(r.mode, race), breaks != "" && !breaks.Valid():
 		return errBadRace
 	case ph != game.PhaseLobby && ph != game.PhaseGameOver:
 		return game.ErrWrongPhase
@@ -693,6 +705,17 @@ func (r *room) handleSetMode(mode game.Mode) error {
 	case mode == r.mode:
 		return nil
 	}
+	if (mode == game.ModeCarom) != (r.mode == game.ModeCarom) {
+		// Racks and points do not convert: the new game starts from its
+		// default (a carom game to DefaultCaromTarget, a pool race to 1).
+		r.race = 1
+		if mode == game.ModeCarom {
+			r.race = game.DefaultCaromTarget
+		}
+		if !r.match.Started() {
+			r.newMatch()
+		}
+	}
 	r.mode = mode
 	r.game.SetMode(mode)
 	if ph == game.PhaseLobby {
@@ -706,6 +729,11 @@ func (r *room) handleSetMode(mode game.Mode) error {
 
 func (r *room) startRack(breaker int) {
 	r.history = nil
+	target := r.race // carom: the race is in points
+	if r.practice {
+		target = 0
+	}
+	r.game.SetTarget(target)
 	r.game.Start(breaker)
 	r.noteRack()
 	r.extended = [2]bool{}
@@ -800,6 +828,7 @@ func (r *room) tick() {
 	}
 	r.startClock(limit)
 
+	r.scorePoints()
 	r.endRack(res.Foul)
 	st := r.game.State()
 	pocketed := res.Pocketed
@@ -830,6 +859,12 @@ func (r *room) tick() {
 		PushOut:      st.PushOut,
 		Undos:        len(r.history),
 		Match:        r.matchInfo(),
+		Cushions:     res.Cushions,
+		Touched:      res.Touched,
+		Spotted:      res.Spotted,
+		Frozen:       res.Frozen,
+		Target:       st.Target,
+		Carom:        st.Carom,
 	})
 }
 
@@ -1036,6 +1071,8 @@ func (r *room) roomState() protocol.RoomState {
 		Race:       r.race,
 		Breaks:     r.breaks,
 		Match:      r.matchInfo(),
+		Target:     st.Target,
+		Carom:      st.Carom,
 
 		Spectators:    r.watcherNames(),
 		MaxSpectators: r.maxSpectators,
@@ -1052,7 +1089,7 @@ func (r *room) matchInfo() *protocol.Match {
 	if racks == nil {
 		racks = []game.Rack{}
 	}
-	return &protocol.Match{Race: m.Race, Breaks: m.Breaks, Score: m.Score, Racks: racks, Winner: winner(m.Winner)}
+	return &protocol.Match{Race: m.Race, Breaks: m.Breaks, Score: m.Score, Racks: racks, Winner: winner(m.Winner), Draw: m.Draw}
 }
 
 func (r *room) playerInfo(s int) protocol.PlayerInfo {

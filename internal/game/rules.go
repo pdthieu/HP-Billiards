@@ -3,7 +3,8 @@ package game
 import "slices"
 
 // The rules follow the WPA "Rules of Play" for 8-ball (section 4) and 9-ball
-// (section 5), with the general rules and fouls of sections 1–3. Rules that need a referee or a
+// (section 5), with the general rules and fouls of sections 1–3; carom.go
+// has three-cushion. Rules that need a referee or a
 // physical table (lag, foot on floor, double hits, stalemate) do not apply
 // to a simulated game. A ball jumped off the table is a foul and stays off,
 // except the 8-ball, which loses the game (but is spotted after the break),
@@ -16,10 +17,11 @@ type Mode string
 const (
 	ModeEight Mode = "8ball"
 	ModeNine  Mode = "9ball"
+	ModeCarom Mode = "3cushion" // three-cushion carom, on a table without pockets
 )
 
 // Valid reports whether m is a known mode.
-func (m Mode) Valid() bool { return m == ModeEight || m == ModeNine }
+func (m Mode) Valid() bool { return m == ModeEight || m == ModeNine || m == ModeCarom }
 
 // Phase is the stage of a game. Its values are the wire representation.
 type Phase string
@@ -70,8 +72,8 @@ type Foul string
 const (
 	FoulNone      Foul = ""
 	FoulScratch   Foul = "scratch"    // 3.1: cue ball pocketed
-	FoulNoContact Foul = "no_contact" // 3.3: cue ball touched nothing
-	FoulWrongBall Foul = "wrong_ball" // 3.2: first contact was not a legal target
+	FoulNoContact Foul = "no_contact" // 3.3: cue ball touched nothing (carom: on the break)
+	FoulWrongBall Foul = "wrong_ball" // 3.2: first contact was not a legal target (carom: the break missed the red)
 	FoulKitchen   Foul = "kitchen"    // 3.11: bad play from above the head string
 	FoulNoRail    Foul = "no_rail"    // 3.3: nothing pocketed and no rail after contact
 	FoulBadBreak  Foul = "bad_break"  // 9-ball 5.3: nothing pocketed and fewer than four balls to a rail
@@ -151,6 +153,8 @@ const (
 	EndEightPocket End = "eight_pocket" // the 8-ball dropped in another pocket than called, or on a safety
 	EndEightOff    End = "eight_off"    // the 8-ball was driven off the table (not on the break)
 	EndThreeFouls  End = "three_fouls"  // 9-ball: a third foul in a row
+	EndPoints      End = "points"       // carom: the winner reached the target
+	EndDraw        End = "draw"         // carom: both reached the target in the same number of innings; no winner
 	EndForfeit     End = "forfeit"      // a player left the match (only in Match)
 )
 
@@ -170,6 +174,14 @@ type ShotResult struct {
 	PushOut      bool  // 9-ball: the shot was a push out
 	Safety       bool  // 8-ball: the shooter called a safety
 	Respot       int   // a ball to put back on the foot spot (the 9-ball), or 0
+	// Carom: the cue ball's cushions before it reached the second ball (or
+	// in all, if it never did), how many of the other two balls it touched,
+	// and the balls put back on their spots (driven off the table, or
+	// Frozen: the incoming cue ball was touching a ball).
+	Cushions int
+	Touched  int
+	Spotted  []int
+	Frozen   bool
 }
 
 // Rules is the 8-ball state machine. It consumes the physics event list of
@@ -190,6 +202,10 @@ type Rules struct {
 	// end; balls that drop stay down and a scratched cue ball is respotted.
 	// Mode only decides the rack.
 	Free bool
+	// Target is the points a carom game is played to; 0 has no end. Start
+	// keeps it.
+	Target int
+	Carom  CaromScore // carom: the score
 
 	pocketed     [NumBalls]bool // object balls that are permanently down
 	decisionFoul bool           // the break awaiting a decision was a foul
@@ -206,9 +222,15 @@ func NewRules() *Rules {
 func (r *Rules) Start(breaker int) {
 	if r.Free {
 		*r = Rules{Mode: r.Mode, Free: true, Phase: PhaseOpen, Turn: breaker, Winner: NoWinner}
+		if r.Mode == ModeCarom {
+			r.startCarom(breaker)
+		}
 		return
 	}
-	*r = Rules{Mode: r.Mode, Phase: PhaseBreaking, Turn: breaker, BallInHand: true, Kitchen: true, Winner: NoWinner}
+	*r = Rules{Mode: r.Mode, Target: r.Target, Phase: PhaseBreaking, Turn: breaker, BallInHand: true, Kitchen: true, Winner: NoWinner}
+	if r.Mode == ModeCarom {
+		r.startCarom(breaker)
+	}
 	if r.Mode == ModeNine {
 		for id := NineBall + 1; id < NumBalls; id++ {
 			r.pocketed[id] = true // not in a 9-ball rack
@@ -276,7 +298,7 @@ func (r *Rules) legalTarget(ball int) bool {
 // is always fine, a pocket must exist if one is named, and a shooter whose
 // legal target is the 8-ball must name one. Nothing is called on the break.
 func (r *Rules) CheckCall(c Call) error {
-	if r.Free {
+	if r.Free || r.Mode == ModeCarom {
 		return nil // nothing is called; a call is ignored
 	}
 	if r.Mode == ModeNine {
@@ -304,8 +326,12 @@ func (r *Rules) Resolve(s Shot) ShotResult {
 		return ShotResult{Shooter: r.Turn}
 	}
 	switch {
+	case r.Free && r.Mode == ModeCarom:
+		return r.resolveCaromFree(s)
 	case r.Free:
 		return r.resolveFree(s)
+	case r.Mode == ModeCarom:
+		return r.resolveCarom(s)
 	case r.Mode == ModeNine:
 		return r.resolveNine(s)
 	}
@@ -507,8 +533,13 @@ func (r *Rules) resolveEight(s Shot) ShotResult {
 // moved yet, so the opponent breaks instead, from the kitchen as usual.
 //
 // In 9-ball it counts towards three fouls in a row, except on the break, and
-// the chance to push out is gone.
+// the chance to push out is gone. In carom it only ends the inning; see
+// timeFoulCarom.
 func (r *Rules) TimeFoul() {
+	if r.Mode == ModeCarom {
+		r.timeFoulCarom()
+		return
+	}
 	shooter := r.Turn
 	breaking := r.Phase == PhaseBreaking
 	r.Turn = 1 - shooter

@@ -276,6 +276,10 @@ type RoomState struct {
 	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by seat
 	PushOut    bool             `json:"pushOut"`    // 9-ball: turn may push out on this shot
 	Undos      int              `json:"undos"`      // practice: shots undo can take back
+	// Target and Carom: 3-cushion only, the points the game is played to
+	// (0 in practice, which has no end) and the score.
+	Target int              `json:"target,omitempty"`
+	Carom  *game.CaromScore `json:"carom,omitempty"`
 	// Race and Breaks are the settings of the next match (set_match);
 	// Match is the one being played, or the last one.
 	Race   int            `json:"race"`
@@ -290,12 +294,17 @@ type RoomState struct {
 // Match is the race the two players are playing: the first to win Race
 // racks wins. A finished match stays until the next one starts or a new
 // player sits down.
+//
+// In 3-cushion a match is one game to Race points: Score is the points,
+// Racks holds the game once it is over, and a game that ended level is a
+// Draw (Winner stays null; the rack's winner is -1).
 type Match struct {
 	Race   int            `json:"race"`
 	Breaks game.BreakRule `json:"breaks"`
-	Score  [2]int         `json:"score"`  // racks won, by seat
+	Score  [2]int         `json:"score"`  // racks won (3-cushion: points), by seat
 	Racks  []game.Rack    `json:"racks"`  // every finished rack, in order
 	Winner *int           `json:"winner"` // seat, or null while the match is on
+	Draw   bool           `json:"draw,omitempty"`
 }
 
 // Snapshot carries ball positions while a shot is in progress.
@@ -342,6 +351,16 @@ type Settled struct {
 	PushOut      bool             `json:"pushOut"`
 	Undos        int              `json:"undos"`
 	Match        *Match           `json:"match"`
+	// 3-cushion: the cue ball's cushions before it reached the second ball
+	// (or in all), how many of the other two balls it touched, the balls
+	// put back on their spots in order, Frozen when that was because the
+	// incoming cue ball touched a ball, and the score after the shot.
+	Cushions int              `json:"cushions,omitempty"`
+	Touched  int              `json:"touched,omitempty"`
+	Spotted  []int            `json:"spotted,omitempty"`
+	Frozen   bool             `json:"frozen,omitempty"`
+	Target   int              `json:"target,omitempty"`
+	Carom    *game.CaromScore `json:"carom,omitempty"`
 }
 
 // Aim relays the shooter's aim to the other player.

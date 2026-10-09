@@ -68,16 +68,35 @@ func TestMatchForfeit(t *testing.T) {
 
 func TestValidRaceAndRule(t *testing.T) {
 	for _, r := range []int{1, 7, MaxRace} {
-		if !ValidRace(r) {
+		if !ValidRace(ModeEight, r) {
 			t.Errorf("race %d rejected", r)
 		}
 	}
 	for _, r := range []int{0, -1, MaxRace + 1} {
-		if ValidRace(r) {
+		if ValidRace(ModeNine, r) {
 			t.Errorf("race %d accepted", r)
 		}
 	}
+	if !ValidRace(ModeCarom, MaxCaromTarget) || ValidRace(ModeCarom, MaxCaromTarget+1) || ValidRace(ModeCarom, 0) {
+		t.Error("3-cushion: 1 to MaxCaromTarget points")
+	}
 	if !BreakWinner.Valid() || BreakRule("loser").Valid() {
 		t.Error("BreakRule.Valid")
+	}
+}
+
+func TestCaromMatch(t *testing.T) {
+	m := NewMatch(15, BreakAlternate)
+	m.Final(Rack{Winner: NoWinner, Breaker: 0, End: EndDraw}, [2]int{15, 15})
+	if !m.Over() || !m.Draw || m.Winner != NoWinner || m.Score != [2]int{15, 15} || len(m.Racks) != 1 {
+		t.Fatalf("drawn: %+v", m)
+	}
+	if m.Opener(0) != 1 {
+		t.Error("the other player opens the next match")
+	}
+	m.Reset()
+	m.Final(Rack{Winner: 1, Breaker: 0, End: EndPoints}, [2]int{9, 15})
+	if !m.Over() || m.Draw || m.Winner != 1 {
+		t.Fatalf("won: %+v", m)
 	}
 }

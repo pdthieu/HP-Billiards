@@ -33,7 +33,8 @@ const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 // table's measures and look from app.js:
 //   W, H, R, RAIL, CUSHION, HEAD, cushions (TABLE.cushions), holes ({x, y, r}
 //   per pocket), felt (a canvas of the 2D table from above, RAIL beyond the
-//   cushions on every side), colors, ballColors, cueSegments, cueLength,
+//   cushions on every side), colors, ballColors, carom (3-cushion: {colors,
+//   dots} by id for plain dotted balls, else null), cueSegments, cueLength,
 //   reduceMotion(), level (a LEVELS key) and onLost().
 // It throws when WebGL is not available.
 export function createView3D(canvas, k) {
@@ -248,7 +249,7 @@ export function createView3D(canvas, k) {
     m.position.set(x, RAIL_H + 0.0006, y);
     scene.add(m);
   };
-  for (const i of [1, 2, 3, 5, 6, 7]) { sight(W / 8 * i, -0.0725, true); sight(W / 8 * i, H + 0.0725, true); }
+  for (const i of k.carom ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 5, 6, 7]) { sight(W / 8 * i, -0.0725, true); sight(W / 8 * i, H + 0.0725, true); }
   for (const i of [1, 2, 3]) { sight(-0.0725, H / 4 * i, false); sight(W + 0.0725, H / 4 * i, false); }
 
   // --- balls ------------------------------------------------------------
@@ -282,10 +283,12 @@ export function createView3D(canvas, k) {
     const px = img.data;
     const rgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
     const ivory = rgb(k.colors.ivory), discC = rgb(k.colors.disc), dot = rgb('#B4322A'), ink = rgb(k.colors.ink);
-    const base = id === 0 || id > 8 ? ivory : rgb(k.ballColors[id]);
-    const band = id > 8 ? rgb(k.ballColors[id - 8]) : null;
+    const carom = k.carom;
+    const base = carom ? rgb(carom.colors[id] || k.colors.ivory) : id === 0 || id > 8 ? ivory : rgb(k.ballColors[id]);
+    const band = !carom && id > 8 ? rgb(k.ballColors[id - 8]) : null;
+    const dots = carom ? rgb(carom.dots[id] || '#B4322A') : id === 0 ? dot : null;
     const cosDisc = 0.877, cosDot = 0.985, rho = Math.sqrt(1 - cosDisc * cosDisc);
-    const glyph = id > 0 ? numberGlyph(id) : null;
+    const glyph = !carom && id > 0 ? numberGlyph(id) : null;
     const G = glyph ? glyph.width : 0;
     const discs = id > 8 ? [[1, 0, 0], [-1, 0, 0]] : [[0, 0, 1], [0, 0, -1]];
     const up = id > 8 ? [0, 0, -1] : [0, -1, 0];
@@ -297,8 +300,8 @@ export function createView3D(canvas, k) {
         const L = [-Math.cos(ph) * Math.sin(th), Math.cos(th), Math.sin(ph) * Math.sin(th)];
         const b = [P[0] * L[0] + P[1] * L[1] + P[2] * L[2], P[3] * L[0] + P[4] * L[1] + P[5] * L[2], P[6] * L[0] + P[7] * L[1] + P[8] * L[2]];
         let col = base;
-        if (id === 0) {
-          if (Math.abs(b[0]) > cosDot || Math.abs(b[1]) > cosDot || Math.abs(b[2]) > cosDot) col = dot;
+        if (dots) {
+          if (Math.abs(b[0]) > cosDot || Math.abs(b[1]) > cosDot || Math.abs(b[2]) > cosDot) col = dots;
         } else {
           if (band && Math.abs(b[2]) <= 0.58) col = band;
           for (const d of discs) {
@@ -341,7 +344,7 @@ export function createView3D(canvas, k) {
   // placeBall sets mesh's matrix: position p (table metres) raised by up,
   // turned by the 2D orientation o (row-major, table ← ball).
   function placeBall(mesh, id, p, o, up, scale) {
-    const P = id > 8 ? STRIPE_P : null;
+    const P = id > 8 && !k.carom ? STRIPE_P : null;
     // M·O: rows of O permuted, (x, y, z) → (x, −z, y)
     const m = [o[0], o[1], o[2], -o[6], -o[7], -o[8], o[3], o[4], o[5]];
     let r = m;

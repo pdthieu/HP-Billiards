@@ -17,8 +17,8 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 
 ## Flow
 
-The game, 8-ball or 9-ball, is picked with a two-button switch above
-*Create a room* (remembered in `localStorage` as `pool:mode`).
+The game, 8-ball, 9-ball or 3-cushion, is picked with a three-button switch
+above *Create a room* (remembered in `localStorage` as `pool:mode`).
 
 Inside a room, Settings (the gear in the header) has a *Room* part at the
 top, so that the screen around the table stays bare. It holds:
@@ -45,6 +45,32 @@ game in each row's chip. In 9-ball:
 - a player on two consecutive fouls gets a red "2 fouls" tag on their seat,
   and the status line warns that a third loses;
 - the tray under the table is a single "Pocketed" row.
+
+In 3-cushion (eyebrow "3-cushion room") the table is the carom one: 2.84 ×
+1.42 m of blue cloth, no pockets, a diamond in the middle of each long rail
+too, and the starting, side, centre and top spots marked. `setTable` swaps
+the geometry (`W`, `H`, `R`, the cushions, `NOSE_H`) when a `room_state`
+brings another game, and rebuilds the 3D view. The balls are plain white,
+yellow and red with six dots each (no numbers). Then:
+
+- each player aims their own ball (`cueId()`: `carom.cue[turn]`), the
+  breaker the white; a small dot of that colour sits on each seat, and the
+  hover label says "yellow · yours";
+- the call line says what the shot needs: the red first on the break, then
+  "Your ball: yellow · both balls, three cushions before the second", and
+  "Last inning: reach 15 to draw the game" in the equalizing inning;
+- the status line says "Point! 4 cushions, a run of 3." or why not ("only
+  2 cushions before the second ball", "the second ball missed"), and when
+  balls went back on their spots;
+- the tray under the table is the scoreboard, one line per player with
+  their ball: points of the target, innings, average and high run, and the
+  run in progress;
+- the header score is the points ("7 – 5, to 15"); a drawn game reads "A
+  draw".
+
+Its race is in points: quick picks 10 · 15 · 20 · 25 · 30 · 40 or 1 to 50
+in the field, remembered as `pool:points` (default 15); the break rule is
+hidden, a match being one game.
 
 Rooms play matches. Under the game switch the landing page has the race:
 quick picks 1 · 3 · 5 · 7 · 9 or any number from 1 to 25 in the field next

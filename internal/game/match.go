@@ -14,12 +14,18 @@ func (b BreakRule) Valid() bool { return b == BreakAlternate || b == BreakWinner
 // MaxRace is the longest race a match may be played to.
 const MaxRace = 25
 
-// ValidRace reports whether a match may be played to race racks.
-func ValidRace(race int) bool { return race >= 1 && race <= MaxRace }
+// ValidRace reports whether a match of mode may be played to race: racks
+// in pool, up to MaxRace, or points in carom, up to MaxCaromTarget.
+func ValidRace(mode Mode, race int) bool {
+	if mode == ModeCarom {
+		return race >= 1 && race <= MaxCaromTarget
+	}
+	return race >= 1 && race <= MaxRace
+}
 
 // Rack is how one rack of a match ended.
 type Rack struct {
-	Winner  int  `json:"winner"`
+	Winner  int  `json:"winner"` // NoWinner for a drawn carom game
 	Breaker int  `json:"breaker"`
 	End     End  `json:"end"`
 	Foul    Foul `json:"foul,omitempty"` // EndEightFoul: the foul
@@ -27,12 +33,16 @@ type Rack struct {
 
 // Match is a race: the first player to win Race racks wins. It knows nothing
 // about the racks themselves; the room records each one as it ends.
+//
+// A carom match is one game to Race points: Score holds the points, which
+// the room keeps up to date, and Final ends it, possibly in a Draw.
 type Match struct {
 	Race   int
 	Breaks BreakRule
 	Score  [2]int
 	Racks  []Rack
-	Winner int // seat, or NoWinner while the match is on
+	Winner int  // seat, or NoWinner while the match is on
+	Draw   bool // a carom game ended level
 }
 
 // NewMatch returns a match to race racks, broken by rule.
@@ -45,10 +55,11 @@ func (m *Match) Reset() {
 	m.Score = [2]int{}
 	m.Racks = nil
 	m.Winner = NoWinner
+	m.Draw = false
 }
 
-// Over reports whether the match has a winner.
-func (m Match) Over() bool { return m.Winner != NoWinner }
+// Over reports whether the match has a winner or was drawn.
+func (m Match) Over() bool { return m.Winner != NoWinner || m.Draw }
 
 // Started reports whether any rack of the match has ended.
 func (m Match) Started() bool { return len(m.Racks) > 0 }
@@ -64,6 +75,17 @@ func (m *Match) Record(rack Rack) {
 	if m.Score[rack.Winner] >= m.Race {
 		m.Winner = rack.Winner
 	}
+}
+
+// Final ends a carom match with its one game, which finished at score.
+func (m *Match) Final(game Rack, score [2]int) {
+	if m.Over() {
+		return
+	}
+	m.Racks = append(m.Racks, game)
+	m.Score = score
+	m.Winner = game.Winner
+	m.Draw = game.Winner == NoWinner
 }
 
 // Forfeit ends the match: loser walked away during the rack broken by

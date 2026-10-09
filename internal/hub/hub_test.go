@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -1459,5 +1460,69 @@ func TestNextBreakerFollowsTheRule(t *testing.T) {
 			t.Errorf("%s: rack 2 broken by %d (want %d), score %v", tc.rule, r.game.Rules.Turn, tc.want, r.match.Score)
 		}
 		r.stopClock()
+	}
+}
+
+func TestCaromRoom(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	c0, c1, _ := startMatch(t, srv, `{"mode":"3cushion"}`)
+	st := c0.waitState(phaseIs("breaking"))
+	c1.waitState(phaseIs("breaking"))
+	carom, _ := st["carom"].(msg)
+	if st["mode"] != "3cushion" || st["race"] != 15.0 || st["target"] != 15.0 || len(st["balls"].([]any)) != 3 || carom == nil {
+		t.Fatalf("3-cushion break: %v", st)
+	}
+	breaker := int(st["turn"].(float64))
+	if cue := carom["cue"].([]any); cue[breaker] != 0.0 || cue[1-breaker] != 1.0 || st["ballInHand"] != false {
+		t.Errorf("the breaker has the white: %v", carom)
+	}
+	// A soft shot at the head cushion touches no ball: a foul on the break.
+	[]*testClient{c0, c1}[breaker].send(msg{"type": "shoot", "angle": math.Pi, "power": 0.05})
+	_, s := c0.waitFor("settled")
+	carom = s["carom"].(msg)
+	if s["foul"] != "no_contact" || s["made"] != false || s["turn"] != float64(1-breaker) || s["ballInHand"] != false {
+		t.Errorf("after the break: %v", s)
+	}
+	if inn := carom["innings"].([]any); inn[0] != 1.0 || inn[1] != 1.0 || matchOf(t, s)["score"].([]any)[breaker] != 0.0 {
+		t.Errorf("score after the break: %v", s)
+	}
+}
+
+func TestCaromRaceIsInPoints(t *testing.T) {
+	r := newRoom(New(fastOptions()), "TEST", RoomSettings{Mode: game.ModeCarom, Race: 40, Breaks: game.BreakAlternate})
+	if err := r.handleSetMatch(50, ""); err != nil || r.race != 50 {
+		t.Fatalf("a 50-point game: %v, race %d", err, r.race)
+	}
+	if err := r.handleSetMatch(51, ""); !errors.Is(err, errBadRace) {
+		t.Errorf("51 points: %v", err)
+	}
+	r.startRack(0)
+	if r.game.Rules.Target != 50 {
+		t.Errorf("target %d, want the race", r.game.Rules.Target)
+	}
+	rules := r.game.Rules
+	rules.Carom.Points = [2]int{12, 50}
+	r.scorePoints()
+	if r.match.Score != [2]int{12, 50} || r.match.Over() {
+		t.Errorf("the match follows the points: %+v", r.match)
+	}
+	rules.Phase, rules.Winner, rules.End = game.PhaseGameOver, 1, game.EndPoints
+	r.endRack(game.FoulNone)
+	if !r.match.Over() || r.match.Winner != 1 || r.match.Score != [2]int{12, 50} || len(r.match.Racks) != 1 {
+		t.Errorf("game over: %+v", r.match)
+	}
+	r.stopClock()
+
+	// Points are not racks: back to pool, the race is the default one, and
+	// to carom again the default game.
+	if err := r.handleSetMode(game.ModeEight); err != nil || r.race != 1 {
+		t.Errorf("to 8-ball: %v, race %d", err, r.race)
+	}
+	if err := r.handleSetMode(game.ModeNine); err != nil || r.race != 1 {
+		t.Errorf("to 9-ball: %v, race %d", err, r.race)
+	}
+	r.handleSetMatch(5, "")
+	if err := r.handleSetMode(game.ModeCarom); err != nil || r.race != game.DefaultCaromTarget {
+		t.Errorf("to 3-cushion: %v, race %d", err, r.race)
 	}
 }

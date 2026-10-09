@@ -11,7 +11,7 @@ const fs = require('fs');
 const os = require('os');
 
 const repo = path.join(__dirname, '..');
-const scenarios = process.argv.length > 2 ? process.argv.slice(2) : ['landing', 'smoke', 'decision', 'reconnect', 'clock', 'nine', 'practice', 'match', 'spectate', 'view3d', 'devices'];
+const scenarios = process.argv.length > 2 ? process.argv.slice(2) : ['landing', 'smoke', 'decision', 'reconnect', 'clock', 'nine', 'carom', 'practice', 'match', 'spectate', 'view3d', 'devices'];
 
 function freePort() {
   return new Promise((resolve, reject) => {

@@ -21,6 +21,15 @@ const (
 	NumPockets = 6
 )
 
+// The three balls of a carom game (3-cushion). The other ids are out of
+// play. Each player strikes their own cue ball: the breaker the white, the
+// other player the yellow (UMB).
+const (
+	CaromWhite  = CueBall
+	CaromYellow = 1
+	CaromRed    = 2
+)
+
 // Vec is a 2D vector in meters (or meters/second for velocities).
 type Vec struct {
 	X, Y float64
@@ -80,6 +89,9 @@ const (
 	// BallOffTable: Ball flew over a cushion and left the table. It is out
 	// of play like a pocketed ball.
 	BallOffTable
+	// BallContact: the cue ball touched Ball. Recorded for every contact,
+	// the first one too (which also makes a FirstContact).
+	BallContact
 )
 
 func (k EventKind) String() string {
@@ -94,6 +106,8 @@ func (k EventKind) String() string {
 		return "HeadStringCrossed"
 	case BallOffTable:
 		return "BallOffTable"
+	case BallContact:
+		return "BallContact"
 	}
 	return "Unknown"
 }
@@ -107,6 +121,9 @@ type Event struct {
 	// InKitchen is set on FirstContact when the contacted ball was above the
 	// head string (a ball resting on the head string is not).
 	InKitchen bool
+	// Rail is the cushion of a CushionHit on a table without pockets: 0 top,
+	// 1 bottom, 2 left (the head rail), 3 right (the foot rail).
+	Rail int
 }
 
 // ImpactKind says what made an Impact.
@@ -206,6 +223,10 @@ type Config struct {
 	// RackGap is the space left between neighbouring balls in the rack so a
 	// resting rack never registers as overlapping.
 	RackGap float64
+
+	// NoPockets makes a carom table: four unbroken cushions and nothing to
+	// drop into. See CaromConfig.
+	NoPockets bool
 }
 
 const (
@@ -261,6 +282,25 @@ func DefaultConfig() Config {
 	}
 }
 
+// CaromConfig returns the table a 3-cushion game is played on, built from
+// base (whose physics tuning it keeps): a UMB match table, 2.84 × 1.42 m
+// between the cushion noses, no pockets, 61.5 mm balls and cushions 37 mm
+// high, about 60 % of the ball. Carom cloth is thin and the slate heated,
+// so a ball rolls half as far again as on pool cloth: two thirds of base's
+// rolling friction (0.01 from the default 0.015).
+func CaromConfig(base Config) Config {
+	c := base
+	c.TableWidth, c.TableHeight = 2.84, 1.42
+	c.BallRadius = 0.0615 / 2
+	c.CushionNose = 0.6
+	c.RollingFriction = base.RollingFriction * 2 / 3
+	c.NoPockets = true
+	return c
+}
+
+// CenterSpot is the middle of the table, the third carom spot.
+func (c Config) CenterSpot() Vec { return Vec{c.TableWidth / 2, c.TableHeight / 2} }
+
 // HeadString is the x coordinate of the head string. The kitchen, the area
 // "above the head string", is x <= HeadString(): unlike on a real table a cue
 // ball centered exactly on the line counts as inside.
@@ -285,6 +325,10 @@ type State struct {
 	Mode       Mode        `json:"mode"`
 	Fouls      [2]int      `json:"fouls"`   // 9-ball: consecutive fouls by seat
 	PushOut    bool        `json:"pushOut"` // 9-ball: Turn may push out on this shot
+	// Carom: the points the game is played to (0: no end) and the score;
+	// nil in the other modes.
+	Target int         `json:"target,omitempty"`
+	Carom  *CaromScore `json:"carom,omitempty"`
 }
 
 // Errors returned by Game and Rules when an action is not allowed.
@@ -307,6 +351,8 @@ type Game struct {
 	Table *Table
 	Rules *Rules
 
+	cfg Config // the pool table; carom is played on CaromConfig(cfg)
+
 	shooting bool // a shot is in progress and has not been resolved yet
 	shot     Shot // the shot in progress
 	// The first collision of the last Tick, for an extra snapshot: when it
@@ -320,17 +366,23 @@ type Game struct {
 
 // NewGame returns a game waiting in the lobby phase.
 func NewGame(cfg Config) *Game {
-	return &Game{Table: NewTable(cfg), Rules: NewRules()}
+	return &Game{Table: NewTable(cfg), Rules: NewRules(), cfg: cfg}
 }
 
 // SetMode chooses the game the next Start begins. In the lobby the table is
-// racked for it at once, so the players see what they are about to play.
+// racked for it at once, so the players see what they are about to play. A
+// change between pool and carom swaps the table, at once in the lobby and
+// otherwise at the next Start.
 func (g *Game) SetMode(m Mode) {
 	g.Rules.Mode = m
 	if g.Rules.Phase == PhaseLobby {
 		g.rack()
 	}
 }
+
+// SetTarget sets the points a carom game is played to, from the next Start;
+// 0 plays without an end.
+func (g *Game) SetTarget(points int) { g.Rules.Target = points }
 
 // SetFree turns the rules off (practice) or back on, from the next Start.
 func (g *Game) SetFree(free bool) { g.Rules.Free = free }
@@ -344,9 +396,19 @@ func (g *Game) Start(breaker int) {
 // rack sets up a fresh, randomly ordered rack for the mode, so every game
 // starts from a different pattern.
 func (g *Game) rack() {
-	if g.Rules.Mode == ModeNine {
+	if carom := g.Rules.Mode == ModeCarom; carom != g.Table.Cfg.NoPockets {
+		cfg := g.cfg
+		if carom {
+			cfg = CaromConfig(cfg)
+		}
+		g.Table = NewTable(cfg)
+	}
+	switch g.Rules.Mode {
+	case ModeCarom:
+		g.rackCarom()
+	case ModeNine:
 		g.Table.RackNineOrder(NineOrder())
-	} else {
+	default:
 		g.Table.RackEight(EightOrder())
 	}
 	g.shooting = false
@@ -395,6 +457,7 @@ func (g *Game) ShootElevated(seat int, angle, power float64, call Call, spin Vec
 		return err
 	}
 	g.shot = Shot{Call: call, FromKitchen: g.Rules.BallInHand && g.Rules.Kitchen && g.cueInKitchen}
+	g.Table.Cue = g.Rules.CueBall()
 	g.Table.ShootElevated(angle, power, spin, elevation)
 	g.shooting = true
 	return nil
@@ -518,6 +581,10 @@ func (g *Game) Tick() *ShotResult {
 	g.shot.Events = g.Table.Events
 	res := g.Rules.Resolve(g.shot)
 	g.cueInKitchen = false
+	if g.Rules.Mode == ModeCarom {
+		g.spotCarom(&res)
+		return &res
+	}
 	if res.Respot != 0 {
 		g.Table.Spot(res.Respot, g.Table.Cfg.FootSpot(), 1)
 	}
@@ -541,7 +608,7 @@ func (g *Game) Collision() (t float64, balls []BallState, ok bool) {
 
 // State returns the full serializable state.
 func (g *Game) State() State {
-	return State{
+	st := State{
 		Balls:      g.Table.Snapshot(),
 		Phase:      g.Rules.Phase,
 		Turn:       g.Rules.Turn,
@@ -554,4 +621,10 @@ func (g *Game) State() State {
 		Fouls:      g.Rules.Fouls,
 		PushOut:    g.Rules.PushOut,
 	}
+	if g.Rules.Mode == ModeCarom {
+		st.Target = g.Rules.Target
+		c := g.Rules.Carom
+		st.Carom = &c
+	}
+	return st
 }

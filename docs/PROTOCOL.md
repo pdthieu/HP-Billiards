@@ -4,7 +4,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "practice": false}` picks the game (`8ball`, the default, or `9ball`), the race of its matches (1–25, default 1), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches) and how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches) and how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
 - `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
@@ -14,7 +14,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 - **Units:** meters. The playing surface is 2.54 × 1.27, origin top-left, x along the long axis, y down. Ball radius is 0.028575.
 - **Angles:** radians, 0 points along +x, positive turns toward +y (clockwise on screen).
 - **Seats:** `0` and `1`.
-- **Balls:** id `0` is the cue ball, `1`–`7` solids, `8` the 8-ball, `9`–`15` stripes. A 9-ball rack has only `1`–`9`. Ball lists contain only balls on the table, as `{id, x, y}`.
+- **Balls:** id `0` is the cue ball, `1`–`7` solids, `8` the 8-ball, `9`–`15` stripes. A 9-ball rack has only `1`–`9`. 3-cushion has three: `0` the white, `1` the yellow, `2` the red. Ball lists contain only balls on the table, as `{id, x, y}`.
 - **Pockets:** index `0` top-left, `1` top-middle, `2` top-right, `3` bottom-left, `4` bottom-middle, `5` bottom-right ("top" is y = 0). The table follows the WPA equipment specification: the surface is measured between the cushion noses; corner pockets are 4 9⁄16 in (0.1159 m) wide between noses that sit 0.0820 m from the corner along each rail, side pockets 5 1⁄16 in (0.1286 m) wide centred on the long rails. Jaws lead from the noses into the pocket at 142° (corner) and 104° (side); a ball drops once its centre is 1¾ in (corner) or ¼ in (side) past the mouth line. Ball centres can therefore be slightly outside the 2.54 × 1.27 rectangle while a ball is in a pocket mouth.
 - **Head string:** x = 0.635. The kitchen is x ≤ 0.635.
 - **Phases:** `lobby`, `breaking`, `open`, `assigned`, `game_over`.
@@ -35,8 +35,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `place_ball` | `id`, `x`, `y` | Practice only: moves a ball on the table, the cue ball included, wherever it fits. |
 | `undo` | – | Practice only: puts the table, turn and rules back as they were before the last shot (up to 20 shots). |
 | `rerack` | `mode?` | Practice only: a fresh rack, of `mode` if given. |
-| `set_mode` | `mode` | Between matches only (`lobby`, or `game_over` once the match is won); either player. Changes the room's game (`8ball` or `9ball`); in the lobby both players must press ready again. Both get a `room_state`. |
-| `set_match` | `race?`, `breaks?` | Between matches only, as `set_mode`. Sets the race (1–25) and the break rule of the next match; a field left out (or 0, `""`) is kept. Both get a `room_state`. |
+| `set_mode` | `mode` | Between matches only (`lobby`, or `game_over` once the match is won); either player. Changes the room's game (`8ball`, `9ball` or `3cushion`); in the lobby both players must press ready again. Between pool and 3-cushion the race goes back to the new game's default (1 rack, 15 points): racks are not points. Both get a `room_state`. |
+| `set_match` | `race?`, `breaks?` | Between matches only, as `set_mode`. Sets the race (1–25; 3-cushion: points, 1–50) and the break rule of the next match; a field left out (or 0, `""`) is kept. Both get a `room_state`. |
 | `leave` | – | Gives up the seat at once. During a match it forfeits the match (see Matches). The server closes the socket (1000, `left the room`). |
 | `chat` | `text` | Anyone in the room, players and spectators: a comment of 1–200 characters (whitespace collapsed), relayed to everyone as `chat`. At most one per sender every 5 seconds (`-chat-cooldown`). |
 | `set_audience` | `spectators` | Players only, at any time: how many spectators may watch, 0 to the server's limit. Lowering it sends nobody away. Everyone gets `audience`. |
@@ -95,7 +95,7 @@ A practice room (`POST /api/rooms` with `"practice": true`) is private: it is no
 
 ## Matches
 
-Two players play a match: the first to win `race` racks wins it. A race of 1 is one rack per match.
+Two players play a match: the first to win `race` racks wins it. A race of 1 is one rack per match. A 3-cushion match is one game to `race` points (see 3-cushion): `score` is the points, and `racks` holds the game once it is over, with `winner` -1 for a draw.
 
 - The first rack of a room's first match is broken by a random player. After that:
   - `alternate`: the player who did not break the last rack breaks;
@@ -110,6 +110,8 @@ Two players play a match: the first to win `race` racks wins it. A race of 1 is 
   - `eight_pocket`: the loser pocketed the 8-ball in another pocket than called, or on a safety;
   - `eight_off`: the loser drove the 8-ball off the table (see Jump shots);
   - `three_fouls`: 9-ball, the loser's third foul in a row;
+  - `points`: 3-cushion, the winner reached the target;
+  - `draw`: 3-cushion, both reached it in the same number of innings;
   - `forfeit`: the loser left (see below). The score does not change.
 - Leaving forfeits a match in progress (`leave`, or a seat hold that runs out): the other player wins the match, the rack in progress is listed with `end` `forfeit`, and the room goes back to the lobby. That player gets `player` (the seat empty) and `room_state` with the finished `match`. The match stays in `room_state` until a new player takes the free seat, which starts a new one.
 
@@ -123,6 +125,21 @@ WPA section 5. Balls `1`–`9` are racked in a diamond with the 1 on the foot sp
 - Fouls (`scratch`, `no_contact`, `wrong_ball`, `no_rail`, `bad_break`, `off_table`, and running out of time) give the opponent ball in hand anywhere. Balls pocketed on a foul or driven off the table stay down, except the 9.
 - **Push out:** the shot right after the break, whoever takes it, may be sent with `call: {"pushOut": true}` while `pushOut` is true. It needs no contact and no rail; a scratch is still a foul. Balls it pockets stay down (the 9 is spotted). The opponent then gets a `decision` with `take_shot` and `pass_back`. A push out at any other time is refused with `bad_call`.
 - **Three fouls:** `fouls[seat]` counts each player's consecutive fouls, reset by a legal shot. The third in a row loses the rack. Time fouls count, except on the break, where the opponent simply breaks instead.
+
+## 3-cushion
+
+UMB three-cushion carom, on a match table without pockets: 2.84 × 1.42 m between the cushion noses, 61.5 mm balls. A match is one game to `race` points (`target` in `room_state`); `match.score` is the points as they are made.
+
+- Each player strikes their own ball: the breaker the white (`0`), the other player the yellow (`1`); `carom.cue[seat]` says which. The red (`2`) belongs to nobody. Nothing is called (`call` is ignored); there is no ball in hand, no kitchen and no decision.
+- The break is played from the opening position: the red on the foot (top) spot, the yellow on the head (starting) spot, the white on the head string 182 mm to one side of it, either side at random. The break must hit the red first: missing every ball is the foul `no_contact`, the yellow first `wrong_ball`.
+- A point (`made`) is scored when the cue ball touches both other balls and has touched cushions at least three times before it touches the second one. The cushions may come before the first ball, between the two, or both; the same cushion may count again, but touching it twice with nothing in between (running along it) counts once, and a ball driven into a corner touches two. The other balls' cushions do not count.
+- A point keeps the inning going; a miss or a foul ends it and the other player plays the balls where they lie. A ball driven off the table is the foul `off_table` and scores nothing; it goes back on its spot.
+- Spots: the red's is the top spot, the incoming player's ball's the head spot, the other cue ball's the centre spot. A ball whose spot is taken goes on the spot of the ball that is in the way.
+- When the incoming player's ball rests against another ball, the balls in contact go back on their spots before the shot (`settled` `frozen`).
+- The game ends when a player reaches the target. If the breaker gets there first, the other player has one more inning (`carom.equalizing`): reaching the target in it draws the game (`end` `draw`, no winner; `match.draw` is true), falling short loses it. Otherwise the game ends `points`.
+- Running out of time ends the inning; on the break the other player breaks instead, with the white.
+
+In practice (`rerack` with `3cushion`) the player always strikes the white; shots are judged for `made` and `cushions` but nothing is counted.
 
 ## Spectators and chat
 
@@ -187,7 +204,8 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
 - `winner`: seat or `null`.
 - `moving`: a shot is in progress; `snapshot`s and a `settled` will follow.
-- `mode`: `8ball` or `9ball`.
+- `mode`: `8ball`, `9ball` or `3cushion`.
+- `target` and `carom`: 3-cushion only (left out otherwise). `target` is the points the game is played to (0 in practice); `carom` is the score: `{"points": [7, 5], "innings": [12, 12], "highRun": [3, 2], "run": 1, "cue": [0, 1], "breaker": 0, "equalizing": false}` with each seat's points, innings started and best run, the points of the inning in progress, each seat's ball and who broke.
 - `practice`: a practice room; `undos`: shots `undo` can take back there (always 0 elsewhere).
 - `fouls`: 9-ball consecutive fouls by seat (always `[0, 0]` in 8-ball). `pushOut`: 9-ball, the player in `turn` may push out on this shot.
 - `race`, `breaks`: the settings of the next match (`set_match`). `match`: the match being played, or the last one (see Matches); `null` in practice.
@@ -235,6 +253,7 @@ Ends a shot. Positions are exact; clients snap to them.
 - `clock`: as in `room_state`, started for whoever acts next.
 - `match`: as in `room_state`; a shot that ends a rack has it in `racks` already.
 - After a scratch, or the cue ball off the table, the cue ball is back on the table (head spot by default) and the opponent has ball in hand.
+- 3-cushion: `made` is a point. `cushions` is how many cushions the cue ball touched before the second ball (or in all, if it never got there) and `touched` how many of the other two balls it touched (both omitted when 0); `spotted` lists the balls put back on their spots, and `frozen` says that was because the incoming ball touched another. `target` and `carom` as in `room_state`.
 
 ### `aim`
 
@@ -273,8 +292,8 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_placement` | `place_cue` off the table, in a pocket, on another ball, or outside the kitchen while `kitchen` is true. |
 | `bad_input` | `angle` or `power` is not a finite number. |
 | `bad_call` | `shoot` at the 8-ball without a `pocket`, a `pocket` outside 0–5, or a 9-ball push out that is not allowed. |
-| `bad_mode` | `set_mode` or `rerack` with a mode other than `8ball` or `9ball`. |
-| `bad_race` | `set_match` with a race outside 1–25 or a break rule other than `alternate` or `winner`. |
+| `bad_mode` | `set_mode` or `rerack` with a mode other than `8ball`, `9ball` or `3cushion`. |
+| `bad_race` | `set_match` with a race outside 1–25 (3-cushion: 1–50 points) or a break rule other than `alternate` or `winner`. |
 | `no_undo` | `undo` with no shot to take back. |
 | `not_practice` | `place_ball`, `undo` or `rerack` outside a practice room. |
 | `no_decision` | `choose` with nothing to decide. |

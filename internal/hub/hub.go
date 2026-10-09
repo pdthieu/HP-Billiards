@@ -157,7 +157,8 @@ type RoomSettings struct {
 const DefaultSpectators = 3
 
 // fill sets the zero fields to their defaults: 8-ball, a race to 1 (one rack
-// per match), alternating breaks, DefaultSpectators up to limit. A practice
+// per match; a 3-cushion game to DefaultCaromTarget points), alternating
+// breaks, DefaultSpectators up to limit. A practice
 // table has no spectators.
 func (s *RoomSettings) fill(limit int) {
 	if s.Spectators == nil {
@@ -173,6 +174,9 @@ func (s *RoomSettings) fill(limit int) {
 	}
 	if s.Race == 0 {
 		s.Race = 1
+		if s.Mode == game.ModeCarom {
+			s.Race = game.DefaultCaromTarget
+		}
 	}
 	if s.Breaks == "" {
 		s.Breaks = game.BreakAlternate
@@ -289,8 +293,8 @@ func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	case !body.Mode.Valid():
 		bad(protocol.ErrBadMode, "unknown game mode")
 		return
-	case !game.ValidRace(body.Race) || !body.Breaks.Valid():
-		bad(protocol.ErrBadRace, fmt.Sprintf("the race must be 1 to %d, the breaks alternate or winner", game.MaxRace))
+	case !game.ValidRace(body.Mode, body.Race) || !body.Breaks.Valid():
+		bad(protocol.ErrBadRace, fmt.Sprintf("the race must be 1 to %d (3-cushion: 1 to %d points), the breaks alternate or winner", game.MaxRace, game.MaxCaromTarget))
 		return
 	case *body.Spectators < 0 || *body.Spectators > h.opts.MaxSpectators:
 		bad(protocol.ErrBadSpectator, fmt.Sprintf("spectators must be 0 to %d", h.opts.MaxSpectators))

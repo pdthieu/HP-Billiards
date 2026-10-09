@@ -12,11 +12,14 @@
 // ---------------------------------------------------------------------------
 // 1. constants and state
 
-const W = 2.54;            // playing surface, meters
-const H = 1.27;
-const R = 0.028575;        // ball radius
-const HEAD = W / 4;        // head string; the kitchen is x <= HEAD
-const FOOT = { x: W * 3 / 4, y: H / 2 };
+const DEG = Math.PI / 180;
+// The table follows the room's game (setTable): a 9 ft pool table, or a
+// carom table for 3-cushion (game.CaromConfig on the server).
+let W = 2.54;              // playing surface, meters
+let H = 1.27;
+let R = 0.028575;          // ball radius
+let HEAD = W / 4;          // head string; the kitchen is x <= HEAD
+let FOOT = { x: W * 3 / 4, y: H / 2 };
 const RAIL = 0.1;          // drawn wooden rail width beyond the cushions
 const CUSHION = 0.045;     // drawn cushion depth behind the nose line
 const RAIL_TOP = 0.044;    // the rail's top above the bed in 3D (view3d.js RAIL_H)
@@ -30,11 +33,16 @@ const CORNER_JAW = 142 * Math.PI / 180;
 const SIDE_JAW = 104 * Math.PI / 180;
 const CORNER_SHELF = 1.75 * INCH;
 const SIDE_SHELF = 0.25 * INCH;
-const TABLE = buildTable();
-const POCKETS = TABLE.pockets; // {x, y}: middle of each mouth, pocket-index order
+let TABLE = buildTable();
+let POCKETS = TABLE.pockets; // {x, y}: middle of each mouth, pocket-index order; none on a carom table
 const BALL_COLORS = { // design tokens --ball-1 … --ball-8
   1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316',
 };
+// 3-cushion: the white (the breaker's), the yellow and the red, by id, and
+// the colour of the dots that show them turning.
+const CAROM_COLORS = { 0: '#F4EFE2', 1: '#F2C12E', 2: '#CC3326' };
+const CAROM_DOTS = { 0: '#B4322A', 1: '#B4322A', 2: '#F4EFE2' };
+const CAROM_NAMES = { 0: 'white', 1: 'yellow', 2: 'red' };
 const RENDER_DELAY_MS = 100;  // how far behind the newest snapshot we draw
 const AIM_SEND_MS = 100;      // at most 10 aim messages per second
 const STRIKE_MS = 280;        // the cue's strike: forward to the ball, then fading
@@ -49,7 +57,24 @@ const CLOCK_HURRY_S = 5;      // ...and from here counts down over the table
 const ROOMS_POLL_MS = 3000;
 
 // buildTable lays out cushions and pockets like Table.buildRails on the server.
-function buildTable() {
+// A carom table has four cushions meeting in the corners: their "jaws" are
+// the mitred ends, at 135°.
+function buildTable(carom) {
+  if (carom) {
+    const t = 135 * DEG;
+    const end = (ux, uy, inx, iny) => ({ x: ux * Math.cos(t) - inx * Math.sin(t), y: uy * Math.cos(t) - iny * Math.sin(t) });
+    const cushions = [];
+    const add = (from, to, inward) => {
+      const len = Math.hypot(to.x - from.x, to.y - from.y);
+      const ux = (to.x - from.x) / len, uy = (to.y - from.y) / len;
+      cushions.push({ from, to, inward, jawFrom: end(ux, uy, inward.x, inward.y), jawTo: end(-ux, -uy, inward.x, inward.y) });
+    };
+    add({ x: 0, y: 0 }, { x: W, y: 0 }, { x: 0, y: 1 });
+    add({ x: 0, y: H }, { x: W, y: H }, { x: 0, y: -1 });
+    add({ x: 0, y: 0 }, { x: 0, y: H }, { x: 1, y: 0 });
+    add({ x: W, y: 0 }, { x: W, y: H }, { x: -1, y: 0 });
+    return { pockets: [], cushions };
+  }
   const a = CORNER_MOUTH / Math.SQRT2; // corner noses sit this far from the corner along each rail
   const s = SIDE_MOUTH / 2;
   const d = 1 / Math.SQRT2;
@@ -85,7 +110,24 @@ function buildTable() {
   add({ x: W, y: a }, { x: W, y: H - a }, { x: -1, y: 0 }, true, true);
   return { pockets, cushions };
 }
-const DEG = Math.PI / 180;
+
+// setTable sizes the table for mode, if it is not already: the carom table
+// for 3-cushion, the pool table otherwise. The drawn table and the 3D view
+// are rebuilt.
+function setTable(mode) {
+  const carom = mode === '3cushion';
+  if (carom === !POCKETS.length) return;
+  W = carom ? 2.84 : 2.54;
+  H = carom ? 1.42 : 1.27;
+  R = carom ? 0.0615 / 2 : 0.028575;
+  HEAD = W / 4;
+  FOOT = { x: W * 3 / 4, y: H / 2 };
+  NOSE_H = 2 * R * (carom ? 0.6 : 0.635);
+  TABLE = buildTable(carom);
+  POCKETS = TABLE.pockets;
+  resetOrientations();
+  if (v3) { stop3d(); start3d(); } else if (view.cssW) resize();
+}
 
 // optionText returns [title, consequence] for a post-break option; opp is
 // the other player's name.
@@ -101,6 +143,11 @@ function optionText(opt, opp) {
     default: return [opt, ''];
   }
 }
+const CAROM_FOUL_TEXT = {
+  no_contact: 'the break touched no ball',
+  wrong_ball: 'the break must hit the red first',
+  off_table: 'a ball left the table',
+};
 const FOUL_TEXT = {
   scratch: 'scratch',
   no_contact: 'no ball contacted',
@@ -110,7 +157,7 @@ const FOUL_TEXT = {
   bad_break: 'fewer than four balls reached a rail',
   off_table: 'a ball left the table',
 };
-const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball' };
+const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball', '3cushion': '3-cushion' };
 
 // Graphics (Settings): 'auto' starts sharp and steps down when frames come
 // late (checkPace, and checkSpeed in 3D); the others are fixed and never
@@ -154,7 +201,9 @@ const S = {
   ],
   phase: 'lobby',
   turn: 0,
-  mode: '8ball',         // the room's game: '8ball' or '9ball'
+  mode: '8ball',         // the room's game: '8ball', '9ball' or '3cushion'
+  carom: null,           // 3-cushion: the score, {points, innings, highRun, run, cue, breaker, equalizing}
+  target: 0,             // 3-cushion: the points the game is played to (0 in practice)
   fouls: [0, 0],         // 9-ball: consecutive fouls by seat
   pushOut: false,        // 9-ball: the player on turn may push out
   practice: false,       // one player plays both sides; S.seat follows the side to play
@@ -483,7 +532,9 @@ function applyRules(msg) {
   const turnChanged = msg.turn !== S.turn || msg.phase !== S.phase;
   S.phase = msg.phase;
   S.turn = msg.turn;
-  if (msg.mode) S.mode = msg.mode; // settled carries no mode: it cannot change mid-game
+  if (msg.mode) { S.mode = msg.mode; setTable(msg.mode); } // settled carries no mode: it cannot change mid-game
+  S.carom = msg.carom || null;
+  S.target = msg.target || 0;
   if (msg.practice !== undefined) S.practice = msg.practice; // likewise
   if (S.practice) S.seat = msg.decision ? msg.decision.seat : msg.turn; // play the side to play
   S.undos = msg.undos || 0;
@@ -529,7 +580,11 @@ function onRoomState(msg) {
     resetOrientations(); // a fresh rack
     if (S.practice) S.rackMode = msg.mode; // the Rack picker starts on the game being played
   }
-  if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
+  if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && isCarom()) {
+    // Not by a shot: the equalizing inning ran out of time.
+    S.resultReason = caromReason();
+    setStatus(`${S.resultReason}. ${winnerTitle()}.`, 'foul');
+  } else if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
     // Not by a shot (that comes as settled): a third foul on the clock.
     const loser = 1 - S.winner;
     S.resultReason = `${nameOf(loser)} fouled three times in a row`;
@@ -547,7 +602,9 @@ function onRoomState(msg) {
       if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
     }
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
-    setStatus(`${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'}. Place the cue ball in the kitchen and shoot.`);
+    setStatus(isCarom()
+      ? `${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'} with the white: the red first.`
+      : `${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'}. Place the cue ball in the kitchen and shoot.`);
   } else if (msg.phase === 'lobby') {
     setStatus('');
   }
@@ -577,9 +634,9 @@ function onSnapshot(msg) {
   }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
-    const elev = msg.t === 0 ? strikeAt(balls.get(0)) : 0;
+    const elev = msg.t === 0 ? strikeAt(balls.get(cueId())) : 0;
     stopReplay();
-    S.rec = msg.t === 0 ? { snaps: [], impacts: [], elev } : null; // a shot joined midway is not replayed
+    S.rec = msg.t === 0 ? { snaps: [], impacts: [], elev, cue: cueId() } : null; // a shot joined midway is not replayed
     S.snaps = [];
     S.pendingDrops = [];
     S.shotWall0 = performance.now() - msg.t;
@@ -702,6 +759,8 @@ function onTimeout(msg) {
   let text = `${isMe(msg.seat) ? 'You' : who} ran out of time`;
   if (msg.option) {
     text += `; “${optionText(msg.option, other)[0]}” was chosen.`;
+  } else if (isCarom() && S.phase !== 'breaking') {
+    text += S.carom && S.carom.equalizing && msg.seat !== S.carom.breaker ? ': the equalizing inning is over.' : `. ${isMe(1 - msg.seat) ? 'Your' : `${other}’s`} turn.`;
   } else if (S.phase === 'breaking') {
     text += `. ${other} ${isMe(1 - msg.seat) ? 'break' : 'breaks'} instead.`;
   } else if (isNine() && S.fouls[msg.seat] + 1 >= 3) {
@@ -741,6 +800,8 @@ function resetToLanding(error) {
   S.decision = null;
   S.clock = null;
   S.mode = '8ball';
+  S.carom = null;
+  S.target = 0;
   S.practice = false;
   S.undos = 0;
   S.moveTool = false;
@@ -772,12 +833,12 @@ function newTurn() {
   S.spin = { x: 0, y: 0 };
   setElev(0);
   if (isMyShot()) {
-    const cue = S.balls.get(0);
+    const cue = S.balls.get(cueId());
     const targets = legalTargets();
     let best = null;
     if (cue) {
       for (const id of (targets.size ? targets : S.balls.keys())) {
-        if (id === 0) continue;
+        if (id === cueId()) continue;
         const b = S.balls.get(id);
         const d = Math.hypot(b.x - cue.x, b.y - cue.y);
         if (!best || d < best.d) best = { d, b };
@@ -789,6 +850,7 @@ function newTurn() {
 }
 
 function describeShot(msg) {
+  if (isCarom()) { describeCaromShot(msg); return; }
   if (S.practice) { describeFreeShot(msg); return; }
   const parts = [];
   const who = nameOf(msg.shooter);
@@ -841,8 +903,57 @@ function describeFreeShot(msg) {
   setStatus(parts.join(' ') || 'Nothing dropped.', made.length ? 'good' : '');
 }
 
+// cushions says "3 cushions", points "15 points".
+const cushions = (n) => `${n} ${n === 1 ? 'cushion' : 'cushions'}`;
+const points = (n) => `${n} ${n === 1 ? 'point' : 'points'}`;
+
+// describeCaromShot says what a 3-cushion shot did: a point and how many
+// cushions, or why not; balls put back on their spots; then whose turn, or
+// how the game ended.
+function describeCaromShot(msg) {
+  const parts = [];
+  const who = nameOf(msg.shooter);
+  const me = isMe(msg.shooter);
+  const c = msg.carom || S.carom;
+  const n = msg.cushions || 0;
+  if (msg.foul) {
+    parts.push(`${S.practice ? 'Foul' : me ? 'Your foul' : `Foul by ${who}`}: ${CAROM_FOUL_TEXT[msg.foul] || FOUL_TEXT[msg.foul] || msg.foul}.`);
+  } else if (msg.made) {
+    parts.push(`Point! ${cushions(n)}${!S.practice && c && c.run > 1 ? `, a run of ${c.run}` : ''}.`);
+  } else {
+    const touched = msg.touched || 0;
+    const why = touched === 0 ? 'both balls missed' : touched === 1 ? 'the second ball missed' : `only ${cushions(n)} before the second ball`;
+    parts.push(`No point: ${why}.`);
+  }
+  const spotted = msg.spotted || [];
+  if (msg.frozen) parts.push('The balls were touching: back on their spots.');
+  else if (spotted.length) parts.push(`${spotted.map(ballName).join(' and ').replace(/^the/, 'The')} ${spotted.length > 1 ? 'go' : 'goes'} back on ${spotted.length > 1 ? 'their spots' : 'its spot'}.`);
+  if (S.practice) {
+    setStatus(parts.join(' '), msg.made ? 'good' : '');
+    return;
+  }
+  if (msg.phase === 'game_over') {
+    S.resultReason = caromReason();
+    parts.push(winnerTitle() + (isMe(msg.winner) ? '!' : '.'));
+  } else if (c && c.equalizing && msg.turn !== c.breaker) {
+    const last = nameOf(msg.turn);
+    parts.push(`${nameOf(c.breaker)} ${isMe(c.breaker) ? 'have' : 'has'} ${points(S.target)}: ${isMe(msg.turn) ? 'you have' : `${last} has`} one inning to draw level.`);
+  } else {
+    parts.push(`${isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn`}.`);
+  }
+  setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
+}
+
+// caromReason sums up a finished 3-cushion game: the points and innings.
+function caromReason() {
+  const c = S.carom;
+  if (!c) return '';
+  const inn = Math.max(c.innings[0], c.innings[1]);
+  return `${c.points[0]}–${c.points[1]} in ${inn} ${inn === 1 ? 'inning' : 'innings'}`;
+}
+
 // offName names a ball that left the table.
-const offName = (id) => (id === 0 ? 'the cue ball' : ballName(id));
+const offName = (id) => (id === 0 && !isCarom() ? 'the cue ball' : ballName(id));
 
 // nineResultReason says why a 9-ball rack ended with this shot.
 function nineResultReason(msg, who) {
@@ -868,15 +979,19 @@ const sideName = (seat) => (seat ? 'Side B' : 'Side A');
 const nameOf = (seat) => (isMe(seat) ? 'You' : S.practice ? sideName(seat) : (S.players[seat].name || `Player ${seat + 1}`));
 const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? 'stripes' : '');
 const isNine = () => S.mode === '9ball';
-const ballName = (id) => (id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
+const isCarom = () => S.mode === '3cushion';
+// cueId is the ball the player on turn strikes: their own in 3-cushion,
+// the cue ball otherwise.
+const cueId = () => (isCarom() && S.carom ? S.carom.cue[S.turn] : 0);
+const ballName = (id) => (isCarom() ? `the ${CAROM_NAMES[id]}` : id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
 const inPlay = () => !S.decision && (S.phase === 'breaking' || S.phase === 'open' || S.phase === 'assigned');
 const isMyShot = () => S.seat >= 0 && inPlay() && !S.moving && S.turn === S.seat;
-const canCall = () => !S.practice && !isNine() && S.phase !== 'breaking'; // a safety may be declared (8-ball)
+const canCall = () => !S.practice && S.mode === '8ball' && S.phase !== 'breaking'; // a safety may be declared (8-ball)
 const canPushOut = () => isNine() && S.pushOut && isMyShot();
 // eightOn mirrors Rules.eightOn: the 8-ball is my legal target, so it needs
 // a called pocket.
 function eightOn() {
-  if (S.practice || isNine()) return false; // practice calls nothing
+  if (S.practice || S.mode !== '8ball') return false; // practice calls nothing
   if (S.phase === 'open') return remaining('solids') === 0 || remaining('stripes') === 0;
   if (S.phase === 'assigned') return remaining(S.groups[S.seat]) === 0;
   return false;
@@ -893,6 +1008,10 @@ function remaining(group) {
 function legalTargets() {
   const out = new Set();
   if (S.practice) return out; // free play: every ball is fair
+  if (isCarom()) {
+    if (S.phase === 'breaking') out.add(2); // the break hits the red first
+    return out;
+  }
   if (isNine()) {
     const low = lowestBall();
     if (low !== null) out.add(low);
@@ -919,7 +1038,7 @@ function lowestBall() {
 // Jump shots and massés, as the server works them out (Table.ShootElevated,
 // land, integrate): mirrors of game.DefaultConfig.
 const SLATE_E = 0.5, CLOTH_MU = 0.2, TIP_OFFSET = 0.5, GRAVITY = 9.81;
-const NOSE_H = 2 * R * 0.635; // the cushion nose above the slate: a ball whose bottom is higher flies over
+let NOSE_H = 2 * R * 0.635; // the cushion nose above the slate: a ball whose bottom is higher flies over (setTable)
 const PIN_ELEV = 60 * DEG;    // steeper, the cue's follow-through keeps the ball down (game.pinElevation)
 
 // strikeBounce is how fast a cue raised elev (radians) sends the cue ball up
@@ -1002,8 +1121,9 @@ function castAim(balls, cue, angle, flight) {
   const d = { x: Math.cos(angle), y: Math.sin(angle) };
   let t = Infinity;
   let hit = null;
+  const own = cueId();
   for (const [id, b] of balls) {
-    if (id === 0) continue;
+    if (id === own) continue;
     const fx = cue.x - b.x, fy = cue.y - b.y;
     const bq = 2 * (fx * d.x + fy * d.y);
     const c = fx * fx + fy * fy - 4 * R * R;
@@ -1064,7 +1184,7 @@ function castMasse(balls, cue, angle, path) {
     const a = curve[curve.length - 1], p = at(path.pts[i]);
     if (!land && a.z > 0 && p.z <= 0) land = { x: p.x, y: p.y };
     let hit = null;
-    for (const [id, b] of balls) if (id !== 0 && touches(p, b)) { hit = id; break; }
+    for (const [id, b] of balls) if (id !== cueId() && touches(p, b)) { hit = id; break; }
     if (hit === null && !off(p)) { curve.push(p); continue; }
     // between a and p: halve down to where it first touches
     const mix = (f) => ({ x: a.x + (p.x - a.x) * f, y: a.y + (p.y - a.y) * f, z: a.z + (p.z - a.z) * f });
@@ -1114,7 +1234,7 @@ function shoot() {
     // The cue stays drawn back until the server's first snapshot says when
     // the cue ball moves; strikeAt then strikes it.
     dropHeldStrike();
-    const cue = displayBalls().get(0) || { x: 0, y: 0 };
+    const cue = displayBalls().get(cueId()) || { x: 0, y: 0 };
     const dir = { x: Math.cos(S.angle), y: Math.sin(S.angle) };
     const f = addFx({ type: 'strike', layer: 'cue', dur: STRIKE_MS, delay: Infinity, cue: { ...cue }, dir, power: S.power, elev: S.elev * DEG });
     S.heldStrike = f;
@@ -1488,6 +1608,8 @@ const view = { s: 1, ox: 0, oy: 0, rotated: false, cssW: 0, cssH: 0, dpr: 1 };
 const PAL = {
   railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', railLip: '#FFE2B4',
   feltCenter: '#36745C', felt: '#2C614C', feltEdge: '#1B3F31', cushion: '#1F4B3A',
+  // 3-cushion is played on blue cloth
+  caromCenter: '#3A6E9C', caromFelt: '#2D5C86', caromEdge: '#1A3A58', caromCushion: '#22496D',
   sight: '#E6D7B4', ivory: '#F4EFE2', disc: '#FAF7EF', ink: '#111316',
   brass: '#D9A441', brassLine: '#E3B25C', ok: '#71C99D', oppAim: '#A9C1DD', warn: '#E0614F',
   labelBg: '#0D1218', labelText: '#E8ECF1', labelStroke: '#AABED7', flash: '#FFE2B4',
@@ -1632,8 +1754,8 @@ function queueDrop(id, from, t) {
 // the nearest pocket, or, when it was last seen over a rail and away from
 // every pocket, falling off the table (it jumped).
 function startDrop(id, from) {
-  const { d, pk, hole } = nearestPocket(from);
-  if (offTheBed(from) && d > hole.r + 2 * R) {
+  const { d, pk, hole } = nearestPocket(from) || { d: Infinity }; // a carom table has no pockets
+  if (!pk || (offTheBed(from) && d > hole.r + 2 * R)) {
     const cx = Math.max(0, Math.min(W, from.x)), cy = Math.max(0, Math.min(H, from.y));
     const l = Math.hypot(from.x - cx, from.y - cy) || 1;
     addFx({ type: 'gone', layer: 'balls', dur: v3 ? 600 : 240, id, from, out: l, dir: { x: (from.x - cx) / l, y: (from.y - cy) / l } });
@@ -1728,10 +1850,11 @@ function view3dKit() {
     holes: POCKETS.map(pocketHole),
     felt: feltCanvas(),
     colors: {
-      rail: PAL.rail, railBottom: PAL.railBottom, cushion: PAL.cushion, sight: PAL.sight,
+      rail: PAL.rail, railBottom: PAL.railBottom, cushion: isCarom() ? PAL.caromCushion : PAL.cushion, sight: PAL.sight,
       ivory: PAL.ivory, disc: PAL.disc, ink: PAL.ink, ok: PAL.ok,
     },
     ballColors: BALL_COLORS,
+    carom: isCarom() ? { colors: CAROM_COLORS, dots: CAROM_DOTS } : null, // plain balls with six dots, no numbers
     cueSegments: CUE_SEGMENTS,
     cueLength: CUE_LEN,
     reduceMotion: () => reduceMotion.matches,
@@ -1931,7 +2054,7 @@ function draw() {
 
   const balls = displayBalls();
   const myShot = isMyShot() && !S.replay;
-  const cue = balls.get(0);
+  const cue = balls.get(cueId());
   const placingInKitchen = myShot && S.ballInHand && S.kitchen;
   const striking = fx.some((f) => f.type === 'strike');
   let aim = null; // {angle, power, mine, alpha}
@@ -2229,7 +2352,7 @@ function takeFx(now) {
 let camAngle = 0; // the heading of the last aim seen
 function cameraFor(balls, aim) {
   if (S.replay) return replayCamera(balls);
-  const cue = balls.get(0);
+  const cue = balls.get(cueId());
   if (S.camTop || S.drag || S.ballInHand || (S.practice && S.moveTool)) return { mode: 'top' };
   if (S.moving && S.snaps.length) return { mode: 'follow', box: actionBox(balls, S.snaps[0].balls), angle: camAngle };
   if (cue && inPlay()) {
@@ -2243,7 +2366,7 @@ function actionBox(balls, start) {
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [id, p] of balls) {
     const s0 = start.get(id);
-    if (id !== 0 && s0 && Math.hypot(p.x - s0.x, p.y - s0.y) < 1e-3) continue;
+    if (id !== cueId() && s0 && Math.hypot(p.x - s0.x, p.y - s0.y) < 1e-3) continue;
     x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
   }
   return x0 <= x1 ? { x0, y0, x1, y1 } : { x0: 0, y0: 0, x1: W, y1: H };
@@ -2306,10 +2429,11 @@ function drawTableStatic() {
   ctx.lineWidth = 0.003;
   ctx.stroke();
   // felt, running under the cushions and into the pocket mouths
+  const carom = isCarom();
   const feltG = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 1.48);
-  feltG.addColorStop(0, PAL.feltCenter);
-  feltG.addColorStop(0.55, PAL.felt);
-  feltG.addColorStop(1, PAL.feltEdge);
+  feltG.addColorStop(0, carom ? PAL.caromCenter : PAL.feltCenter);
+  feltG.addColorStop(0.55, carom ? PAL.caromFelt : PAL.felt);
+  feltG.addColorStop(1, carom ? PAL.caromEdge : PAL.feltEdge);
   ctx.fillStyle = feltG;
   ctx.fillRect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
   // pocket holes
@@ -2326,7 +2450,7 @@ function drawTableStatic() {
     ctx.stroke();
   }
   // cushions with their jaws, then the nose line
-  ctx.fillStyle = PAL.cushion;
+  ctx.fillStyle = carom ? PAL.caromCushion : PAL.cushion;
   for (const c of TABLE.cushions) {
     const lf = CUSHION / Math.abs(c.jawFrom.x * c.inward.x + c.jawFrom.y * c.inward.y);
     const lt = CUSHION / Math.abs(c.jawTo.x * c.inward.x + c.jawTo.y * c.inward.y);
@@ -2363,17 +2487,24 @@ function drawTableStatic() {
     ctx.closePath();
     ctx.fill();
   };
-  for (const i of [1, 2, 3, 5, 6, 7]) { sight(W / 8 * i, -0.0725, true); sight(W / 8 * i, H + 0.0725, true); }
+  // a carom table has one in the middle of the long rails too, where pool has its side pockets
+  for (const i of carom ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 5, 6, 7]) { sight(W / 8 * i, -0.0725, true); sight(W / 8 * i, H + 0.0725, true); }
   for (const i of [1, 2, 3]) { sight(-0.0725, H / 4 * i, false); sight(W + 0.0725, H / 4 * i, false); }
-  // head string and spots
-  ctx.strokeStyle = rgba('#FFFFFF', 0.14);
-  ctx.lineWidth = 0.002;
-  ctx.beginPath();
-  ctx.moveTo(HEAD, 0);
-  ctx.lineTo(HEAD, H);
-  ctx.stroke();
+  // head string and spots; a carom table has no kitchen, but the starting
+  // spot, the white's two beside it (182 mm), the centre and the top spot
   ctx.fillStyle = rgba('#FFFFFF', 0.35);
-  for (const p of [{ x: HEAD, y: H / 2 }, FOOT]) {
+  if (!carom) {
+    ctx.strokeStyle = rgba('#FFFFFF', 0.14);
+    ctx.lineWidth = 0.002;
+    ctx.beginPath();
+    ctx.moveTo(HEAD, 0);
+    ctx.lineTo(HEAD, H);
+    ctx.stroke();
+  }
+  const spots = carom
+    ? [{ x: HEAD, y: H / 2 }, { x: HEAD, y: H / 2 - 0.182 }, { x: HEAD, y: H / 2 + 0.182 }, { x: W / 2, y: H / 2 }, FOOT]
+    : [{ x: HEAD, y: H / 2 }, FOOT];
+  for (const p of spots) {
     ctx.beginPath();
     ctx.arc(p.x, p.y, 0.004, 0, Math.PI * 2);
     ctx.fill();
@@ -2477,8 +2608,10 @@ function ballTexture(id, n) {
   const m = orientationOf(id);
   const img = tex.canvas.getContext('2d').createImageData(N, N);
   const px = img.data;
-  const base = id === 0 ? IVORY_RGB : id > 8 ? IVORY_RGB : BALL_RGB[id];
-  const band = id > 8 ? BALL_RGB[id - 8] : null;
+  const carom = isCarom();
+  const base = carom ? hexToRgb(CAROM_COLORS[id]) : id === 0 ? IVORY_RGB : id > 8 ? IVORY_RGB : BALL_RGB[id];
+  const band = !carom && id > 8 ? BALL_RGB[id - 8] : null;
+  const dots = carom ? hexToRgb(CAROM_DOTS[id]) : id === 0 ? DOT_RGB : null; // the cue ball's six dots
   const cosDisc = 0.877, cosDot = 0.985; // disc r 0.48 R, dot r 0.17 R
   for (let j = 0; j < N; j++) {
     const ny = ((j + 0.5) / N) * 2 - 1;
@@ -2493,8 +2626,8 @@ function ballTexture(id, n) {
       const ly = nx * m[1] + ny * m[4] + nz * m[7];
       const lz = nx * m[2] + ny * m[5] + nz * m[8];
       let col = base;
-      if (id === 0) {
-        if (Math.abs(lx) > cosDot || Math.abs(ly) > cosDot || Math.abs(lz) > cosDot) col = DOT_RGB;
+      if (dots) {
+        if (Math.abs(lx) > cosDot || Math.abs(ly) > cosDot || Math.abs(lz) > cosDot) col = dots;
       } else if (band) {
         if (Math.abs(lz) <= 0.58) col = band;
         if (Math.abs(lx) > cosDisc) col = DISC_RGB;
@@ -2562,7 +2695,8 @@ function drawBallShadow(p, lift) {
 function drawBall(id, p, opts) {
   const scale = opts && opts.scale ? opts.scale : 1;
   const alpha = opts && opts.alpha !== undefined ? opts.alpha : 1;
-  const colour = id === 0 ? PAL.ivory : BALL_COLORS[id > 8 ? id - 8 : id];
+  const carom = isCarom();
+  const colour = carom ? CAROM_COLORS[id] : id === 0 ? PAL.ivory : BALL_COLORS[id > 8 ? id - 8 : id];
   const diamPx = 2 * R * view.s * scale;
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -2571,13 +2705,13 @@ function drawBall(id, p, opts) {
   // body: a plain fill under the markings so the raster's edge never shows
   ctx.beginPath();
   ctx.arc(0, 0, R, 0, Math.PI * 2);
-  ctx.fillStyle = id > 8 ? PAL.ivory : colour;
+  ctx.fillStyle = id > 8 && !carom ? PAL.ivory : colour;
   ctx.fill();
   ctx.save();
   ctx.clip();
   ctx.drawImage(ballTexture(id, Math.max(8, Math.ceil(diamPx * view.dpr))), -R, -R, 2 * R, 2 * R);
   ctx.restore();
-  if (id !== 0 && diamPx >= 15) drawBallNumbers(id);
+  if (id !== 0 && !carom && diamPx >= 15) drawBallNumbers(id);
   if (view.rotated) ctx.rotate(Math.PI / 2);
   // shade
   const g = ctx.createRadialGradient(-0.24 * R, -0.32 * R, 0, -0.24 * R, -0.32 * R, 1.56 * R);
@@ -2614,7 +2748,8 @@ function drawBall(id, p, opts) {
 // so it hides neither the aim nor the balls beyond.
 function drawBallLabel(id, p, aim) {
   const quiet = !!aim;
-  const text = id === 0 ? 'cue ball' : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
+  const carom = isCarom();
+  const text = carom ? CAROM_NAMES[id] + (S.carom && S.seat >= 0 && !S.practice && S.carom.cue[S.seat] === id ? ' · yours' : '') : id === 0 ? 'cue ball' : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
   const sp = toScreen(p);
   ctx.save();
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -2641,12 +2776,12 @@ function drawBallLabel(id, p, aim) {
   ctx.lineWidth = 1.5;
   ctx.stroke();
   const sx = cx - w / 2 + (quiet ? 9 : 12) + sw;
-  const color = id === 0 ? '#F4EFE2' : BALL_COLORS[id > 8 ? id - 8 : id];
+  const color = carom ? CAROM_COLORS[id] : id === 0 ? '#F4EFE2' : BALL_COLORS[id > 8 ? id - 8 : id];
   ctx.beginPath();
   ctx.arc(sx, cy, sw, 0, Math.PI * 2);
-  ctx.fillStyle = id > 8 ? '#F4EFE2' : color;
+  ctx.fillStyle = id > 8 && !carom ? '#F4EFE2' : color;
   ctx.fill();
-  if (id > 8) {
+  if (id > 8 && !carom) {
     ctx.save();
     ctx.clip();
     ctx.fillStyle = color;
@@ -3099,12 +3234,13 @@ function startReplay() {
   const shot = S.lastShot;
   const snaps = shot.snaps;
   const t0 = snaps[0].t;
-  const start = snaps[0].balls.get(0);
+  const own = shot.cue || 0;
+  const start = snaps[0].balls.get(own);
   if (!start) return;
   // the shot's direction and speed: where and how fast the cue ball first went
   let dir = { x: 1, y: 0 }, speed = 1;
   for (const sn of snaps) {
-    const p = sn.balls.get(0);
+    const p = sn.balls.get(own);
     const d = p ? Math.hypot(p.x - start.x, p.y - start.y) : 0;
     if (d > 0.005) { dir = { x: (p.x - start.x) / d, y: (p.y - start.y) / d }; speed = d / Math.max(0.001, (sn.t - t0) / 1000); break; }
   }
@@ -3122,7 +3258,7 @@ function startReplay() {
     const a = interpSnaps(snaps, firstHit), b = interpSnaps(snaps, firstHit + 400);
     let most = -1;
     for (const [id, p] of a) {
-      if (id === 0) continue;
+      if (id === own) continue;
       const q = b.get(id);
       const d = q ? Math.hypot(q.x - p.x, q.y - p.y) : 1;
       if (d > most) { most = d; follow = id; }
@@ -3199,7 +3335,7 @@ function replayCamera(balls) {
   const r = S.replay;
   const t = replayClock();
   if (t <= r.shot.snaps[0].t) return { mode: 'aim', cue: r.cue, angle: Math.atan2(r.dir.y, r.dir.x) };
-  const id = t < r.firstHit ? 0 : r.follow;
+  const id = t < r.firstHit ? (r.shot.cue || 0) : r.follow;
   const p = balls.get(id);
   if (p) {
     const q = interpSnaps(r.shot.snaps, t + 80).get(id);
@@ -3329,6 +3465,18 @@ function voiceFor(msg) {
   const made = msg.pocketed.filter((id) => id !== 0);
   const scratch = msg.pocketed.includes(0) || msg.foul === 'scratch';
   const over = msg.winner !== undefined && msg.winner !== null;
+  if (isCarom()) {
+    if (!S.practice && msg.phase === 'game_over') { if (over) say(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
+    if (msg.foul) { say('foul'); return; }
+    const chance = rnd();
+    if (msg.made) {
+      if (msg.cushions >= 5 || (!S.practice && msg.carom && msg.carom.run >= 3)) say('great');
+      else if (chance < 0.35) say('nice');
+      return;
+    }
+    if (!S.shotWasBreak && chance < 0.5) say('miss');
+    return;
+  }
   if (!S.practice) {
     if (over) { say(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
     if (scratch) { say('scratch'); return; }
@@ -3362,7 +3510,7 @@ function pointerPos(e) {
 function hitBall(p, balls, skipCue, reach = R * 1.8) {
   let best = null;
   for (const [id, b] of balls) {
-    if (skipCue && id === 0) continue;
+    if (skipCue && id === cueId()) continue;
     const d = Math.hypot(b.x - p.x, b.y - p.y);
     if (d < reach && (!best || d < best.d)) best = { id, d };
   }
@@ -3422,7 +3570,7 @@ canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const p = pointerPos(e);
   const balls = displayBalls();
-  const cue = balls.get(0);
+  const cue = balls.get(cueId());
 
   const grab = grabbable(p, balls);
   if (grab !== null) {
@@ -3506,8 +3654,8 @@ function turnAim(e) {
 // in hand, or always in practice).
 function grabbable(p, balls) {
   if (S.practice && S.moveTool) return hitBall(p, balls, false);
-  const cue = balls.get(0);
-  if ((S.ballInHand || S.practice) && cue && Math.hypot(cue.x - p.x, cue.y - p.y) < R * 2.5) return 0;
+  const cue = balls.get(cueId());
+  if ((S.ballInHand || S.practice) && cue && Math.hypot(cue.x - p.x, cue.y - p.y) < R * 2.5) return cueId();
   return null;
 }
 
@@ -3548,10 +3696,10 @@ canvas.addEventListener('pointermove', (e) => {
       S.tap = null;
       S.aiming = true;
       if (behindCue()) S.aimDrag = { x: e.clientX };
-      else aimMove(e, p, displayBalls().get(0));
+      else aimMove(e, p, displayBalls().get(cueId()));
     }
   } else if (S.aiming) {
-    aimMove(e, p, displayBalls().get(0));
+    aimMove(e, p, displayBalls().get(cueId()));
   }
 });
 
@@ -3864,7 +4012,8 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
     const chip = li.querySelector('.chip');
     chip.className = `chip chip--${phase}`;
-    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${room.race > 1 ? ` · race ${room.race}` : ''} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}`;
+    const goal = room.mode === '3cushion' ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
+    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}`;
     const watch = li.querySelector('.room-row__watch');
     watch.hidden = !(room.spectators < room.maxSpectators);
     watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
@@ -3938,6 +4087,18 @@ function renderSeat(seat) {
     line.append(t);
   }
   body.append(line);
+  if (isCarom() && S.carom && !S.practice && S.phase !== 'lobby') {
+    const dots = document.createElement('div');
+    dots.className = 'seat__dots';
+    const id = S.carom.cue[seat];
+    const dot = document.createElement('span');
+    dot.className = 'ball';
+    dot.style.setProperty('--c', CAROM_COLORS[id]);
+    dots.append(dot);
+    dots.setAttribute('aria-label', `plays the ${CAROM_NAMES[id]}`);
+    dots.title = `Plays the ${CAROM_NAMES[id]}`;
+    body.append(dots);
+  }
   const g = S.groups[seat];
   if (g) {
     const dots = document.createElement('div');
@@ -4135,7 +4296,27 @@ function tickHolds() {
 
 // renderTrays lists the pocketed balls of each group under the table.
 function renderTrays() {
-  $('trays').hidden = S.phase === 'lobby';
+  $('trays').hidden = S.phase === 'lobby' || (isCarom() && (S.practice || !S.carom));
+  if (isCarom()) {
+    // each player's line: their ball, points, innings, average, best run
+    if ($('trays').hidden) return;
+    const c = S.carom;
+    for (const [elId, seat] of [['traySolids', 0], ['trayStripes', 1]]) {
+      const el = $(elId);
+      el.replaceChildren();
+      const dot = document.createElement('span');
+      dot.className = 'ball';
+      dot.style.setProperty('--c', CAROM_COLORS[c.cue[seat]]);
+      const inn = c.innings[seat];
+      const avg = inn ? (c.points[seat] / inn).toFixed(3) : '0.000';
+      const run = S.turn === seat && c.run > 0 && S.phase !== 'game_over' ? ` · run ${c.run}` : '';
+      const text = `${c.points[seat]}/${S.target} · ${inn} inn · avg ${avg} · HR ${c.highRun[seat]}${run}`;
+      const lab = Object.assign(document.createElement('span'), { className: 'tray__label', textContent: text });
+      lab.title = `${nameOf(seat)}: ${c.points[seat]} of ${S.target} points, ${inn} innings, average ${avg}, high run ${c.highRun[seat]}`;
+      if (seat === 0) el.append(dot, lab); else el.append(lab, dot);
+    }
+    return;
+  }
   if (isNine()) {
     // one row: the balls down so far (the 9 only ever drops to end the rack)
     const el = $('traySolids');
@@ -4236,7 +4417,9 @@ function refreshPanels() {
       $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game or the race makes you both ready again.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
-      $('lobbySub').textContent = `${MODE_NAME[S.mode]}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
+      $('lobbySub').textContent = isCarom()
+        ? `3-cushion to ${points(S.race)}. Change it in Settings.`
+        : `${MODE_NAME[S.mode]}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -4291,7 +4474,7 @@ function setSeg(seg, mode) {
 
 // The landing picker chooses the game of a new room (remembered); the
 // lobby and game-over pickers change the room's game for both players.
-let landingMode = readSetting('pool:mode') === '9ball' ? '9ball' : '8ball';
+let landingMode = MODE_NAME[readSetting('pool:mode')] ? readSetting('pool:mode') : '8ball';
 setSeg($('landingMode'), landingMode);
 $('landingMode').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
@@ -4299,6 +4482,7 @@ $('landingMode').addEventListener('click', (e) => {
   landingMode = b.dataset.mode;
   writeSetting('pool:mode', landingMode);
   setSeg($('landingMode'), landingMode);
+  renderLandingMatch();
 });
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -4308,9 +4492,22 @@ function refreshShotPanel() {
   const callEl = $('callText');
   let html, called = false;
   const opp = S.players[1 - S.seat].name || 'your opponent';
-  if (S.practice) {
+  if (S.practice && isCarom()) {
+    html = 'Free play: <span class="muted">both balls, three cushions before the second' + (compactLayout.matches ? '.' : '. Drag the white anywhere; Move sets up the others.') + '</span>';
+    called = true;
+  } else if (S.practice) {
     html = 'Free play: <span class="muted">any ball, any pocket' + (compactLayout.matches ? '.' : ', no fouls. Drag the cue ball anywhere; Move sets up the others.') + '</span>';
     called = true;
+  } else if (isCarom()) {
+    const mine = CAROM_NAMES[cueId()];
+    called = true;
+    if (S.phase === 'breaking') {
+      html = `Break with the ${mine}: <span class="muted">the red first` + (compactLayout.matches ? '.' : ', then three cushions and the yellow.') + '</span>';
+    } else if (S.carom && S.carom.equalizing) {
+      html = `Last inning: <span class="muted">reach ${S.target} to draw the game.</span>`;
+    } else {
+      html = `Your ball: <span class="call__value">${mine}</span> <span class="muted">· both balls, three cushions before the second.</span>`;
+    }
   } else if (isNine()) {
     const low = lowestBall();
     called = true;
@@ -4494,6 +4691,10 @@ function toggleMoveTool() {
 
 // winnerTitle names the winner of the rack; in practice by side.
 function winnerTitle() {
+  if (isCarom() && !S.practice) {
+    if (S.winner === null) return 'A draw';
+    return isMe(S.winner) ? 'You win the game' : `${nameOf(S.winner)} wins the game`;
+  }
   if (S.winner === null) return 'Game over';
   if (S.practice) return `${sideName(S.winner)} wins the rack`;
   return isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`;
@@ -4501,12 +4702,13 @@ function winnerTitle() {
 
 function renderResult() {
   let el = $('tableWrap').querySelector('.result');
-  if (S.phase !== 'game_over' || S.winner === null) { if (el) el.remove(); return; }
+  const draw = isCarom() && !S.practice && S.winner === null;
+  if (S.phase !== 'game_over' || (S.winner === null && !draw)) { if (el) el.remove(); return; }
   const win = isMe(S.winner) && !S.practice;
   const m = S.practice ? null : S.match;
-  const matchWon = m && m.race > 1 && m.winner !== null;
+  const matchWon = m && m.race > 1 && m.winner !== null && !isCarom();
   const title = matchWon ? matchTitle(m) : winnerTitle();
-  const score = m && m.race > 1 && m.racks.length ? `${m.score[0]}–${m.score[1]}` : '';
+  const score = m && m.race > 1 && m.racks.length && !isCarom() ? `${m.score[0]}–${m.score[1]}` : '';
   const reason = [S.resultReason, score].filter(Boolean).join(' · ');
   if (el && el.dataset.title === title + reason) return;
   if (el) el.remove();
@@ -4524,6 +4726,10 @@ function renderResult() {
 // match: race, score, rack history, leaving
 
 const RACE_MAX = 25;
+const POINTS_MAX = 50; // 3-cushion: the race is in points (game.MaxCaromTarget)
+const RACE_PICKS = [1, 3, 5, 7, 9];
+const POINT_PICKS = [10, 15, 20, 25, 30, 40];
+const raceMax = (mode) => (mode === '3cushion' ? POINTS_MAX : RACE_MAX);
 const BREAKS_TEXT = { alternate: 'The break alternates.', winner: 'The winner of a rack breaks the next.' };
 
 // setMatch takes the match from the server and notes when it was just won.
@@ -4532,13 +4738,13 @@ function setMatch(m) {
   S.match = m || null;
   if (m && prev && prev.winner === null && m.winner !== null && m.racks.length > prev.racks.length) {
     const last = m.racks[m.racks.length - 1];
-    S.matchJustWon = m.race > 1 || last.end === 'forfeit'; // a race to 1 is just the rack
+    S.matchJustWon = (m.race > 1 && !isCarom()) || last.end === 'forfeit'; // a race to 1 is just the rack, a 3-cushion match the game
   }
 }
 
 // matchLive reports whether leaving now forfeits a match.
 function matchLive() {
-  return !S.practice && S.seat >= 0 && !!S.match && S.match.winner === null && S.phase !== 'lobby';
+  return !S.practice && S.seat >= 0 && !!S.match && S.match.winner === null && !S.match.draw && S.phase !== 'lobby';
 }
 
 // matchName names a seat in the match history, even after its player left.
@@ -4548,6 +4754,7 @@ function matchName(seat) {
 }
 
 function matchTitle(m) {
+  if (m.winner === null) return 'A draw';
   return isMe(m.winner) ? 'You win the match' : `${matchName(m.winner)} wins the match`;
 }
 
@@ -4555,6 +4762,8 @@ function matchTitle(m) {
 function rackWhy(r) {
   const loser = matchName(1 - r.winner);
   switch (r.end) {
+    case 'points': return `${matchName(r.winner)} reached ${points(S.match ? S.match.race : 0)}`;
+    case 'draw': return 'both reached the target in the same innings';
     case 'made': return S.mode === '9ball' ? '9-ball pocketed' : '8-ball in the called pocket';
     case 'eight_foul': return `${loser} fouled on the 8-ball${r.foul ? `: ${FOUL_TEXT[r.foul] || r.foul}` : ''}`;
     case 'eight_early': return `${loser} pocketed the 8-ball early`;
@@ -4591,9 +4800,11 @@ function renderScore() {
     S.shownScore = null;
     return;
   }
-  el.className = 'score' + (m.racks.length ? '' : ' score--empty') + compact;
-  el.setAttribute('aria-label', `Score ${m.score[0]} to ${m.score[1]}, race to ${m.race}. Show the racks.`);
-  el.title = 'Show the racks';
+  const carom = isCarom();
+  const goal = carom ? `to ${m.race}` : `race to ${m.race}`;
+  el.className = 'score' + (m.racks.length || (carom && m.score[0] + m.score[1] > 0) ? '' : ' score--empty') + compact;
+  el.setAttribute('aria-label', `Score ${m.score[0]} to ${m.score[1]}, ${carom ? `${m.race} points to win` : `race to ${m.race}`}. Show the ${carom ? 'game' : 'racks'}.`);
+  el.title = carom ? 'Show the game' : 'Show the racks';
   const key = `${m.score[0]}-${m.score[1]}-${m.race}`;
   if (el.dataset.k === key) return;
   const old = S.shownScore;
@@ -4603,7 +4814,7 @@ function renderScore() {
     if (tick && n > old.score[i]) return `<span class="score__slot"><span class="score__old">${old.score[i]}</span><span class="score__new">${n}</span></span>`;
     return `<span class="score__slot"><span>${n}</span></span>`;
   };
-  el.innerHTML = `<span class="score__nums">${slot(0)}<span class="score__sep">–</span>${slot(1)}</span><span class="score__race">race to ${m.race}</span>`;
+  el.innerHTML = `<span class="score__nums">${slot(0)}<span class="score__sep">–</span>${slot(1)}</span><span class="score__race">${goal}</span>`;
   el.dataset.k = key;
   S.shownScore = { score: [...m.score], race: m.race };
 }
@@ -4619,12 +4830,15 @@ function openMatchDialog() {
 function renderMatchDialog() {
   const m = S.match;
   if (!m) { $('matchDialog').hidden = true; return; }
-  const over = m.winner !== null;
+  const over = m.winner !== null || !!m.draw;
   const last = m.racks[m.racks.length - 1];
-  $('matchEyebrow').textContent = `${MODE_NAME[S.mode]} · race to ${m.race}`;
-  $('matchTitle').textContent = over ? matchTitle(m) : 'Match';
+  const carom = isCarom();
+  $('matchEyebrow').textContent = carom ? `3-cushion · to ${points(m.race)}` : `${MODE_NAME[S.mode]} · race to ${m.race}`;
+  $('matchTitle').textContent = over ? matchTitle(m) : carom ? 'Game' : 'Match';
   let text;
-  if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
+  if (carom && over && last.end !== 'forfeit') text = `${caromReason() || `${m.score[0]}–${m.score[1]}`}.`;
+  else if (carom && !over) text = `First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
+  else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
   else if (over) text = `${m.score[m.winner]}–${m.score[1 - m.winner]} after ${m.racks.length} ${m.racks.length === 1 ? 'rack' : 'racks'}.`;
   else text = `First to ${m.race} ${m.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[m.breaks]}`;
   $('matchText').textContent = text;
@@ -4639,12 +4853,12 @@ function renderMatchDialog() {
   }
   const run = [0, 0];
   m.racks.forEach((r, i) => {
-    if (r.end !== 'forfeit') run[r.winner]++;
+    if (r.end !== 'forfeit' && r.winner >= 0) run[r.winner]++;
     const li = document.createElement('li');
     li.className = 'rack';
     const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
-    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: matchName(r.winner) });
-    const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: `${run[0]}–${run[1]}` });
+    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
+    const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
     const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
     const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
     li.append(n, who, sc, why);
@@ -4656,7 +4870,7 @@ function renderMatchDialog() {
 function openLeaveConfirm() {
   const m = S.match;
   const opp = matchName(1 - S.seat);
-  const score = m.racks.length ? `The score is ${m.score[S.seat]}–${m.score[1 - S.seat]} (you first). ` : '';
+  const score = m.racks.length || isCarom() ? `The score is ${m.score[S.seat]}–${m.score[1 - S.seat]} (you first). ` : '';
   $('leaveText').textContent = `${score}Leaving now gives ${opp} the match.`;
   $('leaveConfirm').hidden = false;
   $('leaveStay').focus();
@@ -4682,14 +4896,33 @@ function renderOverPanel() {
     return;
   }
   const opener = m && m.racks.length ? 1 - m.racks[0].breaker : -1;
-  const long = m && m.race > 1;
+  const long = m && m.race > 1 && !isCarom();
   $('overText').textContent = long ? `${matchTitle(m)} ${m.score[m.winner]}–${m.score[1 - m.winner]}` : winnerTitle();
   $('rematch').textContent = long ? 'New match' : 'Rematch';
-  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, race to ${S.race}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`) + ' Change them in Settings.';
+  const goal = isCarom() ? `to ${points(S.race)}` : `race to ${S.race}`;
+  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`) + ' Change them in Settings.';
 }
 
-// Match pickers: race (quick picks or a number) and who breaks.
-function setMatchPick(root, race, breaks) {
+// Match pickers: race (quick picks or a number) and who breaks. In
+// 3-cushion the race is the points of the one game, and the break rule
+// does not apply.
+function setMatchPick(root, race, breaks, mode) {
+  const carom = mode === '3cushion';
+  const seg = root.querySelector('.js-race');
+  const kind = carom ? 'points' : 'racks';
+  if (seg.dataset.kind !== kind) {
+    seg.dataset.kind = kind;
+    seg.replaceChildren(...(carom ? POINT_PICKS : RACE_PICKS).map((n) => Object.assign(document.createElement('button'), {
+      type: 'button', className: 'seg__btn', textContent: String(n),
+    })));
+    for (const b of seg.children) b.dataset.race = b.textContent;
+    seg.setAttribute('aria-label', carom ? 'Points to win' : 'Race to');
+    root.querySelector('.js-race-label').textContent = carom ? 'Points' : 'Race to';
+    const input = root.querySelector('.js-race-input');
+    input.max = String(raceMax(mode));
+    input.setAttribute('aria-label', carom ? `Points to win, 1 to ${POINTS_MAX}` : `Race to, 1 to ${RACE_MAX}`);
+    root.querySelector('.js-breaks').closest('.match-pick__row').hidden = carom;
+  }
   for (const b of root.querySelectorAll('.js-race .seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.race) === race));
   const input = root.querySelector('.js-race-input');
   if (document.activeElement !== input) input.value = String(race);
@@ -4704,10 +4937,11 @@ function wireMatchPick(root, current, onChange) {
   const input = root.querySelector('.js-race-input');
   input.addEventListener('change', () => {
     const n = Number(input.value);
-    if (Number.isInteger(n) && n >= 1 && n <= RACE_MAX) onChange({ race: n });
+    const { race, mode } = current();
+    if (Number.isInteger(n) && n >= 1 && n <= raceMax(mode)) onChange({ race: n });
     else {
-      toast(`The race is 1 to ${RACE_MAX} racks`, true);
-      input.value = String(current().race);
+      toast(mode === '3cushion' ? `A game is 1 to ${POINTS_MAX} points` : `The race is 1 to ${RACE_MAX} racks`, true);
+      input.value = String(race);
     }
   });
   input.addEventListener('keydown', (e) => {
@@ -4723,14 +4957,19 @@ function wireMatchPick(root, current, onChange) {
 // changes the next match for both players.
 let landingRace = Number(readSetting('pool:race')) || 3;
 if (!(landingRace >= 1 && landingRace <= RACE_MAX)) landingRace = 3;
+let landingPoints = Number(readSetting('pool:points')) || 15; // 3-cushion
+if (!(landingPoints >= 1 && landingPoints <= POINTS_MAX)) landingPoints = 15;
 let landingBreaks = readSetting('pool:breaks') === 'winner' ? 'winner' : 'alternate';
-setMatchPick($('landingMatch'), landingRace, landingBreaks);
-wireMatchPick($('landingMatch'), () => ({ race: landingRace }), (c) => {
-  if (c.race) { landingRace = c.race; writeSetting('pool:race', String(c.race)); }
+const landingGoal = () => (landingMode === '3cushion' ? landingPoints : landingRace);
+function renderLandingMatch() { setMatchPick($('landingMatch'), landingGoal(), landingBreaks, landingMode); }
+renderLandingMatch();
+wireMatchPick($('landingMatch'), () => ({ race: landingGoal(), mode: landingMode }), (c) => {
+  if (c.race && landingMode === '3cushion') { landingPoints = c.race; writeSetting('pool:points', String(c.race)); }
+  else if (c.race) { landingRace = c.race; writeSetting('pool:race', String(c.race)); }
   if (c.breaks) { landingBreaks = c.breaks; writeSetting('pool:breaks', c.breaks); }
-  setMatchPick($('landingMatch'), landingRace, landingBreaks);
+  renderLandingMatch();
 });
-wireMatchPick($('roomMatch'), () => ({ race: S.race }), (c) => {
+wireMatchPick($('roomMatch'), () => ({ race: S.race, mode: S.mode }), (c) => {
   if ((c.race && c.race !== S.race) || (c.breaks && c.breaks !== S.breaks)) send({ type: 'set_match', ...c });
 });
 
@@ -4869,7 +5108,7 @@ async function createRoom(practice) {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingRace, breaks: landingBreaks, spectators: landingAudience }),
+      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
@@ -5112,7 +5351,7 @@ function renderRoomSettings() {
   const note = $('settingsModeNote');
   note.hidden = !locked && !S.practice;
   note.textContent = locked ? 'Locked while a match is played: change them after it, or in the lobby.' : 'Changing the game racks the table again.';
-  if (!S.practice) setMatchPick($('roomMatch'), S.race, S.breaks);
+  if (!S.practice) setMatchPick($('roomMatch'), S.race, S.breaks, S.mode);
   $('inviteCode').textContent = S.roomCode;
 }
 

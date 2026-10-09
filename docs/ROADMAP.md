@@ -166,6 +166,12 @@ gây `error` từ server (test chạy 100 ván bot với bot).
    đổi được trong lobby và sau ván; luật WPA mục 5 đủ push-out và 3 lỗi
    liên tiếp.
 
+6. ~~**Carom 3 băng**~~ Đã làm (10/2026): bàn carom 2,84 × 1,42 m không lỗ,
+   bi 61,5 mm, luật UMB: mỗi người một bi chủ, khai cuộc phải chạm bi đỏ
+   trước, ghi điểm khi chạm đủ hai bi với ít nhất ba băng trước bi thứ hai,
+   bi văng khỏi bàn là lỗi và đặt lại vào điểm, bi chủ dính bi khác thì đặt
+   lại, hiệp cân bằng (có thể hòa). Ván chơi đến 1–50 điểm.
+
 ## Để sau
 
 - Tài khoản nhẹ (đăng nhập bằng link email hoặc OAuth), thống kê cá nhân,

@@ -106,18 +106,26 @@ type Table struct {
 	// Impacts the audible contacts since then, in order.
 	Clock   float64
 	Impacts []Impact
+	// Cue is the ball the next shot strikes: the cue ball, or in carom the
+	// shooter's own ball. Events about "the cue ball" are about this one.
+	Cue int
 
-	pockets      [NumPockets]pocket
-	segments     []segment // 6 cushions and 12 jaws
+	pockets      []pocket  // none on a carom table
+	segments     []segment // 6 cushions and 12 jaws, or 4 cushions on a carom table
 	firstContact bool      // the cue ball has already touched an object ball this shot
 	crossedHead  bool      // the cue ball has already crossed the head string this shot
 }
 
-// NewTable returns a racked table ready for the break.
+// NewTable returns a racked table ready for the break: the 8-ball rack, or
+// the carom break position on a table without pockets.
 func NewTable(cfg Config) *Table {
 	t := &Table{Cfg: cfg}
 	t.buildRails()
-	t.Rack()
+	if cfg.NoPockets {
+		t.RackCarom(1)
+	} else {
+		t.Rack()
+	}
 	return t
 }
 
@@ -129,12 +137,23 @@ func NewTable(cfg Config) *Table {
 func (t *Table) buildRails() {
 	cfg := t.Cfg
 	w, h := cfg.TableWidth, cfg.TableHeight
+	if cfg.NoPockets {
+		// Carom: the cushions meet in the corners; their order is Event.Rail.
+		t.pockets = nil
+		t.segments = []segment{
+			{Vec{0, 0}, Vec{w, 0}, Vec{0, 1}},
+			{Vec{0, h}, Vec{w, h}, Vec{0, -1}},
+			{Vec{0, 0}, Vec{0, h}, Vec{1, 0}},
+			{Vec{w, 0}, Vec{w, h}, Vec{-1, 0}},
+		}
+		return
+	}
 	a := cfg.CornerMouth / math.Sqrt2
 	s := cfg.SideMouth / 2
 	d := 1 / math.Sqrt2
 
 	// Order defines the pocket index used in events and calls.
-	t.pockets = [NumPockets]pocket{
+	t.pockets = []pocket{
 		{Vec{a / 2, a / 2}, Vec{-d, -d}, cfg.CornerMouth / 2, cfg.CornerShelf},
 		{Vec{w / 2, 0}, Vec{0, -1}, s, cfg.SideShelf},
 		{Vec{w - a/2, a / 2}, Vec{d, -d}, cfg.CornerMouth / 2, cfg.CornerShelf},
@@ -190,7 +209,7 @@ func (t *Table) jaw(nose, along, inward Vec, corner bool) segment {
 }
 
 // Pockets returns, for drawing, the middle of each pocket mouth and the unit
-// direction into the pocket, in pocket-index order.
+// direction into the pocket, in pocket-index order; zeros on a carom table.
 func (t *Table) Pockets() (mouths, axes [NumPockets]Vec) {
 	for i, p := range t.pockets {
 		mouths[i], axes[i] = p.mouth, p.axis
@@ -208,6 +227,7 @@ func (t *Table) RackEight(order [15]int) {
 		t.Balls[i] = Ball{ID: i}
 	}
 	t.Balls[CueBall].Pos = t.Cfg.HeadSpot()
+	t.Cue = CueBall
 
 	foot := t.Cfg.FootSpot()
 	d := 2*t.Cfg.BallRadius + t.Cfg.RackGap
@@ -237,6 +257,7 @@ func (t *Table) RackNineOrder(order [9]int) {
 		t.Balls[i] = Ball{ID: i, Pocketed: i > NineBall}
 	}
 	t.Balls[CueBall].Pos = t.Cfg.HeadSpot()
+	t.Cue = CueBall
 
 	foot := t.Cfg.FootSpot()
 	d := 2*t.Cfg.BallRadius + t.Cfg.RackGap
@@ -252,6 +273,31 @@ func (t *Table) RackNineOrder(order [9]int) {
 			}
 		}
 	}
+	t.ClearEvents()
+}
+
+// caromSideOffset is how far from the head spot, across the table, the
+// breaker's ball starts: 182 mm (UMB).
+const caromSideOffset = 0.182
+
+// RackCarom sets up the opening position of a carom game (UMB): the red on
+// the top spot (the foot spot), the yellow on the starting spot (the head
+// spot) and the white, the breaker's ball, on the starting line 182 mm to
+// one side of it, toward y = 0 for side < 0 and the other way otherwise. Every
+// other ball is out of play.
+func (t *Table) RackCarom(side float64) {
+	for i := range t.Balls {
+		t.Balls[i] = Ball{ID: i, Pocketed: i > CaromRed}
+	}
+	head := t.Cfg.HeadSpot()
+	off := caromSideOffset
+	if side < 0 {
+		off = -off
+	}
+	t.Balls[CaromWhite].Pos = Vec{head.X, head.Y + off}
+	t.Balls[CaromYellow].Pos = head
+	t.Balls[CaromRed].Pos = t.Cfg.FootSpot()
+	t.Cue = CaromWhite
 	t.ClearEvents()
 }
 
@@ -313,7 +359,7 @@ func (t *Table) ShootElevated(angle, power float64, spin Vec, elevation float64)
 	elevation = math.Max(0, math.Min(MaxElevation, elevation))
 	ahead, down := speed*math.Cos(elevation), speed*math.Sin(elevation)
 	t.ClearEvents()
-	cue := &t.Balls[CueBall]
+	cue := &t.Balls[t.Cue]
 	dir := Vec{math.Cos(angle), math.Sin(angle)}
 	right := Vec{-dir.Y, dir.X} // as the shooter sees it
 	k := 2.5 * t.Cfg.TipOffset
@@ -439,9 +485,9 @@ func (t *Table) integrate(dt float64) {
 // crossHead records the cue ball leaving the kitchen, if b, which was at x
 // = prevX, is the cue ball and has just crossed the head string.
 func (t *Table) crossHead(b *Ball, prevX float64) {
-	if head := t.Cfg.HeadString(); b.ID == CueBall && !t.crossedHead && prevX <= head && b.Pos.X > head {
+	if head := t.Cfg.HeadString(); b.ID == t.Cue && !t.crossedHead && prevX <= head && b.Pos.X > head {
 		t.crossedHead = true
-		t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: CueBall})
+		t.Events = append(t.Events, Event{Kind: HeadStringCrossed, Ball: b.ID})
 	}
 }
 
@@ -513,13 +559,12 @@ func (t *Table) overBed(pos Vec) bool {
 
 // pocketAt returns the index of the pocket whose drop zone holds pos, or -1.
 // A ball on the cloth that somehow got clear of the rails is lost down the
-// nearest pocket rather than left rolling forever.
+// nearest pocket rather than left rolling forever (see escaped).
 func (t *Table) pocketAt(pos Vec) int {
 	if n := t.dropZone(pos); n >= 0 {
 		return n
 	}
-	m := 2 * t.Cfg.BallRadius
-	if pos.X < -m || pos.Y < -m || pos.X > t.Cfg.TableWidth+m || pos.Y > t.Cfg.TableHeight+m {
+	if t.escaped(pos) && len(t.pockets) > 0 {
 		best, bestD := 0, math.Inf(1)
 		for n, p := range t.pockets {
 			if d := pos.Dist(p.mouth); d < bestD {
@@ -529,6 +574,13 @@ func (t *Table) pocketAt(pos Vec) int {
 		return best
 	}
 	return -1
+}
+
+// escaped reports whether a ball centred on pos is clear of the rails, off
+// the playing surface by more than a ball.
+func (t *Table) escaped(pos Vec) bool {
+	m := 2 * t.Cfg.BallRadius
+	return pos.X < -m || pos.Y < -m || pos.X > t.Cfg.TableWidth+m || pos.Y > t.Cfg.TableHeight+m
 }
 
 // capturePockets drops the balls over a pocket and takes off the table the
@@ -555,6 +607,8 @@ func (t *Table) capturePockets() {
 		if n := t.pocketAt(b.Pos); n >= 0 {
 			t.impact(ImpactPocket, b.Vel.Len())
 			t.pocket(b, Event{Kind: BallPocketed, Ball: b.ID, Pocket: n})
+		} else if len(t.pockets) == 0 && t.escaped(b.Pos) {
+			t.pocket(b, Event{Kind: BallOffTable, Ball: b.ID})
 		}
 	}
 }
@@ -571,6 +625,11 @@ func (t *Table) pocket(b *Ball, e Event) {
 // moving into it, gets an impulse at the cushion nose (see bounce). Segment
 // ends act as the rounded noses they are. A ball in the air higher than the
 // nose passes over them.
+//
+// A pool table records one CushionHit per ball and step, however many
+// pieces of a pocket's rubber it touched. A carom table records one per
+// cushion, with its Rail: a ball driven into a corner touches two cushions,
+// and in 3-cushion both count.
 func (t *Table) collideCushions() {
 	r := t.Cfg.BallRadius
 	nose := t.Cfg.noseHeight()
@@ -580,7 +639,7 @@ func (t *Table) collideCushions() {
 			continue
 		}
 		hit := false
-		for _, s := range t.segments {
+		for k, s := range t.segments {
 			closest := s.closest(b.Pos)
 			delta := b.Pos.Sub(closest)
 			dist := delta.Len()
@@ -595,8 +654,12 @@ func (t *Table) collideCushions() {
 			if vn := b.Vel.Dot(n); vn < 0 {
 				t.impact(ImpactCushion, -vn)
 				t.bounce(b, n)
-				hit = true
 				t.Collided = true
+				if t.Cfg.NoPockets {
+					t.Events = append(t.Events, Event{Kind: CushionHit, Ball: b.ID, Rail: k})
+				} else {
+					hit = true
+				}
 			}
 		}
 		if hit {
@@ -746,15 +809,24 @@ func (t *Table) collideBalls(dt float64) {
 			// it forward or back. Each ball slides again until its spin
 			// matches its new velocity.
 
-			// i < j, so the cue ball can only be a.
-			if i == CueBall && !t.firstContact {
+			var other *Ball
+			switch t.Cue {
+			case a.ID:
+				other = b
+			case b.ID:
+				other = a
+			default:
+				continue
+			}
+			if !t.firstContact {
 				t.firstContact = true
 				t.Events = append(t.Events, Event{
 					Kind:      FirstContact,
-					Ball:      b.ID,
-					InKitchen: b.Pos.X < t.Cfg.HeadString(),
+					Ball:      other.ID,
+					InKitchen: other.Pos.X < t.Cfg.HeadString(),
 				})
 			}
+			t.Events = append(t.Events, Event{Kind: BallContact, Ball: other.ID})
 		}
 	}
 }
