@@ -20,8 +20,8 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 The game, 8-ball, 9-ball or 3-cushion, is picked with a three-button switch
 above *Create a room* (remembered in `localStorage` as `pool:mode`).
 
-Inside a room, Settings (the gear in the header) has a *Room* part at the
-top, so that the screen around the table stays bare. It holds:
+Inside a room, Settings (the gear in the header) has a *This room* group at
+the top, so that the screen around the table stays bare. It holds:
 
 - the game switch;
 - the next match's race and break rule;
@@ -135,11 +135,30 @@ The tray row is hidden to make room.
    `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
    shuffle button suggests another. The live room list (`GET /api/rooms`,
    refreshed every 3 s while the landing is open) keeps rows keyed by room
-   code, offers *Join* on rooms with a free seat and shows the others as
-   full; *Create a room* is disabled with a note once the server's limit (3)
-   is reached. Opening `/?room=CODE` turns the landing into a "Join room
-   CODE" form that names the host; after joining, the URL is rewritten to
-   that form so the invite button gives a link (it shares on phones).
+   code, offers *Join* on rooms with a free seat and *Watch* (an eye on a
+   narrow list) while spectators fit, and shows the others as full; *Create
+   a room* is disabled with a note once the server's limit is reached.
+   Opening `/?room=CODE` turns the landing into a "Join room CODE" form that
+   names the host; after joining, the URL is rewritten to that form so the
+   invite button gives a link (it shares on phones). The gear at the top
+   right opens Settings before any room is joined.
+   - *Shapes.* On a desktop or a tablet the landing is a card over the
+     dimmed table: from 760 px wide two columns (the name and a new room |
+     the rooms and *Join by code*), the card one height (at most 660 px)
+     with each column scrolling inside it; narrower, one column. On a phone
+     held upright it is a page of its own that scrolls; held sideways, the
+     two columns fill the screen and each scrolls on its own. Nothing is
+     cut off: where the card is taller than the screen, the page scrolls.
+   - *Match rules.* Narrower than 760 px or shorter than 600 px, the race,
+     the break rule and the spectators fold under one line that sums them
+     up ("Race to 3 · alternate breaks · 3 may watch"); a tap opens them.
+   - The room rows follow the list's own width (a container query): on a
+     narrow list the code and the names share a line, and the game and the
+     buttons go under them.
+   - Enter in the name field joins on an invite or with a code typed;
+     otherwise it only puts a phone's keyboard away. A code that is not 5
+     letters is marked under its field. On a touch screen the name field is
+     not focused by itself, so no keyboard covers the page.
 2. **Lobby**: both seats shown in the header; the rack starts when both press
    *I'm ready*. Once groups are assigned a seat shows seven dots for the
    player's balls, dimmed as they are pocketed; the seat on turn pulses
@@ -256,9 +275,14 @@ The tray row is hidden to make room.
      touch the label shows for 1.5 s after a tap.
    - The panel slot and the status line have fixed heights, so the table
      never jumps when panels swap or a sentence wraps; both cross-fade.
-   - *Settings* (gear in the header): theme (system, dark, light), power bar
-     on the left for left-handed play, vibration, full screen and "show
-     hints again". Stored in `localStorage` under `pool:*`.
+   - *Settings* (gear in the header, or on the landing page): *Done* stays
+     at the top while the groups scroll under it (*This room* in a room,
+     *Table*, *Controls*, *Sound*, *Chat and hints*), in two columns where
+     the dialog is wide enough and over the whole screen on a phone; it
+     opens at its top. Each on/off setting is a row with a switch at its
+     end. Theme (system, dark, light), power bar on the left for
+     left-handed play, vibration, full screen and "show hints again".
+     Stored in `localStorage` under `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".

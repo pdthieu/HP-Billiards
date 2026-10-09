@@ -4016,9 +4016,12 @@ function rememberName(name) {
 function showLanding(error) {
   $('landing').hidden = false;
   document.body.classList.add('is-landing');
+  setGameInert(true);
   hideConn();
-  $('landingError').hidden = !error;
-  $('landingError').lastElementChild.textContent = error || '';
+  $('landing').scrollTop = 0;
+  setLandingError(error);
+  $('code').classList.remove('input--error');
+  $('codeError').hidden = true;
   if (!$('name').value.trim()) $('name').value = rememberedName() || randomName();
   // An invite link opens straight onto "join this room": the name is the
   // only thing to fill in.
@@ -4036,8 +4039,19 @@ function showLanding(error) {
   $('join').className = invited ? 'btn btn--primary btn--lg btn--block' : 'btn btn--secondary';
   $('switchMode').hidden = !invited;
   $('watchInvite').hidden = true; // describeInvite shows it for a full room
-  setTimeout(() => $('name').focus(), 0);
+  $('name').enterKeyHint = invited ? 'go' : 'done';
+  // A phone would open its keyboard over half the page: the name is
+  // filled in already, so it is focused only where a key is at hand.
+  if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => $('name').focus({ preventScroll: true }), 0);
   if (invited) { stopRoomsPoll(); describeInvite(code); } else startRoomsPoll();
+}
+
+// setLandingError shows (or with no message hides) the landing's error,
+// scrolled into view.
+function setLandingError(msg) {
+  $('landingError').hidden = !msg;
+  $('landingError').lastElementChild.textContent = msg || '';
+  if (msg) $('landingError').scrollIntoView({ block: 'nearest' });
 }
 
 function hideLanding() {
@@ -4046,7 +4060,14 @@ function hideLanding() {
   if ($('landing').contains(document.activeElement)) document.activeElement.blur();
   $('landing').hidden = true;
   document.body.classList.remove('is-landing');
+  setGameInert(false);
   stopRoomsPoll();
+}
+// setGameInert keeps Tab and the screen reader out of the header and the
+// game behind the landing page while it is open.
+function setGameInert(on) {
+  $('top').inert = on;
+  document.querySelector('main.game').inert = on;
 }
 
 // describeInvite names the host in the invited lead, when the room is listed.
@@ -4118,7 +4139,8 @@ function renderRooms(list) {
       li.className = 'room-row';
       li.dataset.code = room.roomCode;
       li.style.animationDelay = `${40 * added++}ms`;
-      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div><div class="room-row__actions"><button class="btn btn--quiet btn--small room-row__watch" type="button">Watch</button><button class="btn btn--secondary btn--small room-row__join" type="button"></button></div>';
+      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div>' +
+        `<div class="room-row__actions"><button class="btn btn--quiet btn--small room-row__watch" type="button" title="Watch">${EYE_SVG}<span class="room-row__watch-text">Watch</span></button><button class="btn btn--secondary btn--small room-row__join" type="button"></button></div>`;
       li.querySelector('.room-row__code').textContent = room.roomCode;
       li.querySelector('.room-row__join').onclick = () => {
         const name = landingName();
@@ -4163,9 +4185,10 @@ function renderRooms(list) {
   $('create').disabled = full;
   $('practice').disabled = full;
   $('createNote').hidden = !full;
-  $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one below.` : '';
+  $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one of them, or try again in a moment.` : '';
 }
 
+const EYE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
 const CUE_SVG = '<svg class="seat__cue" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>';
 const compactMedia = matchMedia('(max-width: 600px)');
 compactMedia.addEventListener('change', () => refreshPanels());
@@ -5091,7 +5114,24 @@ let landingPoints = Number(readSetting('pool:points')) || 15; // 3-cushion
 if (!(landingPoints >= 1 && landingPoints <= POINTS_MAX)) landingPoints = 15;
 let landingBreaks = readSetting('pool:breaks') === 'winner' ? 'winner' : 'alternate';
 const landingGoal = () => (landingMode === '3cushion' ? landingPoints : landingRace);
-function renderLandingMatch() { setMatchPick($('landingMatch'), landingGoal(), landingBreaks, landingMode); }
+let landingRulesReady = false; // once the spectator pick below is read
+function renderLandingMatch() {
+  setMatchPick($('landingMatch'), landingGoal(), landingBreaks, landingMode);
+  if (landingRulesReady) renderLandingRules();
+}
+// On a phone the match rules fold away under a line that sums them up
+// (CLIENT.md, "Landing"); a tap opens them.
+function renderLandingRules() {
+  const goal = landingMode === '3cushion' ? `${landingPoints} points` : `Race to ${landingRace}`;
+  const breaks = landingMode === '3cushion' ? '' : landingBreaks === 'winner' ? ' · winner breaks' : ' · alternate breaks';
+  const watch = landingAudience ? `${landingAudience} may watch` : 'no spectators';
+  $('landingOptsSum').textContent = `${goal}${breaks} · ${watch}`;
+}
+$('landingOptsBtn').onclick = () => {
+  const open = !$('landingOpts').classList.contains('is-open');
+  $('landingOpts').classList.toggle('is-open', open);
+  $('landingOptsBtn').setAttribute('aria-expanded', String(open));
+};
 renderLandingMatch();
 wireMatchPick($('landingMatch'), () => ({ race: landingGoal(), mode: landingMode }), (c) => {
   if (c.race && landingMode === '3cushion') { landingPoints = c.race; writeSetting('pool:points', String(c.race)); }
@@ -5218,6 +5258,19 @@ function landingName() {
   return name;
 }
 $('nameField').addEventListener('animationend', () => $('nameField').classList.remove('field--shake'));
+$('code').addEventListener('input', () => {
+  $('code').classList.remove('input--error');
+  $('code').removeAttribute('aria-invalid');
+  $('codeError').hidden = true;
+});
+// Enter (a phone's Done) in the name field with no room code typed has
+// nothing to join: it only puts the keyboard away. With a code, or on an
+// invite, it joins.
+$('name').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.isComposing || $('code').value.trim()) return;
+  e.preventDefault();
+  $('name').blur();
+});
 $('name').addEventListener('input', () => {
   $('name').classList.remove('input--error');
   $('name').removeAttribute('aria-invalid');
@@ -5233,7 +5286,7 @@ $('shuffleName').onclick = () => {
 async function createRoom(practice) {
   const name = landingName();
   if (!name) return;
-  $('landingError').hidden = true;
+  setLandingError();
   try {
     const res = await fetch('/api/rooms', {
       method: 'POST',
@@ -5259,10 +5312,17 @@ $('practice').onclick = () => createRoom(true);
 $('landingForm').onsubmit = (e) => {
   e.preventDefault();
   if ($('landing').hidden) return; // already in a room
+  const code = $('code').value.trim().toUpperCase();
   const name = landingName();
   if (!name) return;
-  const code = $('code').value.trim().toUpperCase();
-  if (code.length !== 5) { showLanding('Room codes have 5 letters.'); return; }
+  if (code.length !== 5) {
+    $('code').classList.add('input--error');
+    $('code').setAttribute('aria-invalid', 'true');
+    $('codeError').hidden = false;
+    $('code').focus({ preventScroll: true });
+    $('codeError').scrollIntoView({ block: 'nearest' });
+    return;
+  }
   connectAndJoin(code, name);
 };
 $('rejoin').onclick = () => {
@@ -5386,12 +5446,15 @@ function setAudiencePick(seg, n) {
   for (const b of seg.querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.n) === n));
 }
 setAudiencePick($('landingAudience'), landingAudience);
+landingRulesReady = true;
+renderLandingRules();
 $('landingAudience').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
   if (!b) return;
   landingAudience = Number(b.dataset.n);
   writeSetting('pool:audience', String(landingAudience));
   setAudiencePick($('landingAudience'), landingAudience);
+  renderLandingRules();
 });
 function renderAudienceSetting() {
   setAudiencePick($('roomAudience'), S.audience.max);
@@ -5509,7 +5572,7 @@ function renderSettings() {
   $('hapticsRow').hidden = !canVibrate || !touchScreen;
   $('hapticsToggle').setAttribute('aria-pressed', String(S.haptics));
   const theme = readSetting('pool:theme') || 'system';
-  for (const b of document.querySelectorAll('#settings .seg .toggle')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
+  for (const b of $('themeSeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
   $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
@@ -5523,18 +5586,36 @@ function renderSettings() {
   $('volume').value = String(Math.round(SND.volume * 100));
   $('volume').disabled = !SND.on;
 }
-$('settingsBtn').onclick = () => { renderSettings(); $('settings').hidden = false; $('settingsClose').focus(); };
-$('settingsClose').onclick = () => { $('settings').hidden = true; };
-$('settings').addEventListener('click', (e) => { if (e.target === $('settings')) $('settings').hidden = true; });
-$('settings').addEventListener('keydown', (e) => { if (e.key === 'Escape') $('settings').hidden = true; });
-for (const b of document.querySelectorAll('#settings .seg .toggle')) {
-  b.onclick = () => {
-    const t = b.dataset.theme;
-    writeSetting('pool:theme', t === 'system' ? null : t);
-    applyTheme(t);
-    renderSettings();
-  };
+// Settings opens from the header in a room and from the landing page; it
+// opens at its top, with Done (in its header) focused, and gives the focus
+// back to the button that opened it.
+let settingsOpener = null;
+function openSettings(e) {
+  renderSettings();
+  settingsOpener = e && e.currentTarget;
+  $('settings').hidden = false;
+  $('settingsBody').scrollTop = 0;
+  $('settingsClose').focus({ preventScroll: true });
 }
+function closeSettings() {
+  if ($('settings').hidden) return;
+  $('settings').hidden = true;
+  if (settingsOpener && settingsOpener.offsetParent) settingsOpener.focus({ preventScroll: true });
+  settingsOpener = null;
+}
+$('settingsBtn').onclick = openSettings;
+$('landingSettings').onclick = openSettings;
+$('settingsClose').onclick = closeSettings;
+$('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
+$('settings').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+$('themeSeg').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b) return;
+  const t = b.dataset.theme;
+  writeSetting('pool:theme', t === 'system' ? null : t);
+  applyTheme(t);
+  renderSettings();
+});
 $('aimFrontToggle').onclick = () => {
   S.aimFront = !S.aimFront;
   writeSetting('pool:aim', S.aimFront ? 'front' : null);

@@ -72,7 +72,6 @@ body.is-practice .seat--compact .seat__name { max-width: 16ch; }
 .seg__btn:hover { color: var(--text); }
 .seg__btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
 .seg__btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.landing__create { display: flex; flex-direction: column; gap: 12px; }
 .tag--foul { background: var(--foul-soft); color: var(--foul); }
 
 /* practice tools: a row between the status and the panel; the trays make
@@ -82,10 +81,6 @@ body.is-practice .seat--compact .seat__name { max-width: 16ch; }
 .practice .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 body.is-practice .trays { display: none; }
 
-/* settings: sound */
-.sound-row { display: flex; align-items: center; gap: 12px; }
-.volume { flex: 1; min-width: 0; height: 44px; accent-color: var(--accent); }
-.volume:disabled { opacity: .4; }
 
 /* game column: stage grows, status and panel slot keep their heights */
 main.game { flex: 1; min-height: 0; overflow: hidden; }
@@ -154,8 +149,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(16px); } }
 .chat-bubble.is-leaving { opacity: 0; }
 .chat-bubble .chat__from { color: #FFFFFF; }
-.room-row__actions { display: flex; gap: 6px; align-items: center; flex: none; }
-#watchInvite { margin-top: -4px; }
 
 /* the commentator's line, under the top of the table */
 .voice-caption { position: absolute; top: 14%; left: 50%; z-index: 2; transform: translateX(-50%); pointer-events: none; max-width: 80%;
@@ -276,21 +269,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .tray--right { justify-content: flex-end; }
 .trays { flex: none; }
 
-/* landing: the design's overlay is absolute (for mock-up frames); the app
-   covers the viewport and dims the live table behind it */
-.landing { position: fixed; background: var(--scrim); }
-body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) saturate(.8); }
-.landing__invite { display: flex; flex-direction: column; gap: 8px; }
-.wordmark--small { font-size: 20px; line-height: 24px; color: var(--text-muted); }
-.landing__create { display: flex; flex-direction: column; gap: 12px; }
-.landing__switch { text-align: center; font-size: 14px; line-height: 20px; }
-.landing--invited .landing__create, .landing--invited .rooms, .landing--invited .divider,
-.landing--invited .join-row .field { display: none; }
-.landing--invited .join-row .btn { flex: 1; }
-.room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
-#roomList { max-height: 40vh; overflow-y: auto; }
-.rooms__empty-title { font: 600 16px/22px var(--font-ui); }
-
 /* overlays: the design positions them for mock-up frames; the app covers
    the viewport */
 .scrim { position: fixed; -webkit-backdrop-filter: blur(4px); }
@@ -351,13 +329,7 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .spin-pop__done { grid-area: done; }
 }
 
-/* match: race picker (landing, match settings) and the match dialog */
-.match-pick { display: flex; flex-direction: column; gap: 10px; }
-.match-pick__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.match-pick__row > .field__label { min-width: 56px; }
-.match-pick .seg { display: inline-flex; flex-wrap: nowrap; gap: 2px; }
-.match-pick .seg__btn { padding: 0 11px; }
-.input--race { width: 64px; min-height: 38px; padding: 0 8px; text-align: center; font: 600 16px/1 var(--font-ui); }
+/* the match dialog */
 .dialog--match { max-width: 440px; gap: 16px; max-height: calc(100dvh - 32px); }
 .match-score { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 14px; }
 .match-score__name { font: 600 15px/20px var(--font-ui); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -372,19 +344,6 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .rack__why { grid-column: 2 / -1; font: 400 14px/20px var(--font-ui); color: var(--text-muted); }
 .racks__empty { padding: 8px 0; color: var(--text-muted); font: 400 15px/22px var(--font-ui); }
 
-/* settings */
-.dialog--settings { max-width: 420px; gap: 18px; max-height: calc(100dvh - 32px); overflow-y: auto; }
-.settings__room { display: flex; flex-direction: column; gap: 18px; }
-.settings__room .divider { margin: 0; }
-.invite-row { display: flex; align-items: center; gap: 12px; }
-.invite-row .code-text { font: 600 20px/24px var(--font-display); letter-spacing: .16em; }
-#settingsMode .seg__btn:disabled, #roomMatch .seg__btn:disabled { cursor: not-allowed; opacity: .5; }
-.setting { display: flex; flex-direction: column; gap: 8px; }
-/* a long switch wraps on a phone instead of running out of the dialog;
-   its box keeps its size */
-.setting > .toggle { max-width: 100%; white-space: normal; text-align: left; padding-top: 7px; padding-bottom: 7px; border-radius: 18px; }
-.toggle__box { flex: none; }
-.seg { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ---------- compact layouts ---------- */
 
@@ -546,7 +505,6 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   .practice { grid-row: 1; grid-column: 2; display: grid; grid-auto-flow: column; justify-content: center; height: auto; gap: 6px; padding: 6px 0 0; }
   .practice__sep, .practice__label { display: none; }
   .practice .btn--small { min-height: 36px; padding: 0 10px; }
-  .landing__card { max-height: 100%; overflow-y: auto; }
 
   /* While a rack is played the header joins the side column too, so the
      table gets the whole height: what an iPhone's Safari bars leave is
@@ -574,3 +532,235 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
   body.is-playing .seat__name { max-width: none; }
   body.is-playing button.score { align-self: center; }
 }
+
+/* ---------- entry screens: the landing page and Settings ----------
+   Three shapes (CLIENT.md, "Landing"): on a desktop or a tablet a card over
+   the dimmed table, in two columns (a new room | the rooms) once it is wide
+   enough; on a phone held upright a page of its own that scrolls; on a
+   phone held sideways the same two columns over the whole screen, each
+   scrolling on its own. Nothing is ever cut off: whatever does not fit
+   scrolls. */
+
+/* the overlay scrolls; the card centres by its margins, so a card taller
+   than the screen starts at its top instead of losing it */
+.landing {
+  position: fixed; inset: 0; z-index: var(--z-overlay);
+  display: flex; align-items: flex-start; justify-content: flex-start;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
+           max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
+  overflow-y: auto; overscroll-behavior: contain;
+  background: var(--scrim);
+}
+body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) saturate(.8); }
+.landing__card { margin: auto; width: 100%; max-width: 480px; padding: 24px 24px 28px; gap: 20px; }
+.landing__head { display: flex; align-items: flex-start; gap: 12px; }
+.landing__brand { flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-start; column-gap: 14px; row-gap: 2px; }
+.landing__tagline { white-space: nowrap; }
+.landing__invite { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.landing__gear { margin: -8px -10px -8px 0; }
+.wordmark--small { font-size: 20px; line-height: 24px; color: var(--text-muted); }
+.landing__cols { display: flex; flex-direction: column; gap: 22px; min-height: 0; }
+.landing__new, .landing__create { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.landing__side { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; padding-top: 20px; border-top: 1px solid var(--hairline); }
+.landing__go { display: flex; flex-direction: column; gap: 10px; }
+.landing__go .btn { width: 100%; }
+.landing__switch { text-align: center; font-size: 14px; line-height: 20px; }
+.landing .seg__btn { font-size: 14px; }
+
+/* an invite: one narrow column, the name and Join */
+.landing__card.landing--invited { max-width: 440px; }
+.landing--invited .landing__side { padding-top: 0; border-top: 0; }
+.landing--invited .join-row .field { display: none; }
+.landing--invited .join-row .btn { flex: 1; }
+
+/* the match rules: in full where there is room; on a phone folded under a
+   line that sums them up */
+.opts { display: flex; flex-direction: column; }
+.opts__toggle { display: none; }
+.match-pick { container-type: inline-size; display: flex; flex-direction: column; gap: 12px; }
+.match-pick__row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.match-pick__row > .field__label { flex: 0 0 100%; }
+.match-pick__row > .seg { flex: 1 1 0; min-width: 0; display: flex; }
+.match-pick__row .seg__btn { flex: 1 1 0; min-width: 0; padding: 0 4px; }
+@container (min-width: 380px) {
+  .match-pick__row > .field__label { flex: 0 0 80px; }
+}
+.input--race { flex: none; width: 58px; height: 38px; padding: 0 6px; text-align: center; font: 600 16px/1 var(--font-ui); }
+.seg__btn:disabled, .input--race:disabled { cursor: not-allowed; opacity: .5; }
+@media (max-width: 759px), (max-height: 600px) {
+  .opts { border: 1px solid var(--hairline-strong); border-radius: var(--r-md); background: var(--surface-2); }
+  .opts__toggle { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 7px 12px 7px 14px;
+    border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); text-align: left; }
+  .opts__toggle:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .opts__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .opts__sum { font: 600 15px/20px var(--font-ui); }
+  .opts__chev { flex: none; color: var(--text-muted); transition: transform var(--dur-2) var(--ease-out); }
+  .opts.is-open .opts__chev { transform: rotate(180deg); }
+  .opts__body { display: none; padding: 4px 12px 14px 14px; }
+  .opts.is-open .opts__body { display: block; animation: pool-fade var(--dur-2) var(--ease-out) both; }
+}
+
+/* the room list: rows fit the list's own width, so the same row serves
+   the wide column, a phone and the narrow sideways column */
+.rooms { container-type: inline-size; min-height: 0; }
+.rooms__list { margin: 0; padding: 0; list-style: none; }
+.rooms__empty-title { font: 600 16px/22px var(--font-ui); }
+.room-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "code who actions"; column-gap: 14px; row-gap: 6px; padding: 10px 0; }
+.room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
+.room-row__code { grid-area: code; font-size: 20px; line-height: 24px; letter-spacing: .12em; }
+.room-row__who { grid-area: who; }
+.room-row__who .chip { max-width: 100%; min-width: 0; }
+.chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.room-row__actions { grid-area: actions; display: flex; gap: 6px; align-items: center; }
+.room-row__watch { padding: 0 10px; color: var(--text-muted); }
+.room-row__join { min-width: 64px; }
+/* a narrow list (a phone, the sideways column): the code and the names on
+   one line, what is played and the buttons under them */
+@container (max-width: 420px) {
+  .room-row { grid-template-areas: "code names names" "chip chip actions"; row-gap: 4px; column-gap: 12px; }
+  .room-row__who { display: contents; }
+  .room-row__names { grid-area: names; }
+  .room-row__who .chip { grid-area: chip; justify-self: start; }
+  .room-row__watch { width: 36px; padding: 0; }
+  .room-row__watch-text { display: none; }
+}
+.join-row { align-items: flex-end; }
+
+/* a desktop or a tablet: two columns once it is wide enough */
+@media (min-width: 760px) and (min-height: 501px) {
+  .landing__card:not(.landing--invited) { max-width: 960px; padding: 26px 32px 30px; }
+  .landing__card:not(.landing--invited) .landing__cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); grid-template-rows: minmax(0, 1fr); gap: 0 32px; }
+  .landing__card:not(.landing--invited) .landing__side { padding: 0 0 0 32px; border-top: 0; border-left: 1px solid var(--hairline); }
+}
+/* tall enough: the card keeps one height and each column scrolls inside it */
+@media (min-width: 760px) and (min-height: 601px) {
+  .landing__card:not(.landing--invited) { height: min(660px, 100%); }
+  .landing__card:not(.landing--invited) .landing__cols { flex: 1 1 0; }
+  .landing__card:not(.landing--invited) .landing__new { overflow-y: auto; margin: -4px; padding: 4px; } /* room for the focus rings */
+  .landing__card:not(.landing--invited) .rooms { flex: 1 1 0; display: flex; flex-direction: column; }
+  .landing__card:not(.landing--invited) .rooms__list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+}
+
+/* phones: a screen of its own, the dimmed table hidden behind it */
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+  body.is-landing #top, body.is-landing main { filter: none; visibility: hidden; }
+  .landing { padding: 0; background: var(--surface-1); }
+  .landing__card { max-width: none; min-height: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: pool-fade var(--dur-3) var(--ease-out) both; }
+  .landing__card.landing--invited { max-width: none; justify-content: center; }
+  .landing--invited > * { width: 100%; max-width: 440px; margin-inline: auto; }
+}
+@media (max-width: 600px) {
+  .landing__card { gap: 18px;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+             calc(28px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  .landing__cols { gap: 20px; }
+}
+@media (max-width: 359px) {
+  .landing__tagline { white-space: normal; }
+}
+/* a phone held sideways: the two columns share the screen's height */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landing__card { gap: 10px;
+    padding: calc(8px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
+             calc(8px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  .landing__card:not(.landing--invited) { height: 100%; min-height: 0; }
+  .landing__card:not(.landing--invited) .landing__cols { flex: 1 1 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0 20px; }
+  .landing__card:not(.landing--invited) .landing__new { overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 4px 4px 8px; gap: 12px; }
+  .landing__card:not(.landing--invited) .landing__create { gap: 12px; }
+  .landing__card:not(.landing--invited) .landing__side { padding: 4px 0 0 20px; border-top: 0; border-left: 1px solid var(--hairline); gap: 10px; }
+  .landing__card:not(.landing--invited) .rooms { flex: 1 1 0; display: flex; flex-direction: column; }
+  .landing__card:not(.landing--invited) .rooms__list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .landing__head { align-items: center; }
+  .landing__brand .wordmark { font-size: 22px; line-height: 26px; }
+  .landing__tagline, #landingModeLabel { display: none; }
+  .landing__gear { width: 36px; height: 36px; margin: -4px -6px -4px 0; }
+  .opts__toggle { min-height: 48px; padding-top: 4px; padding-bottom: 4px; }
+  .opts__sum { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @container (min-width: 330px) {
+    .join-row #codeField { flex-direction: row; align-items: center; gap: 10px; }
+    .join-row #codeField .field__label { flex: none; }
+  }
+  .landing__go { flex-direction: row; }
+  .landing__go .btn { flex: 1; width: auto; min-height: 44px; padding: 0 12px; font-size: 15px; }
+  .landing .field { gap: 4px; }
+  .landing .input { height: 42px; }
+}
+/* a column or a list that scrolls on its own shades the edge that has
+   more beyond it */
+.landing { --edge: rgba(6, 9, 13, .28); }
+:root[data-theme="light"] .landing { --edge: rgba(22, 32, 43, .14); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .landing { --edge: rgba(22, 32, 43, .14); } }
+@media (min-width: 760px) and (min-height: 601px), (orientation: landscape) and (max-height: 500px) {
+  .landing__card:not(.landing--invited) .rooms__list, .landing__card:not(.landing--invited) .landing__new {
+    background:
+      linear-gradient(var(--surface-1) 30%, transparent) center top / 100% 28px no-repeat local,
+      linear-gradient(transparent, var(--surface-1) 70%) center bottom / 100% 28px no-repeat local,
+      radial-gradient(farthest-side at 50% 0, var(--edge), transparent) center top / 100% 10px no-repeat scroll,
+      radial-gradient(farthest-side at 50% 100%, var(--edge), transparent) center bottom / 100% 10px no-repeat scroll;
+  }
+}
+
+/* a finger: taller segments */
+@media (pointer: coarse) {
+  .landing .seg__btn, .dialog--settings .seg__btn { min-height: 36px; }
+  .input--race { height: 42px; }
+}
+
+/* Settings: Done stays at the top; the groups below scroll, in two
+   columns where the dialog is wide enough; a whole screen on a phone */
+.scrim--settings { padding: 24px; }
+.dialog--settings { max-width: 760px; max-height: calc(100vh - 48px); max-height: min(880px, calc(100dvh - 48px));
+  padding: 0; gap: 0; overflow: hidden; }
+.settings__head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 16px 20px 14px 24px; border-bottom: 1px solid var(--hairline); }
+.settings__head .btn { min-width: 88px; min-height: 36px; }
+.settings__body { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 20px 24px 8px; }
+.settings__cols { columns: 2 290px; column-gap: 28px; }
+.settings__group { break-inside: avoid; display: flex; flex-direction: column; gap: 14px; margin: 0 0 26px; }
+.settings__h { font: 700 12px/16px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--accent-text); }
+.setting { display: flex; flex-direction: column; gap: 8px; }
+.setting--inline { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
+.settings__group .seg { display: flex; }
+.settings__group .seg__btn { flex: 1 1 0; min-width: 0; padding: 0 6px; font-size: 14px; }
+.invite-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.invite-row .code-text { font: 600 20px/24px var(--font-display); letter-spacing: .16em; }
+.caption kbd, .toggle__sub kbd { font: 600 11px/15px var(--font-mono); padding: 0 5px; border-radius: 5px; border: 1px solid var(--hairline-strong); background: var(--surface-2); color: var(--text); }
+
+/* a list of switches: the whole row is the button */
+.setting-list { display: flex; flex-direction: column; border: 1px solid var(--hairline); border-radius: var(--r-md); background: var(--surface-2); overflow: hidden; }
+.setting-list > :not(:first-child) { border-top: 1px solid var(--hairline); }
+.setting-list:not(:has(> :not([hidden]))) { display: none; } /* every switch in it hidden */
+.toggle--row { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 14px; min-height: 52px; padding: 9px 14px;
+  border: 0; border-radius: 0; background: transparent; color: var(--text); text-align: left; white-space: normal; font: inherit; }
+.toggle--row::before { content: none; }
+.toggle--row[aria-pressed="true"] { color: var(--text); }
+.toggle--row:hover { background: var(--surface-3); }
+.toggle--row:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.toggle--row:disabled { cursor: not-allowed; }
+.toggle--row:disabled > * { opacity: .45; }
+.toggle__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.toggle__title { font: 600 15px/20px var(--font-ui); }
+.toggle__sub { font: 400 13px/18px var(--font-ui); color: var(--text-muted); }
+.toggle--row .toggle__box { position: relative; flex: none; width: 44px; height: 26px; border: 0; border-radius: 13px;
+  background: var(--surface-3); box-shadow: inset 0 0 0 1px var(--hairline-strong); transition: background-color var(--dur-2) var(--ease-out); }
+.toggle--row .toggle__box::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+  background: #FFFFFF; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); transition: transform var(--dur-2) var(--ease-out); }
+.toggle--row[aria-pressed="true"] .toggle__box { background: var(--accent); box-shadow: none; }
+.toggle--row[aria-pressed="true"] .toggle__box::after { transform: translateX(18px); }
+.volume-row { display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 4px 14px; }
+.volume-row__label { font: 600 15px/20px var(--font-ui); }
+.volume { flex: 1; min-width: 0; height: 44px; margin: 0; accent-color: var(--accent); }
+.volume:disabled { opacity: .4; }
+@media (pointer: coarse) { #fullToggle .toggle__sub { display: none; } } /* no key to press */
+
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+  .scrim--settings { padding: 0; align-items: stretch; }
+  .dialog--settings { max-width: none; height: 100%; max-height: none; border: 0; border-radius: 0; box-shadow: none;
+    animation: settings-in var(--dur-4) var(--ease-out) both; }
+  .settings__head { padding: calc(8px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-right, 0px)) 8px calc(16px + env(safe-area-inset-left, 0px)); }
+  .settings__head .dialog__title { font-size: 20px; line-height: 26px; }
+  .settings__body { padding: 16px calc(16px + env(safe-area-inset-right, 0px)) calc(16px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
+  .settings__cols { column-gap: 20px; }
+  .settings__group { margin-bottom: 22px; }
+}
+@keyframes settings-in { from { opacity: 0; transform: translateY(12px); } }
