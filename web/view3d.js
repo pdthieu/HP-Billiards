@@ -274,6 +274,19 @@ export function createView3D(canvas, k) {
     scene.add(mesh);
     balls.set(id, mesh);
   }
+  // offBall: a copy of ball id for its fall off the table, so that the
+  // ball itself can be back on the table (the cue ball, a spotted 9) while
+  // the copy is still rolling on the floor.
+  const offBalls = new Map();
+  function offBall(id) {
+    let m = offBalls.get(id);
+    if (!m && balls.has(id)) {
+      m = balls.get(id).clone();
+      scene.add(m);
+      offBalls.set(id, m);
+    }
+    return m;
+  }
   function ballCanvas(id) {
     const TW = 512, TH = 256;
     const c = document.createElement('canvas');
@@ -476,6 +489,19 @@ export function createView3D(canvas, k) {
         const dx = c.dir.x, dy = c.dir.y;
         return { pos: V(c.p.x - dx * 0.6, c.p.y - dy * 0.6, 0.32), look: V(c.p.x + dx * 0.45, c.p.y + dy * 0.45, 0), up: new THREE.Vector3(0, 1, 0) };
       }
+      case 'fall': {
+        // a ball falling off the table to the floor, c.out beyond the bed:
+        // from the side and well above the floor, looking down between
+        // the ball and the table's edge, far enough back to have both
+        // across the picture while the ball is up to 1.6 m out; beyond, the
+        // ball stays big enough to see and the table drops out.
+        const dx = c.dir.x, dy = c.dir.y, sx = -dy * c.side, sy = dx * c.side;
+        const mid = Math.min(0.8, c.out / 2);
+        const mx = c.p.x - dx * mid, my = c.p.y - dy * mid, mh = (R + c.p.z) / 2;
+        const dist = Math.max(1.5, (mid + 0.3) / (t * Math.min(1, aspect)));
+        const pitch = 50 * Math.PI / 180, h = dist * Math.cos(pitch);
+        return { pos: V(mx + sx * h, my + sy * h, mh + dist * Math.sin(pitch)), look: V(mx, my, mh), up: new THREE.Vector3(0, 1, 0) };
+      }
       case 'follow': {
         const b = c.box;
         const cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2;
@@ -506,7 +532,7 @@ export function createView3D(canvas, k) {
     if (c.mode !== cam.mode) { cam.mode = c.mode; cam.since = now; }
     const target = pose(c);
     const settling = now - cam.since < 900;
-    const tau = cam.fresh || k.reduceMotion() ? 0 : settling ? 0.2 : c.mode === 'aim' ? 0.05 : c.mode === 'chase' ? 0.25 : 0.3;
+    const tau = cam.fresh || k.reduceMotion() ? 0 : settling ? 0.2 : c.mode === 'aim' ? 0.05 : c.mode === 'chase' || c.mode === 'fall' ? 0.25 : 0.3;
     const f = tau ? 1 - Math.exp(-dt / tau) : 1;
     cam.pos.lerp(target.pos, f);
     cam.look.lerp(target.look, f);
@@ -529,11 +555,12 @@ export function createView3D(canvas, k) {
       const lift = frame.lifted && frame.lifted.id === id ? frame.lifted.lift * 0.03 : 0;
       placeBall(mesh, id, p, frame.orient(id), lift + (p.z || 0));
     }
+    for (const m of offBalls.values()) m.visible = false;
     for (const d of frame.drops) {
-      const mesh = balls.get(d.id);
-      if (!mesh || frame.balls.has(d.id)) continue;
+      const mesh = d.off ? offBall(d.id) : balls.get(d.id);
+      if (!mesh || (!d.off && frame.balls.has(d.id))) continue;
       mesh.visible = d.alpha > 0;
-      placeBall(mesh, d.id, d, frame.orient(d.id), -d.sink);
+      placeBall(mesh, d.id, d, d.o || frame.orient(d.id), -d.sink);
     }
     placeCue(frame.cue);
     marks.begin();

@@ -518,6 +518,12 @@ the battery.
     down to 0.03° at the bottom, near the butt;
   - *follow*: high and oblique over the balls that have moved, while a shot
     runs;
+  - *fall*: while a ball falls off the table to the floor and until a
+    moment after it stops (even after the shot has settled, in a replay
+    too, but not while the top view is chosen, a ball is carried or an aim
+    is being dragged): from its side and well above the floor, looking down
+    between it and the table's edge, far enough back to keep both in the
+    picture, on a phone held upright too;
   - *top*: straight down, by the button at the stage's top right or `T`, and
     by itself with ball in hand, while a ball is carried and with the
     practice Move tool; aiming there is the 2D drag;
@@ -589,9 +595,15 @@ moved in practice).
   the two surrounding snapshots. A ball missing from the later snapshot stays
   at its earlier position until that snapshot's time passes, then disappears:
   into the nearest pocket, or, last seen past a cushion and away from every
-  pocket, off the table (in 2D it fades out beyond the rail; in 3D it
-  comes down onto the rail, rolls off its outer edge and falls to the floor).
-  `settled` replaces everything with exact positions. After a reconnect in
+  pocket, off the table. So does a ball in `settled`'s `offTable` that is
+  back on the table (the cue ball, a spotted ball), from where it was last
+  seen, carried on past the cushion if it was still over the bed. In 2D a
+  ball off the table fades out beyond the rail. In 3D it goes on from where
+  and how fast it was last seen (`fallPath`): onto the rail and over its
+  outer edge if it is over it, down to the floor, a few bounces that each
+  lose some speed, then a roll that slows to a stop; it lies there a moment,
+  then is gone. A copy of the ball falls, so the ball itself can already be
+  back on the table. `settled` replaces everything with exact positions. After a reconnect in
   the middle of a shot the clock is re-aligned to the first snapshot received.
 - A ball in the air (`z` in the snapshots, interpolated like `x` and `y`)
   is drawn over the others and bigger the higher it is, up to twice its

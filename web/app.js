@@ -629,8 +629,8 @@ function onSnapshot(msg) {
   if (msg.t > 0 && S.moving && S.snaps.length) {
     // A ball missing from this snapshot was pocketed: animate it dropping
     // once the render clock reaches this snapshot.
-    const prev = S.snaps[S.snaps.length - 1];
-    for (const [id, p] of prev.balls) if (!balls.has(id)) queueDrop(id, p, msg.t);
+    const prev = S.snaps[S.snaps.length - 1], before = S.snaps[S.snaps.length - 2];
+    for (const [id, p] of prev.balls) if (!balls.has(id)) queueDrop(id, p, msg.t, ballVel(before, prev, id));
   }
   if (msg.t === 0 || !S.moving || S.snaps.length === 0) {
     // A new shot, or joining one midway (reconnect): align our clock to it.
@@ -658,14 +658,20 @@ function onSnapshot(msg) {
 }
 
 function onSettled(msg) {
-  // Anything still on the table in our last snapshot but gone now drops;
-  // queued drops start at once.
-  const last = S.snaps.length ? S.snaps[S.snaps.length - 1].balls : S.balls;
+  // Anything still on the table in our last snapshot but gone now drops, and
+  // so does a ball driven off the table that is back on it (the cue ball, a
+  // spotted ball); queued drops start at once.
+  const n = S.snaps.length;
+  const last = n ? S.snaps[n - 1].balls : S.balls;
   const now = new Set(msg.balls.map((b) => b.id));
+  const off = new Set(msg.offTable || []);
   const queued = new Set(S.pendingDrops.map((d) => d.id));
-  for (const d of S.pendingDrops) startDrop(d.id, d.from);
+  for (const d of S.pendingDrops) startDrop(d.id, d.from, d.vel, off.has(d.id));
   S.pendingDrops = [];
-  for (const [id, p] of last) if (!now.has(id) && !queued.has(id)) startDrop(id, p);
+  for (const [id, p] of last) {
+    if ((now.has(id) && !(n && off.has(id))) || queued.has(id)) continue;
+    startDrop(id, p, n ? ballVel(S.snaps[n - 2], S.snaps[n - 1], id) : null, off.has(id));
+  }
   playImpacts(msg.impacts);
   S.moving = false;
   S.snaps = [];
@@ -675,6 +681,7 @@ function onSettled(msg) {
   if (rec && rec.snaps.length) {
     if (msg.impacts) rec.impacts.push(...msg.impacts);
     rec.snaps.push({ t: rec.snaps[rec.snaps.length - 1].t + 50, balls: new Map(S.balls) });
+    rec.offTable = msg.offTable || [];
     S.lastShot = rec;
   } else {
     S.lastShot = null; // joined midway: no replay, and an older shot is not this one
@@ -1680,8 +1687,10 @@ const FX = {
     if (alpha <= 0) return;
     drawBall(f.id, { x, y }, { scale: 1 - 0.4 * e, alpha });
   },
-  // a ball that flew off the table falls out of sight beyond the rail
+  // a ball that flew off the table falls out of sight beyond the rail (in
+  // 3D, f.path takes it to the floor: see draw3d)
   gone(f, p) {
+    if (f.path) return;
     const e = EASE.in(p);
     const x = f.from.x + f.dir.x * 0.06 * e, y = f.from.y + f.dir.y * 0.06 * e;
     drawBall(f.id, { x, y }, { scale: heightScale(f.from) * (1 - 0.3 * e), alpha: 1 - p });
@@ -1747,22 +1756,112 @@ function nearestPocket(p) {
 }
 // queueDrop schedules the pocket animation of a ball that disappeared
 // between two snapshots; it starts when the render clock reaches that snapshot.
-function queueDrop(id, from, t) {
-  S.pendingDrops.push({ id, from, t });
+// vel is how fast it was going when last seen, or null.
+function queueDrop(id, from, t, vel) {
+  S.pendingDrops.push({ id, from, t, vel });
+}
+// ballVel is ball id's velocity (m/s, z up) between snapshots a and b, or
+// null when either is missing or lacks it.
+function ballVel(a, b, id) {
+  const p = a && a.balls.get(id), q = b && b.balls.get(id);
+  const dt = a && b ? (b.t - a.t) / 1000 : 0;
+  if (!p || !q || dt <= 0) return null;
+  return { x: (q.x - p.x) / dt, y: (q.y - p.y) / dt, z: ((q.z || 0) - (p.z || 0)) / dt };
 }
 // startDrop animates a ball leaving play from where it was last seen: into
 // the nearest pocket, or, when it was last seen over a rail and away from
-// every pocket, falling off the table (it jumped).
-function startDrop(id, from) {
+// every pocket, or when off says it left the table, falling off the table
+// (it jumped). In 3D a ball off the table goes down to the floor, bounces and
+// rolls until it stops.
+function startDrop(id, from, vel, off) {
   const { d, pk, hole } = nearestPocket(from) || { d: Infinity }; // a carom table has no pockets
-  if (!pk || (offTheBed(from) && d > hole.r + 2 * R)) {
+  if (off || !pk || (offTheBed(from) && d > hole.r + 2 * R)) {
+    if (!offTheBed(from)) [from, vel] = flyOff(from, vel);
     const cx = Math.max(0, Math.min(W, from.x)), cy = Math.max(0, Math.min(H, from.y));
     const l = Math.hypot(from.x - cx, from.y - cy) || 1;
-    addFx({ type: 'gone', layer: 'balls', dur: v3 ? 600 : 240, id, from, out: l, dir: { x: (from.x - cx) / l, y: (from.y - cy) / l } });
+    const dir = { x: (from.x - cx) / l, y: (from.y - cy) / l };
+    if (!v3) { addFx({ type: 'gone', layer: 'balls', dur: 240, id, from, dir }); return; }
+    const path = fallPath(from, vel, dir, l);
+    addFx({
+      type: 'gone', layer: 'balls', dur: path.length * FALL_STEP_MS + FALL_HOLD_MS, id, from, dir, path,
+      o: Float64Array.from(orientationOf(id)), last: from, replay: !!S.replay,
+    });
     return;
   }
   addFx({ type: 'drop', layer: 'balls', dur: v3 ? 360 : 180, id, from, to: hole });
   addFx({ type: 'rim', layer: 'top', dur: 120, pk });
+}
+
+// flyOff carries a ball that left the table but was last seen over the bed
+// on at vel to where it crosses a cushion nose (or straight to the nearest
+// one), and returns that point and its velocity there.
+function flyOff(p, vel) {
+  const z0 = p.z || 0;
+  if (vel) {
+    for (let t = 0.005; t < 0.5; t += 0.005) {
+      const q = { x: p.x + vel.x * t, y: p.y + vel.y * t, z: Math.max(0, z0 + vel.z * t - GRAVITY * t * t / 2) };
+      if (offTheBed(q)) return [q, { x: vel.x, y: vel.y, z: vel.z - GRAVITY * t }];
+    }
+  }
+  const sides = [[p.x, { x: -1e-3, y: p.y }], [W - p.x, { x: W + 1e-3, y: p.y }], [p.y, { x: p.x, y: -1e-3 }], [H - p.y, { x: p.x, y: H + 1e-3 }]];
+  sides.sort((a, b) => a[0] - b[0]);
+  return [{ ...sides[0][1], z: z0 }, vel];
+}
+// fallPath works out a ball's way from where it left the table in 3D to
+// where it comes to rest on the floor: a point {x, y, z} (z the ball's bottom
+// above the bed) every FALL_STEP_MS. Over the rail it comes down onto it,
+// rolls over its outer edge and drops; the floor takes some of each bounce,
+// then it rolls, slowing, until it stops. It leaves going outward, however
+// slowly it was last seen.
+const FALL_STEP_MS = 1000 / 120;
+const FALL_HOLD_MS = 900; // it lies on the floor this long, then is gone
+const FLOOR_BOUNCE = 0.45, RAIL_BOUNCE = 0.3; // what a bounce keeps of the speed into it
+const FLOOR_SKID = 0.6; // what a bounce on the floor keeps of the speed along it
+const FLOOR_ROLL = 2.5; // m/s², how fast it slows rolling on the floor
+function fallPath(from, vel, dir, out) {
+  const dt = FALL_STEP_MS / 1000;
+  const ex = from.x - dir.x * out, ey = from.y - dir.y * out; // the edge of the bed
+  const outOf = (x, y) => (x - ex) * dir.x + (y - ey) * dir.y;
+  // the rail's top, then round its outer edge as the ball rolls over it
+  const railAt = (o) => (o < RAIL ? RAIL_TOP : o < RAIL + R ? RAIL_TOP + Math.sqrt(R * R - (o - RAIL) ** 2) - R : -Infinity);
+  let x = from.x, y = from.y, z = from.z || 0;
+  let vx = vel ? vel.x : 0, vy = vel ? vel.y : 0, vz = vel ? vel.z : 0;
+  const vn = vx * dir.x + vy * dir.y;
+  if (vn < 0.5) { vx += (0.5 - vn) * dir.x; vy += (0.5 - vn) * dir.y; }
+  const sp = Math.hypot(vx, vy);
+  if (sp > 3) { vx *= 3 / sp; vy *= 3 / sp; }
+  if (outOf(x, y) < RAIL && z < RAIL_TOP) { z = RAIL_TOP; vz = Math.max(0, vz); }
+  const floor = -FLOOR_DROP;
+  const pts = [];
+  for (let i = 0; i < 1200; i++) {
+    pts.push({ x, y, z });
+    const rolling = z === floor && vz === 0;
+    if (rolling) {
+      const s = Math.hypot(vx, vy), left = s - FLOOR_ROLL * dt;
+      if (left <= 0.002) break;
+      vx *= left / s; vy *= left / s;
+    } else vz -= GRAVITY * dt;
+    const zWas = z, railWas = railAt(outOf(x, y));
+    x += vx * dt; y += vy * dt; z += vz * dt;
+    const rail = railAt(outOf(x, y));
+    if (z < rail && zWas >= railWas - 1e-4) {
+      z = rail;
+      vz = vz < -0.4 ? -vz * RAIL_BOUNCE : 0;
+    } else if (z < floor) {
+      z = floor;
+      if (vz < -0.3) {
+        vz = -vz * FLOOR_BOUNCE;
+        vx *= FLOOR_SKID; vy *= FLOOR_SKID;
+      } else vz = 0;
+    }
+  }
+  return pts;
+}
+// fallAt is where the falling ball of fx f is p of the way through it.
+function fallAt(f, p) {
+  const i = Math.min(f.path.length - 1, (p * f.dur) / FALL_STEP_MS);
+  const a = f.path[Math.floor(i)], b = f.path[Math.min(f.path.length - 1, Math.floor(i) + 1)], u = i - Math.floor(i);
+  return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u, z: a.z + (b.z - a.z) * u };
 }
 // offTheBed: a ball at p has its centre beyond a cushion nose.
 const offTheBed = (p) => p.x < 0 || p.x > W || p.y < 0 || p.y > H;
@@ -2047,7 +2146,7 @@ function draw() {
     const t = renderClock();
     while (S.pendingDrops.length && S.pendingDrops[0].t <= t) {
       const d = S.pendingDrops.shift();
-      startDrop(d.id, d.from);
+      startDrop(d.id, d.from, d.vel);
     }
   }
   if (S.replay) tickReplay(now);
@@ -2289,15 +2388,12 @@ function draw3d(now, balls, st) {
   for (const { f, p } of takeFx(now)) {
     const e = EASE.out(p);
     if (f.type === 'strike') stick = { ...f.cue, dir: f.dir, ...strikePose(f.power, p, f.dur), elev: f.elev };
-    else if (f.type === 'gone') {
-      // A ball last seen over the rail comes down onto it and rolls off its
-      // outer edge; then, clear of the table, it falls to the floor.
-      const roll = Math.max(0, RAIL + R - f.out), a = roll ? 0.35 : 0;
-      const q = a ? clamp01(p / a) : 1, fall = a < 1 ? clamp01((p - a) / (1 - a)) : 1;
-      const z0 = f.from.z || 0, top = roll ? RAIL_TOP : z0;
-      const z = q < 1 ? z0 + (top - z0) * EASE.out(q) : top - (top + FLOOR_DROP) * fall * fall;
-      const go = roll * EASE.inout(q) + 0.15 * fall;
-      drops.push({ id: f.id, x: f.from.x + f.dir.x * go, y: f.from.y + f.dir.y * go, sink: -z, alpha: p < 1 ? 1 : 0 });
+    else if (f.type === 'gone' && f.path) {
+      // down to the floor and rolling to a stop (fallPath), turning as it goes
+      const at = fallAt(f, p);
+      turnBall(f.o, at.x - f.last.x, at.y - f.last.y);
+      f.last = at;
+      drops.push({ id: f.id, x: at.x, y: at.y, sink: -at.z, alpha: p < 1 ? 1 : 0, off: true, o: f.o });
     }
     else if (f.type === 'ring') rings.push({ x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
     else if (f.type === 'rim') { const h = pocketHole(f.pk); rings.push({ x: h.x, y: h.y, r: h.r, w: 0.006, color: PAL.flash, alpha: 0.5 * (1 - e) }); }
@@ -2351,6 +2447,8 @@ function takeFx(now) {
 // balls while they run, straight down to place a ball.
 let camAngle = 0; // the heading of the last aim seen
 function cameraFor(balls, aim) {
+  const fall = !S.camTop && !S.drag && !S.aiming && fallWatched(performance.now());
+  if (fall) return fall;
   if (S.replay) return replayCamera(balls);
   const cue = balls.get(cueId());
   if (S.camTop || S.drag || S.ballInHand || (S.practice && S.moveTool)) return { mode: 'top' };
@@ -2360,6 +2458,22 @@ function cameraFor(balls, aim) {
     return { mode: 'aim', cue, angle: camAngle };
   }
   return { mode: 'overview' };
+}
+// fallWatched is the camera on a ball falling off the table, the latest one,
+// until a moment after it has come to rest on the floor; else null.
+function fallWatched(now) {
+  for (let i = fx.length - 1; i >= 0; i--) {
+    const f = fx[i];
+    if (f.type !== 'gone' || !f.path) continue;
+    const p = fxProgress(f, now);
+    if (p === null || p * f.dur > f.path.length * FALL_STEP_MS + FALL_HOLD_MS / 2) continue;
+    const at = fallAt(f, p);
+    const out = (at.x - Math.max(0, Math.min(W, f.from.x))) * f.dir.x + (at.y - Math.max(0, Math.min(H, f.from.y))) * f.dir.y;
+    // from the side of where it left that is nearer the middle of the table
+    const side = (W / 2 - f.from.x) * -f.dir.y + (H / 2 - f.from.y) * f.dir.x < 0 ? -1 : 1;
+    return { mode: 'fall', p: at, dir: f.dir, out, side };
+  }
+  return null;
 }
 // actionBox bounds the balls that have moved since the shot began.
 function actionBox(balls, start) {
@@ -2575,7 +2689,14 @@ function rollBall(id, p) {
   const dx = p.x - last.x, dy = p.y - last.y;
   const d = Math.hypot(dx, dy);
   if (d < 1e-6 || d > 0.3) return; // still, or moved by hand / respotted
-  const m = orientationOf(id);
+  turnBall(orientationOf(id), dx, dy);
+  const tex = texCache.get(id);
+  if (tex) tex.dirty = true;
+}
+// turnBall turns orientation m, in place, as the ball rolls by (dx, dy).
+function turnBall(m, dx, dy) {
+  const d = Math.hypot(dx, dy);
+  if (d < 1e-9) return;
   const ax = dy / d, ay = -dx / d; // axis (horizontal)
   const th = d / R, c = Math.cos(th), sn = Math.sin(th), t = 1 - c;
   // Rodrigues with az = 0
@@ -2589,8 +2710,6 @@ function rollBall(id, p) {
     m[3 + j] = r10 * a + r11 * b + r12 * e;
     m[6 + j] = r20 * a + r21 * b + r22 * e;
   }
-  const tex = texCache.get(id);
-  if (tex) tex.dirty = true;
 }
 function resetOrientations() { orient.clear(); lastPos.clear(); texCache.clear(); }
 
@@ -3244,10 +3363,19 @@ function startReplay() {
     const d = p ? Math.hypot(p.x - start.x, p.y - start.y) : 0;
     if (d > 0.005) { dir = { x: (p.x - start.x) / d, y: (p.y - start.y) / d }; speed = d / Math.max(0.001, (sn.t - t0) / 1000); break; }
   }
-  // balls that vanish between two snapshots drop into their pocket then
+  // balls that vanish between two snapshots drop into their pocket then, or
+  // fall off the table; one back on it after the shot falls at the end
   const drops = [];
+  const off = new Set(shot.offTable || []);
   for (let i = 1; i < snaps.length; i++) {
-    for (const [id, p] of snaps[i - 1].balls) if (!snaps[i].balls.has(id)) drops.push({ id, from: p, t: snaps[i].t });
+    for (const [id, p] of snaps[i - 1].balls) {
+      if (!snaps[i].balls.has(id)) drops.push({ id, from: p, t: snaps[i].t, vel: ballVel(snaps[i - 2], snaps[i - 1], id), off: off.has(id) });
+    }
+  }
+  const end = snaps.length - 1;
+  for (const id of off) {
+    const p = end > 0 && snaps[end - 1].balls.get(id);
+    if (p && !drops.some((d) => d.id === id)) drops.push({ id, from: p, t: snaps[end].t, vel: ballVel(snaps[end - 2], snaps[end - 1], id), off: true });
   }
   // after the first contact the camera follows the object ball that moves
   // most in the next 0.4 s (or drops)
@@ -3293,10 +3421,12 @@ function tickReplay(now) {
   const t = replayClock();
   while (r.drops.length && r.drops[0].t <= t) {
     const d = r.drops.shift();
-    startDrop(d.id, d.from);
+    startDrop(d.id, d.from, d.vel, d.off);
   }
   const snaps = r.shot.snaps;
-  if (t >= snaps[snaps.length - 1].t) {
+  // it ends once the last frame has been shown and a ball it sent off the
+  // table has come to rest on the floor
+  if (t >= snaps[snaps.length - 1].t && !fx.some((f) => f.replay && f.path)) {
     if (!r.endAt) r.endAt = now;
     else if (now - r.endAt > REPLAY_HOLD_MS) stopReplay();
   }
@@ -3311,7 +3441,7 @@ function stopReplay() {
   lastPos.clear();
   for (const [id, p] of r.saved.lastPos) lastPos.set(id, p);
   texCache.clear();
-  for (let i = fx.length - 1; i >= 0; i--) if (fx[i].type === 'drop' || fx[i].type === 'rim') fx.splice(i, 1);
+  for (let i = fx.length - 1; i >= 0; i--) if (fx[i].type === 'drop' || fx[i].type === 'rim' || fx[i].replay) fx.splice(i, 1);
   S.replay = null;
   refreshReplay();
 }
