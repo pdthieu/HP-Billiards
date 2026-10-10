@@ -4394,7 +4394,7 @@ function renderSeat(seat) {
   el.hidden = S.practice && seat === 1; // practice: one player, no sides
   const p = S.players[seat];
   const compact = compactMedia.matches;
-  el.className = 'seat' + (compact ? ' seat--compact' : '');
+  el.className = 'seat' + (seat === 1 ? ' seat--right' : '') + (compact ? ' seat--compact' : '');
   el.replaceChildren();
   if (!p.connected && !p.name) {
     el.classList.add('seat--empty');
@@ -4641,71 +4641,6 @@ function tickHolds() {
   }
 }
 
-// renderTrays lists the pocketed balls of each group under the table.
-function renderTrays() {
-  const never = isCarom() && S.practice; // carom practice: nobody's line to show
-  const empty = S.phase === 'lobby' || (isCarom() && !S.carom);
-  $('trays').hidden = never;
-  // Before a rack the row keeps its room, unseen: the table then keeps its
-  // size and its way round when the rack starts (a tablet held upright
-  // turned it).
-  $('trays').style.visibility = empty ? 'hidden' : '';
-  if (isCarom()) {
-    // each player's line: their ball, points, innings, average, best run
-    if (never || empty) return;
-    const c = S.carom;
-    for (const [elId, seat] of [['traySolids', 0], ['trayStripes', 1]]) {
-      const el = $(elId);
-      el.replaceChildren();
-      const dot = document.createElement('span');
-      dot.className = 'ball';
-      dot.style.setProperty('--c', CAROM_COLORS[c.cue[seat]]);
-      const inn = c.innings[seat];
-      const avg = inn ? (c.points[seat] / inn).toFixed(3) : '0.000';
-      const run = S.turn === seat && c.run > 0 && S.phase !== 'game_over' ? ` · run ${c.run}` : '';
-      const text = `${c.points[seat]}/${S.target} · ${inn} inn · avg ${avg} · HR ${c.highRun[seat]}${run}`;
-      const lab = Object.assign(document.createElement('span'), { className: 'tray__label', textContent: text });
-      lab.title = `${nameOf(seat)}: ${c.points[seat]} of ${S.target} points, ${inn} innings, average ${avg}, high run ${c.highRun[seat]}`;
-      if (seat === 0) el.append(dot, lab); else el.append(lab, dot);
-    }
-    return;
-  }
-  if (isNine()) {
-    // one row: the balls down so far (the 9 only ever drops to end the rack)
-    const el = $('traySolids');
-    el.replaceChildren();
-    $('trayStripes').replaceChildren();
-    if (S.phase === 'lobby') return;
-    const balls = [];
-    for (let id = 1; id <= 9; id++) {
-      if (S.balls.has(id)) continue;
-      const b = document.createElement('span');
-      b.className = 'ball' + (id === 9 ? ' ball--stripe' : '');
-      b.style.setProperty('--c', `var(--ball-${id === 9 ? 1 : id})`);
-      b.title = String(id);
-      balls.push(b);
-    }
-    el.append(Object.assign(document.createElement('span'), { className: 'tray__label', textContent: 'Pocketed' }), ...balls);
-    return;
-  }
-  for (const [elId, first, label] of [['traySolids', 1, 'Solids'], ['trayStripes', 9, 'Stripes']]) {
-    const el = $(elId);
-    el.replaceChildren();
-    if (S.phase === 'lobby') continue;
-    const balls = [];
-    for (let id = first; id < first + 7; id++) {
-      if (S.balls.has(id)) continue;
-      const b = document.createElement('span');
-      b.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
-      b.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
-      b.title = String(id);
-      balls.push(b);
-    }
-    const lab = Object.assign(document.createElement('span'), { className: 'tray__label', textContent: label });
-    if (first === 1) el.append(lab, ...balls); else el.append(...balls, lab);
-  }
-}
-
 // showPanel makes one panel of the slot visible and fades the others out.
 function showPanel(id) {
   for (const sec of $('controls').children) {
@@ -4733,7 +4668,6 @@ function refreshPanels() {
   if (document.querySelector('.seat .hold:not(.hold--clock)') && !S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
   if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
   renderTurn();
-  renderTrays();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
   const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;
 
@@ -5275,6 +5209,7 @@ function renderMatchDialog() {
   $('matchEyebrow').textContent = carom ? `3-cushion · to ${points(m.race)}` : `${MODE_NAME[S.mode]} · race to ${m.race}`;
   $('matchTitle').textContent = over ? matchTitle(m) : carom ? 'Game' : 'Match';
   let text;
+  renderCaromLines(carom);
   if (carom && over && last.end !== 'forfeit') text = `${caromReason() || `${m.score[0]}–${m.score[1]}`}.`;
   else if (carom && !over) text = `First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
   else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
@@ -5297,6 +5232,25 @@ function renderMatchDialog() {
     li.className = 'rack';
     const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
     const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
+// renderCaromLines gives each 3-cushion player's line in the match dialog:
+// points of the target, innings, average and best run, and the run going on.
+function renderCaromLines(carom) {
+  const box = $('matchStats');
+  box.hidden = !carom || !S.carom;
+  if (box.hidden) return;
+  const c = S.carom;
+  box.replaceChildren(...[0, 1].map((seat) => {
+    const inn = c.innings[seat];
+    const avg = inn ? (c.points[seat] / inn).toFixed(3) : '0.000';
+    const run = S.turn === seat && c.run > 0 && S.phase !== 'game_over' ? ` · run ${c.run}` : '';
+    const row = Object.assign(document.createElement('div'), { className: 'match-stats__row' });
+    row.title = `${matchName(seat)}: ${c.points[seat]} of ${S.target} points, ${inn} innings, average ${avg}, high run ${c.highRun[seat]}`;
+    row.append(Object.assign(document.createElement('dt'), { textContent: matchName(seat) }),
+      Object.assign(document.createElement('dd'), { textContent: `${c.points[seat]}/${S.target} · ${inn} inn · avg ${avg} · HR ${c.highRun[seat]}${run}` }));
+    return row;
+  }));
+}
+
     const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
     const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
     const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });

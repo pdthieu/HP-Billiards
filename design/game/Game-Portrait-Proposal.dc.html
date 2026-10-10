@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>POOL in game · phone portrait · proposal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0B1119;overflow-x:hidden}
+sc-for,sc-if{display:contents}
+.pool{
+--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--focus:#8CBFFF;--ball-ivory:#F4EFE2;--ball-disc:#FAF7EF;--ball-3:#CC3326;
+--hall:#0B1119;--hall-text:#E8ECF1;--hall-muted:#9BA8B7;--hall-line:rgba(170,190,215,.12);--hall-chip:rgba(170,190,215,.06);--hall-chip-line:rgba(170,190,215,.22);--hall-lamp:rgba(255,224,170,.08);--led:#E3B25C;--led-glow:rgba(217,164,65,.5);
+--r-md:12px;--r-xl:22px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;
+color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool[data-theme="light"]{
+--surface-1:#F9F8F5;--surface-2:#FFFFFF;--surface-3:#E6E2DA;
+--hairline:rgba(22,32,43,.12);--hairline-strong:rgba(22,32,43,.22);
+--text:#16202B;--text-muted:#566270;--text-disabled:#A3ABB4;
+--accent-text:#87590F;--accent-soft:rgba(176,122,30,.12);--accent-ring:rgba(176,122,30,.55);--focus:#2F6FD0;
+color-scheme:light;
+}
+.pool,.pool *,.pool *::before,.pool *::after{box-sizing:border-box}
+.pool h1,.pool h2,.pool h3,.pool p{margin:0}
+.pool button,.pool input{font:inherit;color:inherit}
+.label{font:600 13px/18px var(--font-ui);color:var(--text-muted)}
+.muted{color:var(--text-muted)}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer}
+.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--quiet{background:transparent;color:var(--text-muted);padding:0 10px}
+.btn--small{min-height:32px;padding:0 10px;font-size:14px}
+.btn--small::before{content:"";position:absolute;inset:-6px 0}
+.icon-btn{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--hall-muted);cursor:pointer}
+.icon-btn::before{content:"";position:absolute;inset:-4px}
+.icon-btn:focus-visible,.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+.ball{position:relative;flex:none;width:6px;height:6px;border-radius:50%;background:var(--ball-ivory);box-shadow:0 0 0 .5px rgba(0,0,0,.4)}
+.ball--gone{opacity:.25;filter:grayscale(1);box-shadow:inset 0 0 0 1px var(--hall-muted);background:transparent!important}
+
+/* the scoreboard: you and your opponent either side of the score, the
+   room's buttons behind one menu; dark in both themes */
+.board{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto auto;align-items:center;gap:6px;height:56px;padding:0 6px 0 10px;background:var(--hall);color:var(--hall-text);border-bottom:1px solid var(--hall-line)}
+.seat{display:flex;align-items:center;gap:6px;min-width:0;height:42px;padding:0 8px;border-radius:999px;border:1.5px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text)}
+.seat--right{flex-direction:row-reverse}
+.seat--turn{border-color:var(--accent);background:rgba(217,164,65,.14)}
+.seat--theirs{border-color:rgba(217,164,65,.55)}
+.seat__cue{flex:none;color:var(--accent)}
+.seat__body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.seat--right .seat__body{align-items:flex-end}
+.seat__name{font:600 14px/16px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:9ch}
+.seat__dots{display:flex;gap:1.5px}
+.hold{position:relative;flex:none;width:22px;height:22px}
+.hold svg{display:block;transform:rotate(-90deg)}
+.hold__num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 9px/1 var(--font-ui);color:#E3B25C;font-variant-numeric:tabular-nums}
+.score{display:flex;flex-direction:column;align-items:center;padding:0 2px;border:0;background:transparent;color:var(--hall-text);cursor:pointer}
+.score__nums{display:flex;align-items:center;gap:5px;font:600 28px/28px var(--font-display);font-variant-numeric:tabular-nums}
+.score__sep{color:var(--hall-muted);font-weight:500}
+.score__race{font:600 9px/12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--led)}
+
+/* the hall: the status on a band over the felt, the table stood upright */
+.hall{position:relative;isolation:isolate;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--hall)}
+.hall::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 70% 55% at 50% 50%,var(--hall-lamp),transparent 72%)}
+.band{position:relative;flex:none;height:40px;display:flex;align-items:center;justify-content:center;padding:0 46px}
+.band__pill{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:100%;padding:2px 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid var(--hall-line);color:var(--hall-text);font:400 14px/18px var(--font-ui);text-align:center}
+.band__end{position:absolute;top:50%;transform:translateY(-50%)}
+.stage{position:relative;flex:1;min-height:0;container-type:size;display:flex;align-items:center;justify-content:center;padding:0 10px 6px 12px}
+.stage__row{display:flex;align-items:stretch;gap:6px}
+.tbl-rot{position:relative;flex:none;width:min(calc(100cqw - 38px),calc(100cqh / 1.789));aspect-ratio:1610/2880;container-type:size}
+.tbl-rot--glow::after{content:"";position:absolute;inset:0;border-radius:8px;box-shadow:0 0 0 2px var(--accent),0 0 20px 4px rgba(217,164,65,.5);opacity:.8;pointer-events:none}
+.tbl{position:absolute;left:50%;top:50%;width:100cqh;height:100cqw;transform:translate(-50%,-50%) rotate(-90deg)}
+.tbl__body{position:absolute;inset:0;border-radius:2.6% / 4.6%;box-shadow:0 18px 30px -16px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5)}
+.tbl__grain{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 5px)}
+.tbl__gloss{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:linear-gradient(180deg,rgba(255,255,255,.16),transparent 30%,transparent 72%,rgba(0,0,0,.2))}
+.tbl__cushion{position:absolute;inset:7.45% 4.17%;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)}
+.tbl__bed{position:absolute;inset:3.65% 1.89%;container-type:inline-size;box-shadow:inset 0 0 14px rgba(0,0,0,.38),inset 0 0 2px rgba(0,0,0,.5)}
+.tbl__head{position:absolute;left:25%;top:0;bottom:0;width:0;border-left:1px dashed rgba(255,255,255,.14)}
+.tbl__pocket{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 50% 42%,#000 0 56%,#0C0F12);box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.tbl__sight{position:absolute;width:.8%;aspect-ratio:1;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg);background:#E6D7B4;opacity:.92}
+.tbl__ball{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 1px rgba(0,0,0,.55),.5px 2px 3px rgba(0,0,0,.32)}
+.tbl__ball::after{content:"";position:absolute;inset:31%;border-radius:50%;background:var(--ball-disc)}
+.tbl__ball--plain::after{display:none}
+.tbl__aim{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.result{position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;padding:14px 12px;text-align:center;background:rgba(11,17,25,.88);border-top:1px solid rgba(217,164,65,.55);border-bottom:1px solid rgba(217,164,65,.55)}
+.result__title{font:600 30px/34px var(--font-display);letter-spacing:.02em;color:#E3B25C}
+.result__reason{font:400 14px/20px var(--font-ui);color:#9BA8B7}
+.pbar{position:relative;flex:none;width:32px;display:flex;flex-direction:column}
+.pbar--off{opacity:.35}
+.pbar__track{position:relative;flex:1;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.05);border:1px solid var(--hall-chip-line)}
+.pbar__last{position:absolute;left:0;right:0;top:0;background:#9BA8B7;opacity:.14}
+.pbar__cancel{position:absolute;left:0;right:0;top:0;height:7%;display:flex;align-items:center;justify-content:center;border-bottom:1px dashed var(--hall-chip-line);color:var(--hall-muted)}
+.pbar__label{position:absolute;left:0;right:0;bottom:12px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--hall-muted);font:700 10px/12px var(--font-ui);letter-spacing:.14em;text-transform:uppercase}
+.pbar__label span{writing-mode:vertical-rl;transform:rotate(180deg)}
+
+/* the dock: what to hit, the fine aim wheel, the jump and the spin, in reach
+   of a thumb; a card in the theme's colours */
+.dock-wrap{flex:none;padding:0 10px 22px;background:var(--hall)}
+.dock{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"call call" "angle opts" "elev opts";align-items:center;gap:8px 12px;height:126px;padding:10px 12px;background:var(--surface-1);color:var(--text);border:1px solid var(--hairline);border-radius:var(--r-xl);box-shadow:0 14px 30px -20px rgba(0,0,0,.7)}
+.dock--center{display:flex;align-items:center;justify-content:center;text-align:center}
+.dock--over{display:flex;flex-direction:column;align-items:stretch;justify-content:center;gap:6px;text-align:center}
+.dock__msg{font:400 16px/22px var(--font-ui)}
+.dock__msg strong{font-weight:600}
+.dock__sub{font:400 13px/18px var(--font-ui);color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock__title{font:600 22px/26px var(--font-ui)}
+.dock__actions{display:flex;align-items:center;justify-content:center;gap:8px}
+.call{grid-area:call;display:flex;align-items:center;gap:6px;min-width:0}
+.call__line{flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font:400 14px/18px var(--font-ui)}
+.call__value{color:var(--accent-text);font-weight:600}
+.toggle{position:relative;flex:none;display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--hairline-strong);background:var(--surface-2);color:var(--text);font:600 14px/20px var(--font-ui);white-space:nowrap;cursor:pointer}
+.toggle::before{content:"";position:absolute;inset:-5px 0}
+.toggle__box{width:14px;height:14px;border-radius:4px;border:1.5px solid currentColor}
+.angle{grid-area:angle;display:flex;align-items:center;gap:8px;min-width:0}
+.angle__readout{flex:none;width:4.6em;text-align:right;font:600 13px/16px var(--font-ui);font-variant-numeric:tabular-nums}
+.jog{position:relative;flex:1;min-width:0;height:34px;border-radius:999px;border:1px solid var(--hairline-strong);background:var(--surface-2);overflow:hidden}
+.jog__ticks{position:absolute;inset:8px 0;opacity:.55;background:repeating-linear-gradient(90deg,var(--text-muted) 0 1px,transparent 1px 10px) 0 4px / auto 8px repeat-x,repeating-linear-gradient(90deg,var(--text) 0 1.5px,transparent 1.5px 50px) 0 0 / auto 100% repeat-x}
+.jog__mark{position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--accent)}
+.elev{grid-area:elev;display:flex;align-items:center;gap:8px;min-width:0}
+.elev__head{flex:none;width:4.6em;display:flex;flex-direction:column;align-items:flex-end}
+.elev__head .label{font-size:11px;line-height:13px}
+.elev__readout{font:600 13px/15px var(--font-ui)}
+.elev__range{flex:1;min-width:0;height:32px;margin:0;accent-color:var(--accent)}
+.opts-btn{grid-area:opts;position:relative;flex:none;width:56px;height:56px;padding:0;border:0;border-radius:50%;cursor:pointer;background:radial-gradient(circle at 36% 30%,#FFFFFF 0%,#F4EFE2 34%,#D9D2C1 78%,#B9B09D 100%);box-shadow:0 0 0 1px rgba(0,0,0,.35),0 4px 10px -4px rgba(0,0,0,.5)}
+.opts-btn__dot{position:absolute;left:50%;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:var(--ball-3);box-shadow:0 0 0 1.5px #fff}
+.opts-btn:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+</style>
+</helmet>
+<div class="pool" data-theme="{{theme}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden">
+
+  <header class="board">
+    <div class="seat {{g.seatA}}">
+      <sc-if value="{{g.aimA}}" hint-placeholder-val="{{ true }}"><svg class="seat__cue" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg></sc-if>
+      <div class="seat__body">
+        <span class="seat__name">You</span>
+        <span class="seat__dots" aria-label="Solids"><sc-for list="{{g.dotsA}}" as="b" hint-placeholder-count="7"><span class="ball {{b.cls}}" style="background: {{b.bg}}"></span></sc-for></span>
+      </div>
+      <sc-if value="{{g.aimA}}" hint-placeholder-val="{{ true }}">
+        <span class="hold" role="timer" aria-label="24 seconds left"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.5"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="13.8"></circle></svg><span class="hold__num">24</span></span>
+      </sc-if>
+    </div>
+    <button class="score" type="button" aria-label="Score {{g.scoreA}} to 1, race to 5">
+      <span class="score__nums"><span>{{g.scoreA}}</span><span class="score__sep">–</span><span>1</span></span>
+      <span class="score__race">race to 5</span>
+    </button>
+    <div class="seat seat--right {{g.seatB}}">
+      <div class="seat__body">
+        <span class="seat__name">Bob</span>
+        <span class="seat__dots" aria-label="Stripes"><sc-for list="{{g.dotsB}}" as="b" hint-placeholder-count="7"><span class="ball {{b.cls}}" style="background: {{b.bg}}"></span></sc-for></span>
+      </div>
+      <sc-if value="{{g.aimB}}" hint-placeholder-val="{{ false }}">
+        <span class="hold" role="timer" aria-label="18 seconds left"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.5"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="27.6"></circle></svg><span class="hold__num">18</span></span>
+      </sc-if>
+    </div>
+    <button class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button><button class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg></button>
+  </header>
+
+  <div class="hall">
+    <div class="band" aria-live="polite">
+      <button class="icon-btn band__end" type="button" aria-label="Chat" style="left: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+      <span class="band__pill">{{g.status}}</span>
+      <button class="icon-btn band__end" type="button" aria-label="Replay the last shot" style="right: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
+    </div>
+    <div class="stage">
+      <div class="stage__row">
+        <div class="tbl-rot {{g.glow}}" role="img" aria-label="{{t.aria}}">
+          <div class="tbl">
+            <div class="tbl__body" style="background: {{t.rail}}"></div>
+            <span class="tbl__grain" aria-hidden="true"></span>
+            <span class="tbl__gloss" aria-hidden="true"></span>
+            <div class="tbl__cushion" style="background: {{t.cushion}}">
+              <div class="tbl__bed" style="background: {{t.bed}}">
+                <span class="tbl__head" aria-hidden="true"></span>
+                <sc-for list="{{t.balls}}" as="b" hint-placeholder-count="12">
+                  <span class="tbl__ball {{b.cls}}" style="left: {{b.x}}%; top: {{b.y}}%; width: {{b.d}}%; background: {{b.bg}}"></span>
+                </sc-for>
+              </div>
+            </div>
+            <sc-for list="{{t.pockets}}" as="p" hint-placeholder-count="6">
+              <span class="tbl__pocket" style="left: {{p.x}}%; top: {{p.y}}%; width: {{p.w}}%"></span>
+            </sc-for>
+            <sc-for list="{{t.sights}}" as="s" hint-placeholder-count="18">
+              <span class="tbl__sight" style="left: {{s.x}}%; top: {{s.y}}%"></span>
+            </sc-for>
+            <sc-if value="{{a.show}}" hint-placeholder-val="{{ true }}">
+              <svg class="tbl__aim" viewBox="0 0 2880 1610" preserveAspectRatio="none" aria-hidden="true">
+                <line x1="{{a.p1x}}" y1="{{a.p1y}}" x2="{{a.p2x}}" y2="{{a.p2y}}" stroke="{{a.guide}}" stroke-opacity=".45" stroke-width="6" stroke-dasharray="18 18"></line>
+                <line x1="{{a.l1x}}" y1="{{a.l1y}}" x2="{{a.l2x}}" y2="{{a.l2y}}" stroke="{{a.guide}}" stroke-opacity=".8" stroke-width="7" stroke-dasharray="26 20"></line>
+                <circle cx="{{a.gx}}" cy="{{a.gy}}" r="28.6" fill="none" stroke="{{a.guide}}" stroke-opacity=".85" stroke-width="6"></circle>
+                <line x1="{{a.b1x}}" y1="{{a.b1y}}" x2="{{a.b2x}}" y2="{{a.b2y}}" stroke="#2B1A10" stroke-opacity="{{a.cueAlpha}}" stroke-width="26" stroke-linecap="round"></line>
+                <line x1="{{a.s1x}}" y1="{{a.s1y}}" x2="{{a.s2x}}" y2="{{a.s2y}}" stroke="#D8BE8A" stroke-opacity="{{a.cueAlpha}}" stroke-width="17" stroke-linecap="round"></line>
+                <line x1="{{a.f1x}}" y1="{{a.f1y}}" x2="{{a.f2x}}" y2="{{a.f2y}}" stroke="#F4F1E8" stroke-opacity="{{a.cueAlpha}}" stroke-width="16" stroke-linecap="round"></line>
+              </svg>
+            </sc-if>
+          </div>
+          <sc-if value="{{g.isOver}}" hint-placeholder-val="{{ false }}">
+            <div class="result" role="status"><span class="result__title">You win the rack</span><span class="result__reason">The 8 in the called pocket.</span></div>
+          </sc-if>
+        </div>
+        <div class="pbar {{g.pbar}}" aria-hidden="true">
+          <div class="pbar__track">
+            <div class="pbar__last" style="height: 58%"></div>
+            <div class="pbar__cancel"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></div>
+            <div class="pbar__label"><svg width="12" height="20" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg><span>Pull</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dock-wrap">
+    <sc-if value="{{g.isAim}}" hint-placeholder-val="{{ true }}">
+      <section class="dock" aria-label="Your shot">
+        <div class="call">
+          <p class="call__line">Your group: <span class="call__value">solids</span> <span class="muted">· any that drops counts.</span></p>
+          <button class="toggle" type="button" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          <button class="btn btn--quiet btn--small" type="button">+40s</button>
+        </div>
+        <div class="angle">
+          <output class="angle__readout">{{a.angle}}</output>
+          <div class="jog" role="slider" tabindex="0" aria-label="Fine aim: drag sideways" aria-valuetext="{{a.angle}}"><span class="jog__ticks"></span><span class="jog__mark"></span></div>
+        </div>
+        <div class="elev">
+          <span class="elev__head"><span class="label">Jump</span><output class="elev__readout">level</output></span>
+          <input class="elev__range" type="range" min="0" max="85" value="0" aria-label="Cue elevation">
+        </div>
+        <button class="opts-btn" type="button" aria-haspopup="dialog" aria-label="Spin: centre" title="Spin"><span class="opts-btn__dot"></span></button>
+      </section>
+    </sc-if>
+    <sc-if value="{{g.isWait}}" hint-placeholder-val="{{ false }}">
+      <section class="dock dock--center" aria-label="Waiting">
+        <p class="dock__msg"><strong>Bob’s turn.</strong> <span class="muted">You see their aim.</span></p>
+      </section>
+    </sc-if>
+    <sc-if value="{{g.isOver}}" hint-placeholder-val="{{ false }}">
+      <section class="dock dock--over" aria-label="Game over">
+        <p class="dock__title">You win the rack</p>
+        <p class="dock__sub">3–1, race to 5. Bob breaks the next rack.</p>
+        <div class="dock__actions">
+          <button class="btn btn--quiet" type="button">Leave</button>
+          <button class="btn btn--primary" type="button">Next rack</button>
+        </div>
+      </section>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"state":{"editor":"enum","options":["aim","wait","over"],"default":"aim"},"$preview":{"width":390,"height":844}}'>
+// Proposal for a phone held upright: the scoreboard over the hall, the
+// status on a band above the felt, no trays, a slimmer power bar (32 px) so
+// the table gets the width, and the shot controls in a dock in reach of a
+// thumb. state: aim = your shot, wait = Bob aims, over = you won the rack.
+const BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316' };
+const IVORY = '#F4EFE2';
+const FELT = '#1F5C9E';
+const HI = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.6) 0, rgba(255,255,255,0) 42%)';
+const EDGE = 'radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 54%, rgba(0,0,0,.36) 100%)';
+const SPOTS = { 0: [34, 58], 2: [78, 66], 4: [18, 24], 5: [86, 40], 6: [62, 30], 7: [48, 82], 8: [66, 76], 9: [70, 52], 11: [26, 80], 12: [88, 84], 13: [56, 14], 15: [12, 52] };
+const POCKETS = [[5.03, 9], [50, 7.2], [94.97, 9], [5.03, 91], [50, 92.8], [94.97, 91]];
+
+function shade(hex, k) {
+  return '#' + [1, 3, 5].map(function (i) { return Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0'); }).join('');
+}
+function feltBall(n) {
+  if (n === 0) return HI + ', ' + EDGE + ', ' + IVORY;
+  if (n <= 8) return HI + ', ' + EDGE + ', ' + BALL[n];
+  return HI + ', ' + EDGE + ', linear-gradient(' + (90 + (n * 37) % 100 - 50) + 'deg, ' + IVORY + ' 0 27%, ' + BALL[n - 8] + ' 27% 73%, ' + IVORY + ' 73%)';
+}
+function dotBall(n) {
+  if (n <= 8) return BALL[n];
+  return 'linear-gradient(180deg, ' + IVORY + ' 0 21%, ' + BALL[n - 8] + ' 21% 79%, ' + IVORY + ' 79% 100%)';
+}
+const at = function (n) { return [170 + SPOTS[n][0] * 25.4, 170 + SPOTS[n][1] * 12.7]; };
+const unit = function (x, y) { const l = Math.hypot(x, y); return [x / l, y / l]; };
+const r1 = function (v) { return Math.round(v * 10) / 10; };
+function aim(n, k) {
+  const R = 28.575;
+  const c = at(0), t = at(n), p = [POCKETS[k][0] * 28.8, POCKETS[k][1] * 16.1];
+  const u = unit(p[0] - t[0], p[1] - t[1]);
+  const g = [t[0] - u[0] * 2 * R, t[1] - u[1] * 2 * R];
+  const d = unit(g[0] - c[0], g[1] - c[1]);
+  const tip = [c[0] - d[0] * (R + 18), c[1] - d[1] * (R + 18)];
+  const along = function (len) { return [tip[0] - d[0] * len, tip[1] - d[1] * len]; };
+  const f2 = along(26), s2 = along(900), b2 = along(1450);
+  let deg = Math.atan2(d[1], d[0]) * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  return {
+    l1x: r1(c[0] + d[0] * R), l1y: r1(c[1] + d[1] * R), l2x: r1(g[0] - d[0] * R), l2y: r1(g[1] - d[1] * R),
+    gx: r1(g[0]), gy: r1(g[1]),
+    p1x: r1(t[0] + u[0] * R), p1y: r1(t[1] + u[1] * R), p2x: r1(t[0] + u[0] * 420), p2y: r1(t[1] + u[1] * 420),
+    f1x: r1(tip[0]), f1y: r1(tip[1]), f2x: r1(f2[0]), f2y: r1(f2[1]),
+    s1x: r1(f2[0]), s1y: r1(f2[1]), s2x: r1(s2[0]), s2y: r1(s2[1]),
+    b1x: r1(s2[0]), b1y: r1(s2[1]), b2x: r1(b2[0]), b2y: r1(b2[1]),
+    angle: deg.toFixed(2) + '°',
+  };
+}
+
+class Component extends DCLogic {
+  renderVals() {
+    const state = ['aim', 'wait', 'over'].includes(this.props.state) ? this.props.state : 'aim';
+    const over = state === 'over';
+    const balls = Object.keys(SPOTS).map(Number).filter(function (n) { return !over || n === 0 || n > 8; }).map(function (n) {
+      return { x: SPOTS[n][0], y: SPOTS[n][1], d: '2.25', bg: feltBall(n), cls: n === 0 ? 'tbl__ball--plain' : '' };
+    });
+    const goneA = over ? [1, 2, 3, 4, 5, 6, 7] : [1, 3];
+    const goneB = [10, 14];
+    const dots = function (from, gone) {
+      return [0, 1, 2, 3, 4, 5, 6].map(function (i) { const n = from + i; return { bg: dotBall(n), cls: gone.includes(n) ? 'ball--gone' : '' }; });
+    };
+    const shot = state === 'wait' ? aim(9, 5) : aim(6, 2);
+    return {
+      theme: this.props.theme ?? 'dark',
+      g: {
+        isAim: state === 'aim', isWait: state === 'wait', isOver: over,
+        aimA: state === 'aim', aimB: state === 'wait',
+        seatA: state === 'aim' ? 'seat--turn' : '',
+        seatB: state === 'wait' ? 'seat--theirs' : '',
+        scoreA: over ? '3' : '2',
+        glow: state === 'aim' ? 'tbl-rot--glow' : '',
+        pbar: state === 'aim' ? '' : 'pbar--off',
+        status: state === 'aim' ? 'Pocketed the 3. Your turn.' : state === 'wait' ? 'Missed the 6. Bob’s turn.' : 'You win the rack: the 8 in the called pocket.',
+        dotsA: dots(1, goneA),
+        dotsB: dots(9, goneB),
+      },
+      t: {
+        aria: 'The table stood upright: ' + (over ? 'the rack is over' : state === 'wait' ? 'Bob lines up the 9' : 'your cue lined up on the 6'),
+        rail: 'linear-gradient(165deg, #6A4428, #4C2F1B 52%, #341F10)',
+        cushion: shade(FELT, 0.74),
+        bed: 'radial-gradient(ellipse 72% 78% at 50% 50%, ' + shade(FELT, 1.2) + ' 0%, ' + FELT + ' 58%, ' + shade(FELT, 0.62) + ' 100%)',
+        balls: balls,
+        pockets: POCKETS.map(function (p, i) { return { x: p[0], y: p[1], w: i % 3 === 1 ? '4.50' : '4.44' }; }),
+        sights: [1, 2, 3, 5, 6, 7].flatMap(function (i) { const x = (5.903 + 88.194 * i / 8).toFixed(2); return [{ x: x, y: '3.73' }, { x: x, y: '96.27' }]; })
+          .concat([1, 2, 3].flatMap(function (j) { const y = (10.559 + 78.882 * j / 4).toFixed(2); return [{ x: '2.08', y: y }, { x: '97.92', y: y }]; })),
+      },
+      a: Object.assign({}, shot, {
+        show: !over,
+        guide: state === 'wait' ? '#8CBFFF' : '#FFFFFF',
+        cueAlpha: state === 'wait' ? '.5' : '1',
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

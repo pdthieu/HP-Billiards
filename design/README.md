@@ -7,8 +7,8 @@ as token overrides. Built for the plain HTML/CSS/vanilla-JS app in `web/`.
 The interactive design canvas (one page per prompt, private to its owner):
 https://claude.ai/artifact/E8yiMbv2xfkbPmMnxNDDrf
 
-The home page was redesigned in October 2026 (see Home below) on its own
-canvas, also private to its owner:
+The home page and the game screen were redesigned in October 2026 (Home and
+In game below) on their own canvas, also private to its owner, a page each:
 https://claude.ai/artifact/828DdhzY4KrhRDNhRaHtH1
 
 New screens follow **Rules for every screen** at the end of this file.
@@ -26,6 +26,7 @@ New screens follow **Rules for every screen** at the end of this file.
 | `screens/` | Static HTML of every mock-up. Open any file in a browser; they share `tokens.css` and `components.css` |
 | `canvas-source/` | The `.dc.html` sources and `canvas.json` of the design canvas, including the four sheets that only render there: token sheet (`Main`), style tile (`StyleTile`), table spec (`T-Spec`) and motion sheet (`M-Sheet`) |
 | `home/` | The `.dc.html` sources and `canvas.json` of the home page canvas: `Main` (desktop, a fluid page), `Phone-Portrait` (390 × 844) and `Phone-Landscape` (844 × 390). Like `canvas-source/`, they render only on a canvas (they load its `support.js`) |
+| `game/` | The same canvas's In game page as built (`Game-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390). The canvas keeps the screens as they were before under them |
 
 ## Screens
 
@@ -77,12 +78,46 @@ of the page is the picks, the rooms and the buttons.
 
 **Data**: everything shown is real. Tables, finishes and cloths are the app's `TABLES`, `LOOKS` and `CLOTHS`; the room list is `GET /api/rooms`, which carries the match `score` for the cards (PROTOCOL.md). The app's ids stay as they were (`#name`, `#create`, `#practice`, `#join`, `#code`, `#roomList li.room-row`, `#landingMode [data-mode]`, `#landingTable [data-table]`, `#landingCloth [data-cloth]`, `#landingOpts`), so the e2e scenarios drive the page as before; the room's game, race and table are in `.room-row__meta`, its state in `.chip__text`.
 
+## In game (10/2026)
+
+The game screen is the arena's hall: the table under its lamp, the
+scoreboard over it, the controls in a dock under it. Its idea: nothing but
+the table is big, and nothing lies on the felt that can sit beside it.
+
+- **The scoreboard** (`.hdr`, dark in both themes): the room in LED type on
+  the left (`#roomEyebrow` · `#roomCode`), the two seats either side of the
+  score in equal columns so the score keeps the middle (`.seat--right`
+  mirrors the second one, so both clock rings sit by the score), the race
+  in LED brass under it, and the room's buttons on the right (2D/3D,
+  Settings, full screen, Leave). Seats are hall chips (`--hall-chip`,
+  `--hall-chip-line`); your seat on turn is brass.
+- **The band** (`#status`, 46 px; 40 px on a phone held upright) over the
+  table: the status pill, the chat button at its start, the replay at its
+  end. A phone on its side keeps the status over the felt's lower edge: a
+  band there would cost the table about 8 % of its size.
+- **The stage**: the table and the power bar (32 px on a phone held
+  upright), nothing else around it. There are no trays: the seats' ball
+  dots show what is down; 3-cushion's lines (points, innings, average, best
+  run) are in the match dialog.
+- **The dock** (`#controls`, one `.panel` card with `--r-xl`, the same
+  height for every panel: 100 px on a desktop, two rows in 188 px on a
+  tablet, 80 to 128 px on a phone): what to hit and its toggles (and the
+  keyboard hint beside them from 1400 px), the aim, the spin, the jump.
+- **Colour**: the hall, the scoreboard, the band, the stage and the practice
+  tools are dark in both themes (`.on-hall`, in `tokens.css`, takes the dark
+  values back for them); the dock and the dialogs follow the theme.
+
+What it gives the table while a rack is played: at 1440 × 900 it goes from
+1103 × 592 to 1237 × 664 (the trays are gone and the dock is 24 px
+shorter); on a 390 × 844 phone from 312 × 582 to 330 × 614 (no trays, a
+40 px band, a 32 px power bar).
+
 ## Rules for every screen
 
 Whatever comes next (a new screen, a dialog, a second language) keeps to
 these, so it looks like the rest without a new design pass:
 
-1. **Tokens only.** Colours, radii, type, spacing and motion come from `tokens.css`; a new value goes there first, in both themes (dark on `:root`, light as overrides), unless it is like the table or the hall, the same in both. Edit `design/` first, then copy `tokens.css` and `components.css` into `web/` (without the “Mockup only” block).
+1. **Tokens only.** Colours, radii, type, spacing and motion come from `tokens.css`; a new value goes there first, in both themes (dark on `:root`, light as overrides), unless it is like the table or the hall, the same in both. What sits in the hall gets `.on-hall` and so the dark values in either theme. Edit `design/` first, then copy `tokens.css` and `components.css` into `web/` (without the “Mockup only” block).
 2. **Two faces, two weights.** Source Sans 3 for the UI, Barlow Semi Condensed for codes, scores, the wordmark and LED type. Brass (`--accent`) marks the one thing that matters now: the primary button, the pick, your seat.
 3. **Three shapes.** Desktop/tablet (> 600 px wide and > 500 px tall), phone upright (≤ 600 px wide), phone on its side (≤ 500 px tall), with the same media queries as `style.css`. A page that works as a fluid page at 1440 px also has to work at 320 px.
 4. **Only vertical scroll.** Nothing is ever wider than the screen and nothing scrolls sideways: no carousels or swipe strips (wrap them into a grid), roots are `box-sizing: border-box` too, panes that scroll get `overflow-x: hidden` and `touch-action: pan-y`, and hit areas grow up and down, never past an edge. Hiding the overflow is not a fix; make the layout fit. `e2e/landing.js` checks the home page at 1440 × 900, 1024 × 768, 390 × 844, 360 × 640, 844 × 390 and 844 × 340; a new screen adds itself to a check like it.

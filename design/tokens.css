@@ -2,9 +2,12 @@
    Dark is the default on :root. Light overrides the same names under
    :root[data-theme="light"] and, when no theme is forced, under
    prefers-color-scheme: light. `.pool` mirrors :root so mockups can show
-   both themes side by side; the app itself only needs :root. */
+   both themes side by side; the app itself only needs :root.
+   `.on-hall` takes the dark values back for what sits in the hall (the
+   game's scoreboard, the band over the table, the stage): the hall is dark
+   in both themes, as the arena is, and so is what is drawn on it. */
 
-:root, .pool {
+:root, .pool, .on-hall {
   /* surfaces */
   --bg: #0D1218;
   --surface-1: #141B23;
@@ -70,8 +73,8 @@
   --ball-7: #7E2232;
   --ball-8: #111316;
 
-  /* the home page's hall: the table at night, under its lamp, on the
-     arena's carpet (identical in both themes) */
+  /* the hall: the table at night, under its lamp, on the arena's carpet;
+     the home page's hero and the game's arena (identical in both themes) */
   --hall: #0B1119;
   --hall-text: #E8ECF1;
   --hall-muted: #9BA8B7;
@@ -79,6 +82,8 @@
   --hall-line: rgba(170, 190, 215, .12);
   --hall-carpet: rgba(217, 164, 65, .18);
   --hall-lamp: rgba(255, 224, 170, .1);
+  --hall-chip: rgba(170, 190, 215, .06);       /* a seat on the scoreboard */
+  --hall-chip-line: rgba(170, 190, 215, .22);
   --led: #E3B25C;
   --led-glow: rgba(217, 164, 65, .5);
 

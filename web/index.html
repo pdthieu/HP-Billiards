@@ -22,24 +22,33 @@
 </head>
 <body class="pool-app">
 
-<header id="top" class="hdr">
+<header id="top" class="hdr on-hall">
   <div class="hdr__room">
     <span id="roomEyebrow" class="eyebrow">Room</span>
     <span id="roomCode" class="hdr__code">—</span>
-    <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
-    <button id="viewBtn" class="icon-btn view-btn" type="button" aria-label="Show the table in 3D" title="Show the table in 3D (V)"><span class="view-btn__text">3D</span></button>
-    <button id="fullBtn" class="icon-btn full-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen (F)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="full-btn__in" d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"></path><path class="full-btn__out" d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"></path></svg></button>
-    <button id="leaveBtn" class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg></button>
   </div>
   <div class="hdr__match">
     <div class="seat" id="seat0"></div>
     <button type="button" class="score score--empty" id="score" aria-label="No score yet" disabled><span class="score__vs">vs</span></button>
-    <div class="seat" id="seat1"></div>
+    <div class="seat seat--right" id="seat1"></div>
+  </div>
+  <div class="hdr__tools">
+    <button id="viewBtn" class="icon-btn view-btn" type="button" aria-label="Show the table in 3D" title="Show the table in 3D (V)"><span class="view-btn__text">3D</span></button>
+    <button id="settingsBtn" class="icon-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+    <button id="fullBtn" class="icon-btn full-btn" type="button" aria-pressed="false" aria-label="Full screen" title="Full screen (F)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path class="full-btn__in" d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"></path><path class="full-btn__out" d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"></path></svg></button>
+    <button id="leaveBtn" class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg></button>
   </div>
 </header>
 
 <main class="game">
-  <div id="tableWrap" class="stage">
+  <div id="status" class="status on-hall" aria-live="polite">
+    <span class="status__pill status__layer is-active" hidden></span>
+    <span class="status__pill status__layer" hidden></span>
+    <button id="chatBtn" class="icon-btn status__chat" type="button" aria-label="Chat" aria-expanded="false" aria-controls="chatPanel" title="Chat (C)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span id="chatBadge" class="chat-badge" hidden></span></button>
+    <button id="replayBtn" class="icon-btn status__replay" type="button" aria-label="Replay the last shot" title="Replay the last shot (R)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
+  </div>
+
+  <div id="tableWrap" class="stage on-hall">
     <canvas id="table" class="stage__table"></canvas>
     <button id="camTopBtn" class="icon-btn cam-top" type="button" aria-pressed="false" aria-label="Look from above" title="Look from above (T)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"></rect><circle cx="12" cy="12" r="1.5"></circle><path d="M12 2v3M12 19v3"></path></svg></button>
     <div id="replayTag" class="replay-tag" hidden>Replay · ½ speed</div>
@@ -59,14 +68,7 @@
     </div>
   </div>
 
-  <div id="status" class="status" aria-live="polite">
-    <span class="status__pill status__layer is-active" hidden></span>
-    <span class="status__pill status__layer" hidden></span>
-    <button id="chatBtn" class="icon-btn status__chat" type="button" aria-label="Chat" aria-expanded="false" aria-controls="chatPanel" title="Chat (C)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg><span id="chatBadge" class="chat-badge" hidden></span></button>
-    <button id="replayBtn" class="icon-btn status__replay" type="button" aria-label="Replay the last shot" title="Replay the last shot (R)" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
-  </div>
-
-  <div id="practiceBar" class="practice" role="toolbar" aria-label="Practice tools" hidden>
+  <div id="practiceBar" class="practice on-hall" role="toolbar" aria-label="Practice tools" hidden>
     <button id="undoBtn" type="button" class="btn btn--secondary btn--small" title="Take back the last shot (Z)" aria-label="Undo the last shot"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"></path></svg><span class="practice__label">Undo</span></button>
     <button id="moveBtn" type="button" class="btn btn--secondary btn--small" aria-pressed="false" title="Drag any ball to set up a position (M)" aria-label="Move balls"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9l-3 3 3 3"></path><path d="M9 5l3-3 3 3"></path><path d="M15 19l-3 3-3-3"></path><path d="M19 9l3 3-3 3"></path><path d="M2 12h20"></path><path d="M12 2v20"></path></svg><span class="practice__label">Move balls</span></button>
     <span class="practice__sep" aria-hidden="true"></span>
@@ -169,11 +171,6 @@
       <div id="spinPopBody" class="spin-pop__body"></div>
       <button id="spinPopDone" type="button" class="btn btn--primary spin-pop__done">Done</button>
     </div>
-  </div>
-
-  <div id="trays" class="trays" aria-label="Pocketed balls">
-    <div class="tray" id="traySolids"></div>
-    <div class="tray tray--right" id="trayStripes"></div>
   </div>
 </main>
 
@@ -424,6 +421,7 @@
           <div class="setting setting--inline">
             <span class="field__label">Hints</span>
             <button id="hintsReset" type="button" class="btn btn--secondary btn--small">Show hints again</button>
+    <dl id="matchStats" class="match-stats" hidden></dl>
           </div>
         </section>
       </div>

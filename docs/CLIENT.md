@@ -87,7 +87,8 @@ game in each row's chip. In 9-ball:
   back*;
 - a player on two consecutive fouls gets a red "2 fouls" tag on their seat,
   and the status line warns that a third loses;
-- the tray under the table is a single "Pocketed" row.
+- the seats carry no ball dots (both players shoot at the same balls): the
+  table shows what is left, the call line what to hit.
 
 In 3-cushion (eyebrow "3-cushion room") the table is the carom one: 2.84 ×
 1.42 m of blue cloth, no pockets, a diamond in the middle of each long rail
@@ -105,11 +106,11 @@ yellow and red with six dots each (no numbers). Then:
 - the status line says "Point! 4 cushions, a run of 3." or why not ("only
   2 cushions before the second ball", "the second ball missed"), and when
   balls went back on their spots;
-- the tray under the table is the scoreboard, one line per player with
-  their ball: points of the target, innings, average and high run, and the
-  run in progress;
-- the header score is the points ("7 – 5, to 15"); a drawn game reads "A
-  draw".
+- the match dialog (a tap on the score) has one line per player with their
+  ball: points of the target, innings, average and high run, and the run
+  in progress;
+- the score on the scoreboard is the points ("7 – 5, to 15"); a drawn game
+  reads "A draw".
 
 Its race is in points: quick picks 10 · 15 · 20 · 25 · 30 · 40 or 1 to 50
 in the field, remembered as `pool:points` (default 15); the break rule is
@@ -154,12 +155,12 @@ form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are reme
   smaller there, and on a 320 px phone the seat on turn shows it by its
   brass alone. There is no invite button there, so the score always fits.
 - **Tablets and narrow windows** (601 to 1099 px wide): one row cannot hold
-  what to hit, the aim, the spin and the jump, so the shot panel takes two
+  what to hit, the aim, the spin and the jump, so the dock takes two rows
   (what to hit and its buttons over the aim, the spin and the jump) in a
-  188 px slot, the same for every panel. Up to 959 px the header stacks the
-  room's name over its code, leaves out the "your turn" words (the seat's
-  brass says it) and full screen (Settings has it). The keyboard hint under
-  the call shows from 1200 px, as one sentence.
+  188 px slot, the same for every panel. Up to 959 px the scoreboard shows
+  the code without the room's name and leaves out the "your turn" words
+  (the seat's brass says it) and full screen (Settings has it). The
+  keyboard hint shows from 1400 px, beside the call's toggles.
 
 *Practice alone* on the landing page opens a private practice room of the
 picked game, on the picked table and cloth. It is free play, without the tournament rules:
@@ -173,7 +174,7 @@ picked game, on the picked table and cloth. It is free play, without the tournam
 - there is no shot clock.
 
 A toolbar
-between the status and the panel (at the head of the side column on
+between the table and the dock (at the head of the side column on
 landscape phones, icons only on phones) has:
 
 - *Undo* (`Z`): take back the last shot, up to 20;
@@ -182,8 +183,6 @@ landscape phones, icons only on phones) has:
   time;
 - *Rack*: a fresh rack of the same game (Settings switches the game);
 - *Leave*.
-
-The tray row is hidden to make room.
 
 1. **Landing**: the name field is prefilled with the last name used (kept in
    `localStorage`) or, the first time, a random one such as "Brisk Otter"; a
@@ -428,11 +427,10 @@ The tray row is hidden to make room.
        on the wrong ball.
    - **Lobby and game over** keep the 134 px slot, so the table resizes
      only at the start and end of a rack. On an iPhone in Safari
-     (393 × 670) balls are about 10 px. Toasts drop from under the header,
+     (393 × 670) balls are about 10 px. Toasts drop from under the band,
      as they do on a desktop or a tablet (at the bottom they covered the
-     panel).
+     dock).
    - **Dialogs** taller than the screen scroll, from their top.
-   - **Screens under 700 px tall** drop the trays.
    - **Landscape phones** show the shot panel as a sidebar, with the status
      floating over the table (its row keeps the chat button's height, so
      the button stays on the screen). While a rack is played the sidebar
@@ -440,8 +438,9 @@ The tray row is hidden to make room.
      score, with Settings, the 2D/3D switch and Leave beside it (the room
      code and full screen are in Settings meanwhile); then the practice
      tools, then the call, the toggles and the cue-ball button: the table
-     gets the whole height. `main.game` steps aside (`display: contents`)
-     and the page is the grid. In Safari with its bars (about 844 × 340)
+     gets the whole height (a band over it would cost about 8 % of the
+     table there). `main.game` steps aside (`display: contents`) and the
+     page is the grid. In Safari with its bars (about 844 × 340)
      the height is what limits the table, which is 12 % bigger so. In the
      shot panel what to hit and its toggles come first, then the angle
      readout beside the cue-ball button, the wheel, the jump slider; on the
@@ -467,7 +466,7 @@ The tray row is hidden to make room.
      thinks. The browser lets it go when the tab is hidden; it is taken
      again when the tab shows, and given back on leaving.
    - **Full screen** where the page may ask for it (Android, desktops, not
-     an iPhone): the header button (not where the header has no room: a
+     an iPhone): the scoreboard's button (not where it has no room: a
      phone held upright, a sideways one mid-rack, under 960 px wide),
      Settings or `F`. On a phone it also holds the
      orientation it was entered in.
@@ -587,8 +586,8 @@ play there.
   the shooter's aim and the 3D camera included, under "Watching · 8-ball".
   There is no power bar and no shot panel, only the waiting panel; the
   Leave button leaves. A reload watches again (the session keeps `watch`).
-- **Chat.** One thread for the room. The button at the left of the status
-  line (or `C`) opens it: who is watching, the last comments (players with
+- **Chat.** One thread for the room. The button at the left of the band
+  over the table (or `C`) opens it: who is watching, the last comments (players with
   their seat colour, spectators with an eye) and a field of 200 characters.
   After each comment Send counts down the 5 s the server makes everyone
   wait. While the chat is closed new comments float over the top left of the

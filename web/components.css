@@ -264,52 +264,72 @@
 .join-row .field { flex: 1; }
 
 /* ---------- header & seats ---------- */
-.hdr { position: relative; z-index: var(--z-header); display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  height: 64px; padding: 0 20px; background: var(--surface-1); border-bottom: 1px solid var(--hairline); }
-.hdr__room { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.hdr__code { font: 600 22px/26px var(--font-display); letter-spacing: .16em; }
-.hdr__match { display: flex; align-items: center; gap: 14px; min-width: 0; }
+/* the game's scoreboard, over the hall and dark in both themes (the app
+   gives it .on-hall, which takes the dark tokens back): the room in LED type
+   on the left, the two seats either side of the score, the room's buttons
+   on the right */
+.hdr { position: relative; z-index: var(--z-header); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px;
+  height: 64px; padding: 0 12px 0 20px; background: var(--hall); color: var(--hall-text); border-bottom: 1px solid var(--hall-line); }
+.hdr__room { display: flex; align-items: center; min-width: 0; font: 600 13px/16px var(--font-display); letter-spacing: .2em; text-transform: uppercase;
+  color: var(--led); text-shadow: 0 0 14px var(--led-glow); white-space: nowrap; }
+.hdr__room .eyebrow { min-width: 0; overflow: hidden; text-overflow: ellipsis; font: inherit; letter-spacing: inherit; color: inherit; }
+.hdr__code { flex: none; font: inherit; letter-spacing: inherit; }
+.hdr__code::before { content: ""; display: inline-block; width: 4px; height: 4px; margin: 0 10px; border-radius: 50%; background: currentColor; opacity: .7; vertical-align: 3px; }
+/* the score keeps the middle: the seats take equal columns either side */
+.hdr__match { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; min-width: 0; }
+.hdr__match > .seat { justify-self: end; }
+.hdr__match > .seat--right { justify-self: start; }
+.hdr__tools { display: flex; align-items: center; justify-content: flex-end; gap: 2px; min-width: 0; }
+.hdr .icon-btn { color: var(--hall-muted); }
+.hdr .icon-btn:hover { color: var(--hall-text); background: rgba(255, 255, 255, .08); }
+.hdr .icon-btn[aria-expanded="true"] { color: var(--hall-text); background: rgba(255, 255, 255, .08); }
 .seat {
   position: relative; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 300px;
   height: 46px; padding: 0 14px; border-radius: var(--r-pill);
-  border: 1.5px solid var(--hairline-strong); background: var(--surface-2);
+  border: 1.5px solid var(--hall-chip-line); background: var(--hall-chip); color: var(--hall-text);
   transition: border-color var(--dur-5) var(--ease-out), background-color var(--dur-5) var(--ease-out), opacity var(--dur-5) var(--ease-out), filter var(--dur-5) var(--ease-out);
 }
+/* the second seat mirrors the first across the score */
+.seat--right { flex-direction: row-reverse; }
+.seat--right .seat__body { align-items: flex-end; }
+.seat--right .seat__line { flex-direction: row-reverse; }
 .seat__body { display: flex; flex-direction: column; min-width: 0; gap: 3px; }
 .seat__line { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .seat__name { font: 600 15px/18px var(--font-ui); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 14ch; }
 .seat__dots { display: flex; gap: 3px; }
 .seat__dots .ball { --size: 10px; box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
-.seat__state { font: 600 12px/16px var(--font-ui); color: var(--text-muted); white-space: nowrap; }
+.seat__state { font: 600 12px/16px var(--font-ui); color: var(--hall-muted); white-space: nowrap; }
 .seat__cue { flex: none; color: var(--accent); }
 .seat--turn { border-color: var(--accent); background: var(--accent-soft); animation: pool-pulse var(--dur-pulse) var(--ease-inout) infinite; }
 .seat--turn .seat__state { color: var(--accent-text); }
 .seat--turn.is-moving { animation: none; }
 .seat--theirs { border-color: var(--accent-ring); }
 .seat--offline { border-style: dashed; border-color: var(--foul); background: transparent; filter: saturate(.25); }
-.seat--offline .seat__name { color: var(--text-muted); }
-.seat--empty { border-style: dashed; background: transparent; color: var(--text-muted); font-style: italic; }
+.seat--offline .seat__name { color: var(--hall-muted); }
+.seat--empty { border-style: dashed; background: transparent; color: var(--hall-muted); font-style: italic; }
 .hold { position: relative; width: 26px; height: 26px; flex: none; }
 .hold svg { display: block; transform: rotate(-90deg); }
 .hold__num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: 700 10px/1 var(--font-ui); color: var(--foul); font-variant-numeric: tabular-nums; }
 
-.score { display: flex; flex-direction: column; align-items: center; min-width: 76px; }
-.score__nums { display: flex; align-items: center; gap: 8px; font: 600 32px/34px var(--font-display); font-variant-numeric: tabular-nums; }
-.score__sep { color: var(--text-muted); font-weight: 500; }
-.score__slot { position: relative; height: 34px; overflow: hidden; display: inline-flex; flex-direction: column; }
-.score__race { font: 600 11px/14px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.score { display: flex; flex-direction: column; align-items: center; min-width: 92px; }
+.score__nums { display: flex; align-items: center; gap: 10px; font: 600 38px/38px var(--font-display); font-variant-numeric: tabular-nums; }
+.score__sep { color: var(--hall-muted); font-weight: 500; }
+.score__slot { position: relative; height: 38px; overflow: hidden; display: inline-flex; flex-direction: column; }
+.score__race { font: 600 11px/14px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--led); }
 .score--empty .score__nums { color: var(--text-disabled); }
 
 /* ---------- game screen ---------- */
-.game { position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
-.stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 12px 20px 8px; }
+/* the hall: the band with the status over the table, the stage, the dock
+   (the band and the stage are dark in both themes, the dock follows it) */
+.game { position: relative; display: flex; flex-direction: column; height: 100%; overflow: hidden; background: var(--hall); }
+.stage { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; gap: 12px; padding: 0 20px 10px; }
 .stage__table { display: block; max-width: 100%; max-height: 100%; }
 .stage__wrap { position: relative; height: 100%; display: flex; align-items: center; justify-content: center; }
 .status {
-  min-height: 48px; padding: 0 20px; display: flex; align-items: center; justify-content: center; text-align: center;
-  font: 400 15px/22px var(--font-ui); color: var(--text); transition: color var(--dur-3) var(--ease-out);
+  min-height: 46px; padding: 0 20px; display: flex; align-items: center; justify-content: center; text-align: center;
+  font: 400 15px/22px var(--font-ui); color: var(--hall-text); transition: color var(--dur-3) var(--ease-out);
 }
-.status__pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: var(--r-pill); background: var(--surface-2); border: 1px solid var(--hairline); max-width: 100%; }
+.status__pill { display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px; border-radius: var(--r-pill); background: rgba(255, 255, 255, .06); border: 1px solid var(--hall-line); max-width: 100%; }
 .status--foul .status__pill { background: var(--foul-soft); border-color: transparent; }
 .status--foul .status__icon { color: var(--foul); }
 .status--ok .status__pill { background: var(--ok-soft); border-color: transparent; }
@@ -317,10 +337,13 @@
 .status__icon { flex: none; color: var(--text-muted); }
 .status--2line { min-height: 64px; }
 
-.slot { position: relative; height: 140px; padding: 0 20px 16px; }
+/* the dock: one card under the table for every panel, the same height for
+   each so the table never resizes when they swap */
+.slot { position: relative; height: 116px; padding: 0 20px 16px; }
 .panel {
-  height: 100%; display: flex; align-items: center; gap: 24px; padding: 12px 20px;
-  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-lg);
+  height: 100%; display: flex; align-items: center; gap: 20px; padding: 12px 18px;
+  background: var(--surface-1); color: var(--text); border: 1px solid var(--hairline); border-radius: var(--r-xl);
+  box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .7);
   animation: pool-fade var(--dur-3) var(--ease-out) both;
 }
 .panel--center { justify-content: center; text-align: center; }
@@ -348,7 +371,7 @@
 
 .spin { display: flex; align-items: center; gap: 14px; }
 .spin__pad {
-  --pad: 84px; position: relative; flex: none; width: var(--pad); height: var(--pad); border-radius: 50%; cursor: crosshair; touch-action: none;
+  --pad: 68px; position: relative; flex: none; width: var(--pad); height: var(--pad); border-radius: 50%; cursor: crosshair; touch-action: none;
   background: radial-gradient(circle at 36% 30%, #FFFFFF 0%, #F4EFE2 34%, #D9D2C1 78%, #B9B09D 100%);
   box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 6px 14px -6px rgba(0,0,0,.6);
   transition: box-shadow var(--dur-1) var(--ease-out);
@@ -479,9 +502,9 @@
 .seat--compact .seat__dots { gap: 2px; }
 .seat--compact .seat__dots .ball { --size: 7px; }
 .score--compact { min-width: 52px; }
-.score--compact .score__nums { font-size: 24px; line-height: 26px; gap: 5px; }
-.score--compact .score__slot { height: 26px; }
-.score--compact .score__race { font-size: 10px; }
+.score--compact .score__nums { font-size: 28px; line-height: 28px; gap: 5px; }
+.score--compact .score__slot { height: 28px; }
+.score--compact .score__race { font-size: 9px; line-height: 12px; letter-spacing: .18em; }
 
 /* ---------- motion ---------- */
 @keyframes pool-pulse { 0% { box-shadow: 0 0 0 0 var(--accent-ring); } 70% { box-shadow: 0 0 0 8px rgba(217, 164, 65, 0); } 100% { box-shadow: 0 0 0 0 rgba(217, 164, 65, 0); } }

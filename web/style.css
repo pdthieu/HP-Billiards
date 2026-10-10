@@ -28,12 +28,16 @@ html, button, a, input, label { touch-action: manipulation; }
 .hdr, main.game { touch-action: pan-x pan-y; }
 .hdr, main.game, button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 
-/* header: the design's .hdr. The score block is a button: it opens the
-   match dialog. */
+/* the game screen stands in the hall: dark in both themes, round the
+   table and under the scoreboard (design/README.md, "In game") */
+body.pool-app:not(.is-landing) { background: var(--hall); }
+
+/* header: the design's .hdr, the scoreboard. The score block is a button:
+   it opens the match dialog. */
 .hdr { flex: none; }
-button.score { padding: 2px 8px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); cursor: pointer; font: inherit; }
+button.score { padding: 2px 10px; border: 0; border-radius: var(--r-md); background: transparent; color: var(--text); cursor: pointer; font: inherit; }
 button.score:disabled { cursor: default; color: var(--text); }
-button.score:not(:disabled):hover { background: var(--surface-2); }
+button.score:not(:disabled):hover { background: rgba(255, 255, 255, .05); }
 button.score:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .score__race { white-space: nowrap; }
 .score__slot { justify-content: flex-start; min-width: .6em; }
@@ -74,12 +78,10 @@ body.is-practice .seat--compact .seat__name { max-width: 16ch; }
 .seg__btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .tag--foul { background: var(--foul-soft); color: var(--foul); }
 
-/* practice tools: a row between the status and the panel; the trays make
-   room for it */
+/* practice tools: a row between the table and the dock */
 .practice { flex: none; display: flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px 8px; }
 .practice__sep { width: 1px; height: 24px; background: var(--hairline-strong); }
 .practice .btn[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-body.is-practice .trays { display: none; }
 
 
 /* game column: stage grows, status and panel slot keep their heights */
@@ -107,8 +109,9 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .stage .tip.tip--right { right: auto; left: 66px; }
 .call__line--pulse { animation: pool-row-in var(--dur-4) var(--ease-out) 2; }
 
-/* status: two layers in one cell cross-fade; the row never changes height */
-.status { height: 48px; display: grid; place-items: center; }
+/* status: the band over the table. Two layers in one cell cross-fade; the
+   band never changes height */
+.status { height: 46px; display: grid; place-items: center; }
 .status__layer { grid-area: 1 / 1; opacity: 0; transition: opacity var(--dur-3) var(--ease-in); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status__layer.is-active { opacity: 1; transition-timing-function: var(--ease-out); }
 .status__pill[data-tone="foul"] { background: var(--foul-soft); border-color: transparent; }
@@ -225,7 +228,21 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
    narrow for it, it leaves */
 .call .hint { display: block; }
 .call .hint .hint__close { vertical-align: middle; margin: -6px 0 -6px 2px; }
-@media (max-width: 1199px) { .call .hint { display: none; } }
+@media (max-width: 1399px) { .call .hint { display: none; } }
+/* the dock on a desktop: one row 100 px tall (what to hit over its toggles
+   and the hint, the aim, the spin, the jump); the labels the controls
+   speak for themselves go */
+@media (min-width: 1100px) and (min-height: 501px) {
+  #shotPanel .call { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-areas: "line line" "actions hint"; align-items: center; gap: 8px 16px; }
+  #shotPanel .call__line { grid-area: line; }
+  #shotPanel .call__actions { grid-area: actions; }
+  #shotPanel .call .hint { grid-area: hint; min-width: 0; max-height: 36px; overflow: hidden; }
+  #shotPanel .angle { gap: 6px; }
+  #shotPanel .angle > .field__label, #shotPanel .spin__meta > .field__label { display: none; }
+  #shotPanel .jog { height: 28px; }
+  #shotPanel .spin { gap: 12px; }
+  #shotPanel .spin__meta { gap: 2px; }
+}
 .spin__reset-dot { transition: none; }
 /* The spin's words change with the dot; their box does not, so nothing
    around it moves: one line as wide as the longest ("draw + right"), and
@@ -289,25 +306,22 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 @media (min-width: 601px) and (max-width: 719px) and (min-height: 501px) {
   #shotPanel .nudge[data-deg="0.25"], #shotPanel .nudge[data-deg="-0.25"] { display: none; } /* the wheel turns finely */
 }
-/* the header of a tablet held upright or a narrow window: the room's name
-   over its code, smaller buttons, no "your turn" words (the seat says it),
-   full screen in Settings (a sideways phone has its own header) */
+/* the scoreboard of a tablet held upright or a narrow window: the code
+   without the room's name, the seats and the score in the middle, smaller
+   buttons, no "your turn" words (the seat says it), full screen in Settings
+   (a sideways phone has its own header) */
 @media (min-width: 601px) and (max-width: 959px) and (min-height: 501px) {
-  .hdr { padding: 0 12px 0 16px; gap: 10px; }
-  .hdr__room { display: grid; grid-auto-flow: column; grid-template-rows: auto auto; align-items: center; column-gap: 2px; flex: none; }
-  .hdr__room .eyebrow { grid-row: 1; grid-column: 1; margin-right: 10px; font-size: 10px; line-height: 12px; white-space: nowrap; }
-  .hdr__code { grid-row: 2; grid-column: 1; margin-right: 10px; font-size: 20px; line-height: 24px; letter-spacing: .14em; }
-  .hdr__room .icon-btn { grid-row: 1 / span 2; width: 40px; height: 40px; }
+  .hdr { grid-template-columns: auto minmax(0, 1fr) auto; padding: 0 8px 0 16px; gap: 10px; }
+  .hdr .eyebrow, .hdr__code::before { display: none; }
+  .hdr__match { justify-content: center; gap: 8px; }
+  .hdr__tools .icon-btn { width: 40px; height: 40px; }
   #fullBtn { display: none; }
-  .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; gap: 8px; }
   .seat { flex: 0 1 auto; min-width: 0; max-width: 210px; padding: 0 10px; gap: 6px; }
   .seat__state { display: none; }
   .seat__name { max-width: 12ch; }
 }
 /* the phone's options button: a brass ring while the cue is raised */
 .opts-btn--jump { box-shadow: 0 0 0 1px rgba(0,0,0,.35), 0 0 0 3px var(--accent), 0 4px 10px -4px rgba(0,0,0,.5); }
-.tray--right { justify-content: flex-end; }
-.trays { flex: none; }
 
 /* overlays: the design positions them for mock-up frames; the app covers
    the viewport */
@@ -375,6 +389,11 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .match-score__name { font: 600 15px/20px var(--font-ui); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .match-score__name--right { text-align: right; }
 .match-score__nums { font: 600 40px/44px var(--font-display); font-variant-numeric: tabular-nums; }
+/* 3-cushion: each player's line, under the score */
+.match-stats { display: flex; flex-direction: column; gap: 4px; margin: 0; }
+.match-stats__row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 10px; padding: 6px 12px; border-radius: var(--r-md); background: var(--surface-2); }
+.match-stats dt { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 14px/20px var(--font-ui); }
+.match-stats dd { margin: 0; white-space: nowrap; font: 400 13px/18px var(--font-ui); color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .racks { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
 .rack { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 2px 10px; align-items: baseline; padding: 8px 12px; border-radius: var(--r-md); background: var(--surface-2); }
 .rack__n { font: 600 13px/18px var(--font-display); color: var(--text-muted); }
@@ -436,20 +455,26 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .chat { left: 8px; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); width: auto; max-height: 55vh; }
   .chat-bubbles { top: 6px; left: 6px; }
   .chat-bubble { font-size: 13px; line-height: 17px; padding: 5px 10px; }
-  .hdr { height: 52px; padding: 0 8px 0 12px; gap: 6px; }
-  .hdr .eyebrow { display: none; }
-  .hdr__room { flex: none; gap: 2px; }
-  .hdr__code { font-size: 17px; letter-spacing: .12em; }
-  #settingsBtn, #leaveBtn { width: 32px; height: 32px; }
+  /* the scoreboard: the seats either side of the score, the buttons at
+     the end; the code (lobby, game over) at the start */
+  .hdr { display: flex; height: 56px; padding: 0 6px 0 10px; gap: 6px; }
+  .hdr .eyebrow, .hdr__code::before { display: none; }
+  .hdr__room { flex: none; }
+  .hdr__code { font-size: 14px; letter-spacing: .14em; }
+  .hdr__tools { flex: none; gap: 0; }
+  #settingsBtn, #leaveBtn { width: 34px; height: 34px; }
   button.score { padding: 0 2px; }
-  .hdr__match { flex: 1; min-width: 0; justify-content: flex-end; gap: 6px; }
+  .hdr__match { flex: 1; gap: 6px; }
+  .hdr__match > .seat { justify-self: start; }
+  .hdr__match > .seat--right { justify-self: end; }
   .seat { flex: 0 1 auto; min-width: 0; }
   .seat--compact { max-width: 124px; padding: 0 8px; }
   .seat--compact .seat__name { max-width: 7ch; }
   .score__vs { font-size: 11px; }
-  .stage { padding: 8px 12px 4px 16px; gap: 8px; }
-  .status { height: 40px; padding: 0 16px; font-size: 15px; line-height: 20px; }
-  .status__layer { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding: 0 12px; border-radius: 12px; text-align: left; }
+  .stage { padding: 0 10px 6px 12px; gap: 6px; }
+  .pbar { width: 32px; } /* a slimmer bar: the width is what holds the table */
+  .status { height: 40px; min-height: 0; padding: 0 16px; font-size: 14px; line-height: 18px; }
+  .status__layer { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; padding: 1px 12px; border-radius: 12px; text-align: left; }
   /* every pixel left goes to the table: a tighter shot panel and pad */
   .slot { height: 134px; padding: 0 16px 6px; }
   .panel { gap: 8px; padding: 10px 12px; }
@@ -458,11 +483,9 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   #lobbyPanel { gap: 6px; }
   #lobbyPanel .panel__actions { row-gap: 6px; } /* narrow phones wrap the actions onto two rows */
   body.is-playing .slot { height: 80px; } /* the same for every turn: the table never resizes mid-rack */
-  /* notices drop from under the header instead of covering the shot row */
-  .toasts { top: 60px; bottom: auto; flex-direction: column; }
+  /* notices drop from under the band instead of covering the shot row */
+  .toasts { top: 100px; bottom: auto; flex-direction: column; }
   body.is-playing #waitPanel { flex-direction: row; gap: 10px; padding: 6px 12px; }
-  .trays { height: 22px; padding: 0 16px; align-items: center; }
-  .trays .ball { --size: 14px; }
   .practice { gap: 6px; padding: 0 16px 6px; }
   .practice__label { display: none; }
   .practice .btn--small { min-height: 36px; padding: 0 10px; }
@@ -487,16 +510,16 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   #shotPanel .jog, #shotPanel .elev__range { height: 32px; }
 }
 
-/* short screens: give the table room; trays go first, the hint is already gone */
+/* short screens: give the table room */
 @media (max-height: 700px) and (max-width: 600px) and (orientation: portrait) {
-  .trays { display: none; }
   .stage { min-height: 340px; }
 }
 
-/* the header of a phone held upright: the view switch lives in Settings →
-   View and the room code steps aside while a rack is played (Settings →
-   Invite has it), so the seats and the score get the width; the seats'
-   clock ring and ball dots shrink, and nothing runs off the screen */
+/* the scoreboard of a phone held upright: the view switch lives in
+   Settings → Table and the room code steps aside while a rack is played
+   (Settings → This room has it), so the seats and the score get the width;
+   the seats' clock ring and ball dots shrink, and nothing runs off the
+   screen */
 @media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
   #viewBtn { display: none; }
   body.is-playing .hdr__code { display: none; }
@@ -543,8 +566,8 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 @media (orientation: landscape) and (max-height: 500px) {
   .chat { right: 8px; bottom: 8px; max-height: calc(100vh - 16px); }
   .hdr { height: 36px; padding: 0 4px; border-bottom: 0; background: transparent; gap: 10px; }
-  .hdr .eyebrow { display: none; }
-  .hdr__code { font-size: 16px; letter-spacing: .12em; }
+  .hdr .eyebrow, .hdr__code::before { display: none; }
+  .hdr__code { font-size: 14px; letter-spacing: .14em; }
   .seat { height: 30px; padding: 0 10px; gap: 6px; border-radius: var(--r-md); }
   .seat__name { font-size: 14px; }
   .seat__state, .seat__cue { display: none; }
@@ -583,7 +606,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   #shotPanel .elev__range { height: 20px; }
   #shotPanel .opts-btn { grid-area: opts; width: 40px; height: 40px; }
 
-  .trays { display: none; }
   /* practice tools head the side column, clear of the table */
   .stage, .slot { grid-row: 1 / -1; }
   body.is-practice main.game { grid-template-rows: auto minmax(0, 1fr); }
@@ -630,7 +652,10 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
      and Leave sit beside the score, the seats over and under it. */
   body.is-playing .hdr { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "s0 s0 s0 s0" "set view score leave" "s1 s1 s1 s1";
     align-items: center; gap: 2px 0; }
-  body.is-playing .hdr__room, body.is-playing .hdr__match { display: contents; }
+  body.is-playing .hdr__room, body.is-playing .hdr__match, body.is-playing .hdr__tools { display: contents; }
+  body.is-playing .seat--right, body.is-playing .seat--right .seat__line { flex-direction: row; } /* the seats stack: no mirror */
+  body.is-playing .seat--right .seat__body { align-items: flex-start; }
+  body.is-playing .hdr__match > .seat { justify-self: stretch; }
   body.is-playing #roomEyebrow, body.is-playing .hdr__code, body.is-playing #fullBtn { display: none; }
   body.is-playing #settingsBtn { grid-area: set; }
   body.is-playing #viewBtn { grid-area: view; }
@@ -681,10 +706,10 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 /* any dialog taller than the screen scrolls, from its top */
 .scrim { overflow-y: auto; align-items: flex-start; }
 .scrim > * { flex: none; margin: auto; }
-/* notices drop from under the header on a desktop or a tablet too: at the
-   bottom they covered the panel (the lobby's words, the aim) */
+/* notices drop from under the band on a desktop or a tablet too: at the
+   bottom they covered the dock (the lobby's words, the aim) */
 @media (min-width: 601px) and (min-height: 501px) {
-  .toasts { top: 76px; bottom: auto; flex-direction: column; }
+  .toasts { top: 118px; bottom: auto; flex-direction: column; }
 }
 
 /* ---------- entry screens: the home page and Settings ----------
