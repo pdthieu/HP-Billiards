@@ -1308,7 +1308,7 @@ func playRackByClock(t *testing.T, c0, c1 *testClient, st msg) [2]msg {
 }
 
 func TestRaceMatchWithAlternatingBreaks(t *testing.T) {
-	_, srv := newServer(t, clockMatchOptions())
+	h, srv := newServer(t, clockMatchOptions())
 	c0, c1, _ := startMatch(t, srv, `{"mode":"9ball","race":2}`)
 	st := c0.waitState(phaseIs("breaking"))
 	c1.waitState(phaseIs("breaking"))
@@ -1348,6 +1348,16 @@ func TestRaceMatchWithAlternatingBreaks(t *testing.T) {
 	w := int(m["winner"].(float64))
 	if m["score"].([]any)[w] != 2.0 {
 		t.Errorf("match winner %d with score %v", w, m["score"])
+	}
+	// The room list shows the same score.
+	for deadline := time.Now().Add(time.Second); ; time.Sleep(10 * time.Millisecond) {
+		l := h.Rooms()
+		if len(l.Rooms) == 1 && l.Rooms[0].Score[w] == 2 && float64(l.Rooms[0].Score[1-w]) == m["score"].([]any)[1-w] {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("room list score = %+v, match score %v", l.Rooms, m["score"])
+		}
 	}
 
 	// After the match: new settings, kept apart from the finished match.

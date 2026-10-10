@@ -182,7 +182,7 @@ func (r *room) poolConfig() game.Config {
 func (r *room) publishInfo() {
 	info := &RoomInfo{
 		RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Table: r.table, Cloth: r.cloth,
-		Phase: r.game.Rules.Phase, Practice: r.practice,
+		Phase: r.game.Rules.Phase, Practice: r.practice, Score: r.match.Score,
 		Spectators: len(r.watchers), MaxSpectators: r.maxSpectators,
 	}
 	for i := range r.seats {
@@ -870,7 +870,6 @@ func (r *room) tick() {
 		return
 	}
 	r.stopTicker()
-	r.publishInfo()
 	limit := r.hub.opts.ShotClock
 	if r.breakShot && r.game.Rules.Phase == game.PhaseOpen {
 		limit = r.hub.opts.LongShotClock // the first shot after the break
@@ -879,6 +878,7 @@ func (r *room) tick() {
 
 	r.scorePoints()
 	r.endRack(res.Foul)
+	r.publishInfo() // with the score the shot made
 	st := r.game.State()
 	pocketed := res.Pocketed
 	if pocketed == nil {

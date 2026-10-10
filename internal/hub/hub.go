@@ -244,6 +244,9 @@ type RoomInfo struct {
 	Cloth    string         `json:"cloth"`
 	Players  [2]string      `json:"players"` // names; "" for an empty seat
 	Phase    game.Phase     `json:"phase"`
+	// Score is the match in play by seat: racks won, or a 3-cushion game's
+	// points; 0–0 until a match starts.
+	Score [2]int `json:"score"`
 	// Seated counts taken seats, including seats held for a reconnect;
 	// a room with Seated < 2 can be joined.
 	Seated int `json:"seated"`
