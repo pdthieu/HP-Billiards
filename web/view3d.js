@@ -46,7 +46,8 @@ export function createView3D(canvas, k) {
   renderer.toneMappingExposure = 1.05;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFShadowMap;
-  canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); k.onLost(); });
+  const onLost = (e) => { e.preventDefault(); k.onLost(); };
+  canvas.addEventListener('webglcontextlost', onLost);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#0b0e12');
@@ -532,7 +533,7 @@ export function createView3D(canvas, k) {
     if (c.mode !== cam.mode) { cam.mode = c.mode; cam.since = now; }
     const target = pose(c);
     const settling = now - cam.since < 900;
-    const tau = cam.fresh || k.reduceMotion() ? 0 : settling ? 0.2 : c.mode === 'aim' ? 0.05 : c.mode === 'chase' || c.mode === 'fall' ? 0.25 : 0.3;
+    const tau = cam.fresh || k.reduceMotion() ? 0 : c.quick ? 0.07 : settling ? 0.2 : c.mode === 'aim' ? 0.05 : c.mode === 'chase' || c.mode === 'fall' ? 0.25 : 0.3;
     const f = tau ? 1 - Math.exp(-dt / tau) : 1;
     cam.pos.lerp(target.pos, f);
     cam.look.lerp(target.look, f);
@@ -682,9 +683,13 @@ export function createView3D(canvas, k) {
     renderer.setSize(w, h, false);
   }
 
+  // dispose lets go of everything, the context too: a page holds only so
+  // many (16 in Chrome), and past that the browser takes the oldest away.
   function dispose() {
+    canvas.removeEventListener('webglcontextlost', onLost);
     for (const d of disposables) d.dispose();
     renderer.dispose();
+    if (!gl.isContextLost()) renderer.forceContextLoss();
   }
 
   setLevel(k.level || 'auto');

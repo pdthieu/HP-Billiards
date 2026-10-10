@@ -253,7 +253,7 @@ const S = {
   powerStep: 0,          // the quarter of the bar the pull is in (powerStep), for the haptic ticks
   powerY: 0,             // clientY of that pull, for the loupe to keep clear of the hand
   haptics: readSetting('pool:haptics') !== 'off', // vibrate on the power bar's steps and the shot (Android)
-  drag: null,            // {id, x, y} while a ball is carried: the cue ball in hand, any ball in practice
+  drag: null,            // {id, x, y} while a ball is carried: the cue ball in hand, any ball in practice; in 3D also at and raw (see carry)
   tap: null,             // press on a ball or pocket awaiting release: {id, pocket, x, y, t, type}
   placedAt: null,        // {id, x, y}: last placement we sent, kept until the server confirms
   lastAimSent: 0,
@@ -1896,6 +1896,7 @@ function setQuality(q) {
 
 function setView(v, save) {
   if (save) writeSetting('pool:view', v);
+  if (v === '3d' && S.view !== '3d') S.camTop = false; // turned on, 3D starts from behind the cue
   S.view = v;
   if (v === '3d' && !v3 && !v3Loading) start3d();
   if (v === '2d' && v3) stop3d();
@@ -1907,23 +1908,31 @@ function start3d() {
   c.className = 'stage__table3d';
   c.setAttribute('aria-hidden', 'true');
   // No WebGL: say so without downloading the library.
-  if (!c.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' })) { no3d(); return; }
+  const gl = c.getContext('webgl2', { antialias: true, powerPreference: 'high-performance' });
+  if (!gl) { no3d(); return; }
   v3Loading = true;
   import('/view3d.js').then((m) => {
     v3Loading = false;
-    if (S.view !== '3d') return;
+    if (S.view !== '3d') { letGo(gl); return; }
     canvas.before(c);
     try {
-      v3 = m.createView3D(c, view3dKit());
+      v3 = m.createView3D(c, view3dKit(() => lost3d(c)));
     } catch (err) {
       c.remove();
+      letGo(gl);
       throw err;
     }
     canvas3d = c;
     document.body.classList.add('is-3d');
     resize();
     renderViewControls();
-  }).catch(() => { v3Loading = false; no3d(); });
+  }).catch(() => { v3Loading = false; letGo(gl); no3d(); });
+}
+// letGo hands a WebGL context back at once: a page holds only so many
+// (16 in Chrome), and past that the browser takes the oldest away.
+function letGo(gl) {
+  const ext = gl.isContextLost() ? null : gl.getExtension('WEBGL_lose_context');
+  if (ext) ext.loseContext();
 }
 
 function no3d() {
@@ -1934,6 +1943,10 @@ function no3d() {
 
 function stop3d() {
   v3.dispose();
+  drop3d();
+}
+// drop3d takes the 3D canvas away and lays the flat table out again.
+function drop3d() {
   canvas3d.remove();
   v3 = null;
   canvas3d = null;
@@ -1941,8 +1954,30 @@ function stop3d() {
   resize();
 }
 
-// view3dKit is what the 3D view needs to know about the table.
-function view3dKit() {
+// lost3d: the GPU took the 3D view's context away (a driver reset, a phone
+// reclaiming memory in the background). The table shows flat meanwhile and
+// 3D is built again once the page is in sight; a second loss within a
+// minute gives up, back to 2D with a notice.
+let lostAt = -Infinity;
+function lost3d(c) {
+  if (!v3 || canvas3d !== c) return;
+  v3.dispose();
+  drop3d();
+  const now = performance.now();
+  const again = now - lostAt < 60000;
+  lostAt = now;
+  if (again) no3d();
+  else rebuild3d();
+}
+function rebuild3d() {
+  if (S.view !== '3d' || v3 || v3Loading) return;
+  if (document.hidden) { document.addEventListener('visibilitychange', rebuild3d, { once: true }); return; }
+  start3d();
+}
+
+// view3dKit is what the 3D view needs to know about the table; onLost is
+// called if the GPU takes its context away.
+function view3dKit(onLost) {
   return {
     W, H, R, RAIL, CUSHION, HEAD,
     cushions: TABLE.cushions,
@@ -1958,15 +1993,7 @@ function view3dKit() {
     cueLength: CUE_LEN,
     reduceMotion: () => reduceMotion.matches,
     level: S.quality,
-    onLost: () => {
-      if (!v3) return;
-      canvas3d.remove();
-      v3 = null;
-      canvas3d = null;
-      document.body.classList.remove('is-3d');
-      resize();
-      no3d();
-    },
+    onLost,
   };
 }
 
@@ -2451,15 +2478,17 @@ function takeFx(now) {
   return out;
 }
 
-// cameraFor picks the 3D camera: behind the cue to aim, high over the
-// balls while they run, straight down to place a ball.
+// cameraFor picks the 3D camera: behind the cue to aim, with ball in hand
+// too, high over the balls while they run, straight down while a ball is
+// carried (quickly there: see carry).
 let camAngle = 0; // the heading of the last aim seen
 function cameraFor(balls, aim) {
   const fall = !S.camTop && !S.drag && !S.aiming && fallWatched(performance.now());
   if (fall) return fall;
   if (S.replay) return replayCamera(balls);
   const cue = balls.get(cueId());
-  if (S.camTop || S.drag || S.ballInHand || (S.practice && S.moveTool)) return { mode: 'top' };
+  if (S.drag) return { mode: 'top', quick: true };
+  if (S.camTop || (S.practice && S.moveTool)) return { mode: 'top' };
   if (S.moving && S.snaps.length) return { mode: 'follow', box: actionBox(balls, S.snaps[0].balls), angle: camAngle };
   if (cue && inPlay()) {
     if (aim) camAngle = aim.angle;
@@ -3640,9 +3669,14 @@ function longPot(made) {
 // ---------------------------------------------------------------------------
 // 5. input
 
-function pointerPos(e) {
+// canvasPoint is where pointer e is in CSS px within the canvas.
+function canvasPoint(e) {
   const rect = canvas.getBoundingClientRect();
-  return toTable(e.clientX - rect.left, e.clientY - rect.top);
+  return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+function pointerPos(e) {
+  const at = canvasPoint(e);
+  return toTable(at.x, at.y);
 }
 
 function hitBall(p, balls, skipCue, reach = R * 1.8) {
@@ -3688,8 +3722,7 @@ function followPointer(e) {
   trackFinger(e);
 }
 function trackFinger(e) {
-  const rect = canvas.getBoundingClientRect();
-  S.fingerAt = e.pointerType === 'mouse' ? null : { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  S.fingerAt = e.pointerType === 'mouse' ? null : canvasPoint(e);
 }
 
 canvas.addEventListener('pointerdown', (e) => {
@@ -3712,7 +3745,8 @@ canvas.addEventListener('pointerdown', (e) => {
 
   const grab = grabbable(p, balls);
   if (grab !== null) {
-    S.drag = { id: grab, ...clampBall(grab, p) };
+    // in 3D the ball stays where it is until the pointer moves (see carry)
+    S.drag = v3 ? { id: grab, ...clampBall(grab, balls.get(grab)), at: canvasPoint(e) } : { id: grab, ...clampBall(grab, p) };
     S.liftStart = performance.now();
     followPointer(e);
     return;
@@ -3827,7 +3861,7 @@ canvas.addEventListener('pointermove', (e) => {
   if (!isMyShot() || otherPointer(e)) return;
   if (S.pointer !== null) trackFinger(e);
   if (S.drag) {
-    S.drag = { id: S.drag.id, ...clampBall(S.drag.id, p) };
+    carry(e, p);
   } else if (S.tap && (S.tap.id !== null || S.tap.pocket !== null) && !S.aiming) {
     // moved off the ball or pocket: this is an aim drag, not a tap
     if (Math.hypot(e.clientX - S.tap.x, e.clientY - S.tap.y) > 8) {
@@ -3840,6 +3874,26 @@ canvas.addEventListener('pointermove', (e) => {
     aimMove(e, p, displayBalls().get(cueId()));
   }
 });
+
+// carry moves the carried ball with pointer e, at table point p. From above
+// it is under the pointer. In 3D the camera rises over the table as the
+// ball is picked up, so the ball moves as far as the pointer does over the
+// table, both ends seen through the camera as it is now (S.drag.at, the
+// pointer's last place in canvas px; raw, the ball's place before it is
+// kept on the table or in the kitchen); a ray past the horizon moves it
+// nothing.
+function carry(e, p) {
+  const d = S.drag;
+  if (!v3) { S.drag = { id: d.id, ...clampBall(d.id, p) }; return; }
+  const at = canvasPoint(e);
+  let raw = d.raw || { x: d.x, y: d.y };
+  if (d.at) {
+    const a = toTable(d.at.x, d.at.y);
+    const dx = p.x - a.x, dy = p.y - a.y;
+    if (Math.hypot(dx, dy) < 1) raw = { x: raw.x + dx, y: raw.y + dy };
+  }
+  S.drag = { id: d.id, ...clampBall(d.id, raw), raw, at };
+}
 
 function endPointer(e) {
   if (otherPointer(e)) return;

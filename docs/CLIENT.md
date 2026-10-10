@@ -202,6 +202,8 @@ The tray row is hidden to make room.
    - *Ball in hand*: drag the cue ball. The kitchen is highlighted when
      placement is limited to it and the drag is clamped there. The position is
      sent as `place_cue` on release and shown until the server confirms it.
+     In 3D the camera stays behind the cue; a press on the cue ball picks it
+     up and looks down on the table while it is carried (see *3D view*).
    - *Call*: object balls are not called; the line above the panel says
      whose group you shoot (legal first-contact balls are ringed in white).
      Once the 8-ball is your target the pockets light up: tap the one you
@@ -533,8 +535,17 @@ the battery.
   bundled into one minified module (esbuild, from the npm package's
   `build/three.module.js`; MIT, its licence beside it). The versioned path is
   cached for a year, and the server gzips text files (190 KB on the wire).
-  No WebGL 2, a failed load or a lost context: back to 2D with a notice,
-  without storing the choice.
+  No WebGL 2 or a failed load: back to 2D with a notice, without storing the
+  choice.
+- **Switching.** Each time 3D is turned on it gets a new canvas and WebGL
+  context; turned off (or rebuilt for another table), the view gives the
+  context back at once (`dispose`, `forceContextLoss`): a page holds only 16
+  in Chrome, and past that the browser takes the oldest away, which could be
+  the one showing. Turned on, 3D always starts from behind the cue, not
+  from above. A context the GPU takes away (a driver reset, a phone
+  reclaiming memory in the background) shows the flat table meanwhile and
+  builds 3D again once the page is in sight (`lost3d`); a second loss within
+  a minute gives up, back to 2D with the notice.
 - **Split of work.** `view3d.js` only draws. `app.js` keeps the state and
   computes everything as for 2D (positions from `displayBalls`, rolling in
   `orient`, the guide from `aimGuide`, rings, effects) and hands
@@ -558,10 +569,10 @@ the battery.
 - **Camera** (`cameraFor`), easing between poses over about 0.6 s, cutting
   with reduced motion:
   - *aim*: behind the cue ball, looking along the aim (the opponent's aim on
-    their turn). A sideways drag turns the aim (`turnAim`): the finger holds
-    the butt, so a drag to the right swings the shot left (pointing in
-    Settings → *Aiming* reverses it), 0.3° per px at the top of the table
-    down to 0.03° at the bottom, near the butt;
+    their turn), with ball in hand too. A sideways drag turns the aim
+    (`turnAim`): the finger holds the butt, so a drag to the right swings
+    the shot left (pointing in Settings → *Aiming* reverses it), 0.3° per px
+    at the top of the table down to 0.03° at the bottom, near the butt;
   - *follow*: high and oblique over the balls that have moved, while a shot
     runs;
   - *fall*: while a ball falls off the table to the floor and until a
@@ -570,9 +581,12 @@ the battery.
     is being dragged): from its side and well above the floor, looking down
     between it and the table's edge, far enough back to keep both in the
     picture, on a phone held upright too;
-  - *top*: straight down, by the button at the stage's top right or `T`, and
-    by itself with ball in hand, while a ball is carried and with the
-    practice Move tool; aiming there is the 2D drag;
+  - *top*: straight down, by the button at the stage's top right or `T`
+    (turned off whenever 3D is turned on), with the practice Move tool, and
+    while a ball is carried, getting there in about 0.2 s. The camera moves
+    under a carried ball, so in 3D it does not jump to the pointer: it moves
+    as far as the pointer does over the table, both ends seen through the
+    camera as it is at that moment (`carry`). Aiming there is the 2D drag;
   - *overview*: three quarters, in the lobby and after a rack.
 - **Speed.** Pixel ratio at most 2, and lower where that would draw more
   than 3.5 million pixels (a laptop window at 2× is about 5 million). From

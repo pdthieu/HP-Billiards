@@ -1,7 +1,9 @@
-// The 3D view: the default per device, aiming from behind the cue, the
-// camera following a shot, looking from above to place the cue ball, the
-// replay in 3D and 2D, naming a ball through the 3D camera, and the fall
-// back to 2D without WebGL, and the Graphics levels.
+// The 3D view: the default per device, aiming from behind the cue (with
+// ball in hand too), the camera following a shot, carrying the cue ball and
+// looking from above to place it, the replay in 3D and 2D, switching back
+// and forth without running out of WebGL contexts, a lost context, naming a
+// ball through the 3D camera, the fall back to 2D without WebGL, and the
+// Graphics levels.
 // Usage: node view3d.js <base>
 const { chromium } = require('playwright');
 const path = require('path');
@@ -39,7 +41,7 @@ async function practice(page) {
     if (init) await ctx.addInitScript(init);
     const page = await ctx.newPage();
     page.on('pageerror', (e) => errors.push(e.message));
-    page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+    page.on('console', (m) => { if (m.type() === 'error' || /Too many active WebGL contexts/.test(m.text())) errors.push(`console: ${m.text()}`); });
     return page;
   };
   try {
@@ -72,6 +74,23 @@ async function practice(page) {
     const deg = turned * 180 / Math.PI;
     if (!(deg < -1 && deg > -10)) fail(`a drag of 80 px near the butt turned the aim by ${deg.toFixed(2)}°`);
     console.log(`aim turned ${deg.toFixed(2)}° ok`);
+
+    // Ball in hand keeps the camera behind the cue; pressing the cue ball
+    // picks it up, the camera looks down while it is carried and goes back
+    // behind it once it is put down.
+    if (await A.evaluate(() => { S.ballInHand = true; const m = cameraFor(displayBalls(), null).mode; S.ballInHand = false; return m; }) !== 'aim') fail('ball in hand turned the camera away from the cue');
+    const cue0 = await A.evaluate(() => { const p = S.balls.get(0); return { x: p.x, y: p.y }; });
+    const press = await screenAt(A, cue0);
+    await A.mouse.move(press.x, press.y);
+    await A.mouse.down();
+    await cameraIs(A, 'top', false);
+    await A.mouse.move(press.x - 30, press.y - 20, { steps: 5 });
+    await A.mouse.move(press.x - 60, press.y - 40, { steps: 5 });
+    await A.mouse.up();
+    await A.waitForFunction((c) => { const p = S.balls.get(0); return Math.hypot(p.x - c.x, p.y - c.y) > 0.02; }, cue0, { timeout: 5000 })
+      .catch(async () => fail(`the carried cue ball stayed at ${JSON.stringify(await A.evaluate(() => S.balls.get(0)))}`));
+    await cameraIs(A, 'aim');
+    console.log('carrying the cue ball ok');
 
     // A shot: the camera rises over the balls, then comes back behind the cue.
     await A.evaluate(() => { setAngle(0); setPower(0.5); shoot(); });
@@ -129,7 +148,28 @@ async function practice(page) {
     await A.click('#viewBtn');
     await A.click('#viewBtn');
     await A.waitForFunction(() => S.view === '3d' && !!v3 && document.querySelectorAll('.stage__table3d').length === 1);
+    // Back and forth well past the browser's 16 contexts: each 3D view gives
+    // its context back, so none is taken from the one showing (a warning
+    // would be in errors).
+    for (let i = 0; i < 20; i++) {
+      await A.keyboard.press('v');
+      await A.waitForFunction(() => (S.view === '3d') === !!v3, null, { timeout: 30000 });
+    }
+    await A.waitForTimeout(500);
+    if (!(await A.evaluate(() => S.view === '3d' && !!v3 && document.querySelectorAll('.stage__table3d').length === 1))) fail('3D did not survive switching');
     console.log('2D replay and switching ok');
+
+    // A lost context (a GPU reset) builds 3D again; a second one within a
+    // minute gives up, back to 2D with a word why.
+    const lose = () => A.evaluate(() => canvas3d.getContext('webgl2').getExtension('WEBGL_lose_context').loseContext());
+    const first = await A.evaluateHandle(() => canvas3d);
+    await lose();
+    await A.waitForFunction((c) => !!v3 && canvas3d !== c, first, { timeout: 30000 });
+    if ((await A.textContent('#toasts')).includes('3D is not available')) fail('a notice for a lost context that came back');
+    await lose();
+    await A.waitForFunction(() => S.view === '2d' && !v3, null, { timeout: 10000 });
+    if (!(await A.textContent('#toasts')).includes('3D is not available')) fail(`no notice after a second loss: ${await A.textContent('#toasts')}`);
+    console.log('lost context ok');
     await A.context().close(); // software WebGL is slow: one 3D page at a time
 
     // A phone opens in 2D; 3D can be turned on, and a touch names a ball.
