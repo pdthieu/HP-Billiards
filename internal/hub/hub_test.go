@@ -1526,3 +1526,80 @@ func TestCaromRaceIsInPoints(t *testing.T) {
 		t.Errorf("to 3-cushion: %v, race %d", err, r.race)
 	}
 }
+
+// A room plays on the table it is created with, in the cloth it picks: the
+// room list and room_state say which. set_table changes either between
+// matches; a new table wants both players ready again, a new cloth does
+// not. Unknown ones are refused, at creation and later.
+func TestRoomTableAndCloth(t *testing.T) {
+	h, srv := newServer(t, fastOptions())
+	post := func(body string) (int, map[string]string) {
+		t.Helper()
+		res, err := http.Post(srv.URL+"/api/rooms", "application/json", strings.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		var out map[string]string
+		json.NewDecoder(res.Body).Decode(&out)
+		return res.StatusCode, out
+	}
+	for _, body := range []string{`{"table":"snooker"}`, `{"cloth":"pink"}`} {
+		if status, out := post(body); status != http.StatusBadRequest || out["error"] != "bad_table" {
+			t.Errorf("%s: %d %v", body, status, out)
+		}
+	}
+	_, out := post(`{"table":"predator","cloth":"electric-blue"}`)
+	code := out["roomCode"]
+	if list := h.Rooms(); len(list.Rooms) != 1 || list.Rooms[0].Table != game.TablePredator || list.Rooms[0].Cloth != "electric-blue" {
+		t.Fatalf("room list = %+v", list)
+	}
+
+	c0, c1 := dial(t, srv), dial(t, srv)
+	if _, st := c0.join(code, "Ann"); st["table"] != "predator" || st["cloth"] != "electric-blue" {
+		t.Fatalf("lobby: table %v, cloth %v", st["table"], st["cloth"])
+	}
+	c1.join(code, "Bob")
+	c0.expect("player")
+	c0.send(msg{"type": "ready"})
+	c0.expect("player")
+	c1.expect("player")
+
+	// The cloth alone: Ann stays ready.
+	c1.send(msg{"type": "set_table", "cloth": "burgundy"})
+	for _, c := range []*testClient{c0, c1} {
+		st := c.expect("room_state")
+		if st["cloth"] != "burgundy" || st["table"] != "predator" || players(st)[0].(msg)["ready"] != true {
+			t.Errorf("after a new cloth: %v", st)
+		}
+	}
+	// Another table: both ready again, the rack set up on it.
+	c1.send(msg{"type": "set_table", "table": "acurra"})
+	for _, c := range []*testClient{c0, c1} {
+		st := c.expect("room_state")
+		if st["table"] != "acurra" || st["cloth"] != "burgundy" || players(st)[0].(msg)["ready"] != false || len(st["balls"].([]any)) != game.NumBalls {
+			t.Errorf("after a new table: %v", st)
+		}
+	}
+	c1.send(msg{"type": "set_table", "table": "snooker"})
+	c1.expectError("bad_table")
+	c1.send(msg{"type": "set_table", "cloth": "pink"})
+	c1.expectError("bad_table")
+
+	// Not in the middle of a rack.
+	c0.send(msg{"type": "ready"})
+	c1.send(msg{"type": "ready"})
+	c0.waitFor("room_state")
+	c1.waitFor("room_state")
+	c0.send(msg{"type": "set_table", "cloth": "spruce"})
+	c0.expectError("wrong_phase")
+}
+
+// A room created without a table or cloth gets the defaults.
+func TestRoomTableDefaults(t *testing.T) {
+	h, srv := newServer(t, fastOptions())
+	createRoom(t, srv)
+	if list := h.Rooms(); len(list.Rooms) != 1 || list.Rooms[0].Table != game.DefaultTable || list.Rooms[0].Cloth != DefaultCloth {
+		t.Fatalf("room list = %+v", list)
+	}
+}

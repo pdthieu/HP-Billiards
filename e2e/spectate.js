@@ -30,6 +30,7 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     // A room for one spectator.
     await A.goto(base + '/');
     await A.fill('#name', 'Ann');
+    await A.click('#landingOptsBtn'); // the match rules fold under a summary
     await A.click('#landingAudience [data-n="1"]');
     await A.click('#create');
     await A.waitForFunction(() => S.seat === 0 && S.audience.max === 1);

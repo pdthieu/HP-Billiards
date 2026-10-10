@@ -448,8 +448,9 @@ function fitText(g, s, x, y, w, h, weight = '700') {
 // the other. Each has a main band in its upper part, the part that shows
 // over the far rail from behind the cue, and a line of small print under
 // it. The pages: the match (the names either side of the score, or who is
-// there), the game's mark, the room's code, and a word on the game. info:
-// {mode, names, score (null without a match), race, practice, room}.
+// there), the game's mark, the room's code, and a word on the game; the
+// small print names the table too. info: {mode, names, score (null without
+// a match), race, practice, room, table}.
 function paintBoard(c, len, info, kind) {
   const g = c.getContext('2d');
   const u = c.height / PAGES, pw = c.width; // sizes below are fractions of u, a page's height
@@ -458,7 +459,7 @@ function paintBoard(c, len, info, kind) {
   const game = GAME[info.mode] || '8-BALL';
   const names = info.names.map((n) => (n || '').toUpperCase());
   const goal = info.race ? (info.mode === '3cushion' ? `${info.race} POINTS` : `RACE TO ${info.race}`) : '';
-  const print = [info.practice ? 'PRACTICE' : '', game, goal, info.room ? `ROOM ${info.room}` : ''].filter(Boolean).join('     \u2022     ');
+  const print = [info.practice ? 'PRACTICE' : '', game, goal, info.room ? `ROOM ${info.room}` : '', (info.table || '').toUpperCase()].filter(Boolean).join('     \u2022     ');
   const glow = (color, blur = 0.07) => { g.fillStyle = color; g.shadowColor = color; g.shadowBlur = u * blur; };
   // tiles: n copies of a picture along the board, each drawn by f at its middle x
   const tiles = (width, f) => {

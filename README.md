@@ -79,6 +79,7 @@ test framework): `landing` (invite mode, name validation, room limit), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
+`tables` (picking a table and its cloth, changing them in a room),
 `view3d` (the 3D view under software WebGL: the arena, camera, aiming,
 carrying the cue ball, replay, switching and a lost context, the fall back
 to 2D); the others pin the 2D view (`e2e/flat.js`).

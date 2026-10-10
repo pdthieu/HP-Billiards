@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-const deg = math.Pi / 180
-
 // fly steps the table until it settles and returns the highest the given
 // ball got off the slate.
 func fly(tb testing.TB, t *Table, id int) (maxZ float64) {

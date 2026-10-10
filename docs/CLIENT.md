@@ -18,20 +18,62 @@ into the server binary by `web/embed.go`. Rebuild the server after editing it.
 ## Flow
 
 The game, 8-ball, 9-ball or 3-cushion, is picked with a three-button switch
-above *Create a room* (remembered in `localStorage` as `pool:mode`).
+above *Create a room* (remembered in `localStorage` as `pool:mode`); under
+it the table and its cloth (see Tables).
 
 Inside a room, Settings (the gear in the header) has a *This room* group at
 the top, so that the screen around the table stays bare. It holds:
 
 - the game switch;
+- the table and the cloth;
 - the next match's race and break rule;
 - the room code with *Copy invite link* (a share sheet on phones).
 
-Either player may change the game and the match settings in the lobby (both
-press ready again) or once the match is won. While a match is played they
-are disabled with a note. In practice only the game switch shows, and it
-racks the table again. The lobby panel keeps *Copy invite link* while the
-player waits alone.
+Either player may change the game, the table, the cloth and the match
+settings in the lobby (both press ready again, but not for a new cloth) or
+once the match is won. While a match is played they are disabled with a
+note. In practice only the game switch, the table and the cloth show; a new
+game or table racks the table again. The lobby panel keeps *Copy invite
+link* while the player waits alone.
+
+## Tables
+
+A room plays pool on one of four real tables, which differ in their pockets
+(PROTOCOL.md, "Tables", has the figures and where they come from): *Diamond
+Pro-Am* (corners 4.5″, sides 5″, the default), *Predator Apex* (108 mm,
+125 mm), *Rasson Victory II* as cut for the Mosconi Cup (4.25″, 5″) and
+*Mr-Sung Acurra* with its Matchroom pockets (4″, 4.5″). The picker shows
+each with its pockets; the client lays them out from `TABLES` (in step
+with the server's `game.Tables`), so the 2D table, the aim guide's pocket
+calls and the 3D holes are the server's. 3-cushion is always on the carom
+table: the picker hides there, and the room keeps its table for its pool
+games.
+
+Each table is drawn as it is finished (`LOOKS`): Diamond walnut rails on a
+black cabinet and six tapered legs; Predator all matte black with flush
+silver rims round the pockets and light inside its four legs; Rasson
+glossy black with a silver trim along the rail, on a V under each end;
+the Acurra grey wood with aluminium strips, on an A under each end. 2D
+draws the rail's colours, the trim, the rims (where they cut the rail) and
+the sights; 3D the rest. The carom table keeps the wood the game always
+had.
+
+The cloth (`CLOTHS`) is one of eight Simonis colours, the same for everyone
+in the room: Tournament Blue (the default), Electric Blue, Blue Green,
+Spruce, Simonis Green, English Green, Slate Grey and Burgundy, shown as
+swatches with the picked one named. No maker publishes colour values, so
+the shades are matched to the swatches by eye; the middle of the table is
+drawn lighter and its edge and the cushions darker (`clothShades`). In 3D
+the lamps light the cloth to two or three times its colour, so its
+texture is darkened (`CLOTH_LIGHT`) to look like its swatch under them; a
+new cloth repaints the 3D cloth in place (`v3.setCloth`), a new table
+builds the view again.
+
+On the landing both pickers are remembered (`pool:table`, `pool:cloth`)
+and the table behind the landing shows the pick, empty. The room list
+names each pool room's table at the end of its chip, the lobby line says
+"8-ball on a Predator Apex, first to 3 racks", and the arena's LED boards
+name it in their small print.
 
 The header
 eyebrow reads "8-ball room" or "9-ball room" and the room list shows the
@@ -72,10 +114,10 @@ Its race is in points: quick picks 10 · 15 · 20 · 25 · 30 · 40 or 1 to 50
 in the field, remembered as `pool:points` (default 15); the break rule is
 hidden, a match being one game.
 
-Rooms play matches. Under the game switch the landing page has the race:
-quick picks 1 · 3 · 5 · 7 · 9 or any number from 1 to 25 in the field next
-to them (Enter commits, never submits the form). Below it is the break
-rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
+Rooms play matches. The landing's match rules (folded under a line that
+sums them up) have the race: quick picks 1 · 3 · 5 · 7 · 9 or any number
+from 1 to 25 in the field next to them (Enter commits, never submits the
+form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
 (default 3) and `pool:breaks`. The room list chip adds "race 5".
 
 - **Changing the settings.** Settings has the same pickers under *Next
@@ -119,7 +161,7 @@ rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
   the call shows from 1200 px, as one sentence.
 
 *Practice alone* on the landing page opens a private practice room of the
-picked game. It is free play, without the tournament rules:
+picked game, on the picked table and cloth. It is free play, without the tournament rules:
 
 - no fouls, turns, calls or end;
 - every ball that drops stays down, and a scratched cue ball comes back to
@@ -160,9 +202,12 @@ The tray row is hidden to make room.
      held upright it is a page of its own that scrolls; held sideways, the
      two columns fill the screen and each scrolls on its own. Nothing is
      cut off: where the card is taller than the screen, the page scrolls.
-   - *Match rules.* Narrower than 760 px or shorter than 600 px, the race,
-     the break rule and the spectators fold under one line that sums them
-     up ("Race to 3 · alternate breaks · 3 may watch"); a tap opens them.
+   - *Table and cloth.* Under the game switch, a card per table with its
+     pockets (hidden for 3-cushion) and a swatch per cloth (see Tables).
+   - *Match rules.* The race, the break rule and the spectators fold under
+     one line that sums them up ("Race to 3 · alternate breaks · 3 may
+     watch"), on every screen, so *Create a room* stays in view under the
+     table and the cloth; a tap opens them.
    - The room rows follow the list's own width (a container query): on a
      narrow list the code and the names share a line, and the game and the
      buttons go under them.

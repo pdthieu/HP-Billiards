@@ -32,6 +32,8 @@ const st = (page) => page.evaluate(() => ({
     // The landing picker asks for points, and leaves out the break rule.
     await A.goto(base + '/');
     await A.click('#landingMode [data-mode="3cushion"]');
+    if (!(await A.isHidden('#landingTableField'))) fail('a pool table offered for 3-cushion');
+    await A.click('#landingOptsBtn'); // the match rules fold under a summary
     if ((await A.textContent('#landingMatch .js-race-label')) !== 'Points') fail('no points picker');
     if (!(await A.isHidden('#landingMatch .js-breaks'))) fail('break rule shown for 3-cushion');
     await A.fill('#landingMatch .js-race-input', '1');

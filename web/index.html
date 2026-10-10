@@ -207,6 +207,14 @@
             <span class="field__label" id="landingModeLabel">Game</span>
             <div id="landingMode" class="seg seg--block" role="group" aria-labelledby="landingModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
           </div>
+          <div class="field" id="landingTableField">
+            <span class="field__label" id="landingTableLabel">Table</span>
+            <div id="landingTable" class="table-pick" role="group" aria-labelledby="landingTableLabel"></div>
+          </div>
+          <div class="field">
+            <span class="field__label" id="landingClothLabel">Cloth <span class="cloth-name js-cloth-name"></span></span>
+            <div id="landingCloth" class="cloth-pick" role="group" aria-labelledby="landingClothLabel"></div>
+          </div>
           <div id="landingOpts" class="opts">
             <button type="button" id="landingOptsBtn" class="opts__toggle" aria-expanded="false" aria-controls="landingOptsBody">
               <span class="opts__text"><span class="field__label">Match rules</span><span id="landingOptsSum" class="opts__sum"></span></span>
@@ -310,6 +318,14 @@
             <span class="field__label" id="settingsModeLabel">Game</span>
             <div id="settingsMode" class="seg seg--block" role="group" aria-labelledby="settingsModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
             <p id="settingsModeNote" class="caption" hidden></p>
+          </div>
+          <div class="setting" id="settingsTableRow">
+            <span class="field__label" id="settingsTableLabel">Table</span>
+            <div id="settingsTable" class="table-pick" role="group" aria-labelledby="settingsTableLabel"></div>
+          </div>
+          <div class="setting">
+            <span class="field__label" id="settingsClothLabel">Cloth <span class="cloth-name js-cloth-name"></span></span>
+            <div id="settingsCloth" class="cloth-pick" role="group" aria-labelledby="settingsClothLabel"></div>
           </div>
           <div class="setting" id="settingsMatchRow">
             <span class="field__label">Next match</span>

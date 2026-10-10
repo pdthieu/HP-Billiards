@@ -14,6 +14,10 @@ const FOV = 42;          // vertical field of view, degrees; more on a tall scre
 const FOV_TALL = 60;
 const CUE_TILT = 6 * Math.PI / 180;
 const FLOOR = -0.78;     // the floor below the bed (app.js FLOOR_DROP)
+// CLOTH_LIGHT darkens the cloth's colours (linear): the lamps light the bed
+// to two or three times its colour, which would wash a grey out to white;
+// so darkened, a cloth under them looks like its swatch.
+const CLOTH_LIGHT = 0.45;
 // MAX_PIXELS caps the drawing buffer. A laptop window at 2× is about 5
 // million pixels, where the shading and shadows take even a recent GPU
 // past a frame on a 120 Hz screen now and then; the antialiasing already
@@ -37,8 +41,9 @@ const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 //   per pocket), felt (a canvas of the 2D table from above, RAIL beyond the
 //   cushions on every side), colors, ballColors, carom (3-cushion: {colors,
 //   dots} by id for plain dotted balls, else null), cueSegments, cueLength,
-//   boards (where the arena's LED boards stand: arena3d.js), info (what
-//   they show: setInfo), reduceMotion(), level (a LEVELS key) and onLost().
+//   look (the table's finish and legs: app.js LOOKS), boards (where the
+//   arena's LED boards stand: arena3d.js), info (what they show: setInfo),
+//   reduceMotion(), level (a LEVELS key) and onLost().
 // It throws when WebGL is not available.
 export function createView3D(canvas, k) {
   const { W, H, R, RAIL } = k;
@@ -183,7 +188,7 @@ export function createView3D(canvas, k) {
     const pos = bedGeo.attributes.position, uv = bedGeo.attributes.uv;
     for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + RAIL) / (W + 2 * RAIL), (pos.getZ(i) + RAIL) / (H + 2 * RAIL));
   }
-  const bed = new THREE.Mesh(bedGeo, keep(new THREE.MeshStandardMaterial({ map: felt, roughness: 0.95, metalness: 0 })));
+  const bed = new THREE.Mesh(bedGeo, keep(new THREE.MeshStandardMaterial({ map: felt, color: new THREE.Color().setScalar(CLOTH_LIGHT), roughness: 0.95, metalness: 0 })));
   bed.receiveShadow = true;
   scene.add(bed);
 
@@ -196,14 +201,20 @@ export function createView3D(canvas, k) {
   const railGeo = keep(flat(new THREE.ExtrudeGeometry(railShape, {
     depth: RAIL_H - 0.004, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.003, bevelSegments: 2, curveSegments: 12,
   })));
-  const wood = keep(new THREE.MeshPhysicalMaterial({ color: k.colors.rail, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.25 }));
+  // the table's finish (app.js LOOKS): a varnished rail, or a matte one
+  const lk = k.look;
+  const wood = keep(new THREE.MeshPhysicalMaterial(lk.gloss
+    ? { color: k.colors.rail, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.25 }
+    : { color: k.colors.rail, roughness: 0.62, clearcoat: 0.12, clearcoatRoughness: 0.6 }));
   const rail = new THREE.Mesh(railGeo, wood);
   rail.castShadow = true;
   rail.receiveShadow = true;
   scene.add(rail);
   // the apron under the rail: four boards at the outer edge, clear of the
-  // pockets (a solid block would show through the holes)
-  const apronMat = keep(new THREE.MeshStandardMaterial({ color: k.colors.railBottom, roughness: 0.6 }));
+  // pockets (a solid block would show through the holes), in the cabinet's
+  // finish
+  const apronMat = keep(new THREE.MeshStandardMaterial({ color: lk.cabinet, roughness: lk.gloss ? 0.4 : 0.62, metalness: 0.05 }));
+  const metal = keep(new THREE.MeshStandardMaterial({ color: lk.trim || lk.rim || '#c0c4c9', roughness: 0.28, metalness: 1 }));
   const board = 0.008;
   for (const [w, d, x, z] of [
     [W + 2 * RAIL, board, W / 2, -RAIL + board / 2], [W + 2 * RAIL, board, W / 2, H + RAIL - board / 2],
@@ -213,27 +224,94 @@ export function createView3D(canvas, k) {
     m.position.set(x, -0.104, z);
     scene.add(m);
   }
-  // under it the body, below the pockets' cups, on six legs to the floor
-  const APRON = -0.204, BODY = -0.3, FOOT = 0.04;
+  // a metal trim along the rail's outer face
+  if (lk.trim) {
+    const strips = [];
+    for (const z of [-RAIL - 0.001, H + RAIL + 0.001]) strips.push({ geo: new THREE.BoxGeometry(W + 2 * RAIL - 0.12, 0.009, 0.002), matrix: new THREE.Matrix4().setPosition(W / 2, 0.02, z) });
+    for (const x of [-RAIL - 0.001, W + RAIL + 0.001]) strips.push({ geo: new THREE.BoxGeometry(0.002, 0.009, H + 2 * RAIL - 0.12), matrix: new THREE.Matrix4().setPosition(x, 0.02, H / 2) });
+    scene.add(new THREE.Mesh(keep(merge(strips)), metal));
+  }
+  // under it the body, below the pockets' cups, on the table's legs
+  const APRON = -0.204, BODY = -0.3;
   const body = new THREE.Mesh(keep(new THREE.BoxGeometry(W + 2 * RAIL - 0.1, APRON - BODY, H + 2 * RAIL - 0.1)), apronMat);
   body.position.set(W / 2, (APRON + BODY) / 2, H / 2);
   scene.add(body);
-  const legs = [], legParts = [], feet = [];
-  for (const x of [-RAIL + 0.2, W / 2, W + RAIL - 0.2]) {
-    for (const z of [-RAIL + 0.17, H + RAIL - 0.17]) {
-      const leg = new THREE.BoxGeometry(0.15, BODY - FLOOR - FOOT, 0.15);
-      const pos = leg.attributes.position; // tapering to the foot
-      for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0) pos.setXYZ(i, pos.getX(i) * 0.72, pos.getY(i), pos.getZ(i) * 0.72);
-      legParts.push({ geo: leg, matrix: new THREE.Matrix4().setPosition(x, (BODY + FLOOR + FOOT) / 2, z) });
-      feet.push({ geo: new THREE.CylinderGeometry(0.035, 0.04, FOOT, 16), matrix: new THREE.Matrix4().setPosition(x, FLOOR + FOOT / 2, z) });
-      legs.push({ x, y: z });
+  const stand = tableLegs(lk.legs, BODY);
+  scene.add(new THREE.Mesh(keep(merge(stand.legs)), apronMat));
+  scene.add(new THREE.Mesh(keep(merge(stand.feet)), keep(new THREE.MeshStandardMaterial({ color: '#16181b', roughness: 0.5, metalness: 0.4 }))));
+  if (stand.glow.length) scene.add(new THREE.Mesh(keep(merge(stand.glow)), keep(new THREE.MeshBasicMaterial({ color: lk.led, toneMapped: false }))));
+  const legs = stand.contacts;
+
+  // tableLegs stands the body, its underside at top, on the floor in the
+  // table's style (app.js LOOKS): six tapered legs (Diamond), four square
+  // ones with light inside (Predator), a V under each end on a foot rail
+  // (Rasson Victory II) or an A (Mr-Sung Acurra). It returns the parts, to
+  // merge, and where they stand, for the shadows on the carpet.
+  function tableLegs(style, top) {
+    const FOOT = 0.04, floor = FLOOR + FOOT;
+    const out = { legs: [], feet: [], glow: [], contacts: [] };
+    const at = (x, y, z, rz = 0) => new THREE.Matrix4().makeRotationZ(rz).setPosition(x, y, z);
+    const foot = (x, z, w = 0.075) => {
+      out.feet.push({ geo: new THREE.CylinderGeometry(w / 2 - 0.005, w / 2, FOOT, 16), matrix: at(x, FLOOR + FOOT / 2, z) });
+      out.contacts.push({ x, y: z });
+    };
+    // bar: w thick and d deep, from (x0, y0) to (x1, y1) seen from the
+    // side, at z across the table
+    const bar = (x0, y0, x1, y1, z, w = 0.075, d = 0.11) => {
+      const len = Math.hypot(x1 - x0, y1 - y0);
+      out.legs.push({ geo: new THREE.BoxGeometry(w, len, d), matrix: at((x0 + x1) / 2, (y0 + y1) / 2, z, Math.atan2(x0 - x1, y1 - y0)) });
+    };
+    const zs = [-RAIL + 0.17, H + RAIL - 0.17], ends = [-RAIL + 0.45, W + RAIL - 0.45];
+    switch (style) {
+      case 'led':
+        for (const x of [-RAIL + 0.3, W + RAIL - 0.3]) {
+          for (const z of [-RAIL + 0.2, H + RAIL - 0.2]) {
+            const h = top - floor, y = (top + floor) / 2;
+            const sx = Math.sign(x - W / 2), sz = Math.sign(z - H / 2);
+            out.legs.push({ geo: new THREE.BoxGeometry(0.16, h, 0.16), matrix: at(x, y, z) });
+            out.glow.push({ geo: new THREE.BoxGeometry(0.004, h - 0.12, 0.022), matrix: at(x + sx * 0.081, y, z) });
+            out.glow.push({ geo: new THREE.BoxGeometry(0.022, h - 0.12, 0.004), matrix: at(x, y, z + sz * 0.081) });
+            foot(x, z, 0.13);
+          }
+        }
+        break;
+      case 'v':
+        for (const x of ends) {
+          for (const z of zs) {
+            bar(x - 0.25, top, x, floor + 0.03, z);
+            bar(x + 0.25, top, x, floor + 0.03, z);
+            foot(x, z, 0.1);
+          }
+          out.legs.push({ geo: new THREE.BoxGeometry(0.16, 0.05, zs[1] - zs[0] + 0.14), matrix: at(x, floor + 0.025, H / 2) });
+        }
+        break;
+      case 'a':
+        for (const x of ends) {
+          for (const z of zs) {
+            bar(x, top, x - 0.27, floor, z);
+            bar(x, top, x + 0.27, floor, z);
+            bar(x - 0.135, (top + floor) / 2, x + 0.135, (top + floor) / 2, z, 0.05, 0.09);
+            foot(x - 0.27, z);
+            foot(x + 0.27, z);
+          }
+        }
+        break;
+      default:
+        for (const x of [-RAIL + 0.2, W / 2, W + RAIL - 0.2]) {
+          for (const z of zs) {
+            const leg = new THREE.BoxGeometry(0.15, top - floor, 0.15);
+            const pos = leg.attributes.position; // tapering to the foot
+            for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0) pos.setXYZ(i, pos.getX(i) * 0.72, pos.getY(i), pos.getZ(i) * 0.72);
+            out.legs.push({ geo: leg, matrix: at(x, (top + floor) / 2, z) });
+            foot(x, z);
+          }
+        }
     }
+    return out;
   }
-  scene.add(new THREE.Mesh(keep(merge(legParts)), apronMat));
-  scene.add(new THREE.Mesh(keep(merge(feet)), keep(new THREE.MeshStandardMaterial({ color: '#16181b', roughness: 0.5, metalness: 0.4 }))));
 
   // cushions: the 2D quads (nose, jaws, back) raised to cushion height
-  const clothSide = keep(new THREE.MeshStandardMaterial({ color: k.colors.cushion, roughness: 0.92 }));
+  const clothSide = keep(new THREE.MeshStandardMaterial({ color: new THREE.Color(k.colors.cushion).multiplyScalar(CLOTH_LIGHT), roughness: 0.92 }));
   for (const c of k.cushions) {
     const lf = C / Math.abs(c.jawFrom.x * c.inward.x + c.jawFrom.y * c.inward.y);
     const lt = C / Math.abs(c.jawTo.x * c.inward.x + c.jawTo.y * c.inward.y);
@@ -264,6 +342,13 @@ export function createView3D(canvas, k) {
       const facing = new THREE.Mesh(keep(new THREE.CylinderGeometry(h.r + 0.0005, h.r + 0.0005, RAIL_H + 0.001, 40, 1, true, a, b - a)), leather);
       facing.position.set(h.x, (RAIL_H + 0.001) / 2, h.y);
       scene.add(facing);
+      if (lk.rim) {
+        // a flush metal rim on the rail round the same arc (a ring's angle
+        // φ lies flat at θ = φ + 90°)
+        const rim = new THREE.Mesh(keep(flat(new THREE.RingGeometry(h.r + 0.0005, h.r + 0.007, 40, 1, a - Math.PI / 2, b - a))), metal);
+        rim.position.set(h.x, RAIL_H + 0.0006, h.y);
+        scene.add(rim);
+      }
     }
     const bottom = new THREE.Mesh(keep(new THREE.CircleGeometry(h.r * 0.9, 32)), liner);
     bottom.rotation.x = -Math.PI / 2;
@@ -780,6 +865,14 @@ export function createView3D(canvas, k) {
     renderer.setSize(w, h, false);
   }
 
+  // setCloth dresses the table in another cloth: canvas is the table from
+  // above again (as k.felt), cushion the cushions' shade of it.
+  function setCloth(canvas, cushion) {
+    felt.image = canvas;
+    felt.needsUpdate = true;
+    clothSide.color.set(cushion).multiplyScalar(CLOTH_LIGHT);
+  }
+
   // dispose lets go of everything, the context too: a page holds only so
   // many (16 in Chrome), and past that the browser takes the oldest away.
   function dispose() {
@@ -793,7 +886,7 @@ export function createView3D(canvas, k) {
   setLevel(k.level || 'auto');
 
   return {
-    render, pick, project, pxPerM, resize, dispose, setQuality, setLevel, setInfo: arena.setInfo,
+    render, pick, project, pxPerM, resize, dispose, setQuality, setLevel, setInfo: arena.setInfo, setCloth,
     get mode() { return cam.mode; },
     get settled() { return !!cam.settled; },
     get lowQuality() { return timing.low; },

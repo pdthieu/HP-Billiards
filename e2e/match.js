@@ -26,6 +26,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
   try {
     // Race to 3, winner breaks, from the landing page; the room list says so.
     await A.goto(base + '/');
+    await A.click('#landingOptsBtn'); // the match rules fold under a summary
     await A.click('#landingMatch [data-race="3"]');
     await A.click('#landingMatch [data-breaks="winner"]');
     await A.fill('#landingMatch .js-race-input', '4');

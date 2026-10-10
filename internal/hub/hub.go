@@ -141,8 +141,9 @@ func New(opts Options) *Hub {
 var ErrRoomLimit = errors.New("room limit reached")
 
 // RoomSettings are what a room is created with: the game, the race and break
-// rule of its matches (both changeable between matches), how many spectators
-// may watch (changeable any time), or a practice table.
+// rule of its matches, the table and its cloth (all changeable between
+// matches), how many spectators may watch (changeable any time), or a
+// practice table.
 type RoomSettings struct {
 	Mode     game.Mode      `json:"mode"`
 	Race     int            `json:"race"`
@@ -150,7 +151,23 @@ type RoomSettings struct {
 	Practice bool           `json:"practice"`
 	// Spectators: nil is DefaultSpectators (or the server's limit if lower).
 	Spectators *int `json:"spectators"`
+	// Table is the pool table (game.Tables), Cloth its colour (Cloths);
+	// "" is the default. 3-cushion is played on the carom table, in the
+	// same cloth.
+	Table game.TableID `json:"table"`
+	Cloth string       `json:"cloth"`
 }
+
+// Cloths are the cloth colours a room can pick: Simonis's names for the
+// colours played most (docs/PROTOCOL.md, "Tables"). How each looks is up to
+// the client.
+var Cloths = map[string]bool{
+	"tournament-blue": true, "electric-blue": true, "blue-green": true, "spruce": true,
+	"simonis-green": true, "english-green": true, "slate-grey": true, "burgundy": true,
+}
+
+// DefaultCloth is the cloth of a room that picks none.
+const DefaultCloth = "tournament-blue"
 
 // DefaultSpectators is how many spectators a room lets watch unless its
 // creator picks another number.
@@ -181,6 +198,12 @@ func (s *RoomSettings) fill(limit int) {
 	if s.Breaks == "" {
 		s.Breaks = game.BreakAlternate
 	}
+	if s.Table == "" {
+		s.Table = game.DefaultTable
+	}
+	if s.Cloth == "" {
+		s.Cloth = DefaultCloth
+	}
 }
 
 // CreateRoom starts a new empty room and returns its code. It fails with
@@ -190,6 +213,9 @@ func (h *Hub) CreateRoom(settings RoomSettings) (string, error) {
 	settings.fill(h.opts.MaxSpectators)
 	if n := *settings.Spectators; n < 0 || n > h.opts.MaxSpectators {
 		return "", errBadSpectators
+	}
+	if !settings.Table.Valid() || !Cloths[settings.Cloth] {
+		return "", errBadTable
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -214,6 +240,8 @@ type RoomInfo struct {
 	Mode     game.Mode      `json:"mode"`
 	Race     int            `json:"race"`
 	Breaks   game.BreakRule `json:"breaks"`
+	Table    game.TableID   `json:"table"`
+	Cloth    string         `json:"cloth"`
 	Players  [2]string      `json:"players"` // names; "" for an empty seat
 	Phase    game.Phase     `json:"phase"`
 	// Seated counts taken seats, including seats held for a reconnect;
@@ -276,10 +304,12 @@ func (h *Hub) remove(r *room) {
 // HandleCreateRoom is the POST handler that creates a room and answers
 // {"roomCode": "ABCDE"}, or 409 {"error": "room_limit", "message": ...} when
 // MaxRooms rooms already exist. An optional JSON body, RoomSettings
-// ({"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 5} or
-// {"practice": true}), picks the game (8-ball by default), the race (1), the
-// break rule (alternate) and how many may watch (3), or makes a private room
-// for one player who plays both sides.
+// ({"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 5,
+// "table": "predator", "cloth": "electric-blue"} or {"practice": true}),
+// picks the game (8-ball by default), the race (1), the break rule
+// (alternate), how many may watch (3), the table (DefaultTable) and the
+// cloth (DefaultCloth), or makes a private room for one player who plays
+// both sides.
 func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	var body RoomSettings
@@ -298,6 +328,9 @@ func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 		return
 	case *body.Spectators < 0 || *body.Spectators > h.opts.MaxSpectators:
 		bad(protocol.ErrBadSpectator, fmt.Sprintf("spectators must be 0 to %d", h.opts.MaxSpectators))
+		return
+	case !body.Table.Valid() || !Cloths[body.Cloth]:
+		bad(protocol.ErrBadTable, "unknown table or cloth")
 		return
 	}
 	code, err := h.CreateRoom(body)

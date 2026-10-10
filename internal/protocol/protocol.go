@@ -24,6 +24,9 @@ const (
 	// TypeSetMatch changes the race and break rule, in the lobby or after a
 	// match.
 	TypeSetMatch = "set_match"
+	// TypeSetTable changes the pool table and the cloth, in the lobby or
+	// after a match.
+	TypeSetTable = "set_table"
 	// TypeLeave gives up the sender's seat at once; during a match it
 	// forfeits the match.
 	TypeLeave = "leave"
@@ -81,6 +84,7 @@ const (
 	ErrSpectator    = "spectator"      // a spectator sent something other than chat or leave
 	ErrChatCooldown = "chat_cooldown"  // a comment too soon after the sender's last; see Error.RetryMs
 	ErrBadSpectator = "bad_spectators" // set_audience (or room creation) with a number outside 0 to the server's limit
+	ErrBadTable     = "bad_table"      // set_table (or room creation) with an unknown table or cloth
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -128,6 +132,10 @@ type ClientMessage struct {
 	// set_match: either may be left out (0, "") to keep it
 	Race   int            `json:"race"`
 	Breaks game.BreakRule `json:"breaks"`
+
+	// set_table: either may be left out ("") to keep it
+	Table game.TableID `json:"table"`
+	Cloth string       `json:"cloth"`
 }
 
 // Spin is where the cue tip strikes the cue ball, as an offset from its
@@ -261,6 +269,8 @@ type Player struct {
 type RoomState struct {
 	Type       string           `json:"type"`
 	Mode       game.Mode        `json:"mode"`
+	Table      game.TableID     `json:"table"`    // the pool table (set_table); carom has its own
+	Cloth      string           `json:"cloth"`    // the cloth's colour (set_table)
 	Practice   bool             `json:"practice"` // one player plays both seats
 	Balls      []game.BallState `json:"balls"`    // balls on the table
 	Players    [2]PlayerInfo    `json:"players"`

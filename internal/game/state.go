@@ -380,6 +380,16 @@ func (g *Game) SetMode(m Mode) {
 	}
 }
 
+// SetConfig changes the pool table (a TableSpec applied to the base
+// config), at once in the lobby, where the table is racked again, and
+// otherwise at the next Start. Carom is played on CaromConfig of it.
+func (g *Game) SetConfig(cfg Config) {
+	g.cfg = cfg
+	if g.Rules.Phase == PhaseLobby {
+		g.rack()
+	}
+}
+
 // SetTarget sets the points a carom game is played to, from the next Start;
 // 0 plays without an end.
 func (g *Game) SetTarget(points int) { g.Rules.Target = points }
@@ -396,11 +406,11 @@ func (g *Game) Start(breaker int) {
 // rack sets up a fresh, randomly ordered rack for the mode, so every game
 // starts from a different pattern.
 func (g *Game) rack() {
-	if carom := g.Rules.Mode == ModeCarom; carom != g.Table.Cfg.NoPockets {
-		cfg := g.cfg
-		if carom {
-			cfg = CaromConfig(cfg)
-		}
+	cfg := g.cfg
+	if g.Rules.Mode == ModeCarom {
+		cfg = CaromConfig(cfg)
+	}
+	if cfg != g.Table.Cfg {
 		g.Table = NewTable(cfg)
 	}
 	switch g.Rules.Mode {

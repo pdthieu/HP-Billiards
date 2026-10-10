@@ -29,15 +29,59 @@ const FLOOR_DROP = 0.78;   // the floor below the bed in 3D (view3d.js FLOOR)
 // above the bed: a ball rolling off the table bounces back off them.
 const BOARDS_END = 2.4, BOARDS_SIDE = 2.0, BOARD_TOP = 1.0 - FLOOR_DROP;
 const boardsRect = () => ({ x0: -RAIL - BOARDS_END, x1: W + RAIL + BOARDS_END, y0: -RAIL - BOARDS_SIDE, y1: H + RAIL + BOARDS_SIDE });
-// Pocket geometry, WPA equipment specification; keep in sync with
-// game.DefaultConfig on the server.
 const INCH = 0.0254;
-const CORNER_MOUTH = 4.5625 * INCH;
-const SIDE_MOUTH = 5.0625 * INCH;
-const CORNER_JAW = 142 * Math.PI / 180;
-const SIDE_JAW = 104 * Math.PI / 180;
-const CORNER_SHELF = 1.75 * INCH;
-const SIDE_SHELF = 0.25 * INCH;
+// TABLES: the pool tables a room can play on (PROTOCOL.md, "Tables"), by
+// their pockets, which are all that differs: the mouths between the cushion
+// noses, the cuts (degrees) and the shelves. Keep in sync with game.Tables
+// on the server. How each looks is in LOOKS.
+const TABLES = {
+  diamond: { name: 'Diamond Pro-Am', corner: 4.5 * INCH, side: 5 * INCH, cornerJaw: 141, sideJaw: 102, cornerShelf: 0.0316, sideShelf: 0.25 * INCH },
+  predator: { name: 'Predator Apex', corner: 0.108, side: 0.125, cornerJaw: 142, sideJaw: 104, cornerShelf: 1.75 * INCH, sideShelf: 0.25 * INCH },
+  rasson: { name: 'Rasson Victory II', corner: 4.25 * INCH, side: 5 * INCH, cornerJaw: 142, sideJaw: 104, cornerShelf: 0.0212, sideShelf: 0.25 * INCH },
+  acurra: { name: 'Mr-Sung Acurra', corner: 4 * INCH, side: 4.5 * INCH, cornerJaw: 142, sideJaw: 104, cornerShelf: 1.75 * INCH, sideShelf: 0.25 * INCH },
+};
+const DEFAULT_TABLE = 'diamond';
+let SPEC = TABLES[DEFAULT_TABLE]; // the pool table's pockets (setTable)
+
+// LOOKS: how each table is finished (CLIENT.md, "Tables"): its rail from the
+// top edge to the foot (2D draws the three as a gradient, 3D the middle one,
+// glossy or matte), the cabinet under it, its legs (view3d.js), a metal trim
+// along the rail, the sights and a metal rim round the pockets. The carom
+// table keeps the wood the game was drawn with.
+const LOOKS = {
+  // Diamond: Dymondwood rails (walnut) on a black cabinet, tapered legs
+  diamond: { railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', gloss: true, cabinet: '#18181B', legs: 'tapered', trim: null, sight: '#E6D7B4', rim: null },
+  // Predator Apex: all black, matte, light in the legs, flush silver rims
+  predator: { railTop: '#2E3035', rail: '#1C1D21', railBottom: '#111215', gloss: false, cabinet: '#131417', legs: 'led', trim: null, sight: '#C9CED4', rim: '#C3C8CE', led: '#57B2FF' },
+  // Rasson Victory II: black, glossy, with a silver trim, on V legs
+  rasson: { railTop: '#36383D', rail: '#202226', railBottom: '#131417', gloss: true, cabinet: '#16171A', legs: 'v', trim: '#B8BDC3', sight: '#E9E6DE', rim: null },
+  // Mr-Sung Acurra: grey wood (Sarum Strand) with aluminium strips, A legs
+  acurra: { railTop: '#8C8E91', rail: '#6F7174', railBottom: '#4C4E51', gloss: false, cabinet: '#5F6164', legs: 'a', trim: '#C8CCD1', sight: '#EDEAE2', rim: null },
+  carom: { railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', gloss: true, cabinet: '#341F10', legs: 'tapered', trim: null, sight: '#E6D7B4', rim: null },
+};
+const look = () => LOOKS[tableKey] || LOOKS[DEFAULT_TABLE];
+
+// CLOTHS: the cloth colours a room can pick (PROTOCOL.md, "Tables"), under
+// Simonis's names. No maker publishes colour values: these are matched to
+// their swatches by eye. clothShades lights the middle of the table and
+// shades its edge; the cushions wear the same cloth, darker.
+const CLOTHS = {
+  'tournament-blue': { name: 'Tournament Blue', felt: '#1F5C9E' },
+  'electric-blue': { name: 'Electric Blue', felt: '#1C74BA' },
+  'blue-green': { name: 'Blue Green', felt: '#1D6966' },
+  spruce: { name: 'Spruce', felt: '#2A5A61' },
+  'simonis-green': { name: 'Simonis Green', felt: '#2F7A40' },
+  'english-green': { name: 'English Green', felt: '#20563A' },
+  'slate-grey': { name: 'Slate Grey', felt: '#56606A' },
+  burgundy: { name: 'Burgundy', felt: '#6C2131' },
+};
+const DEFAULT_CLOTH = 'tournament-blue';
+const shade = (hex, k) => `#${[1, 3, 5].map((i) => Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0')).join('')}`;
+function clothShades(id) {
+  const felt = (CLOTHS[id] || CLOTHS[DEFAULT_CLOTH]).felt;
+  return { center: shade(felt, 1.2), felt, edge: shade(felt, 0.62), cushion: shade(felt, 0.74) };
+}
+
 let TABLE = buildTable();
 let POCKETS = TABLE.pockets; // {x, y}: middle of each mouth, pocket-index order; none on a carom table
 const BALL_COLORS = { // design tokens --ball-1 … --ball-8
@@ -80,21 +124,21 @@ function buildTable(carom) {
     add({ x: W, y: 0 }, { x: W, y: H }, { x: -1, y: 0 });
     return { pockets: [], cushions };
   }
-  const a = CORNER_MOUTH / Math.SQRT2; // corner noses sit this far from the corner along each rail
-  const s = SIDE_MOUTH / 2;
+  const a = SPEC.corner / Math.SQRT2; // corner noses sit this far from the corner along each rail
+  const s = SPEC.side / 2;
   const d = 1 / Math.SQRT2;
   const pockets = [
-    { x: a / 2, y: a / 2, ax: -d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
-    { x: W / 2, y: 0, ax: 0, ay: -1, half: s, shelf: SIDE_SHELF, side: true },
-    { x: W - a / 2, y: a / 2, ax: d, ay: -d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
-    { x: a / 2, y: H - a / 2, ax: -d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
-    { x: W / 2, y: H, ax: 0, ay: 1, half: s, shelf: SIDE_SHELF, side: true },
-    { x: W - a / 2, y: H - a / 2, ax: d, ay: d, half: CORNER_MOUTH / 2, shelf: CORNER_SHELF },
+    { x: a / 2, y: a / 2, ax: -d, ay: -d, half: SPEC.corner / 2, shelf: SPEC.cornerShelf },
+    { x: W / 2, y: 0, ax: 0, ay: -1, half: s, shelf: SPEC.sideShelf, side: true },
+    { x: W - a / 2, y: a / 2, ax: d, ay: -d, half: SPEC.corner / 2, shelf: SPEC.cornerShelf },
+    { x: a / 2, y: H - a / 2, ax: -d, ay: d, half: SPEC.corner / 2, shelf: SPEC.cornerShelf },
+    { x: W / 2, y: H, ax: 0, ay: 1, half: s, shelf: SPEC.sideShelf, side: true },
+    { x: W - a / 2, y: H - a / 2, ax: d, ay: d, half: SPEC.corner / 2, shelf: SPEC.cornerShelf },
   ];
   // jaw direction from a nose: the cushion direction (away from the pocket)
   // rotated by the jaw angle away from the playing surface
   const jaw = (ux, uy, inx, iny, corner) => {
-    const t = corner ? CORNER_JAW : SIDE_JAW;
+    const t = (corner ? SPEC.cornerJaw : SPEC.sideJaw) * DEG;
     return { x: ux * Math.cos(t) - inx * Math.sin(t), y: uy * Math.cos(t) - iny * Math.sin(t) };
   };
   const cushions = [];
@@ -117,11 +161,15 @@ function buildTable(carom) {
 }
 
 // setTable sizes the table for mode, if it is not already: the carom table
-// for 3-cushion, the pool table otherwise. The drawn table and the 3D view
-// are rebuilt.
-function setTable(mode) {
+// for 3-cushion, otherwise the pool table id (TABLES). The drawn table and
+// the 3D view are rebuilt.
+let tableKey = DEFAULT_TABLE; // 'carom' or a TABLES key: the table laid out
+function setTable(mode, id = S.table) {
   const carom = mode === '3cushion';
-  if (carom === !POCKETS.length) return;
+  const key = carom ? 'carom' : TABLES[id] ? id : DEFAULT_TABLE;
+  if (key === tableKey) return;
+  tableKey = key;
+  if (!carom) SPEC = TABLES[key];
   W = carom ? 2.84 : 2.54;
   H = carom ? 1.42 : 1.27;
   R = carom ? 0.0615 / 2 : 0.028575;
@@ -132,6 +180,15 @@ function setTable(mode) {
   POCKETS = TABLE.pockets;
   resetOrientations();
   if (v3) { stop3d(); start3d(); } else if (view.cssW) resize();
+}
+
+// setCloth dresses the table in cloth c (CLOTHS): the flat table is drawn
+// again, the 3D cloth and cushions repainted in place.
+function setCloth(c) {
+  if (!CLOTHS[c] || c === S.cloth) return;
+  S.cloth = c;
+  if (v3) v3.setCloth(feltCanvas(), clothShades(c).cushion);
+  else renderTableCache();
 }
 
 // optionText returns [title, consequence] for a post-break option; opp is
@@ -207,6 +264,8 @@ const S = {
   phase: 'lobby',
   turn: 0,
   mode: '8ball',         // the room's game: '8ball', '9ball' or '3cushion'
+  table: DEFAULT_TABLE,  // the room's pool table (TABLES); 3-cushion has its own
+  cloth: DEFAULT_CLOTH,  // the colour of its cloth (CLOTHS), the same for everyone in the room
   carom: null,           // 3-cushion: the score, {points, innings, highRun, run, cue, breaker, equalizing}
   target: 0,             // 3-cushion: the points the game is played to (0 in practice)
   fouls: [0, 0],         // 9-ball: consecutive fouls by seat
@@ -537,7 +596,10 @@ function applyRules(msg) {
   const turnChanged = msg.turn !== S.turn || msg.phase !== S.phase;
   S.phase = msg.phase;
   S.turn = msg.turn;
-  if (msg.mode) { S.mode = msg.mode; setTable(msg.mode); } // settled carries no mode: it cannot change mid-game
+  // settled carries no mode, table or cloth: they cannot change mid-game
+  if (TABLES[msg.table]) S.table = msg.table;
+  if (msg.cloth) setCloth(msg.cloth);
+  if (msg.mode) { S.mode = msg.mode; setTable(msg.mode); }
   S.carom = msg.carom || null;
   S.target = msg.target || 0;
   if (msg.practice !== undefined) S.practice = msg.practice; // likewise
@@ -1618,11 +1680,8 @@ let tableCache = null;
 const view = { s: 1, ox: 0, oy: 0, rotated: false, cssW: 0, cssH: 0, dpr: 1 };
 
 const PAL = {
-  railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', railLip: '#FFE2B4',
-  feltCenter: '#36745C', felt: '#2C614C', feltEdge: '#1B3F31', cushion: '#1F4B3A',
-  // 3-cushion is played on blue cloth
-  caromCenter: '#3A6E9C', caromFelt: '#2D5C86', caromEdge: '#1A3A58', caromCushion: '#22496D',
-  sight: '#E6D7B4', ivory: '#F4EFE2', disc: '#FAF7EF', ink: '#111316',
+  railLip: '#FFE2B4',
+  ivory: '#F4EFE2', disc: '#FAF7EF', ink: '#111316',
   brass: '#D9A441', brassLine: '#E3B25C', ok: '#71C99D', oppAim: '#A9C1DD', warn: '#E0614F',
   labelBg: '#0D1218', labelText: '#E8ECF1', labelStroke: '#AABED7', flash: '#FFE2B4',
 };
@@ -1726,7 +1785,7 @@ function strikePose(power, p, dur) {
 function pocketHole(pk) {
   if (pk.side) {
     const d = 0.02;
-    const r = pk.half + d * Math.tan(SIDE_JAW - Math.PI / 2);
+    const r = pk.half + d * Math.tan(SPEC.sideJaw * DEG - Math.PI / 2);
     return { x: pk.x + pk.ax * d, y: pk.y + pk.ay * d, r };
   }
   const r = pk.half;
@@ -1995,13 +2054,14 @@ function view3dKit(onLost) {
     holes: POCKETS.map(pocketHole),
     felt: feltCanvas(),
     colors: {
-      rail: PAL.rail, railBottom: PAL.railBottom, cushion: isCarom() ? PAL.caromCushion : PAL.cushion, sight: PAL.sight,
+      rail: look().rail, railBottom: look().railBottom, cushion: clothShades(S.cloth).cushion, sight: look().sight,
       ivory: PAL.ivory, disc: PAL.disc, ink: PAL.ink, ok: PAL.ok,
     },
     ballColors: BALL_COLORS,
     carom: isCarom() ? { colors: CAROM_COLORS, dots: CAROM_DOTS } : null, // plain balls with six dots, no numbers
     cueSegments: CUE_SEGMENTS,
     cueLength: CUE_LEN,
+    look: look(),
     boards: boardsRect(),
     info: arenaInfo(),
     reduceMotion: () => reduceMotion.matches,
@@ -2015,7 +2075,7 @@ function view3dKit(onLost) {
 function arenaInfo() {
   const m = S.practice ? null : S.match;
   return {
-    mode: S.mode, practice: S.practice, room: S.roomCode,
+    mode: S.mode, practice: S.practice, room: S.roomCode, table: isCarom() ? '' : SPEC.name,
     names: S.players.map((p) => p.name || ''),
     score: m ? m.score : null, race: m ? m.race : 0,
   };
@@ -2398,7 +2458,7 @@ function drawLoupe(cast, balls) {
   const lc = loupe.canvas;
   if (lc.width !== size) { lc.width = size; lc.height = size; }
   const lx = lc.getContext('2d');
-  lx.fillStyle = PAL.railBottom;
+  lx.fillStyle = look().railBottom;
   lx.fillRect(0, 0, size, size); // beyond the canvas edge
   lx.drawImage(canvas, (at.x - src) * dpr, (at.y - src) * dpr, size, size, 0, 0, size, size);
   ctx.save();
@@ -2606,23 +2666,23 @@ function renderTableCache() {
 }
 
 function drawTableStatic() {
-  // rail
+  // rail, and the trim along its edge
+  const carom = isCarom(), lk = look(), cloth = clothShades(S.cloth);
   const railG = ctx.createLinearGradient(0, -RAIL, 0, H + RAIL);
-  railG.addColorStop(0, PAL.railTop);
-  railG.addColorStop(0.5, PAL.rail);
-  railG.addColorStop(1, PAL.railBottom);
+  railG.addColorStop(0, lk.railTop);
+  railG.addColorStop(0.5, lk.rail);
+  railG.addColorStop(1, lk.railBottom);
   roundRect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL, 0.06);
   ctx.fillStyle = railG;
   ctx.fill();
-  ctx.strokeStyle = rgba('#000000', 0.55);
-  ctx.lineWidth = 0.003;
+  ctx.strokeStyle = lk.trim ? rgba(lk.trim, 0.85) : rgba('#000000', 0.55);
+  ctx.lineWidth = lk.trim ? 0.005 : 0.003;
   ctx.stroke();
   // felt, running under the cushions and into the pocket mouths
-  const carom = isCarom();
   const feltG = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 1.48);
-  feltG.addColorStop(0, carom ? PAL.caromCenter : PAL.feltCenter);
-  feltG.addColorStop(0.55, carom ? PAL.caromFelt : PAL.felt);
-  feltG.addColorStop(1, carom ? PAL.caromEdge : PAL.feltEdge);
+  feltG.addColorStop(0, cloth.center);
+  feltG.addColorStop(0.55, cloth.felt);
+  feltG.addColorStop(1, cloth.edge);
   ctx.fillStyle = feltG;
   ctx.fillRect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
   // pocket holes
@@ -2638,8 +2698,20 @@ function drawTableStatic() {
     ctx.lineWidth = 0.004;
     ctx.stroke();
   }
+  // a metal rim round each pocket, where it cuts the rail
+  if (lk.rim) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(-RAIL, -RAIL, W + 2 * RAIL, H + 2 * RAIL);
+    ctx.rect(-CUSHION, -CUSHION, W + 2 * CUSHION, H + 2 * CUSHION);
+    ctx.clip('evenodd');
+    ctx.strokeStyle = rgba(lk.rim, 0.9);
+    ctx.lineWidth = 0.007;
+    for (const pk of POCKETS) { tracePocket(pk); ctx.stroke(); }
+    ctx.restore();
+  }
   // cushions with their jaws, then the nose line
-  ctx.fillStyle = carom ? PAL.caromCushion : PAL.cushion;
+  ctx.fillStyle = cloth.cushion;
   for (const c of TABLE.cushions) {
     const lf = CUSHION / Math.abs(c.jawFrom.x * c.inward.x + c.jawFrom.y * c.inward.y);
     const lt = CUSHION / Math.abs(c.jawTo.x * c.inward.x + c.jawTo.y * c.inward.y);
@@ -2665,7 +2737,7 @@ function drawTableStatic() {
   ctx.lineWidth = 0.003;
   ctx.stroke();
   // sights
-  ctx.fillStyle = rgba(PAL.sight, 0.9);
+  ctx.fillStyle = rgba(lk.sight, 0.9);
   const sight = (x, y, alongX) => {
     const a = alongX ? 0.011 : 0.007, b = alongX ? 0.007 : 0.011;
     ctx.beginPath();
@@ -4115,6 +4187,7 @@ function rememberName(name) {
 
 function showLanding(error) {
   $('landing').hidden = false;
+  renderLandingTable();
   document.body.classList.add('is-landing');
   setGameInert(true);
   hideConn();
@@ -4265,7 +4338,8 @@ function renderRooms(list) {
     const chip = li.querySelector('.chip');
     chip.className = `chip chip--${phase}`;
     const goal = room.mode === '3cushion' ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
-    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}`;
+    const table = room.mode !== '3cushion' && TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
+    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}${table}`;
     const watch = li.querySelector('.room-row__watch');
     watch.hidden = !(room.spectators < room.maxSpectators);
     watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
@@ -4674,12 +4748,12 @@ function refreshPanels() {
       $('lobbySub').textContent = 'Their seat is held for a moment.';
     } else if (me.ready) {
       setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
-      $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game or the race makes you both ready again.';
+      $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game, the race or the table makes you both ready again.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
       $('lobbySub').textContent = isCarom()
         ? `3-cushion to ${points(S.race)}. Change it in Settings.`
-        : `${MODE_NAME[S.mode]}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
+        : `${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -4743,6 +4817,83 @@ $('landingMode').addEventListener('click', (e) => {
   writeSetting('pool:mode', landingMode);
   setSeg($('landingMode'), landingMode);
   renderLandingMatch();
+  renderLandingTable();
+});
+
+// The table and cloth pickers: the landing's set up a new room
+// (remembered) and dress the table behind the landing, the room's in
+// Settings change them for everyone in the room (set_table). Their buttons
+// are built from TABLES and CLOTHS.
+const inches = (m) => `${Math.round(m / INCH * 100) / 100}″`;
+function fillTablePick(el) {
+  el.replaceChildren(...Object.entries(TABLES).map(([id, t]) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'table-pick__opt' });
+    b.dataset.table = id;
+    b.append(
+      Object.assign(document.createElement('span'), { className: 'table-pick__name', textContent: t.name }),
+      Object.assign(document.createElement('span'), { className: 'table-pick__pockets', textContent: `corners ${inches(t.corner)} · sides ${inches(t.side)}` }),
+    );
+    return b;
+  }));
+}
+function fillClothPick(el) {
+  el.replaceChildren(...Object.entries(CLOTHS).map(([id, c]) => {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'cloth-pick__swatch', title: c.name });
+    b.dataset.cloth = id;
+    b.style.setProperty('--swatch', c.felt);
+    b.setAttribute('aria-label', c.name);
+    return b;
+  }));
+}
+// setPick presses the button of el whose data-key is value and enables or
+// disables them all; a cloth picker's field names the cloth.
+function setPick(el, key, value, disabled = false) {
+  for (const b of el.children) {
+    b.setAttribute('aria-pressed', String(b.dataset[key] === value));
+    b.disabled = disabled;
+  }
+  const name = el.parentElement.querySelector('.js-cloth-name');
+  if (name) name.textContent = CLOTHS[value] ? CLOTHS[value].name : '';
+}
+for (const id of ['landingTable', 'settingsTable']) fillTablePick($(id));
+for (const id of ['landingCloth', 'settingsCloth']) fillClothPick($(id));
+let landingTable = TABLES[readSetting('pool:table')] ? readSetting('pool:table') : DEFAULT_TABLE;
+let landingCloth = CLOTHS[readSetting('pool:cloth')] ? readSetting('pool:cloth') : DEFAULT_CLOTH;
+function renderLandingTable() {
+  setPick($('landingTable'), 'table', landingTable);
+  setPick($('landingCloth'), 'cloth', landingCloth);
+  $('landingTableField').hidden = landingMode === '3cushion'; // played on the carom table
+  if (!inRoom()) { // the table behind the landing shows the pick, empty
+    const key = landingMode === '3cushion' ? 'carom' : landingTable;
+    if (key !== tableKey) S.balls = new Map();
+    S.mode = landingMode;
+    S.table = landingTable;
+    setCloth(landingCloth);
+    setTable(landingMode);
+  }
+}
+$('landingTable').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-table]');
+  if (!b) return;
+  landingTable = b.dataset.table;
+  writeSetting('pool:table', landingTable);
+  renderLandingTable();
+});
+$('landingCloth').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cloth]');
+  if (!b) return;
+  landingCloth = b.dataset.cloth;
+  writeSetting('pool:cloth', landingCloth);
+  renderLandingTable();
+});
+renderLandingTable();
+$('settingsTable').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-table]');
+  if (b && !b.disabled && b.dataset.table !== S.table) send({ type: 'set_table', table: b.dataset.table });
+});
+$('settingsCloth').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-cloth]');
+  if (b && !b.disabled && b.dataset.cloth !== S.cloth) send({ type: 'set_table', cloth: b.dataset.cloth });
 });
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -5401,7 +5552,9 @@ async function createRoom(practice) {
     const res = await fetch('/api/rooms', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(practice ? { mode: landingMode, practice } : { mode: landingMode, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience }),
+      body: JSON.stringify(practice
+        ? { mode: landingMode, table: landingTable, cloth: landingCloth, practice }
+        : { mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
@@ -5651,9 +5804,12 @@ function renderRoomSettings() {
   const locked = !S.practice && (matchLive() || !(S.phase === 'lobby' || S.phase === 'game_over'));
   setSeg($('settingsMode'), S.mode);
   for (const b of $('roomSettings').querySelectorAll('#settingsMode .seg__btn, #roomMatch button, #roomMatch input')) b.disabled = locked;
+  $('settingsTableRow').hidden = isCarom(); // 3-cushion is played on the carom table
+  setPick($('settingsTable'), 'table', S.table, locked);
+  setPick($('settingsCloth'), 'cloth', S.cloth, locked);
   const note = $('settingsModeNote');
   note.hidden = !locked && !S.practice;
-  note.textContent = locked ? 'Locked while a match is played: change them after it, or in the lobby.' : 'Changing the game racks the table again.';
+  note.textContent = locked ? 'Locked while a match is played: change them after it, or in the lobby.' : 'A new game or table starts a fresh rack.';
   if (!S.practice) setMatchPick($('roomMatch'), S.race, S.breaks, S.mode);
   $('inviteCode').textContent = S.roomCode;
 }

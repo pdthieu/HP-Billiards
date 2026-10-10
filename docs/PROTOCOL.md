@@ -4,8 +4,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches) and how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
-- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "table": "predator", "cloth": "electric-blue", "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), the table and its cloth (see Tables; default `diamond` and `tournament-blue`), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`, an unknown table or cloth `400 {"error": "bad_table", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "table": "diamond", "cloth": "tournament-blue", "players": ["Ann", ""], "phase": "lobby", "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
 
@@ -37,6 +37,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | `rerack` | `mode?` | Practice only: a fresh rack, of `mode` if given. |
 | `set_mode` | `mode` | Between matches only (`lobby`, or `game_over` once the match is won); either player. Changes the room's game (`8ball`, `9ball` or `3cushion`); in the lobby both players must press ready again. Between pool and 3-cushion the race goes back to the new game's default (1 rack, 15 points): racks are not points. Both get a `room_state`. |
 | `set_match` | `race?`, `breaks?` | Between matches only, as `set_mode`. Sets the race (1–25; 3-cushion: points, 1–50) and the break rule of the next match; a field left out (or 0, `""`) is kept. Both get a `room_state`. |
+| `set_table` | `table?`, `cloth?` | Between matches only, as `set_mode`; in a practice room whenever no shot runs. Changes the table and its cloth (see Tables); a field left out (or `""`) is kept. A new table is racked at once: in the lobby both players must press ready again, in practice it is a fresh rack. A new cloth changes nothing else. Everyone gets a `room_state`. |
 | `leave` | – | Gives up the seat at once. During a match it forfeits the match (see Matches). The server closes the socket (1000, `left the room`). |
 | `chat` | `text` | Anyone in the room, players and spectators: a comment of 1–200 characters (whitespace collapsed), relayed to everyone as `chat`. At most one per sender every 5 seconds (`-chat-cooldown`). |
 | `set_audience` | `spectators` | Players only, at any time: how many spectators may watch, 0 to the server's limit. Lowering it sends nobody away. Everyone gets `audience`. |
@@ -126,6 +127,21 @@ WPA section 5. Balls `1`–`9` are racked in a diamond with the 1 on the foot sp
 - **Push out:** the shot right after the break, whoever takes it, may be sent with `call: {"pushOut": true}` while `pushOut` is true. It needs no contact and no rail; a scratch is still a foul. Balls it pockets stay down (the 9 is spotted). The opponent then gets a `decision` with `take_shot` and `pass_back`. A push out at any other time is refused with `bad_call`.
 - **Three fouls:** `fouls[seat]` counts each player's consecutive fouls, reset by a legal shot. The third in a row loses the rack. Time fouls count, except on the break, where the opponent simply breaks instead.
 
+## Tables
+
+A room plays pool on one of four real 9 ft tables (`table`), which differ only in their pockets: the playing surface (100 × 50 in), the cushion height (63.5 % of the ball) and the cloth's pace are the WPA ones on all of them. Each figure is the maker's where it publishes one, otherwise a measured one, otherwise the middle of the WPA range. The mouth is measured between the cushion noses, the cut is the angle between the cushion and the jaw, the shelf runs from the mouth line to where a ball drops.
+
+| `table` | Table | Corner mouth | Side mouth | Cuts | Corner shelf |
+|---|---|---|---|---|---|
+| `diamond` (default) | Diamond Pro-Am | 4½ in (114.3 mm) | 5 in (127 mm) | 141°, 102° (measured) | 31.6 mm (measured) |
+| `predator` | Predator Apex 9 ft Pro | 108 mm | 125 mm | 142°, 104° (WPA) | 1¾ in (WPA) |
+| `rasson` | Rasson Victory II, as cut for the Mosconi Cup | 4¼ in (108 mm) | 5 in (127 mm) | 142°, 104° (WPA) | 21.2 mm (measured) |
+| `acurra` | Rasson Mr-Sung Acurra, Matchroom pockets | 4 in (101.6 mm) | 4½ in (114.3 mm) | 142°, 104° (WPA) | 1¾ in (WPA) |
+
+Side shelves are ¼ in on all four. 3-cushion is always played on the carom table (below), whatever `table` says; the room keeps it for its pool games.
+
+`cloth` is the cloth's colour, the same for everyone in the room, under Simonis's names: `tournament-blue` (default), `electric-blue`, `blue-green`, `spruce`, `simonis-green`, `english-green`, `slate-grey` or `burgundy`. It does not change how the balls run.
+
 ## 3-cushion
 
 UMB three-cushion carom, on a match table without pockets: 2.84 × 1.42 m between the cushion noses, 61.5 mm balls. A match is one game to `race` points (`target` in `room_state`); `match.score` is the points as they are made.
@@ -177,6 +193,8 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 {
   "type": "room_state",
   "mode": "8ball",
+  "table": "diamond",
+  "cloth": "tournament-blue",
   "balls": [{"id": 0, "x": 0.635, "y": 0.635}],
   "players": [
     {"seat": 0, "name": "Ann", "connected": true, "ready": true},
@@ -204,7 +222,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
 - `winner`: seat or `null`.
 - `moving`: a shot is in progress; `snapshot`s and a `settled` will follow.
-- `mode`: `8ball`, `9ball` or `3cushion`.
+- `mode`: `8ball`, `9ball` or `3cushion`. `table` and `cloth`: the room's table and the colour of its cloth (see Tables).
 - `target` and `carom`: 3-cushion only (left out otherwise). `target` is the points the game is played to (0 in practice); `carom` is the score: `{"points": [7, 5], "innings": [12, 12], "highRun": [3, 2], "run": 1, "cue": [0, 1], "breaker": 0, "equalizing": false}` with each seat's points, innings started and best run, the points of the inning in progress, each seat's ball and who broke.
 - `practice`: a practice room; `undos`: shots `undo` can take back there (always 0 elsewhere).
 - `fouls`: 9-ball consecutive fouls by seat (always `[0, 0]` in 8-ball). `pushOut`: 9-ball, the player in `turn` may push out on this shot.
@@ -303,6 +321,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `spectator` | A spectator sent something other than `chat` or `leave`. |
 | `chat_cooldown` | A comment within 5 seconds of the sender's last; `retryMs` says how long to wait. |
 | `bad_spectators` | `set_audience` (or room creation) with a number outside 0 to the server's limit, or in a practice room. |
+| `bad_table` | `set_table` (or room creation) with a table or cloth not listed under Tables. |
 
 ## Shot clock
 

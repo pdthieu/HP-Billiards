@@ -92,6 +92,7 @@ var (
 	errNotPractice   = errors.New("only in a practice room")
 	errBadRace       = errors.New("the race must be 1 to 25 (3-cushion: 1 to 50 points) and the breaks alternate or winner")
 	errBadSpectators = errors.New("that many spectators are not allowed here")
+	errBadTable      = errors.New("unknown table or cloth")
 )
 
 // maxUndo is how many shots a practice room can take back.
@@ -109,6 +110,10 @@ type room struct {
 	info atomic.Pointer[RoomInfo]
 
 	mode game.Mode // the game played; can change between matches
+	// table is the pool table and cloth its colour; both can change
+	// between matches (set_table).
+	table game.TableID
+	cloth string
 	// race and breaks are the settings of the next match; match is the
 	// current one, or the last one until a new player sits down.
 	race   int
@@ -146,6 +151,8 @@ func newRoom(h *Hub, code string, settings RoomSettings) *room {
 		inbox:    make(chan event, 16),
 		done:     make(chan struct{}),
 		mode:     settings.Mode,
+		table:    settings.Table,
+		cloth:    settings.Cloth,
 		race:     settings.Race,
 		breaks:   settings.Breaks,
 		match:    game.NewMatch(settings.Race, settings.Breaks),
@@ -161,15 +168,21 @@ func newRoom(h *Hub, code string, settings RoomSettings) *room {
 
 // resetGame puts a fresh game of the room's mode in the lobby.
 func (r *room) resetGame() {
-	r.game = game.NewGame(r.hub.opts.Game)
+	r.game = game.NewGame(r.poolConfig())
 	r.game.SetFree(r.practice) // practice is free play, without the rules
 	r.game.SetMode(r.mode)
+}
+
+// poolConfig is the server's table with the room's pockets.
+func (r *room) poolConfig() game.Config {
+	return game.Tables[r.table].Apply(r.hub.opts.Game)
 }
 
 // publishInfo refreshes the room-list summary.
 func (r *room) publishInfo() {
 	info := &RoomInfo{
-		RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Phase: r.game.Rules.Phase, Practice: r.practice,
+		RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Table: r.table, Cloth: r.cloth,
+		Phase: r.game.Rules.Phase, Practice: r.practice,
 		Spectators: len(r.watchers), MaxSpectators: r.maxSpectators,
 	}
 	for i := range r.seats {
@@ -513,6 +526,8 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 		err = r.handleExtend(s)
 	case protocol.TypeSetMode:
 		err = r.handleSetMode(msg.Mode)
+	case protocol.TypeSetTable:
+		err = r.handleSetTable(msg.Table, msg.Cloth)
 	case protocol.TypeSetMatch:
 		err = r.handleSetMatch(msg.Race, msg.Breaks)
 	case protocol.TypeLeave:
@@ -721,6 +736,40 @@ func (r *room) handleSetMode(mode game.Mode) error {
 	if ph == game.PhaseLobby {
 		for i := range r.seats {
 			r.seats[i].ready = false
+		}
+	}
+	r.broadcast(r.roomState())
+	return nil
+}
+
+// handleSetTable changes the pool table and the cloth (an empty value keeps
+// it), between matches only, or in practice while no shot runs. A new
+// table racks again (practice) or, in the lobby, wants both players ready
+// again; a new cloth changes nothing else.
+func (r *room) handleSetTable(table game.TableID, cloth string) error {
+	ph := r.game.Rules.Phase
+	switch {
+	case table != "" && !table.Valid(), cloth != "" && !Cloths[cloth]:
+		return errBadTable
+	case r.practice && r.game.Moving():
+		return game.ErrBallsMoving
+	case !r.practice && (ph != game.PhaseLobby && ph != game.PhaseGameOver || r.matchLive()):
+		return game.ErrWrongPhase
+	}
+	if cloth != "" {
+		r.cloth = cloth
+	}
+	if table != "" && table != r.table {
+		r.table = table
+		r.game.SetConfig(r.poolConfig())
+		switch {
+		case r.practice:
+			r.startRack(0)
+			return nil
+		case ph == game.PhaseLobby:
+			for i := range r.seats {
+				r.seats[i].ready = false
+			}
 		}
 	}
 	r.broadcast(r.roomState())
@@ -1053,6 +1102,8 @@ func (r *room) roomState() protocol.RoomState {
 	return protocol.RoomState{
 		Type:       protocol.TypeRoomState,
 		Mode:       st.Mode,
+		Table:      r.table,
+		Cloth:      r.cloth,
 		Practice:   r.practice,
 		Balls:      st.Balls,
 		Players:    [2]protocol.PlayerInfo{r.playerInfo(0), r.playerInfo(1)},
@@ -1218,6 +1269,8 @@ func errorCode(err error) string {
 		return protocol.ErrNoExtension
 	case errors.Is(err, errBadMode):
 		return protocol.ErrBadMode
+	case errors.Is(err, errBadTable):
+		return protocol.ErrBadTable
 	case errors.Is(err, errNoUndo):
 		return protocol.ErrNoUndo
 	case errors.Is(err, errNotPractice):
