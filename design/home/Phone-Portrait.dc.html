@@ -1,0 +1,545 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>POOL home · phone portrait</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0D1218;overflow-x:hidden}
+sc-for,sc-if{display:contents}
+.pool{
+--bg:#0D1218;--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;--input-bg:#0D1218;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--accent-hover:#E5B55E;--accent-press:#C38E2F;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--ok:#71C99D;--ok-soft:rgba(113,201,157,.14);--focus:#8CBFFF;--focus-halo:rgba(140,191,255,.28);
+--dock-shadow:0 -14px 28px -18px rgba(0,0,0,.7);
+--r-md:12px;--r-lg:16px;--r-xl:20px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;
+--dur-1:120ms;--dur-2:160ms;--ease-out:cubic-bezier(.2,.8,.2,1);
+color-scheme:dark;background:var(--bg);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool[data-theme="light"]{
+--bg:#F1EFEA;--surface-1:#F9F8F5;--surface-2:#FFFFFF;--surface-3:#E6E2DA;--input-bg:#FFFFFF;
+--hairline:rgba(22,32,43,.12);--hairline-strong:rgba(22,32,43,.22);
+--text:#16202B;--text-muted:#566270;--text-disabled:#A3ABB4;
+--accent-hover:#E2AE4E;--accent-text:#87590F;--accent-soft:rgba(176,122,30,.12);--accent-ring:rgba(176,122,30,.55);
+--ok:#1A6B43;--ok-soft:rgba(26,107,67,.10);--focus:#2F6FD0;--focus-halo:rgba(47,111,208,.22);
+--dock-shadow:0 -14px 28px -18px rgba(22,32,43,.3);
+color-scheme:light;
+}
+.pool,.pool *,.pool *::before,.pool *::after{box-sizing:border-box}
+.pool h1,.pool h2,.pool h3,.pool p{margin:0}
+.pool button,.pool input{font:inherit;color:inherit}
+a{color:var(--accent-text)}a:hover{color:var(--accent-hover)}
+
+.wordmark{font:700 28px/32px var(--font-display);letter-spacing:.06em}
+.eyebrow{font:700 12px/16px var(--font-ui);letter-spacing:.08em;text-transform:uppercase;color:var(--text-muted)}
+.caption{font:400 12px/16px var(--font-ui);color:var(--text-muted)}
+.label{font:600 13px/18px var(--font-ui);color:var(--text-muted)}
+.label b{font-weight:400;color:var(--text)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 22px;border-radius:999px;border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer;text-decoration:none;transition:background-color var(--dur-1) var(--ease-out),border-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out),transform var(--dur-1) var(--ease-out)}
+.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--primary:active{background:var(--accent-press);transform:scale(.98)}
+.btn--secondary{background:var(--surface-2);color:var(--text);border-color:var(--hairline-strong)}
+.btn--secondary:hover{background:var(--surface-3)}
+.btn--secondary:active{transform:scale(.98)}
+.btn--small{min-height:32px;padding:0 14px;font-size:14px;gap:6px}
+.btn--small::before{content:"";position:absolute;inset:-6px -2px}
+.btn--lg{min-height:52px;font-size:17px;padding:0 28px}
+.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.btn:disabled{background:transparent;color:var(--text-disabled);border-color:var(--hairline);cursor:not-allowed;transform:none}
+
+.icon-btn{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;padding:0;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--text-muted);cursor:pointer;transition:color var(--dur-1) var(--ease-out),background-color var(--dur-1) var(--ease-out)}
+.icon-btn:hover{color:var(--text);background:var(--surface-3)}
+.icon-btn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.icon-btn:disabled{opacity:.4;cursor:not-allowed;background:transparent}
+.icon-btn--s{width:36px;height:36px}
+.icon-btn--s::before{content:"";position:absolute;inset:-4px}
+
+.who{position:relative;display:inline-flex;align-items:center;gap:8px;min-width:0;max-width:180px;min-height:36px;padding:0 12px 0 10px;border-radius:999px;border:1px solid var(--hairline-strong);background:var(--surface-2);color:var(--text);font:600 14px/18px var(--font-ui);cursor:pointer}
+.who::before{content:"";position:absolute;inset:-4px}
+.who:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.who__dot{flex:none;width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.who__name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.who svg{flex:none;color:var(--text-muted)}
+
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.input{display:block;width:100%;height:44px;padding:0 14px;border-radius:var(--r-md);border:1px solid var(--hairline-strong);background:var(--input-bg);color:var(--text);font:400 16px/24px var(--font-ui)}
+.input::placeholder{color:var(--text-muted);opacity:1}
+.input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 3px var(--focus-halo)}
+.input--code{font:600 22px/24px var(--font-display);letter-spacing:.18em;text-transform:uppercase;text-align:center;padding:0 10px}
+.input--code::placeholder{letter-spacing:.12em;font-size:18px}
+
+.seg{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface-2);border:1px solid var(--hairline)}
+.seg__btn{position:relative;display:inline-flex;align-items:center;justify-content:center;flex:1 1 0;min-width:0;min-height:34px;padding:0 8px;border:0;border-radius:999px;background:transparent;color:var(--text-muted);font:600 14px/1 var(--font-ui);white-space:nowrap;cursor:pointer;transition:background-color var(--dur-1) var(--ease-out),color var(--dur-1) var(--ease-out)}
+.seg__btn::before{content:"";position:absolute;inset:-6px -1px}
+.seg__btn:hover{color:var(--text)}
+.seg__btn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.seg__btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.seg--tabs .seg__btn{min-height:38px;font-size:15px}
+.seg__n{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;margin-left:7px;padding:0 6px;border-radius:999px;background:var(--surface-3);color:var(--text);font:700 12px/1 var(--font-ui)}
+.seg__btn[aria-pressed="true"] .seg__n{background:rgba(26,18,6,.16);color:var(--on-accent)}
+
+.pick{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-width:0;padding:8px 10px;border:1px solid var(--hairline-strong);border-radius:var(--r-md);background:var(--surface-2);color:var(--text);text-align:left;cursor:pointer;transition:border-color var(--dur-1) var(--ease-out),background-color var(--dur-1) var(--ease-out)}
+.pick:hover{background:var(--surface-3)}
+.pick[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:var(--accent-soft)}
+.pick:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.pick__glyph{display:block;margin:2px 0 6px}
+.pick__name{display:flex;align-items:center;gap:7px;font:600 14px/18px var(--font-ui)}
+.pick__sub{font:400 12px/16px var(--font-ui);color:var(--text-muted)}
+.finish{flex:none;width:18px;height:10px;border-radius:3px}
+
+.cloths{display:flex;flex-wrap:wrap;gap:10px}
+.swatch{position:relative;flex:none;width:32px;height:32px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.35);box-shadow:inset 0 1px 2px rgba(255,255,255,.25),inset 0 -2px 4px rgba(0,0,0,.25);cursor:pointer}
+.swatch::before{content:"";position:absolute;inset:-6px}
+.swatch[aria-pressed="true"]{outline:2px solid var(--accent);outline-offset:3px}
+.swatch:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+
+.note{padding:10px 12px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--hairline);font:400 14px/20px var(--font-ui);color:var(--text-muted)}
+
+.opts{display:flex;flex-direction:column;border:1px solid var(--hairline-strong);border-radius:var(--r-md);background:var(--surface-2)}
+.opts__toggle{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:7px 12px 7px 14px;border:0;border-radius:var(--r-md);background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.opts__toggle:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.opts__text{flex:1;min-width:0;display:flex;flex-direction:column}
+.opts__sum{font:600 15px/20px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.opts__chev{flex:none;color:var(--text-muted);transition:transform var(--dur-2) var(--ease-out)}
+.opts--open .opts__chev{transform:rotate(180deg)}
+.opts__body{display:flex;flex-direction:column;gap:10px;padding:2px 12px 14px 14px}
+.opts__row{display:flex;flex-direction:column;gap:6px}
+.opts__row .seg__btn{min-height:36px}
+
+.chip{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--hairline);background:var(--surface-2);font:600 11px/14px var(--font-ui);letter-spacing:.02em;white-space:nowrap}
+.chip__dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip--lobby{color:var(--ok)}
+.chip--playing{color:var(--accent-text);border-color:var(--accent-ring)}
+.chip--finished{color:var(--text-muted)}
+.chip--finished .chip__dot{background:transparent;box-shadow:inset 0 0 0 1.5px currentColor}
+
+.scroll{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none}
+.scroll::-webkit-scrollbar{display:none}
+.dock{position:absolute;left:0;right:0;bottom:0;display:flex;align-items:center;gap:10px;padding:12px 16px 26px;background:var(--surface-1);border-top:1px solid var(--hairline);box-shadow:var(--dock-shadow)}
+
+/* the hall: the table under its lamp, on the arena's carpet; dark in both themes */
+.hall{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--r-xl);border:1px solid rgba(170,190,215,.12);background:#0B1119;color:#E8ECF1}
+.hall::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 66% 62% at 50% 60%,rgba(255,224,170,.10),rgba(255,224,170,0) 72%)}
+.hall::after{content:"";position:absolute;inset:6px;z-index:-1;border:1px solid rgba(217,164,65,.16);border-radius:14px;pointer-events:none}
+.hall__lamp{position:absolute;top:0;left:50%;width:44%;height:4px;transform:translateX(-50%);border-radius:0 0 5px 5px;background:#262B32;box-shadow:0 6px 28px 6px rgba(255,218,150,.10)}
+.hall .eyebrow{color:#9BA8B7}
+.hall__title{font:600 26px/30px var(--font-display);letter-spacing:.01em;color:#F1F3F6}
+.hall__sub{font:400 13px/18px var(--font-ui);color:#9BA8B7}
+.led{display:inline-flex;align-items:center;gap:7px;font:600 11px/16px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:#E3B25C;text-shadow:0 0 12px rgba(217,164,65,.5);white-space:nowrap}
+.led__sep{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.7}
+
+/* the table, top down: frame 2880 x 1610 mm round a 2540 x 1270 mm bed */
+.tbl{position:relative;width:100%;aspect-ratio:2880/1610}
+.tbl__glow{position:absolute;left:8%;right:8%;bottom:-8%;height:28%;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(87,178,255,.40),rgba(87,178,255,0) 70%);filter:blur(8px)}
+.tbl__body{position:absolute;inset:0;border-radius:2.6% / 4.6%;box-shadow:0 18px 30px -14px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5)}
+.tbl__grain{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,rgba(255,255,255,0) 1px 5px)}
+.tbl__gloss{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:linear-gradient(180deg,rgba(255,255,255,.16),rgba(255,255,255,0) 30%,rgba(255,255,255,0) 72%,rgba(0,0,0,.2))}
+.tbl__trim{position:absolute;inset:1.5% .85%;border-radius:2% / 3.6%;border:1px solid transparent}
+.tbl__cushion{position:absolute;top:7.45%;bottom:7.45%;left:4.17%;right:4.17%;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)}
+.tbl__felt{position:absolute;top:3.65%;bottom:3.65%;left:1.89%;right:1.89%;box-shadow:inset 0 0 12px rgba(0,0,0,.38),inset 0 0 2px rgba(0,0,0,.5)}
+.tbl__pocket{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 50% 42%,#000 0 56%,#0C0F12 100%)}
+.tbl__sight{position:absolute;width:.8%;aspect-ratio:1;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg);opacity:.92}
+.ball{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 1px rgba(0,0,0,.55),.5px 2px 3px rgba(0,0,0,.32)}
+.ball::after{content:"";position:absolute;inset:31%;border-radius:50%;background:#FAF7EF}
+.ball--plain::after{display:none}
+
+/* the room list, one row a room: its table in miniature, the code, who, what */
+.mini{position:relative;flex:none;width:46px;aspect-ratio:2880/1610;border-radius:4px;box-shadow:0 3px 8px -3px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.35)}
+.mini__felt{position:absolute;inset:14% 8%;border-radius:1px;box-shadow:inset 0 0 3px rgba(0,0,0,.4)}
+.rows{list-style:none;margin:8px 0 0;padding:0}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--hairline)}
+.row__main{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.row__top{display:flex;align-items:baseline;gap:8px;min-width:0}
+.row__code{flex:none;font:600 18px/22px var(--font-display);letter-spacing:.12em}
+.row__names{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 14px/20px var(--font-ui)}
+.row__names--muted{color:var(--text-muted);font-style:italic}
+.row__meta{display:flex;align-items:center;gap:8px;min-width:0}
+.row__info{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 12px/16px var(--font-ui);color:var(--text-muted)}
+.row__actions{flex:none;display:flex;align-items:center;gap:4px}
+
+@media (prefers-reduced-motion: reduce){.pool *{transition-duration:1ms!important}}
+</style>
+</helmet>
+<div class="pool" data-theme="{{theme}}" style="position: relative; width: 390px; height: 844px; overflow: hidden; display: flex; flex-direction: column">
+
+  <header style="flex: none; display: flex; align-items: center; gap: 6px; padding: 10px 8px 6px 16px">
+    <span class="wordmark" style="font-size: 24px; line-height: 28px">POOL</span>
+    <span style="flex: 1"></span>
+    <button class="who" type="button" aria-label="Your name: Rapid Heron. Change it"><span class="who__dot" aria-hidden="true"></span><span class="who__name">Rapid Heron</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg></button>
+    <button class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+  </header>
+
+  <div style="flex: none; padding: 0 16px">
+    <div class="hall" style="padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px">
+      <span class="hall__lamp" aria-hidden="true"></span>
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px">
+        <span class="eyebrow">Your table</span>
+        <span class="led">{{v.led1}}<span class="led__sep" aria-hidden="true"></span>{{v.led2}}</span>
+      </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0">
+        <h1 class="hall__title" style="min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{v.title}}</h1>
+        <span class="hall__sub" style="flex: none">{{v.clothName}}</span>
+      </div>
+      <div style="padding-top: 4px">
+        <div class="tbl" role="img" aria-label="{{v.aria}}">
+          <sc-if value="{{v.led}}" hint-placeholder-val="{{ false }}"><span class="tbl__glow" aria-hidden="true"></span></sc-if>
+          <div class="tbl__body" style="background: {{v.railBg}}"></div>
+          <sc-if value="{{v.grain}}" hint-placeholder-val="{{ true }}"><span class="tbl__grain" aria-hidden="true"></span></sc-if>
+          <sc-if value="{{v.gloss}}" hint-placeholder-val="{{ true }}"><span class="tbl__gloss" aria-hidden="true"></span></sc-if>
+          <sc-if value="{{v.hasTrim}}" hint-placeholder-val="{{ false }}"><span class="tbl__trim" style="border-color: {{v.trim}}" aria-hidden="true"></span></sc-if>
+          <div class="tbl__cushion" style="background: {{v.cushion}}">
+            <div class="tbl__felt" style="background: {{v.feltBg}}">
+              <sc-for list="{{v.balls}}" as="b" hint-placeholder-count="16">
+                <span class="ball {{b.cls}}" style="left: {{b.x}}%; top: {{b.y}}%; width: {{b.d}}%; background: {{b.bg}}"></span>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{v.pockets}}" as="p" hint-placeholder-count="6">
+            <span class="tbl__pocket" style="left: {{p.x}}%; top: {{p.y}}%; width: {{p.w}}%; box-shadow: {{p.rim}}"></span>
+          </sc-for>
+          <sc-for list="{{v.sights}}" as="s" hint-placeholder-count="18">
+            <span class="tbl__sight" style="left: {{s.x}}%; top: {{s.y}}%; background: {{s.c}}"></span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex: none; padding: 12px 16px 0">
+    <div class="seg seg--tabs" role="group" aria-label="Show">
+      <button class="seg__btn" type="button" aria-pressed="{{tabs.newOn}}" onClick="{{tabs.toNew}}">New room</button>
+      <button class="seg__btn" type="button" aria-pressed="{{tabs.roomsOn}}" onClick="{{tabs.toRooms}}">Rooms<span class="seg__n">6</span></button>
+    </div>
+  </div>
+
+  <div class="scroll" style="flex: 1; min-height: 0; padding: 14px 16px 104px">
+    <sc-if value="{{tabs.isNew}}" hint-placeholder-val="{{ true }}">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <div class="field">
+          <span class="label" id="game-p">Game</span>
+          <div role="group" aria-labelledby="game-p" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+            <button class="pick" type="button" aria-pressed="{{games.e8.pressed}}" onClick="{{games.e8.pick}}">
+              <svg class="pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="rgba(255,255,255,.16)" stroke-width=".6"><circle cx="11" cy="12" r="3.6" fill="#F2C12E"></circle><circle cx="17.4" cy="8.3" r="3.6" fill="#1F4FB4"></circle><circle cx="17.4" cy="15.7" r="3.6" fill="#CC3326"></circle><circle cx="23.8" cy="4.6" r="3.6" fill="#EC7623"></circle><circle cx="23.8" cy="12" r="3.6" fill="#111316"></circle><circle cx="23.8" cy="19.4" r="3.6" fill="#128A4C"></circle></g></svg>
+              <span class="pick__name">8-ball</span>
+            </button>
+            <button class="pick" type="button" aria-pressed="{{games.n9.pressed}}" onClick="{{games.n9.pick}}">
+              <svg class="pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="rgba(255,255,255,.16)" stroke-width=".6"><circle cx="11" cy="12" r="3.6" fill="#F2C12E"></circle><circle cx="17.4" cy="8.3" r="3.6" fill="#5B3592"></circle><circle cx="17.4" cy="15.7" r="3.6" fill="#EC7623"></circle><circle cx="23.8" cy="12" r="3.6" fill="#F4EFE2"></circle><circle cx="23.8" cy="12" r="2.1" fill="#F2C12E"></circle></g></svg>
+              <span class="pick__name">9-ball</span>
+            </button>
+            <button class="pick" type="button" aria-pressed="{{games.c3.pressed}}" onClick="{{games.c3.pick}}">
+              <svg class="pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="rgba(255,255,255,.16)" stroke-width=".6"><circle cx="9" cy="15" r="3.8" fill="#F4EFE2"></circle><circle cx="20" cy="8" r="3.8" fill="#F2C12E"></circle><circle cx="31" cy="14" r="3.8" fill="#CC3326"></circle></g></svg>
+              <span class="pick__name">3-cushion</span>
+            </button>
+          </div>
+        </div>
+
+        <sc-if value="{{v.isPool}}" hint-placeholder-val="{{ true }}">
+          <div class="field">
+            <span class="label" id="table-p">Table</span>
+            <div role="group" aria-labelledby="table-p" style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <sc-for list="{{tables}}" as="t" hint-placeholder-count="4">
+                <button class="pick" type="button" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}">
+                  <span class="pick__name"><span class="finish" style="background: {{t.finish}}; box-shadow: {{t.ring}}" aria-hidden="true"></span>{{t.name}}</span>
+                  <span class="pick__sub">{{t.pockets}}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{v.isCarom}}" hint-placeholder-val="{{ false }}">
+          <div class="field">
+            <span class="label">Table</span>
+            <p class="note">3-cushion is always played on the carom table: 2.84 × 1.42 m, no pockets.</p>
+          </div>
+        </sc-if>
+
+        <div class="field">
+          <span class="label" id="cloth-p">Cloth <b>· {{v.clothName}}</b></span>
+          <div class="cloths" role="group" aria-labelledby="cloth-p">
+            <sc-for list="{{cloths}}" as="c" hint-placeholder-count="8">
+              <button class="swatch" type="button" aria-label="{{c.name}}" title="{{c.name}}" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}" style="background: {{c.felt}}"></button>
+            </sc-for>
+          </div>
+        </div>
+
+        <div class="opts {{rules.cls}}">
+          <button class="opts__toggle" type="button" aria-expanded="{{rules.expanded}}" onClick="{{rules.toggle}}">
+            <span class="opts__text"><span class="label">Match rules</span><span class="opts__sum">{{rules.sum}}</span></span>
+            <svg class="opts__chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+          </button>
+          <sc-if value="{{rules.open}}" hint-placeholder-val="{{ false }}">
+            <div class="opts__body">
+              <sc-if value="{{v.isPool}}" hint-placeholder-val="{{ true }}">
+                <div class="opts__row">
+                  <span class="label" id="race-p">Race to</span>
+                  <div class="seg" role="group" aria-labelledby="race-p">
+                    <sc-for list="{{rules.races}}" as="o" hint-placeholder-count="5"><button class="seg__btn" type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+                  </div>
+                </div>
+                <div class="opts__row">
+                  <span class="label" id="break-p">Breaks</span>
+                  <div class="seg" role="group" aria-labelledby="break-p">
+                    <sc-for list="{{rules.breaks}}" as="o" hint-placeholder-count="2"><button class="seg__btn" type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{v.isCarom}}" hint-placeholder-val="{{ false }}">
+                <div class="opts__row">
+                  <span class="label" id="points-p">Points</span>
+                  <div class="seg" role="group" aria-labelledby="points-p">
+                    <sc-for list="{{rules.points}}" as="o" hint-placeholder-count="6"><button class="seg__btn" type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+                  </div>
+                </div>
+              </sc-if>
+              <div class="opts__row">
+                <span class="label" id="watch-p">May watch</span>
+                <div class="seg" role="group" aria-labelledby="watch-p">
+                  <sc-for list="{{rules.watchers}}" as="o" hint-placeholder-count="5"><button class="seg__btn" type="button" aria-pressed="{{o.pressed}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{tabs.isRooms}}" hint-placeholder-val="{{ false }}">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 12px">
+        <h2 class="eyebrow">Rooms</h2>
+        <span class="caption">6 of 50 in use</span>
+      </div>
+      <ul class="rows">
+        <sc-for list="{{rooms}}" as="r" hint-placeholder-count="6">
+          <li class="row">
+            <span class="mini" style="background: {{r.rail}}" aria-hidden="true"><span class="mini__felt" style="background: {{r.felt}}"></span></span>
+            <div class="row__main">
+              <div class="row__top"><span class="row__code">{{r.code}}</span><span class="row__names {{r.namesCls}}">{{r.names}}</span></div>
+              <div class="row__meta"><span class="chip {{r.chipCls}}"><span class="chip__dot" aria-hidden="true"></span>{{r.state}}</span><span class="row__info">{{r.meta}}</span></div>
+            </div>
+            <div class="row__actions">
+              <button class="icon-btn icon-btn--s" type="button" aria-label="Watch room {{r.code}}" title="Watch" disabled="{{r.watchOff}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+              <button class="btn btn--secondary btn--small" type="button" disabled="{{r.joinOff}}" style="min-width: 60px; padding: 0 12px">{{r.join}}</button>
+            </div>
+          </li>
+        </sc-for>
+      </ul>
+    </sc-if>
+  </div>
+
+  <div class="dock">
+    <sc-if value="{{tabs.isNew}}" hint-placeholder-val="{{ true }}">
+      <button class="btn btn--primary btn--lg" type="button" style="flex: 1.5 1 0; min-width: 0; padding: 0 12px">Create a room</button>
+      <button class="btn btn--secondary btn--lg" type="button" style="flex: 1 1 0; min-width: 0; padding: 0 12px; font-size: 15px">Practice alone</button>
+    </sc-if>
+    <sc-if value="{{tabs.isRooms}}" hint-placeholder-val="{{ false }}">
+      <label class="sr" for="code-p">Join by code</label>
+      <input class="input input--code" id="code-p" placeholder="ABCDE" maxlength="5" autocapitalize="characters" autocomplete="off" spellcheck="false" style="flex: 1; min-width: 0; width: auto; height: 52px">
+      <button class="btn btn--primary btn--lg" type="button" style="flex: none; padding: 0 26px">Join</button>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+// Real data from web/app.js: TABLES and LOOKS (rails, trims, sights, rims), CLOTHS, ball colours.
+const TABLES = [
+  { id: 'diamond', name: 'Diamond Pro-Am', corner: '4.5″', side: '5″', cornerMm: 114.3, sideMm: 127, railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', gloss: true, grain: true, trim: '', sight: '#E6D7B4', rim: '', led: false },
+  { id: 'predator', name: 'Predator Apex', corner: '4.25″', side: '4.92″', cornerMm: 108, sideMm: 125, railTop: '#2E3035', rail: '#1C1D21', railBottom: '#111215', gloss: false, grain: false, trim: '', sight: '#C9CED4', rim: '#C3C8CE', led: true },
+  { id: 'rasson', name: 'Rasson Victory II', corner: '4.25″', side: '5″', cornerMm: 108, sideMm: 127, railTop: '#36383D', rail: '#202226', railBottom: '#131417', gloss: true, grain: false, trim: '#B8BDC3', sight: '#E9E6DE', rim: '', led: false },
+  { id: 'acurra', name: 'Mr-Sung Acurra', corner: '4″', side: '4.5″', cornerMm: 101.6, sideMm: 114.3, railTop: '#8C8E91', rail: '#6F7174', railBottom: '#4C4E51', gloss: false, grain: true, trim: '#C8CCD1', sight: '#EDEAE2', rim: '', led: false },
+];
+const CAROM = { id: 'carom', name: 'Carom table', railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', gloss: true, grain: true, trim: '', sight: '#E6D7B4', rim: '', led: false };
+const CLOTHS = [
+  { id: 'tournament-blue', name: 'Tournament Blue', felt: '#1F5C9E' },
+  { id: 'electric-blue', name: 'Electric Blue', felt: '#1C74BA' },
+  { id: 'blue-green', name: 'Blue Green', felt: '#1D6966' },
+  { id: 'spruce', name: 'Spruce', felt: '#2A5A61' },
+  { id: 'simonis-green', name: 'Simonis Green', felt: '#2F7A40' },
+  { id: 'english-green', name: 'English Green', felt: '#20563A' },
+  { id: 'slate-grey', name: 'Slate Grey', felt: '#56606A' },
+  { id: 'burgundy', name: 'Burgundy', felt: '#6C2131' },
+];
+const BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316' };
+const IVORY = '#F4EFE2';
+const RACK8 = [[1], [10, 3], [12, 8, 5], [14, 2, 11, 6], [9, 4, 15, 13, 7]];
+const RACK9 = [[1], [6, 3], [4, 9, 7], [2, 5], [8]];
+const TILT = { 9: 18, 10: -34, 11: 66, 12: 4, 13: -58, 14: 38, 15: -12 };
+const HI = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.6) 0, rgba(255,255,255,0) 42%)';
+const EDGE = 'radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 54%, rgba(0,0,0,.36) 100%)';
+const BALL_SCALE = 1.25; // a phone draws the balls a little larger than true size
+const RIM_PX = 1.5;
+const ROOMS = [
+  { code: 'MBWEK', a: 'Keen Osprey', b: '', score: '', state: 'lobby', meta: '9-ball · race 3 · Diamond Pro-Am', table: 'diamond', cloth: 'tournament-blue', canWatch: true, canJoin: true },
+  { code: 'PZJAN', a: '', b: '', score: '', state: 'lobby', meta: '8-ball · race 5 · Rasson Victory II', table: 'rasson', cloth: 'burgundy', canWatch: true, canJoin: true },
+  { code: 'QXRTA', a: 'Ann', b: 'Bob', score: '2 – 1', state: 'playing', meta: '8-ball · race 5 · Predator Apex', table: 'predator', cloth: 'electric-blue', canWatch: true, canJoin: false },
+  { code: 'HZWVK', a: 'Linh', b: 'Minh', score: '11 – 9', state: 'playing', meta: '3-cushion · to 15 · carom table', table: 'carom', cloth: 'tournament-blue', canWatch: false, canJoin: false },
+  { code: 'LMQDT', a: 'Calm Otter', b: 'Hà', score: '0 – 0', state: 'playing', meta: '9-ball · race 9 · Diamond Pro-Am', table: 'diamond', cloth: 'spruce', canWatch: true, canJoin: false },
+  { code: 'CSKYP', a: 'Tuấn', b: 'Rapid Panda', score: '7 – 4', state: 'finished', meta: '8-ball · race 7 · Mr-Sung Acurra', table: 'acurra', cloth: 'slate-grey', canWatch: true, canJoin: false },
+];
+
+function shade(hex, k) {
+  return '#' + [1, 3, 5].map(function (i) {
+    return Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0');
+  }).join('');
+}
+function clothShades(felt) { return { center: shade(felt, 1.2), felt: felt, edge: shade(felt, 0.62), cushion: shade(felt, 0.74) }; }
+function railBg(t) { return 'linear-gradient(165deg, ' + t.railTop + ', ' + t.rail + ' 52%, ' + t.railBottom + ')'; }
+function feltBg(felt) {
+  const sh = clothShades(felt);
+  return 'radial-gradient(ellipse 72% 78% at 50% 50%, ' + sh.center + ' 0%, ' + sh.felt + ' 58%, ' + sh.edge + ' 100%)';
+}
+function miniFelt(felt, pockets) {
+  const sh = clothShades(felt);
+  const bed = 'radial-gradient(ellipse at 50% 50%, ' + sh.center + ', ' + sh.felt + ' 60%, ' + sh.edge + ')';
+  if (!pockets) return bed;
+  const hole = function (at, r) { return 'radial-gradient(circle at ' + at + ', #05070A 0 ' + r + 'px, rgba(5,7,10,0) ' + (r + 0.6) + 'px)'; };
+  return [hole('0 0', 2), hole('100% 0', 2), hole('0 100%', 2), hole('100% 100%', 2), hole('50% 0', 1.7), hole('50% 100%', 1.7), bed].join(', ');
+}
+function finishRing(t) {
+  if (t.trim) return 'inset 0 0 0 1.5px ' + t.trim;
+  if (t.rim) return 'inset 0 0 0 1px ' + t.rim;
+  return 'inset 0 0 0 1px rgba(0,0,0,.35)';
+}
+function ballBg(n) {
+  if (n === 'cue') return HI + ', ' + EDGE + ', ' + IVORY;
+  if (n === 'yellow') return HI + ', ' + EDGE + ', #F2C12E';
+  if (n === 'red') return HI + ', ' + EDGE + ', #CC3326';
+  if (n <= 8) return HI + ', ' + EDGE + ', ' + BALL[n];
+  const c = BALL[n - 8];
+  return HI + ', ' + EDGE + ', linear-gradient(' + (90 + TILT[n]) + 'deg, ' + IVORY + ' 0 27%, ' + c + ' 27% 73%, ' + IVORY + ' 73%)';
+}
+function rack(game, scale) {
+  const d = 2.25 * scale, dy = d * 2, step = d * 0.866 * 1.03;
+  const out = [];
+  const add = function (n, x, y, plain) { out.push({ x: x.toFixed(2), y: y.toFixed(2), d: d.toFixed(2), bg: ballBg(n), cls: plain ? 'ball--plain' : '' }); };
+  if (game === '3cushion') {
+    add('red', 75, 50, true);
+    add('yellow', 25, 50, true);
+    add('cue', 25, 60.7, true);
+    return out;
+  }
+  const rows = game === '9ball' ? RACK9 : RACK8;
+  rows.forEach(function (row, k) {
+    row.forEach(function (n, j) { add(n, 75 + k * step, 50 + (j - (row.length - 1) / 2) * dy * 1.03, false); });
+  });
+  add('cue', 23, 57, true);
+  return out;
+}
+function pocketsOf(t) {
+  if (!t.cornerMm) return [];
+  const c = (t.cornerMm * 1.12 / 28.8).toFixed(2), sd = (t.sideMm * 1.02 / 28.8).toFixed(2);
+  const rim = t.rim ? '0 0 0 ' + RIM_PX + 'px ' + t.rim : '0 0 0 1px rgba(0,0,0,.4)';
+  return [[5.03, 9], [50, 7.2], [94.97, 9], [5.03, 91], [50, 92.8], [94.97, 91]].map(function (p, i) {
+    return { x: p[0], y: p[1], w: i % 3 === 1 ? sd : c, rim: rim };
+  });
+}
+function sightsOf(t, carom) {
+  const out = [];
+  for (let i = 1; i < 8; i++) {
+    if (i === 4 && !carom) continue;
+    const x = (5.903 + 88.194 * i / 8).toFixed(2);
+    out.push({ x: x, y: '3.73', c: t.sight }, { x: x, y: '96.27', c: t.sight });
+  }
+  for (let j = 1; j < 4; j++) {
+    const y = (10.559 + 78.882 * j / 4).toFixed(2);
+    out.push({ x: '2.08', y: y, c: t.sight }, { x: '97.92', y: y, c: t.sight });
+  }
+  return out;
+}
+
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.state = { tab: 'new', game: '8ball', table: 'diamond', cloth: 'tournament-blue', rulesOpen: false, race: 3, points: 15, breaks: 'alternate', watch: 3 };
+  }
+  renderVals() {
+    const s = Object.assign({ tab: 'new', game: '8ball', table: 'diamond', cloth: 'tournament-blue', rulesOpen: false, race: 3, points: 15, breaks: 'alternate', watch: 3 }, this.state || {});
+    const set = (patch) => () => this.setState(patch);
+    const on = (yes) => (yes ? 'true' : 'false');
+    const isCarom = s.game === '3cushion';
+    const t = isCarom ? CAROM : (TABLES.find((x) => x.id === s.table) || TABLES[0]);
+    const cloth = CLOTHS.find((c) => c.id === s.cloth) || CLOTHS[0];
+    const gameName = isCarom ? '3-cushion' : (s.game === '9ball' ? '9-ball' : '8-ball');
+    const watchText = s.watch === 0 ? 'no one may watch' : s.watch + ' may watch';
+    return {
+      theme: this.props.theme ?? 'dark',
+      tabs: {
+        isNew: s.tab !== 'rooms',
+        isRooms: s.tab === 'rooms',
+        newOn: on(s.tab !== 'rooms'),
+        roomsOn: on(s.tab === 'rooms'),
+        toNew: set({ tab: 'new' }),
+        toRooms: set({ tab: 'rooms' }),
+      },
+      games: {
+        e8: { pressed: on(s.game === '8ball'), pick: set({ game: '8ball' }) },
+        n9: { pressed: on(s.game === '9ball'), pick: set({ game: '9ball' }) },
+        c3: { pressed: on(isCarom), pick: set({ game: '3cushion' }) },
+      },
+      tables: TABLES.map((x) => ({ name: x.name, pockets: 'corners ' + x.corner + ' · sides ' + x.side, finish: railBg(x), ring: finishRing(x), pressed: on(x.id === s.table), pick: set({ table: x.id }) })),
+      cloths: CLOTHS.map((c) => ({ name: c.name, felt: c.felt, pressed: on(c.id === s.cloth), pick: set({ cloth: c.id }) })),
+      v: {
+        isPool: !isCarom,
+        isCarom: isCarom,
+        title: t.name,
+        clothName: cloth.name,
+        led1: gameName,
+        led2: isCarom ? 'to ' + s.points : 'race to ' + s.race,
+        railBg: railBg(t),
+        gloss: !!t.gloss,
+        grain: !!t.grain,
+        hasTrim: !!t.trim,
+        trim: t.trim || 'transparent',
+        led: !!t.led,
+        cushion: clothShades(cloth.felt).cushion,
+        feltBg: feltBg(cloth.felt),
+        balls: rack(s.game, BALL_SCALE),
+        pockets: pocketsOf(t),
+        sights: sightsOf(t, isCarom),
+        aria: t.name + ' with ' + cloth.name + ' cloth, racked for ' + gameName,
+      },
+      rules: {
+        open: !!s.rulesOpen,
+        cls: s.rulesOpen ? 'opts--open' : '',
+        expanded: on(!!s.rulesOpen),
+        toggle: () => this.setState({ rulesOpen: !s.rulesOpen }),
+        sum: isCarom
+          ? 'To ' + s.points + ' points · ' + watchText
+          : 'Race to ' + s.race + ' · ' + (s.breaks === 'winner' ? 'winner breaks' : 'alternate breaks') + ' · ' + watchText,
+        races: [1, 3, 5, 7, 9].map((n) => ({ label: String(n), pressed: on(s.race === n), pick: set({ race: n }) })),
+        points: [10, 15, 20, 25, 30, 40].map((n) => ({ label: String(n), pressed: on(s.points === n), pick: set({ points: n }) })),
+        breaks: [['alternate', 'Alternate'], ['winner', 'Winner breaks']].map((b) => ({ label: b[1], pressed: on(s.breaks === b[0]), pick: set({ breaks: b[0] }) })),
+        watchers: [0, 1, 3, 5, 10].map((n) => ({ label: String(n), pressed: on(s.watch === n), pick: set({ watch: n }) })),
+      },
+      rooms: ROOMS.map((r) => {
+        const look = r.table === 'carom' ? CAROM : TABLES.find((x) => x.id === r.table);
+        const felt = (CLOTHS.find((c) => c.id === r.cloth) || CLOTHS[0]).felt;
+        return Object.assign({}, r, {
+          rail: railBg(look),
+          felt: miniFelt(felt, r.table !== 'carom'),
+          chipCls: 'chip--' + r.state,
+          names: r.a && r.b ? r.a + ' ' + r.score + ' ' + r.b : (r.a ? r.a + ' · waiting' : 'empty'),
+          namesCls: r.a ? '' : 'row__names--muted',
+          join: r.canJoin ? 'Join' : 'Full',
+          joinOff: !r.canJoin,
+          watchOff: !r.canWatch,
+        });
+      }),
+    };
+  }
+}
+</script>
+</body>
+</html>

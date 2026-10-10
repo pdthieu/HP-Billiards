@@ -687,45 +687,105 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .toasts { top: 76px; bottom: auto; flex-direction: column; }
 }
 
-/* ---------- entry screens: the landing page and Settings ----------
-   Three shapes (CLIENT.md, "Landing"): on a desktop or a tablet a card over
-   the dimmed table, in two columns (a new room | the rooms) once it is wide
-   enough; on a phone held upright a page of its own that scrolls; on a
-   phone held sideways the same two columns over the whole screen, each
-   scrolling on its own. Nothing is ever cut off: whatever does not fit
-   scrolls. */
-
-/* the overlay scrolls; the card centres by its margins, so a card taller
-   than the screen starts at its top instead of losing it */
+/* ---------- entry screens: the home page and Settings ----------
+   The home page (design/README.md, "Home") is a page of its own over the
+   game, in three shapes: on a desktop or a tablet the hall (the table of
+   the room to be) beside the New room card, the rooms below it as cards;
+   on a phone held upright the hall on top, New room and Rooms as two tabs,
+   their buttons docked at the bottom; on a phone on its side the hall and
+   the buttons on the left, the tabs on the right. It only ever scrolls up
+   and down: nothing in it is wider than the screen. */
 .landing {
   position: fixed; inset: 0; z-index: var(--z-overlay);
-  display: flex; align-items: flex-start; justify-content: flex-start;
-  padding: max(24px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px))
-           max(24px, env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left, 0px));
-  overflow-y: auto; overscroll-behavior: contain;
-  background: var(--scrim);
+  overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom;
+  padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  background: var(--bg);
 }
-body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) saturate(.8); }
-.landing__card { margin: auto; width: 100%; max-width: 480px; padding: 24px 24px 28px; gap: 20px; }
-.landing__head { display: flex; align-items: flex-start; gap: 12px; }
-.landing__brand { flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-start; column-gap: 14px; row-gap: 2px; }
-.landing__tagline { white-space: nowrap; }
-.landing__invite { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
-.landing__gear { margin: -8px -10px -8px 0; }
-.wordmark--small { font-size: 20px; line-height: 24px; color: var(--text-muted); }
-.landing__cols { display: flex; flex-direction: column; gap: 22px; min-height: 0; }
-.landing__new, .landing__create { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.landing__side { container-type: inline-size; display: flex; flex-direction: column; gap: 16px; min-width: 0; min-height: 0; padding-top: 20px; border-top: 1px solid var(--hairline); }
-.landing__go { display: flex; flex-direction: column; gap: 10px; }
-.landing__go .btn { width: 100%; }
-.landing__switch { text-align: center; font-size: 14px; line-height: 20px; }
-.landing .seg__btn { font-size: 14px; }
+body.is-landing #top, body.is-landing main { visibility: hidden; }
 
-/* an invite: one narrow column, the name and Join */
-.landing__card.landing--invited { max-width: 440px; }
-.landing--invited .landing__side { padding-top: 0; border-top: 0; }
+.home {
+  width: 100%; max-width: 1360px; margin: 0 auto; padding: 18px clamp(16px, 3vw, 40px) 64px;
+  display: grid; grid-template-columns: minmax(0, 1fr) clamp(360px, 32vw, 400px); column-gap: 24px;
+  grid-template-areas: "bar bar" "error error" "hall new" "side side";
+  animation: pool-fade var(--dur-3) var(--ease-out) both;
+}
+.home__bar { grid-area: bar; display: flex; align-items: center; gap: 8px; min-width: 0; min-height: 44px; }
+.home__brand { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; }
+.home__tagline { font-size: 14px; line-height: 20px; }
+.home__error { grid-area: error; margin-top: 16px; }
+.home__hall { grid-area: hall; margin-top: 24px; }
+.home__panel { display: contents; }
+.home__new { grid-area: new; margin-top: 24px; display: flex; flex-direction: column; gap: 18px; min-width: 0; padding: 24px;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-radius: var(--r-xl); box-shadow: 0 18px 40px -24px rgba(0, 0, 0, .55); }
+.home__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.home__h2 { font: 600 20px/26px var(--font-ui); }
+.landing__create { flex: 1; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.landing__go { display: flex; flex-direction: column; gap: 10px; margin-top: auto; }
+.landing__go .btn { width: 100%; }
+/* the rooms: their title and Join by code on one line, the cards below */
+.home__side { grid-area: side; margin-top: 48px; min-width: 0; container: rooms / inline-size;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "head join" "msg msg" "list list";
+  align-items: center; column-gap: 24px; }
+.home__rooms { display: contents; }
+.home__rooms .rooms__head { grid-area: head; }
+.home__rooms .home__h2 { font-size: 24px; line-height: 30px; }
+.home__rooms .rooms__list { grid-area: list; margin-top: 16px; }
+.home__side .join-row { grid-area: join; align-items: center; }
+.home__side #codeError { grid-area: msg; justify-self: end; margin-top: 6px; }
+#codeField { flex-direction: row; align-items: center; gap: 10px; }
+#codeField .field__label { flex: none; font-size: 14px; }
+#code { width: 152px; }
+.home__tabs { display: none; }
+.home__tabs .seg__btn { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; }
+.seg__n { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; margin-left: 7px; padding: 0 6px;
+  border-radius: var(--r-pill); background: var(--surface-3); color: var(--text); font: 700 12px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+.seg__btn[aria-pressed="true"] .seg__n { background: rgba(26, 18, 6, .16); color: var(--on-accent); }
+/* who plays: a name keeps its room, "waiting for an opponent" takes what is left */
+.room-row__name { flex: 0 1 auto; }
+.room-row__muted { flex: 1 1 0; }
+.room-row__who > .room-row__muted:only-child { flex: 0 1 auto; }
+.rooms__list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr)); gap: 16px; }
+.rooms__empty { grid-column: 1 / -1; }
+.rooms__empty-title { font: 600 16px/22px var(--font-ui); color: var(--text); }
+.room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
+/* a narrow list (a phone, the side pane of a phone on its side): a row a
+   room, the code and who on one line, what is played under them */
+@container rooms (max-width: 559px) {
+  .rooms__list { display: flex; flex-direction: column; gap: 0; }
+  .room-row { grid-template-columns: auto auto minmax(0, 1fr) auto; grid-template-areas: "mini code who actions" "mini chip meta actions";
+    column-gap: 10px; row-gap: 4px; padding: 10px 0; border: 0; border-top: 1px solid var(--hairline); border-radius: 0; background: none; }
+  .room-row::after, .room-row__watching { display: none; }
+  .room-row > .mini { width: 46px; }
+  .room-row__code { font-size: 18px; line-height: 22px; letter-spacing: .12em; }
+  .room-row__who { margin-top: 0; gap: 6px; font-size: 14px; line-height: 20px; }
+  .room-row__score { font-size: 15px; line-height: 20px; }
+  .room-row > .chip { justify-self: start; height: 22px; padding: 0 8px; gap: 5px; font-size: 11px; line-height: 14px; }
+  .room-row__meta { font-size: 12px; line-height: 16px; }
+  .room-row__actions { margin-top: 0; padding-top: 0; }
+  .room-row__watch { width: 36px; padding: 0; }
+  .room-row__watch-text { display: none; }
+  .rooms__empty { margin-top: 4px; }
+}
+
+/* one column below 960 px: the hall, then the card, then the rooms */
+@media (max-width: 959px) {
+  .home { grid-template-columns: minmax(0, 1fr); grid-template-areas: "bar" "error" "hall" "new" "side"; }
+}
+
+/* an invite: one column, the room's own table (once it is known) over a
+   card with the name and Join */
+.home.landing--invited { max-width: 520px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "bar" "error" "hall" "new" "side"; }
+.landing--invited .home__pill, .landing--invited .home__head, .landing--invited .home__tabs, .landing--invited .hall__specs { display: none; }
+.landing--invited .hall { padding: 16px 18px 18px; gap: 10px; }
+.landing--invited .hall__title { font-size: 26px; line-height: 30px; }
+.landing--invited .home__new { border-bottom: 0; border-radius: var(--r-xl) var(--r-xl) 0 0; padding-bottom: 8px; box-shadow: none; }
+.landing--invited .home__side { margin-top: 0; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 12px 24px 24px;
+  background: var(--surface-1); border: 1px solid var(--hairline); border-top: 0; border-radius: 0 0 var(--r-xl) var(--r-xl); }
+.landing__invite { display: flex; flex-direction: column; gap: 8px; }
 .landing--invited .join-row .field { display: none; }
 .landing--invited .join-row .btn { flex: 1; }
+.landing__switch { text-align: center; font-size: 14px; line-height: 20px; }
+.wordmark--small { font-size: 20px; line-height: 24px; color: var(--text-muted); }
 
 /* the match rules fold under a line that sums them up (a tap opens them),
    so the game, its table and its cloth stay in view with Create a room */
@@ -750,18 +810,22 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .input--race { flex: none; width: 58px; height: 38px; padding: 0 6px; text-align: center; font: 600 16px/1 var(--font-ui); }
 .seg__btn:disabled, .input--race:disabled { cursor: not-allowed; opacity: .5; }
 
-/* the table and cloth pickers (landing, Settings → This room): a card per
-   table with its pockets, a swatch per cloth */
+/* the pickers (the home page; the table and cloth also in Settings → This
+   room): a card per game with its rack, per table with its pockets and its
+   finish, a swatch per cloth */
+.game-pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .table-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
-.table-pick__opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 52px; padding: 7px 12px;
+.game-pick__opt, .table-pick__opt { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; min-height: 52px; padding: 7px 12px;
   border: 1px solid var(--hairline-strong); border-radius: var(--r-md); background: var(--surface-2); color: var(--text);
   text-align: left; cursor: pointer; transition: border-color var(--dur-1) var(--ease-out), background-color var(--dur-1) var(--ease-out); }
-.table-pick__opt:hover { background: var(--surface-3); }
-.table-pick__opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
-.table-pick__opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.game-pick__opt:hover, .table-pick__opt:hover { background: var(--surface-3); }
+.game-pick__opt[aria-pressed="true"], .table-pick__opt[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.game-pick__opt:focus-visible, .table-pick__opt:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .table-pick__opt:disabled { cursor: not-allowed; opacity: .5; }
-.table-pick__name { font: 600 14px/18px var(--font-ui); }
-.table-pick__pockets { font: 400 12px/16px var(--font-ui); color: var(--text-muted); }
+.game-pick__glyph { display: block; flex: none; margin: 2px 0 6px; }
+.game-pick__name, .table-pick__name { display: flex; align-items: center; gap: 7px; min-width: 0; font: 600 14px/18px var(--font-ui); }
+.game-pick__rules, .table-pick__pockets { font: 400 12px/16px var(--font-ui); color: var(--text-muted); }
+.table-pick__finish { flex: none; width: 18px; height: 10px; border-radius: 3px; }
 .cloth-pick { display: flex; flex-wrap: wrap; gap: 8px; }
 .cloth-pick__swatch { position: relative; flex: none; width: 30px; height: 30px; padding: 0; border-radius: 50%; cursor: pointer;
   border: 1px solid rgba(0, 0, 0, .35); background: var(--swatch);
@@ -772,110 +836,142 @@ body.is-landing #top, body.is-landing main { filter: blur(var(--scrim-blur)) sat
 .cloth-pick__swatch:disabled { cursor: not-allowed; opacity: .45; }
 .cloth-name { font-weight: 400; color: var(--text); }
 .cloth-name::before { content: "· "; color: var(--text-muted); }
+/* on the home page: the tables two by two, the eight cloths on one line
+   (each swatch gives up a little width where the line is short) */
+.home .table-pick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.home .cloth-pick { display: grid; grid-template-columns: repeat(8, minmax(0, 32px)); gap: 10px; }
+.home .cloth-pick__swatch { width: 100%; height: auto; aspect-ratio: 1; }
+.home .cloth-pick__swatch[aria-pressed="true"] { outline-offset: 3px; }
 
-/* the room list: rows fit the list's own width, so the same row serves
-   the wide column, a phone and the narrow sideways column */
-.rooms { container-type: inline-size; min-height: 0; }
-.rooms__list { margin: 0; padding: 0; list-style: none; }
-.rooms__empty-title { font: 600 16px/22px var(--font-ui); }
-.room-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "code who actions"; column-gap: 14px; row-gap: 6px; padding: 10px 0; }
-.room-row.is-leaving { opacity: 0; transition: opacity var(--dur-2) var(--ease-in); }
-.room-row__code { grid-area: code; font-size: 20px; line-height: 24px; letter-spacing: .12em; }
-.room-row__who { grid-area: who; }
-.room-row__who .chip { max-width: 100%; min-width: 0; }
-.chip__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.room-row__actions { grid-area: actions; display: flex; gap: 6px; align-items: center; }
-.room-row__watch { padding: 0 10px; color: var(--text-muted); }
-.room-row__join { min-width: 64px; }
-/* a narrow list (a phone, the sideways column): the code and the names on
-   one line, what is played and the buttons under them */
-@container (max-width: 420px) {
-  .room-row { grid-template-areas: "code names names" "chip chip actions"; row-gap: 4px; column-gap: 12px; }
-  .room-row__who { display: contents; }
-  .room-row__names { grid-area: names; }
-  .room-row__who .chip { grid-area: chip; justify-self: start; }
-  .room-row__watch { width: 36px; padding: 0; }
-  .room-row__watch-text { display: none; }
-}
-.join-row { align-items: flex-end; }
-
-/* a desktop or a tablet: two columns once it is wide enough */
-@media (min-width: 760px) and (min-height: 501px) {
-  .landing__card:not(.landing--invited) { max-width: 960px; padding: 26px 32px 30px; }
-  .landing__card:not(.landing--invited) .landing__cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); grid-template-rows: minmax(0, 1fr); gap: 0 32px; }
-  .landing__card:not(.landing--invited) .landing__side { padding: 0 0 0 32px; border-top: 0; border-left: 1px solid var(--hairline); }
-}
-/* tall enough: the card keeps one height and each column scrolls inside it */
-@media (min-width: 760px) and (min-height: 601px) {
-  .landing__card:not(.landing--invited) { height: min(660px, 100%); }
-  .landing__card:not(.landing--invited) .landing__cols { flex: 1 1 0; }
-  .landing__card:not(.landing--invited) .landing__new { overflow-y: auto; margin: -4px; padding: 4px; } /* room for the focus rings */
-  .landing__card:not(.landing--invited) .rooms { flex: 1 1 0; display: flex; flex-direction: column; }
-  .landing__card:not(.landing--invited) .rooms__list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-}
-
-/* phones: a screen of its own, the dimmed table hidden behind it */
-@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
-  body.is-landing #top, body.is-landing main { filter: none; visibility: hidden; }
-  .landing { padding: 0; background: var(--surface-1); }
-  .landing__card { max-width: none; min-height: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; animation: pool-fade var(--dur-3) var(--ease-out) both; }
-  .landing__card.landing--invited { max-width: none; justify-content: center; }
-  .landing--invited > * { width: 100%; max-width: 440px; margin-inline: auto; }
-}
-@media (max-width: 600px) {
-  .landing__card { gap: 18px;
-    padding: calc(14px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
-             calc(28px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
-  .landing__cols { gap: 20px; }
+/* ---------- a phone held upright ---------- */
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  .home { position: relative; display: flex; flex-direction: column; gap: 12px; max-width: none;
+    padding: 10px 16px calc(92px + env(safe-area-inset-bottom, 0px)); }
+  .home__error, .home__hall, .home__new, .home__side { margin-top: 0; }
+  .home__tagline, .home__pill { display: none; }
+  .home__brand .wordmark { font-size: 24px; line-height: 28px; }
+  .home__new { padding: 0; gap: 12px; background: none; border: 0; border-radius: 0; box-shadow: none; }
+  .home__head, .game-pick__rules { display: none; }
+  .landing__create { gap: 12px; }
+  .home__tabs { display: flex; }
+  .home__tabs .seg__btn { min-height: 38px; font-size: 15px; }
+  .home__side { display: block; }
+  .home__rooms { display: block; }
+  .home__rooms .rooms__head { justify-content: space-between; }
+  .home__rooms .home__h2 { font: 700 12px/16px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .home__rooms .rooms__list { margin-top: 8px; }
+  .home:not(.landing--invited)[data-tab="new"] .home__side,
+  .home:not(.landing--invited)[data-tab="rooms"] #createRow { display: none; }
+  /* the name rides in the top bar, as a chip */
+  .home:not(.landing--invited) #nameField { position: absolute; z-index: 3; top: 14px; right: 66px; width: min(210px, calc(100% - 158px)); }
+  /* the buttons dock at the foot of the screen */
+  .home:not(.landing--invited) .landing__go, .home:not(.landing--invited) #joinRow {
+    position: fixed; z-index: 3; left: 0; right: 0; bottom: 0; flex-direction: row; align-items: center; gap: 10px; margin: 0;
+    padding: 12px calc(16px + env(safe-area-inset-right, 0px)) calc(14px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px));
+    background: var(--surface-1); border-top: 1px solid var(--hairline); box-shadow: 0 -14px 28px -18px rgba(0, 0, 0, .55); }
+  .home:not(.landing--invited) .landing__go .btn { width: auto; min-width: 0; min-height: 52px; padding: 0 12px; }
+  .home:not(.landing--invited) #create { flex: 1.5 1 0; }
+  .home:not(.landing--invited) #practice { flex: 1 1 0; font-size: 15px; }
+  .home:not(.landing--invited) #codeField { flex: 1; min-width: 0; }
+  .home:not(.landing--invited) #codeField .field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .home:not(.landing--invited) #code { width: 100%; height: 52px; }
+  .home:not(.landing--invited) #join { flex: none; min-height: 52px; padding: 0 26px; font-size: 17px; background: var(--accent); color: var(--on-accent); border-color: transparent; }
+  .home:not(.landing--invited) #codeError { position: fixed; z-index: 3; left: 16px; right: 16px; bottom: calc(90px + env(safe-area-inset-bottom, 0px));
+    padding: 8px 12px; border-radius: var(--r-md); background: var(--toast-bg); color: var(--toast-foul); box-shadow: var(--shadow-toast); }
+  /* an invite: the page itself, no card */
+  .landing--invited .home__new, .landing--invited .home__side { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+  /* the hall: what is picked on one line over the table */
+  .hall { padding: 12px 14px 14px; gap: 8px; border-radius: 20px; }
+  .hall::after { inset: 6px; border-radius: 14px; }
+  .hall__lamp { height: 4px; }
+  .hall__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "eyebrow led" "title sub"; align-items: center; gap: 8px; }
+  .hall__names { display: contents; }
+  .hall__eyebrow { grid-area: eyebrow; }
+  .hall__led { grid-area: led; justify-self: end; gap: 7px; font-size: 11px; letter-spacing: .18em; }
+  .hall__title { grid-area: title; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 26px; line-height: 30px; }
+  .hall__sub { grid-area: sub; justify-self: end; white-space: nowrap; font-size: 13px; line-height: 18px; }
+  .hall__pockets, .hall__specs { display: none; }
+  .hall__stage { padding: 4px 0 0; }
 }
 @media (max-width: 359px) {
-  .landing__tagline { white-space: normal; }
+  .hall__title { font-size: 22px; }
 }
-/* a phone held sideways: the two columns share the screen's height */
+
+/* ---------- a phone on its side ---------- */
 @media (orientation: landscape) and (max-height: 500px) {
-  .landing__card { gap: 10px;
-    padding: calc(8px + env(safe-area-inset-top, 0px)) calc(16px + env(safe-area-inset-right, 0px))
-             calc(8px + env(safe-area-inset-bottom, 0px)) calc(16px + env(safe-area-inset-left, 0px)); }
-  .landing__card:not(.landing--invited) { height: 100%; min-height: 0; }
-  .landing__card:not(.landing--invited) .landing__cols { flex: 1 1 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 0 20px; }
-  .landing__card:not(.landing--invited) .landing__new { overflow-y: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 4px 4px 8px; gap: 12px; }
-  .landing__card:not(.landing--invited) .landing__create { gap: 12px; }
-  .landing__card:not(.landing--invited) .landing__side { padding: 4px 0 0 20px; border-top: 0; border-left: 1px solid var(--hairline); gap: 10px; }
-  .landing__card:not(.landing--invited) .rooms { flex: 1 1 0; display: flex; flex-direction: column; }
-  .landing__card:not(.landing--invited) .rooms__list { flex: 1 1 0; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-  .landing__head { align-items: center; }
-  .landing__brand .wordmark { font-size: 22px; line-height: 26px; }
-  .landing__tagline, #landingModeLabel { display: none; }
-  .landing__gear { width: 36px; height: 36px; margin: -4px -6px -4px 0; }
+  .landing { overflow: hidden; }
+  .home { --pane: clamp(260px, 46vw, 392px); height: 100%; max-width: none; margin: 0; padding: 10px 16px 10px 20px;
+    grid-template-columns: var(--pane) minmax(0, 1fr); column-gap: 16px;
+    grid-template-rows: auto auto minmax(0, 1fr); grid-template-areas: "bar tabs" "hall error" "hall panel"; }
+  .home__bar { min-height: 36px; gap: 6px; }
+  .home__tagline, .home__pill { display: none; }
+  .home__brand .wordmark { font-size: 22px; line-height: 26px; }
+  .home__gear { width: 36px; height: 36px; }
+  .home__gear::before { content: ""; position: absolute; inset: -4px; }
+  .home__tabs { grid-area: tabs; display: flex; align-self: center; }
+  .home__error { grid-area: error; margin-top: 8px; }
+  .home__hall { grid-area: hall; margin-top: 8px; align-self: start; }
+  .home__panel { grid-area: panel; display: block; min-height: 0; margin-top: 8px;
+    overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y pinch-zoom; }
+  .home__new { margin: 0; padding: 2px 2px 8px; gap: 12px; background: none; border: 0; border-radius: 0; box-shadow: none; }
+  .home__head { display: none; }
+  .landing__create { gap: 12px; }
+  .home__side { display: block; margin: 0; }
+  .home__rooms { display: block; }
+  .home__rooms .rooms__head { justify-content: space-between; padding: 2px 0; }
+  .home__rooms .home__h2 { font: 700 12px/16px var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); }
+  .home__rooms .rooms__list { margin-top: 4px; }
+  .home:not(.landing--invited)[data-tab="new"] .home__side,
+  .home:not(.landing--invited)[data-tab="rooms"] #createRow > :not(.landing__go) { display: none; }
+  /* the name sits in the left column's bar, the buttons under the hall */
+  .home:not(.landing--invited) #nameField { position: fixed; z-index: 3; top: calc(10px + env(safe-area-inset-top, 0px));
+    left: calc(20px + env(safe-area-inset-left, 0px) + var(--pane) - 42px); width: min(200px, calc(var(--pane) - 110px)); transform: translateX(-100%); }
+  .home:not(.landing--invited) .landing__go { position: fixed; z-index: 3; left: calc(20px + env(safe-area-inset-left, 0px)); bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    width: var(--pane); flex-direction: row; gap: 8px; margin: 0; }
+  .home:not(.landing--invited) .landing__go .btn { width: auto; min-width: 0; min-height: 44px; padding: 0 12px; }
+  .home:not(.landing--invited) #create { flex: 1.4 1 0; font-size: 16px; }
+  .home:not(.landing--invited) #practice { flex: 1 1 0; }
+  /* Join by code stays at the foot of the room list */
+  .home:not(.landing--invited) #joinRow { position: sticky; bottom: 0; z-index: 1; align-items: center; gap: 8px; padding: 8px 0 2px; background: var(--bg); }
+  .home:not(.landing--invited) #codeField { flex: 1; min-width: 0; gap: 8px; }
+  .home:not(.landing--invited) #code { flex: 1; width: auto; min-width: 0; height: 44px; }
+  .landing--invited .home__new, .landing--invited .home__side { padding: 0; background: none; border: 0; border-radius: 0; box-shadow: none; }
+  .landing--invited .home__new { padding-bottom: 12px; }
+  /* the hall: the table as big as the height allows, its name under it */
+  .hall { padding: 26px 12px 10px; gap: 6px; border-radius: 18px; }
+  .hall::after { inset: 5px; border-radius: 13px; }
+  .hall__lamp { width: 40%; height: 4px; }
+  .hall__head { order: 2; flex-wrap: nowrap; gap: 8px; }
+  .hall__names { flex-direction: row; align-items: baseline; gap: 8px; }
+  .hall__eyebrow, .hall__pockets, .hall__specs { display: none; }
+  .hall__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 20px; line-height: 24px; }
+  .hall__sub { flex: none; white-space: nowrap; font-size: 13px; line-height: 18px; }
+  .hall__led { position: absolute; top: 9px; left: 14px; gap: 7px; font-size: 11px; line-height: 14px; letter-spacing: .18em; }
+  .hall__stage { order: 1; padding: 0; }
+  .home__hall .tbl { width: min(100%, calc((100vh - 186px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 1.789)); }
+  @supports (height: 100dvh) {
+    .home__hall .tbl { width: min(100%, calc((100dvh - 186px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) * 1.789)); }
+  }
+}
+
+/* on a phone, either way up: the name as a chip, the table picks two by two */
+@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
+  .home:not(.landing--invited) #nameField .field__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .home:not(.landing--invited) #nameField .input-group::before { content: ""; position: absolute; z-index: 1; left: 12px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+    border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); pointer-events: none; }
+  .home:not(.landing--invited) #name { height: 36px; padding: 0 38px 0 28px; border-radius: var(--r-pill); background: var(--surface-2); font: 600 14px/18px var(--font-ui); }
+  .home:not(.landing--invited) #shuffleName { width: 36px; height: 36px; border-radius: var(--r-pill); }
+  .home:not(.landing--invited) #shuffleName::before { content: ""; position: absolute; inset: -4px; }
+  .home:not(.landing--invited) #nameError { position: absolute; top: calc(100% + 8px); right: 0; width: max-content; max-width: min(280px, calc(100vw - 32px));
+    padding: 8px 12px; border-radius: var(--r-md); background: var(--toast-bg); color: var(--toast-foul); box-shadow: var(--shadow-toast); }
+  .table-pick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .opts__toggle { min-height: 48px; padding-top: 4px; padding-bottom: 4px; }
   .opts__sum { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  @container (min-width: 330px) {
-    .join-row #codeField { flex-direction: row; align-items: center; gap: 10px; }
-    .join-row #codeField .field__label { flex: none; }
-  }
-  .landing__go { flex-direction: row; }
-  .landing__go .btn { flex: 1; width: auto; min-height: 44px; padding: 0 12px; font-size: 15px; }
-  .landing .field { gap: 4px; }
-  .landing .input { height: 42px; }
-}
-/* a column or a list that scrolls on its own shades the edge that has
-   more beyond it */
-.landing { --edge: rgba(6, 9, 13, .28); }
-:root[data-theme="light"] .landing { --edge: rgba(22, 32, 43, .14); }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .landing { --edge: rgba(22, 32, 43, .14); } }
-@media (min-width: 760px) and (min-height: 601px), (orientation: landscape) and (max-height: 500px) {
-  .landing__card:not(.landing--invited) .rooms__list, .landing__card:not(.landing--invited) .landing__new {
-    background:
-      linear-gradient(var(--surface-1) 30%, transparent) center top / 100% 28px no-repeat local,
-      linear-gradient(transparent, var(--surface-1) 70%) center bottom / 100% 28px no-repeat local,
-      radial-gradient(farthest-side at 50% 0, var(--edge), transparent) center top / 100% 10px no-repeat scroll,
-      radial-gradient(farthest-side at 50% 100%, var(--edge), transparent) center bottom / 100% 10px no-repeat scroll;
-  }
 }
 
 /* a finger: taller segments */
 @media (pointer: coarse) {
-  .landing .seg__btn, .dialog--settings .seg__btn { min-height: 36px; }
+  .home .seg__btn, .dialog--settings .seg__btn { min-height: 36px; }
   .input--race { height: 42px; }
 }
 

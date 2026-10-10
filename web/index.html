@@ -178,39 +178,63 @@
 </main>
 
 <div id="landing" class="landing">
-  <form id="landingForm" class="card landing__card" novalidate>
-    <header class="landing__head">
-      <div id="landingBrand" class="landing__brand">
+  <form id="landingForm" class="home" data-tab="new" novalidate>
+    <header class="home__bar">
+      <div id="landingBrand" class="home__brand">
         <span class="wordmark">POOL</span>
-        <span class="caption landing__tagline">8-ball &amp; 9-ball (WPA) · 3-cushion (UMB)</span>
+        <span class="caption home__tagline">8-ball &amp; 9-ball (WPA) · 3-cushion (UMB)</span>
       </div>
-      <div id="landingInvite" class="landing__invite" hidden>
-        <span class="wordmark wordmark--small">POOL</span>
-        <h1 id="landingTitle" class="landing__title">Join room <span id="landingCode" class="code-text"></span></h1>
-        <p id="landingLead" class="landing__lead"></p>
-      </div>
-      <button id="landingSettings" class="icon-btn landing__gear" type="button" aria-label="Settings" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+      <button id="roomsPill" class="pill home__pill" type="button"><span class="pill__dot" aria-hidden="true"></span>Rooms<span id="roomsPillN" class="pill__n">0</span></button>
+      <button id="landingSettings" class="icon-btn home__gear" type="button" aria-label="Settings" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
     </header>
-    <p id="landingError" class="note note--foul landing__error" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
-    <div class="landing__cols">
-      <section class="landing__new" aria-label="New room">
-        <div class="field" id="nameField">
+    <p id="landingError" class="note note--foul home__error" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
+    <!-- the hall: the table of the room to be (or of the invite's room), racked -->
+    <section id="hall" class="hall home__hall" aria-labelledby="hallTitle">
+      <span class="hall__lamp" aria-hidden="true"></span>
+      <div class="hall__head">
+        <div class="hall__names">
+          <span id="hallEyebrow" class="eyebrow hall__eyebrow">Your table</span>
+          <h2 id="hallTitle" class="hall__title"></h2>
+          <p class="hall__sub"><span id="hallCloth"></span><span id="hallPockets" class="hall__pockets"></span></p>
+        </div>
+        <span id="hallLed" class="led hall__led"></span>
+      </div>
+      <div class="hall__stage"><div id="hallTable" class="tbl" role="img"></div></div>
+      <dl id="hallSpecs" class="specs hall__specs"></dl>
+    </section>
+    <div id="homeTabs" class="seg home__tabs" role="group" aria-label="Show">
+      <button id="tabNew" class="seg__btn" type="button" aria-pressed="true">New room</button>
+      <button id="tabRooms" class="seg__btn" type="button" aria-pressed="false">Rooms<span id="tabRoomsN" class="seg__n">0</span></button>
+    </div>
+    <div class="home__panel">
+      <section class="home__new" aria-labelledby="newTitle">
+        <div class="home__head"><h2 id="newTitle" class="home__h2">New room</h2><span class="caption">Kept for next time</span></div>
+        <div id="landingInvite" class="landing__invite" hidden>
+          <h1 id="landingTitle" class="landing__title">Join room <span id="landingCode" class="code-text"></span></h1>
+          <p id="landingLead" class="landing__lead"></p>
+        </div>
+        <div class="field home__name" id="nameField">
           <label class="field__label" for="name">Your name</label>
           <div class="input-group">
             <input class="input" id="name" maxlength="20" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" placeholder="Enter your name">
-            <button class="icon-btn" type="button" id="shuffleName" aria-label="Suggest another name"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg></button>
+            <button class="icon-btn" type="button" id="shuffleName" aria-label="Suggest another name" title="Suggest another name"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg></button>
           </div>
           <span class="field__msg" id="nameError" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span>Enter a name so your opponent knows who you are.</span></span>
         </div>
         <div id="createRow" class="landing__create">
           <div class="field">
             <span class="field__label" id="landingModeLabel">Game</span>
-            <div id="landingMode" class="seg seg--block" role="group" aria-labelledby="landingModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
+            <div id="landingMode" class="game-pick" role="group" aria-labelledby="landingModeLabel">
+              <button type="button" class="game-pick__opt" data-mode="8ball" aria-pressed="true"><svg class="game-pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="currentColor" stroke-opacity=".22" stroke-width=".6"><circle cx="11" cy="12" r="3.6" fill="#F2C12E"></circle><circle cx="17.4" cy="8.3" r="3.6" fill="#1F4FB4"></circle><circle cx="17.4" cy="15.7" r="3.6" fill="#CC3326"></circle><circle cx="23.8" cy="4.6" r="3.6" fill="#EC7623"></circle><circle cx="23.8" cy="12" r="3.6" fill="#111316"></circle><circle cx="23.8" cy="19.4" r="3.6" fill="#128A4C"></circle></g></svg><span class="game-pick__name">8-ball</span><span class="game-pick__rules">WPA</span></button>
+              <button type="button" class="game-pick__opt" data-mode="9ball" aria-pressed="false"><svg class="game-pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="currentColor" stroke-opacity=".22" stroke-width=".6"><circle cx="11" cy="12" r="3.6" fill="#F2C12E"></circle><circle cx="17.4" cy="8.3" r="3.6" fill="#5B3592"></circle><circle cx="17.4" cy="15.7" r="3.6" fill="#EC7623"></circle><circle cx="23.8" cy="12" r="3.6" fill="#F4EFE2"></circle><circle cx="23.8" cy="12" r="2.1" fill="#F2C12E" stroke="none"></circle></g></svg><span class="game-pick__name">9-ball</span><span class="game-pick__rules">WPA</span></button>
+              <button type="button" class="game-pick__opt" data-mode="3cushion" aria-pressed="false"><svg class="game-pick__glyph" width="40" height="24" viewBox="0 0 40 24" aria-hidden="true"><g stroke="currentColor" stroke-opacity=".22" stroke-width=".6"><circle cx="9" cy="15" r="3.8" fill="#F4EFE2"></circle><circle cx="20" cy="8" r="3.8" fill="#F2C12E"></circle><circle cx="31" cy="14" r="3.8" fill="#CC3326"></circle></g></svg><span class="game-pick__name">3-cushion</span><span class="game-pick__rules">UMB</span></button>
+            </div>
           </div>
           <div class="field" id="landingTableField">
             <span class="field__label" id="landingTableLabel">Table</span>
             <div id="landingTable" class="table-pick" role="group" aria-labelledby="landingTableLabel"></div>
           </div>
+          <p id="landingCaromNote" class="note home__carom" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v5"></path><path d="M12 8h.01"></path></svg><span>3-cushion is always played on the carom table: 2.84 × 1.42 m, no pockets. Your pool table is kept for the next pool game.</span></p>
           <div class="field">
             <span class="field__label" id="landingClothLabel">Cloth <span class="cloth-name js-cloth-name"></span></span>
             <div id="landingCloth" class="cloth-pick" role="group" aria-labelledby="landingClothLabel"></div>
@@ -245,14 +269,14 @@
           <p id="createNote" class="note" hidden><svg class="note__icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span></span></p>
         </div>
       </section>
-      <div class="landing__side">
-        <section class="rooms" id="roomsBox" aria-labelledby="rooms-h">
+      <section id="homeSide" class="home__side" aria-labelledby="rooms-h">
+        <div id="roomsBox" class="home__rooms">
           <div class="rooms__head">
-            <h2 class="eyebrow" id="rooms-h">Rooms</h2>
+            <h2 class="home__h2" id="rooms-h">Rooms</h2>
             <span class="caption" id="roomsCount"></span>
           </div>
           <ul id="roomList" class="rooms__list"></ul>
-        </section>
+        </div>
         <div class="join-row" id="joinRow">
           <div class="field" id="codeField">
             <label class="field__label" for="code">Join by code</label>
@@ -263,7 +287,7 @@
         <span class="field__msg" id="codeError" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg><span>Room codes have 5 letters.</span></span>
         <button type="button" id="watchInvite" class="btn btn--secondary btn--block" hidden><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>Watch instead</button>
         <p id="switchMode" class="landing__switch" hidden><a class="link" href="/">Create your own room instead</a></p>
-      </div>
+      </section>
     </div>
   </form>
 </div>

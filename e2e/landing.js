@@ -57,6 +57,44 @@ require('fs').mkdirSync(shots, { recursive: true });
   const joinBtn = await page.textContent('#roomList li .room-row__join');
   if (joinBtn !== 'Join') throw new Error('empty room not joinable: ' + joinBtn);
   await page.screenshot({ path: path.join(shots, '12-room-limit.png') });
+
+  // The home page only ever scrolls up and down, in each of its shapes and
+  // both tabs: nothing in it is wider than the screen, and no pane that
+  // scrolls has more to the side than it shows. A few rooms fill the list.
+  for (const data of [{ mode: '9ball', race: 5, table: 'predator', cloth: 'electric-blue' }, { mode: '3cushion' }, { table: 'rasson', spectators: 0 }]) {
+    const res = await page.request.post(base + '/api/rooms', { data });
+    if (!res.ok()) throw new Error(`room ${JSON.stringify(data)}: ${res.status()}`);
+  }
+  const shapes = [
+    { width: 1440, height: 900 }, { width: 1024, height: 768 }, { width: 390, height: 844, phone: true },
+    { width: 360, height: 640, phone: true }, { width: 844, height: 390, phone: true }, { width: 844, height: 340, phone: true },
+  ];
+  for (const { width, height, phone } of shapes) {
+    const p = await (await flat(browser, { viewport: { width, height }, hasTouch: !!phone, isMobile: !!phone })).newPage();
+    p.on('pageerror', (e) => errors.push(e.message));
+    await p.goto(base + '/');
+    await p.waitForSelector('#roomList li.room-row', { state: 'attached' });
+    for (const tab of ['#tabNew', '#tabRooms']) {
+      if (await p.isVisible(tab)) await p.click(tab);
+      const wide = await p.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const out = document.documentElement.scrollWidth > vw ? [`the page is ${document.documentElement.scrollWidth} px`] : [];
+        for (const el of document.querySelectorAll('#landing, #landing *')) {
+          const cs = getComputedStyle(el);
+          const scrolls = /auto|scroll/.test(cs.overflowX) || (cs.overflowX === 'hidden' && /auto|scroll/.test(cs.overflowY));
+          if (scrolls && el.scrollWidth > el.clientWidth) out.push(`${el.id || el.className}: ${el.scrollWidth} in ${el.clientWidth}`);
+          const b = el.getBoundingClientRect();
+          if (b.width && (b.left < -0.5 || b.right > vw + 0.5)) out.push(`${el.id || el.className} at ${Math.round(b.left)}–${Math.round(b.right)}`);
+        }
+        return out;
+      });
+      if (wide.length) throw new Error(`${width}x${height} ${tab}: wider than the screen: ${wide.slice(0, 6).join('; ')}`);
+    }
+    await p.screenshot({ path: path.join(shots, `home-${width}x${height}.png`) });
+    await p.context().close();
+  }
+  console.log('home fits every screen');
+
   if (errors.length) throw new Error(errors.join('\n'));
   console.log('landing OK');
   await browser.close();

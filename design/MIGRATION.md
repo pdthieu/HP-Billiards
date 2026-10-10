@@ -21,6 +21,10 @@ design canvas (one page per prompt).
 
 ## 1. Landing (`#landing`)
 
+> Done, then redesigned (10/2026): the landing is now the home page, with
+> the hall, tabs on a phone and the rooms as cards. README.md, "Home",
+> describes it; the steps below are the first version's.
+
 - [ ] `.overlay → .landing`, form `.card → .card.landing__card`.
 - [ ] Backdrop: keep the table canvas behind; while the landing is open add a `.backdrop`-style blur + `--scrim` over it.
 - [ ] Name field: `.field` + `.input-group` + shuffle `.icon-btn` (re-roll from `ADJECTIVES`/`ANIMALS`).

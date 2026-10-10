@@ -45,7 +45,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     const L = await mk({ width: 800, height: 700 });
     await L.goto(base + '/');
     await L.waitForFunction((c) => !!document.querySelector(`li.room-row[data-code="${c}"]`), code);
-    const chip = await L.textContent(`li.room-row[data-code="${code}"] .chip__text`);
+    const chip = await L.textContent(`li.room-row[data-code="${code}"] .room-row__meta`);
     if (!chip.includes('race 3')) fail(`room list chip ${chip}`);
     await L.close();
     console.log('landing and room list ok');

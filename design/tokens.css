@@ -70,6 +70,18 @@
   --ball-7: #7E2232;
   --ball-8: #111316;
 
+  /* the home page's hall: the table at night, under its lamp, on the
+     arena's carpet (identical in both themes) */
+  --hall: #0B1119;
+  --hall-text: #E8ECF1;
+  --hall-muted: #9BA8B7;
+  --hall-faint: #8592A1;
+  --hall-line: rgba(170, 190, 215, .12);
+  --hall-carpet: rgba(217, 164, 65, .18);
+  --hall-lamp: rgba(255, 224, 170, .1);
+  --led: #E3B25C;
+  --led-glow: rgba(217, 164, 65, .5);
+
   /* depth */
   --shadow-overlay: 0 24px 48px -16px rgba(0, 0, 0, .6);
   --shadow-toast: 0 12px 28px -12px rgba(0, 0, 0, .55);
@@ -78,6 +90,7 @@
   --r-sm: 8px;
   --r-md: 12px;
   --r-lg: 16px;
+  --r-xl: 22px;
   --r-pill: 999px;
 
   /* space */

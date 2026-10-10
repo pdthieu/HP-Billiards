@@ -1,0 +1,17 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-10T04:47:50Z" },
+  "title": "HP Billiards Home",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1360, "title": "Desktop · web", "expand": "fill", "is_interactive": true },
+    "Phone-Portrait.dc.html": { "x": 1520, "y": 0, "w": 390, "h": 844, "title": "Phone · portrait", "is_interactive": true },
+    "Phone-Landscape.dc.html": { "x": 1990, "y": 0, "w": 844, "h": 390, "title": "Phone · landscape", "is_interactive": true }
+  },
+  "order": ["Main.dc.html", "Phone-Portrait.dc.html", "Phone-Landscape.dc.html"],
+  "notes": {
+    "row-title": { "x": 0, "y": -300, "text": "POOL · Home", "kind": "title1", "maxW": 2834 }
+  },
+  "designSystems": []
+}

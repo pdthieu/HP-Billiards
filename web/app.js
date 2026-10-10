@@ -4192,6 +4192,7 @@ function showLanding(error) {
   setGameInert(true);
   hideConn();
   $('landing').scrollTop = 0;
+  document.querySelector('.home__panel').scrollTop = 0; // the pane that scrolls on a phone on its side
   setLandingError(error);
   $('code').classList.remove('input--error');
   $('codeError').hidden = true;
@@ -4202,7 +4203,10 @@ function showLanding(error) {
   const invited = /^[A-Z]{5}$/.test(code) && !!new URLSearchParams(location.search).get('room');
   const form = $('landingForm');
   form.classList.toggle('landing--invited', invited);
-  $('landingBrand').hidden = invited;
+  setHomeTab('new');
+  // An invite shows the room's own table once the room list names it.
+  $('hall').hidden = invited;
+  if (!invited && hallReady) renderHall();
   $('landingInvite').hidden = !invited;
   $('landingCode').textContent = code;
   $('landingLead').textContent = 'Enter your name to take the free seat.';
@@ -4251,6 +4255,8 @@ async function describeInvite(code) {
     const list = await res.json();
     const room = list.rooms.find((r) => r.roomCode === code);
     if (!room || $('landingCode').textContent !== code) return;
+    renderHall({ eyebrow: `Room ${code}`, mode: room.mode, table: room.table, cloth: room.cloth, race: room.race, audience: room.maxSpectators });
+    $('hall').hidden = false;
     const host = room.players.find(Boolean);
     if (room.seated >= 2) {
       const canWatch = room.spectators < room.maxSpectators;
@@ -4285,7 +4291,9 @@ async function refreshRooms() {
 }
 // renderRooms keeps rows keyed by room code: existing rows are updated in
 // place (so they never re-animate), new ones enter with a stagger and
-// removed ones fade out.
+// removed ones fade out. Each is a card (a row where the list is narrow):
+// the room's table and cloth in miniature, its code, what is played, who
+// plays and the score, who watches.
 function renderRooms(list) {
   const ul = $('roomList');
   const rows = new Map();
@@ -4312,7 +4320,9 @@ function renderRooms(list) {
       li.className = 'room-row';
       li.dataset.code = room.roomCode;
       li.style.animationDelay = `${40 * added++}ms`;
-      li.innerHTML = '<span class="room-row__code"></span><div class="room-row__who"><span class="room-row__names"></span><span class="chip"><span class="chip__dot"></span><span class="chip__text"></span></span></div>' +
+      li.innerHTML = '<span class="mini" aria-hidden="true"><span class="mini__bed"></span></span><span class="room-row__code"></span><span class="room-row__meta"></span>' +
+        '<span class="chip"><span class="chip__dot" aria-hidden="true"></span><span class="chip__text"></span></span><span class="room-row__who"></span>' +
+        `<span class="room-row__watching">${EYE_SVG}<span class="room-row__watching-text"></span></span>` +
         `<div class="room-row__actions"><button class="btn btn--quiet btn--small room-row__watch" type="button" title="Watch">${EYE_SVG}<span class="room-row__watch-text">Watch</span></button><button class="btn btn--secondary btn--small room-row__join" type="button"></button></div>`;
       li.querySelector('.room-row__code').textContent = room.roomCode;
       li.querySelector('.room-row__join').onclick = () => {
@@ -4325,21 +4335,30 @@ function renderRooms(list) {
       };
       ul.append(li);
     }
-    const names = room.players.filter(Boolean);
-    const namesEl = li.querySelector('.room-row__names');
-    namesEl.classList.toggle('room-row__names--empty', !names.length);
-    namesEl.replaceChildren();
-    if (!names.length) namesEl.textContent = 'empty';
-    else names.forEach((n, i) => {
-      if (i) namesEl.append(Object.assign(document.createElement('span'), { className: 'room-row__vs', textContent: ' vs ' }));
-      namesEl.append(n);
-    });
+    const carom = room.mode === '3cushion';
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
-    const chip = li.querySelector('.chip');
-    chip.className = `chip chip--${phase}`;
-    const goal = room.mode === '3cushion' ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
-    const table = room.mode !== '3cushion' && TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
-    chip.querySelector('.chip__text').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal} · ${phase}${room.spectators ? ` · ${room.spectators} watching` : ''}${table}`;
+    li.querySelector('.mini').style.background = railGradient(carom ? LOOKS.carom : LOOKS[room.table] || LOOKS[DEFAULT_TABLE]);
+    li.querySelector('.mini__bed').style.background = miniBed(room.cloth, !carom);
+    const goal = carom ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
+    const table = carom ? ' · carom table' : TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
+    li.querySelector('.room-row__meta').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal}${table}`;
+    li.querySelector('.chip').className = `chip chip--${phase}`;
+    li.querySelector('.chip__text').textContent = phase;
+    // who: both names with the score between them once a match is on, the
+    // one who waits for an opponent, or nobody
+    const names = room.players.filter(Boolean);
+    const part = (className, textContent) => Object.assign(document.createElement('span'), { className, textContent });
+    const score = room.score || [0, 0];
+    const who = li.querySelector('.room-row__who');
+    if (names.length === 2) {
+      const scored = phase !== 'lobby' || score[0] || score[1];
+      who.replaceChildren(part('room-row__name', room.players[0]),
+        scored ? part('room-row__score', `${score[0]} – ${score[1]}`) : part('room-row__vs', 'vs'), part('room-row__name', room.players[1]));
+    } else if (names.length) who.replaceChildren(part('room-row__name', names[0]), part('room-row__muted', 'waiting for an opponent'));
+    else who.replaceChildren(part('room-row__muted', 'empty'));
+    const max = room.maxSpectators || 0;
+    li.querySelector('.room-row__watching-text').textContent = !max ? 'No spectators'
+      : room.spectators ? `${room.spectators} of ${max} watching` : `Up to ${max} may watch`;
     const watch = li.querySelector('.room-row__watch');
     watch.hidden = !(room.spectators < room.maxSpectators);
     watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
@@ -4355,6 +4374,7 @@ function renderRooms(list) {
   }
   const used = list.used ?? list.rooms.length; // practice rooms are not listed but count
   $('roomsCount').textContent = `${used} of ${list.max} in use`;
+  $('roomsPillN').textContent = $('tabRoomsN').textContent = String(list.rooms.length);
   const full = used >= list.max;
   $('create').disabled = full;
   $('practice').disabled = full;
@@ -4803,15 +4823,18 @@ function renderModes() {
 }
 
 function setSeg(seg, mode) {
-  for (const b of seg.querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
+  for (const b of seg.querySelectorAll('[data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
 }
 
 // The landing picker chooses the game of a new room (remembered); the
 // lobby and game-over pickers change the room's game for both players.
+// The hall on the home page draws the picks once they are all read
+// (hallReady, set where the spectator pick is).
+let hallReady = false;
 let landingMode = MODE_NAME[readSetting('pool:mode')] ? readSetting('pool:mode') : '8ball';
 setSeg($('landingMode'), landingMode);
 $('landingMode').addEventListener('click', (e) => {
-  const b = e.target.closest('.seg__btn');
+  const b = e.target.closest('[data-mode]');
   if (!b) return;
   landingMode = b.dataset.mode;
   writeSetting('pool:mode', landingMode);
@@ -4829,10 +4852,13 @@ function fillTablePick(el) {
   el.replaceChildren(...Object.entries(TABLES).map(([id, t]) => {
     const b = Object.assign(document.createElement('button'), { type: 'button', className: 'table-pick__opt' });
     b.dataset.table = id;
-    b.append(
-      Object.assign(document.createElement('span'), { className: 'table-pick__name', textContent: t.name }),
-      Object.assign(document.createElement('span'), { className: 'table-pick__pockets', textContent: `corners ${inches(t.corner)} · sides ${inches(t.side)}` }),
-    );
+    const name = Object.assign(document.createElement('span'), { className: 'table-pick__name' });
+    const finish = Object.assign(document.createElement('span'), { className: 'table-pick__finish' });
+    finish.style.background = railGradient(LOOKS[id]); // the rail, with its trim or rims
+    finish.style.boxShadow = LOOKS[id].trim ? `inset 0 0 0 1.5px ${LOOKS[id].trim}` : `inset 0 0 0 1px ${LOOKS[id].rim || 'rgba(0, 0, 0, .35)'}`;
+    finish.setAttribute('aria-hidden', 'true');
+    name.append(finish, t.name);
+    b.append(name, Object.assign(document.createElement('span'), { className: 'table-pick__pockets', textContent: `corners ${inches(t.corner)} · sides ${inches(t.side)}` }));
     return b;
   }));
 }
@@ -4863,6 +4889,8 @@ function renderLandingTable() {
   setPick($('landingTable'), 'table', landingTable);
   setPick($('landingCloth'), 'cloth', landingCloth);
   $('landingTableField').hidden = landingMode === '3cushion'; // played on the carom table
+  $('landingCaromNote').hidden = landingMode !== '3cushion';
+  if (hallReady && !$('landingForm').classList.contains('landing--invited')) renderHall();
   if (!inRoom()) { // the table behind the landing shows the pick, empty
     const key = landingMode === '3cushion' ? 'carom' : landingTable;
     if (key !== tableKey) S.balls = new Map();
@@ -5387,6 +5415,7 @@ function renderLandingRules() {
   const breaks = landingMode === '3cushion' ? '' : landingBreaks === 'winner' ? ' · winner breaks' : ' · alternate breaks';
   const watch = landingAudience ? `${landingAudience} may watch` : 'no spectators';
   $('landingOptsSum').textContent = `${goal}${breaks} · ${watch}`;
+  if (hallReady && !$('landingForm').classList.contains('landing--invited')) renderHall();
 }
 $('landingOptsBtn').onclick = () => {
   const open = !$('landingOpts').classList.contains('is-open');
@@ -5726,6 +5755,131 @@ $('roomAudience').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
   if (b && Number(b.dataset.n) !== S.audience.max) send({ type: 'set_audience', spectators: Number(b.dataset.n) });
 });
+
+// --- the home page: the hall and the tabs --------------------------------------
+// The hall (design/README.md, "Home") shows the table of the room to be, as
+// picked above, or on an invite the room's own table: the frame in its
+// finish, the cloth lit in the middle, the pockets as cut, the game racked.
+// It is drawn in CSS from TABLES, LOOKS and CLOTHS, in % of a 2880 x 1610 mm
+// frame round the bed; the balls are DOM balls sized in cqw of the bed.
+const phoneMedia = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
+const PREVIEW_RACK = { '8ball': [[1], [10, 3], [12, 8, 5], [14, 2, 11, 6], [9, 4, 15, 13, 7]], '9ball': [[1], [6, 3], [4, 9, 7], [2, 5], [8]] };
+const STRIPE_TURN = { 9: 18, 10: -34, 11: 50, 12: 4, 13: -40, 14: 30, 15: -12 };
+const WOOD = new Set(['diamond', 'acurra', 'carom']); // rails that show a grain
+let hallSpec = null;
+
+function railGradient(look) { return `linear-gradient(165deg, ${look.railTop}, ${look.rail} 52%, ${look.railBottom})`; }
+// miniBed is a room's cloth in the room list, with its six pockets.
+function miniBed(clothId, pockets) {
+  const c = clothShades(clothId);
+  const bed = `radial-gradient(ellipse at 50% 50%, ${c.center}, ${c.felt} 60%, ${c.edge})`;
+  if (!pockets) return bed;
+  const hole = (at, r) => `radial-gradient(circle at ${at}, #05070A 0 ${r}px, transparent ${r + 0.6}px)`;
+  return [hole('0 0', 2.4), hole('100% 0', 2.4), hole('0 100%', 2.4), hole('100% 100%', 2.4), hole('50% 0', 2), hole('50% 100%', 2), bed].join(', ');
+}
+function drawTablePreview(el, mode, tableId, clothId) {
+  const carom = mode === '3cushion';
+  const key = carom ? 'carom' : TABLES[tableId] ? tableId : DEFAULT_TABLE;
+  const look = LOOKS[key];
+  const cloth = clothShades(clothId);
+  const span = (className, css) => {
+    const s = document.createElement('span');
+    s.className = className;
+    if (css) s.style.cssText = css;
+    return s;
+  };
+  const parts = [];
+  if (look.led) parts.push(span('tbl__glow'));
+  parts.push(span('tbl__body', `background: ${railGradient(look)}`));
+  if (WOOD.has(key)) parts.push(span('tbl__grain'));
+  if (look.gloss) parts.push(span('tbl__gloss'));
+  if (look.trim) parts.push(span('tbl__trim', `border-color: ${look.trim}`));
+  const cushion = span('tbl__cushion', `background: ${cloth.cushion}`);
+  const bed = span('tbl__bed', `background: radial-gradient(ellipse 72% 78% at 50% 50%, ${cloth.center}, ${cloth.felt} 58%, ${cloth.edge})`);
+  // The rack's apex on the foot spot and the cue ball in the kitchen; in
+  // 3-cushion the red on the top spot, the yellow on the head spot and the
+  // white beside it. A phone draws the balls a little larger than they are.
+  const d = 2.25 * (phoneMedia.matches ? 1.25 : 1); // a ball, in % of the bed's width (57 of 2540 mm)
+  const ball = (x, y, color, { stripe = false, number = false, turn = 0 } = {}) => {
+    const b = span(`ball tbl__ball${stripe ? ' ball--stripe' : ''}`, `left: ${x.toFixed(2)}%; top: ${y.toFixed(2)}%; --size: ${d}cqw; --c: ${color}; --turn: ${turn}deg`);
+    if (number) b.append(span('ball__num'));
+    return b;
+  };
+  const balls = [];
+  if (carom) balls.push(ball(75, 50, CAROM_COLORS[2]), ball(25, 50, CAROM_COLORS[1]), ball(25, 60.7, CAROM_COLORS[0]));
+  else {
+    const step = d * 0.866 * 1.03;
+    PREVIEW_RACK[mode === '9ball' ? '9ball' : '8ball'].forEach((row, k) => row.forEach((n, j) => {
+      balls.push(ball(75 + k * step, 50 + (j - (row.length - 1) / 2) * d * 2 * 1.03, BALL_COLORS[n > 8 ? n - 8 : n], { stripe: n > 8, number: true, turn: STRIPE_TURN[n] || 0 }));
+    }));
+    balls.push(ball(23, 57, CAROM_COLORS[0]));
+  }
+  bed.append(...balls);
+  cushion.append(bed);
+  parts.push(cushion);
+  if (!carom) { // the mouths as cut, the corners a little wider for their jaws
+    const t = TABLES[key];
+    const corner = t.corner * 1.12 / 2.88 * 100, side = t.side * 1.02 / 2.88 * 100;
+    const rim = look.rim ? `0 0 0 ${phoneMedia.matches ? 1.5 : 2}px ${look.rim}` : '0 0 0 1px rgba(0, 0, 0, .4)';
+    for (const [x, y, w] of [[5.03, 9, corner], [50, 7.2, side], [94.97, 9, corner], [5.03, 91, corner], [50, 92.8, side], [94.97, 91, corner]]) {
+      parts.push(span('tbl__pocket', `left: ${x}%; top: ${y}%; width: ${w.toFixed(2)}%; box-shadow: ${rim}`));
+    }
+  }
+  // the sights: three a side between the pockets of each long rail (the
+  // carom table has one at the middle too), three on each short rail
+  for (let i = 1; i < 8; i++) {
+    if (i === 4 && !carom) continue;
+    const x = (5.903 + 88.194 * i / 8).toFixed(2);
+    parts.push(span('tbl__sight', `left: ${x}%; top: 3.73%; background: ${look.sight}`), span('tbl__sight', `left: ${x}%; top: 96.27%; background: ${look.sight}`));
+  }
+  for (let j = 1; j < 4; j++) {
+    const y = (10.559 + 78.882 * j / 4).toFixed(2);
+    parts.push(span('tbl__sight', `left: 2.08%; top: ${y}%; background: ${look.sight}`), span('tbl__sight', `left: 97.92%; top: ${y}%; background: ${look.sight}`));
+  }
+  el.replaceChildren(...parts);
+}
+// renderHall writes the hall: which table, what is played on it, the
+// table itself. spec is a new room's picks, or an invite's room.
+function renderHall(spec = { eyebrow: 'Your table', mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), audience: landingAudience }) {
+  hallSpec = spec;
+  const carom = spec.mode === '3cushion';
+  const t = TABLES[spec.table] || TABLES[DEFAULT_TABLE];
+  const cloth = CLOTHS[spec.cloth] || CLOTHS[DEFAULT_CLOTH];
+  const title = carom ? 'Carom table' : t.name;
+  const game = MODE_NAME[spec.mode] || '8-ball';
+  $('hallEyebrow').textContent = spec.eyebrow;
+  $('hallTitle').textContent = title;
+  $('hallCloth').textContent = `${cloth.name} cloth`;
+  $('hallPockets').textContent = carom ? ' · 2.84 × 1.42 m, no pockets' : ` · corners ${inches(t.corner)} · sides ${inches(t.side)}`;
+  const sep = Object.assign(document.createElement('span'), { className: 'led__sep' });
+  sep.setAttribute('aria-hidden', 'true');
+  $('hallLed').replaceChildren(game, sep, carom ? `to ${spec.race} points` : `race to ${spec.race}`);
+  const specs = carom
+    ? [['Rules', 'UMB'], ['Playing area', '2.84 × 1.42 m'], ['Pockets', 'None']]
+    : [['Rules', 'WPA'], ['Corner pockets', inches(t.corner)], ['Side pockets', inches(t.side)]];
+  specs.push(['Spectators', spec.audience ? `Up to ${spec.audience}` : 'None']);
+  $('hallSpecs').replaceChildren(...specs.map(([k, v]) => {
+    const row = Object.assign(document.createElement('div'), { className: 'spec' });
+    row.append(Object.assign(document.createElement('dt'), { className: 'spec__k', textContent: k }),
+      Object.assign(document.createElement('dd'), { className: 'spec__v', textContent: v }));
+    return row;
+  }));
+  $('hallTable').setAttribute('aria-label', `${title} with ${cloth.name} cloth, racked for ${game}`);
+  drawTablePreview($('hallTable'), spec.mode, spec.table, spec.cloth);
+}
+// On a phone the home page shows New room or Rooms, one at a time; a
+// desktop shows both and jumps to the rooms from the pill in its bar.
+function setHomeTab(tab) {
+  $('landingForm').dataset.tab = tab;
+  $('tabNew').setAttribute('aria-pressed', String(tab === 'new'));
+  $('tabRooms').setAttribute('aria-pressed', String(tab === 'rooms'));
+}
+$('tabNew').onclick = () => setHomeTab('new');
+$('tabRooms').onclick = () => setHomeTab('rooms');
+$('roomsPill').onclick = () => $('homeSide').scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+phoneMedia.addEventListener('change', () => { if (hallSpec) drawTablePreview($('hallTable'), hallSpec.mode, hallSpec.table, hallSpec.cloth); });
+hallReady = true;
+renderHall();
 
 // --- settings ----------------------------------------------------------------
 function readSetting(key) { try { return localStorage.getItem(key); } catch { return null; } }

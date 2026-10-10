@@ -49,7 +49,7 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     if (await A.evaluate(() => [S.table, S.cloth].join()) !== 'predator,electric-blue') fail(`room: ${await A.evaluate(() => [S.table, S.cloth].join())}`);
     await B.goto(base + '/');
     await B.waitForFunction((c) => !!document.querySelector(`#roomList li[data-code="${c}"]`), code);
-    const chip = await B.textContent(`#roomList li[data-code="${code}"] .chip__text`);
+    const chip = await B.textContent(`#roomList li[data-code="${code}"] .room-row__meta`);
     if (!chip.includes('Predator Apex')) fail(`room list chip: ${chip}`);
     await B.goto(`${base}/?room=${code}`);
     await B.fill('#name', 'Bob');

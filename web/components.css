@@ -156,10 +156,9 @@
 .backdrop { position: absolute; inset: 0; overflow: hidden; background: var(--bg); }
 .backdrop__table { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); filter: blur(var(--scrim-blur)) saturate(.8); opacity: .9; }
 .backdrop::after { content: ""; position: absolute; inset: 0; background: var(--scrim); }
-.landing { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; z-index: var(--z-overlay); }
-.landing__card { position: relative; width: 100%; max-width: 448px; padding: 28px; display: flex; flex-direction: column; gap: 24px;
-  box-shadow: var(--shadow-overlay); animation: pool-enter var(--dur-4) var(--ease-out) both; }
-.landing__brand { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+/* the home page (README, "Home"): a page of its own over the game; it only
+   ever scrolls up and down */
+.landing { position: absolute; inset: 0; z-index: var(--z-overlay); overflow-x: hidden; overflow-y: auto; background: var(--bg); }
 .wordmark { font: 700 28px/32px var(--font-display); letter-spacing: .06em; }
 .landing__title { font: 600 24px/30px var(--font-ui); }
 .landing__lead { font: 400 15px/22px var(--font-ui); color: var(--text-muted); }
@@ -170,16 +169,97 @@
 .note--foul { background: var(--foul-soft); }
 .note--foul .note__icon { color: var(--foul); }
 
+/* a pill that counts: the rooms in use, and a jump to them */
+.pill { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 6px 0 12px;
+  border-radius: var(--r-pill); border: 1px solid var(--hairline-strong); background: var(--surface-2); color: var(--text);
+  font: 600 14px/18px var(--font-ui); white-space: nowrap; text-decoration: none; cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out); }
+.pill::before { content: ""; position: absolute; inset: -4px; }
+.pill:hover { background: var(--surface-3); }
+.pill:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pill__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
+.pill__n { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; padding: 0 7px;
+  border-radius: var(--r-pill); background: var(--surface-3); font: 700 13px/1 var(--font-ui); font-variant-numeric: tabular-nums; }
+
+/* the hall: the table of the room to be, under its lamp, on the arena's
+   carpet with its brass line and LED type; dark in both themes */
+.hall { position: relative; isolation: isolate; overflow: hidden; display: flex; flex-direction: column; gap: 18px; min-width: 0;
+  padding: 28px 32px 24px; border-radius: var(--r-xl); border: 1px solid var(--hall-line); background: var(--hall); color: var(--hall-text); }
+.hall::before { content: ""; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse 62% 60% at 50% 55%, var(--hall-lamp), transparent 72%); }
+.hall::after { content: ""; position: absolute; inset: 12px; z-index: -1; border: 1px solid var(--hall-carpet); border-radius: 14px; pointer-events: none; }
+.hall__lamp { position: absolute; top: 0; left: 50%; width: 44%; height: 5px; transform: translateX(-50%); border-radius: 0 0 6px 6px;
+  background: #262B32; box-shadow: 0 6px 36px 8px rgba(255, 218, 150, .1); }
+.hall__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px 24px; }
+.hall__names { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hall .eyebrow { color: var(--hall-muted); }
+.hall__title { font: 600 40px/44px var(--font-display); letter-spacing: .01em; color: #F1F3F6; }
+.hall__sub { font: 400 15px/22px var(--font-ui); color: var(--hall-muted); }
+.hall__stage { flex: 1; display: flex; align-items: center; justify-content: center; min-width: 0; padding: 10px 1% 16px; }
+.led { display: inline-flex; align-items: center; gap: 10px; font: 600 13px/16px var(--font-display); letter-spacing: .2em; text-transform: uppercase;
+  color: var(--led); text-shadow: 0 0 14px var(--led-glow); white-space: nowrap; }
+.led__sep { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: .7; }
+.specs { display: flex; flex-wrap: wrap; gap: 12px 40px; margin: 0; padding-top: 16px; border-top: 1px solid var(--hall-line); }
+.spec { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.spec__k { font: 600 12px/16px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--hall-faint); }
+.spec__v { margin: 0; font: 600 18px/24px var(--font-display); letter-spacing: .02em; color: var(--hall-text); }
+
+/* the table from above, built from the tables, their finishes and the
+   cloths: a 2880 x 1610 mm frame round the 2540 x 1270 mm bed. Balls are
+   DOM balls sized in cqw, hundredths of the bed's width. */
+.tbl { position: relative; width: 100%; max-width: 880px; aspect-ratio: 2880 / 1610; }
+.tbl__glow { position: absolute; left: 8%; right: 8%; bottom: -8%; height: 28%; border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 50%, rgba(87, 178, 255, .4), transparent 70%); filter: blur(10px); }
+.tbl__body, .tbl__grain, .tbl__gloss { position: absolute; inset: 0; border-radius: 2.6% / 4.6%; }
+.tbl__body { box-shadow: 0 34px 60px -22px rgba(0, 0, 0, .85), 0 0 0 1px rgba(0, 0, 0, .5); }
+.tbl__grain { background: repeating-linear-gradient(90deg, rgba(255, 255, 255, .035) 0 2px, transparent 2px 9px); }
+.tbl__gloss { background: linear-gradient(180deg, rgba(255, 255, 255, .16), transparent 30%, transparent 72%, rgba(0, 0, 0, .2)); }
+.tbl__trim { position: absolute; inset: 1.5% .85%; border: 1.5px solid; border-radius: 2% / 3.6%; }
+.tbl__cushion { position: absolute; inset: 7.45% 4.17%; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .3); }
+.tbl__bed { position: absolute; inset: 3.65% 1.89%; container-type: inline-size;
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, .38), inset 0 0 3px rgba(0, 0, 0, .5); }
+.tbl__pocket { position: absolute; aspect-ratio: 1; border-radius: 50%; transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 50% 42%, #000 0 56%, #0C0F12); }
+.tbl__sight { position: absolute; width: .62%; aspect-ratio: 1; border-radius: 1px; transform: translate(-50%, -50%) rotate(45deg); opacity: .92; }
+.tbl__ball { position: absolute; transform: translate(-50%, -50%) rotate(var(--turn, 0deg));
+  box-shadow: inset calc(var(--size) * -.12) calc(var(--size) * -.16) calc(var(--size) * .28) rgba(0, 0, 0, .38),
+              inset calc(var(--size) * .06) calc(var(--size) * .08) calc(var(--size) * .16) rgba(255, 255, 255, .14),
+              0 calc(var(--size) * .1) calc(var(--size) * .24) rgba(0, 0, 0, .55); }
+
+/* a room's table and cloth in miniature */
+.mini { position: relative; flex: none; width: 64px; aspect-ratio: 2880 / 1610; border-radius: 5px;
+  box-shadow: 0 4px 10px -4px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(0, 0, 0, .35); }
+.mini__bed { position: absolute; inset: 14% 8%; border-radius: 1px; box-shadow: inset 0 0 4px rgba(0, 0, 0, .4); }
+
+/* the room list: a card a room; style.css turns the cards into rows where
+   the list is narrow */
 .rooms { display: flex; flex-direction: column; }
-.rooms__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom: 8px; }
-.room-row { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 12px; align-items: center;
-  min-height: 60px; padding: 8px 0; border-top: 1px solid var(--hairline); animation: pool-row-in var(--dur-4) var(--ease-out) both; }
-.room-row__code { font: 600 22px/26px var(--font-display); letter-spacing: .14em; }
-.room-row__who { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
-.room-row__names { font: 400 15px/20px var(--font-ui); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.room-row__vs { color: var(--text-muted); }
-.room-row__names--empty { color: var(--text-muted); font-style: italic; }
-.rooms__empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px 12px; border-top: 1px solid var(--hairline); text-align: center; }
+.rooms__head { display: flex; align-items: baseline; gap: 12px; }
+.rooms__list { margin: 0; padding: 0; list-style: none; }
+.room-row { position: relative; display: grid; align-items: center; min-width: 0; column-gap: 14px; row-gap: 2px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas: "mini code chip" "mini meta meta" "who who who" "watching watching actions";
+  padding: 16px; border: 1px solid var(--hairline); border-radius: var(--r-lg); background: var(--surface-1);
+  animation: pool-row-in var(--dur-4) var(--ease-out) both; transition: border-color var(--dur-1) var(--ease-out); }
+.room-row:hover { border-color: var(--hairline-strong); }
+.room-row::after { content: ""; grid-column: 1 / -1; grid-row: 4; align-self: start; height: 1px; margin-top: 12px; background: var(--hairline); }
+.room-row > .mini { grid-area: mini; }
+.room-row__code { grid-area: code; font: 600 22px/26px var(--font-display); letter-spacing: .14em; }
+.room-row__meta { grid-area: meta; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 13px/18px var(--font-ui); color: var(--text-muted); }
+.room-row > .chip { grid-area: chip; justify-self: end; }
+.room-row__who { grid-area: who; display: flex; align-items: baseline; gap: 10px; min-width: 0; margin-top: 10px; font: 400 16px/22px var(--font-ui); }
+.room-row__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-row__vs { flex: none; color: var(--text-muted); }
+.room-row__score { flex: none; font: 600 20px/22px var(--font-display); letter-spacing: .02em; font-variant-numeric: tabular-nums; }
+.room-row__muted { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-style: italic; }
+.room-row__watching { grid-area: watching; display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap;
+  margin-top: 12px; padding-top: 12px; font: 400 13px/18px var(--font-ui); color: var(--text-muted); }
+.room-row__watching svg { flex: none; }
+.room-row__actions { grid-area: actions; display: flex; align-items: center; gap: 4px; margin-top: 12px; padding-top: 12px; }
+.room-row__watch { padding: 0 10px; color: var(--text-muted); }
+.room-row__join { min-width: 68px; }
+.room-row__actions .btn--small::before { left: 0; right: 0; } /* a taller target, never a wider one at the list's edge */
+.rooms__empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 24px 12px; text-align: center;
+  border: 1px dashed var(--hairline-strong); border-radius: var(--r-lg); color: var(--text-muted); }
 .join-row { display: flex; gap: 10px; align-items: flex-end; }
 .join-row .field { flex: 1; }
 

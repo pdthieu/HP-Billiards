@@ -39,7 +39,7 @@ const st = (page) => page.evaluate(() => ({
     const L = await mk({ width: 800, height: 700 });
     await L.goto(base + '/');
     await L.waitForFunction((c) => !!document.querySelector(`li.room-row[data-code="${c}"]`), code);
-    const listed = await L.textContent(`li.room-row[data-code="${code}"] .chip__text`);
+    const listed = await L.textContent(`li.room-row[data-code="${code}"] .room-row__meta`);
     if (!listed.startsWith('9-ball')) fail(`room list chip ${listed}`);
     await L.close();
     console.log('landing and room list ok');

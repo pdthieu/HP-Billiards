@@ -69,9 +69,10 @@ texture is darkened (`CLOTH_LIGHT`) to look like its swatch under them; a
 new cloth repaints the 3D cloth in place (`v3.setCloth`), a new table
 builds the view again.
 
-On the landing both pickers are remembered (`pool:table`, `pool:cloth`)
-and the table behind the landing shows the pick, empty. The room list
-names each pool room's table at the end of its chip, the lobby line says
+On the landing both pickers are remembered (`pool:table`, `pool:cloth`);
+the hall at the top of the home page draws the pick, racked, and the game
+table behind the page takes it too, empty. Each room in the room list
+shows its table and cloth in miniature and names the table, the lobby line says
 "8-ball on a Predator Apex, first to 3 racks", and the arena's LED boards
 name it in their small print.
 
@@ -195,22 +196,49 @@ The tray row is hidden to make room.
    names the host; after joining, the URL is rewritten to that form so the
    invite button gives a link (it shares on phones). The gear at the top
    right opens Settings before any room is joined.
-   - *Shapes.* On a desktop or a tablet the landing is a card over the
-     dimmed table: from 760 px wide two columns (the name and a new room |
-     the rooms and *Join by code*), the card one height (at most 660 px)
-     with each column scrolling inside it; narrower, one column. On a phone
-     held upright it is a page of its own that scrolls; held sideways, the
-     two columns fill the screen and each scrolls on its own. Nothing is
-     cut off: where the card is taller than the screen, the page scrolls.
-   - *Table and cloth.* Under the game switch, a card per table with its
-     pockets (hidden for 3-cushion) and a swatch per cloth (see Tables).
+
+   The landing is the **home page** (design: `design/README.md`, "Home";
+   sources in `design/home/`), a page of its own over the game, opaque, so
+   the header and the table behind it are hidden. It only ever scrolls up
+   and down: nothing in it is wider than the screen (`landing.js` checks the
+   three shapes).
+   - *The hall* (`renderHall`, `drawTablePreview`): the table of the room
+     to be, under its lamp on the arena's carpet, dark in both themes. Its
+     name, the cloth and the pockets; an LED line with the game and the
+     race ("8-ball · race to 3"); the table itself, drawn in CSS from
+     `TABLES`, `LOOKS` and `CLOTHS` (rails in their finish, Rasson's trim,
+     Predator's rims and the light under it, the cloth lit in the middle,
+     the pockets as cut, the sights) and racked for the game; on a desktop
+     a line of specs (rules, corner and side pockets, spectators). Every
+     pick redraws it. On an invite it shows the room's own table, once the
+     room list names it.
+   - *Shapes.* On a desktop or a tablet (wider than 600 px and taller than
+     500 px): a bar (the wordmark, a *Rooms* pill that jumps to the rooms,
+     the gear), the hall beside the *New room* card (from 960 px; one
+     column below), the rooms below them as cards with *Join by code* on
+     their title line. On a phone held upright (600 px or narrower): the
+     name rides in the top bar as a chip, the hall sits on top, *New room*
+     and *Rooms* are two tabs (`setHomeTab`, `data-tab` on the form) and
+     their buttons dock at the foot of the screen (*Create a room* and
+     *Practice alone*, or the code and *Join*). On a phone on its side (500
+     px tall or less): the bar, the hall and the two buttons on the left,
+     the hall's table as big as the height allows; the tabs on the right
+     over a pane that scrolls, with *Join by code* pinned at its foot.
+   - *Game, table and cloth.* A card per game with its rack in miniature
+     and its rules (WPA, UMB), a card per table with its finish and its
+     pockets (replaced by a note for 3-cushion) and a swatch per cloth (see
+     Tables).
    - *Match rules.* The race, the break rule and the spectators fold under
      one line that sums them up ("Race to 3 · alternate breaks · 3 may
      watch"), on every screen, so *Create a room* stays in view under the
      table and the cloth; a tap opens them.
-   - The room rows follow the list's own width (a container query): on a
-     narrow list the code and the names share a line, and the game and the
-     buttons go under them.
+   - *The rooms.* Each room shows its table and cloth in miniature, its
+     code, what is played ("8-ball · race 5 · Predator Apex"), its state
+     (lobby, playing, finished), who plays with the score between them
+     (`score` in the room list) or who waits, and how many watch. Cards on
+     a wide list; on a narrow one (a container query on the list's own
+     width) a row a room, the code and the names on one line, the state
+     and the game under them.
    - Enter in the name field joins on an invite or with a code typed;
      otherwise it only puts a phone's keyboard away. A code that is not 5
      letters is marked under its field. On a touch screen the name field is
@@ -744,8 +772,8 @@ moved in practice).
   3 s, frames are skipped. A phone waiting for the opponent then spares its
   battery and stays cool. Any touch, key, wheel, message or resize draws
   every frame again at once. 3D draws every frame: its camera glides.
-  Behind the landing, where the table shows only blurred (or not at all on
-  a phone), either view is drawn every 600 ms: over the 500 ms the 3D
+  Behind the home page, where the table does not show at all, either view
+  is drawn every 600 ms: over the 500 ms the 3D
   view's pace check takes for a stall, so it does not count those frames
   as slow ones.
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn

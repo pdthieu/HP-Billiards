@@ -43,6 +43,7 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     // Watching from the room list.
     await W.goto(base + '/');
     await W.fill('#name', 'Chi');
+    await W.click('#tabRooms'); // a phone shows the rooms in a tab of their own
     const watchBtn = `li.room-row[data-code="${code}"] .room-row__watch`;
     await W.waitForSelector(`${watchBtn}:not([hidden])`);
     await W.click(watchBtn);

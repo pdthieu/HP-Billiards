@@ -33,7 +33,9 @@ comes back.
 The gear in the header opens settings: theme (system, dark, light), a
 left-handed power bar, and "show hints again". Fonts are embedded in the
 binary, so nothing is fetched from the Internet at runtime. The design
-handoff the UI follows lives in [design/](design/).
+handoff the UI follows lives in [design/](design/); the home page and the
+rules every new screen keeps to (tokens, the three shapes, only vertical
+scroll) are in its README, sections *Home* and *Rules for every screen*.
 
 ### Timers
 
@@ -75,7 +77,8 @@ make e2e    # browser scenarios against a freshly built server
 ```
 
 The browser scenarios live in `e2e/` (plain Node scripts on Playwright, no
-test framework): `landing` (invite mode, name validation, room limit), `smoke`
+test framework): `landing` (invite mode, name validation, room limit, the
+home page fitting six screen sizes without sideways scroll), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
