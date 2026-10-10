@@ -82,12 +82,13 @@ home page fitting six screen sizes without sideways scroll), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
-`tables` (picking a table and its cloth, changing them in a room),
+`tables` (picking a table and its cloth, which the room keeps),
 `view3d` (the 3D view under software WebGL: the arena, camera, aiming,
 carrying the cue ball, replay, switching and a lost context, the fall back
 to 2D); the others pin the 2D view (`e2e/flat.js`).
-`e2e/run.js` builds the server, starts two instances on free ports (one with
-`-max-rooms 1`) and runs every scenario, or only the ones named:
+`e2e/run.js` builds the server, starts three instances on free ports (one with
+`-max-rooms 1`, one with a short shot clock) and runs every scenario, or only
+the ones named:
 `cd e2e && node run.js smoke`. Install the dependencies once with
 `make e2e-deps` (Node 20+). Screenshots land in `e2e/shots/`. `e2e/motion.js`
 is a measuring tool, not a test: it records on-screen ball speed frame by

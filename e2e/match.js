@@ -55,21 +55,19 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     await B.click('#join');
     await B.waitForFunction(() => document.getElementById('landing').hidden && S.breaks === 'winner');
 
-    // Changing the race in the lobby reaches both players.
+    // Settings → This room has the invite link and nothing of the match: the
+    // room keeps the race it was made with. The protocol still carries a new
+    // race for the next match (set_match), and both players see it.
     await A.waitForFunction(() => document.getElementById('seat1').textContent.includes('Bob'));
-    // The game, the race and the invite link are in Settings.
     await A.click('#settingsBtn');
     if (await text(A, '#inviteCode') !== code) fail(`invite code ${await text(A, '#inviteCode')}`);
-    await A.click('#roomMatch [data-race="5"]');
-    await A.click('#roomMatch [data-breaks="alternate"]');
-    await B.waitForFunction(() => S.race === 5 && S.breaks === 'alternate' && S.match.race === 5);
-    await A.waitForTimeout(500); // the dialog's entry
+    if (await A.locator('#settings [data-race], #settings [data-breaks], #settings [data-mode]').count()) fail('match pickers in Settings');
+    await A.waitForTimeout(500); // the sheet's entry
     await A.screenshot({ path: path.join(shots, 'match-settings.png') });
     await A.click('#settingsClose');
+    await A.evaluate(() => send({ type: 'set_match', race: 5, breaks: 'alternate' }));
+    await B.waitForFunction(() => S.race === 5 && S.breaks === 'alternate' && S.match.race === 5);
     if (!(await text(B, '#lobbySub')).includes('first to 5 racks')) fail(`B's lobby line ${await text(B, '#lobbySub')}`);
-    await B.click('#settingsBtn');
-    if (await B.getAttribute('#roomMatch [data-race="5"]', 'aria-pressed') !== 'true') fail('B does not see race 5 in Settings');
-    await B.click('#settingsClose');
     await B.screenshot({ path: path.join(shots, 'match-lobby-B.png') });
     console.log('lobby race ok');
 
@@ -77,11 +75,6 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     await B.click('#ready');
     await A.waitForFunction(() => S.phase === 'breaking');
     await B.waitForFunction(() => S.phase === 'breaking');
-
-    // During the match the game and the race are locked.
-    await A.click('#settingsBtn');
-    if (!(await A.isDisabled('#settingsMode [data-mode="9ball"]')) || !(await A.isDisabled('#roomMatch [data-race="7"]'))) fail('settings not locked mid-match');
-    await A.click('#settingsClose');
 
     // The score opens the match dialog.
     await B.click('#score');

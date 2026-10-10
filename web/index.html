@@ -325,106 +325,86 @@
   </section>
 </div>
 
-<div id="settings" class="scrim scrim--settings" role="presentation" hidden>
-  <section class="dialog dialog--settings" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+<div id="settings" class="settings" hidden>
+  <section class="settings__sheet" role="dialog" aria-labelledby="settingsTitle">
+    <span class="settings__grab" aria-hidden="true"></span>
     <header class="settings__head">
       <h2 id="settingsTitle" class="dialog__title">Settings</h2>
       <button id="settingsClose" type="button" class="btn btn--primary btn--small">Done</button>
     </header>
+    <div id="settingsTabs" class="seg seg--tabs settings__tabs" role="group" aria-label="Show">
+      <button type="button" class="seg__btn" data-tab="room" aria-pressed="false">This room</button>
+      <button type="button" class="seg__btn" data-tab="table" aria-pressed="true">Table</button>
+      <button type="button" class="seg__btn" data-tab="controls" aria-pressed="false">Controls</button>
+      <button type="button" class="seg__btn" data-tab="sound" aria-pressed="false">Sound &amp; chat</button>
+    </div>
     <div id="settingsBody" class="settings__body">
-      <div class="settings__cols">
-        <section id="roomSettings" class="settings__group" aria-labelledby="settingsRoomH" hidden>
-          <h3 id="settingsRoomH" class="settings__h">This room</h3>
-          <div class="setting">
-            <span class="field__label" id="settingsModeLabel">Game</span>
-            <div id="settingsMode" class="seg seg--block" role="group" aria-labelledby="settingsModeLabel"><button type="button" class="seg__btn" data-mode="8ball" aria-pressed="true">8-ball</button><button type="button" class="seg__btn" data-mode="9ball" aria-pressed="false">9-ball</button><button type="button" class="seg__btn" data-mode="3cushion" aria-pressed="false">3-cushion</button></div>
-            <p id="settingsModeNote" class="caption" hidden></p>
-          </div>
-          <div class="setting" id="settingsTableRow">
-            <span class="field__label" id="settingsTableLabel">Table</span>
-            <div id="settingsTable" class="table-pick" role="group" aria-labelledby="settingsTableLabel"></div>
-          </div>
-          <div class="setting">
-            <span class="field__label" id="settingsClothLabel">Cloth <span class="cloth-name js-cloth-name"></span></span>
-            <div id="settingsCloth" class="cloth-pick" role="group" aria-labelledby="settingsClothLabel"></div>
-          </div>
-          <div class="setting" id="settingsMatchRow">
-            <span class="field__label">Next match</span>
-            <div class="match-pick" id="roomMatch">
-        <div class="match-pick__row">
-          <span class="field__label js-race-label">Race to</span>
-          <div class="seg js-race" role="group" aria-label="Race to"><button type="button" class="seg__btn" data-race="1">1</button><button type="button" class="seg__btn" data-race="3">3</button><button type="button" class="seg__btn" data-race="5">5</button><button type="button" class="seg__btn" data-race="7">7</button><button type="button" class="seg__btn" data-race="9">9</button></div>
-          <input class="input input--race js-race-input" type="number" min="1" max="25" step="1" inputmode="numeric" aria-label="Race to, 1 to 25">
+      <section id="roomSettings" class="settings__group" data-tab="room" aria-labelledby="settingsRoomH" hidden>
+        <h3 id="settingsRoomH" class="settings__h visually-hidden">This room</h3>
+        <article class="room-row room-row--card" aria-labelledby="inviteCode">
+          <span class="mini" aria-hidden="true"><span id="roomMiniBed" class="mini__bed"></span></span>
+          <span id="inviteCode" class="room-row__code"></span>
+          <span id="roomMeta" class="room-row__meta"></span>
+          <span class="room-row__watching"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><span id="roomWatching"></span></span>
+          <div class="room-row__actions"><button id="inviteCopy" type="button" class="btn btn--secondary btn--small"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg><span id="inviteCopyText">Copy invite link</span></button></div>
+        </article>
+        <p class="caption">Anyone with the link takes the free seat, or watches once both are taken.</p>
+        <div class="setting" id="settingsAudienceRow">
+          <span class="field__label" id="roomAudienceLabel">Spectators</span>
+          <div class="seg js-audience" id="roomAudience" role="group" aria-labelledby="roomAudienceLabel"><button type="button" class="seg__btn" data-n="0">0</button><button type="button" class="seg__btn" data-n="1">1</button><button type="button" class="seg__btn" data-n="3">3</button><button type="button" class="seg__btn" data-n="5">5</button><button type="button" class="seg__btn" data-n="10">10</button></div>
+          <p class="caption">How many may watch and comment. Changes at once; nobody watching is sent away.</p>
         </div>
-        <div class="match-pick__row">
-          <span class="field__label">Break</span>
-          <div class="seg js-breaks" role="group" aria-label="Who breaks"><button type="button" class="seg__btn" data-breaks="alternate">Alternate</button><button type="button" class="seg__btn" data-breaks="winner">Winner breaks</button></div>
+        <p class="settings__fixed"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span>The game, the table, the cloth and the race stay as the room was made, for every match in it.</span></p>
+      </section>
+      <section class="settings__group" data-tab="table" aria-labelledby="settingsTableH">
+        <h3 id="settingsTableH" class="settings__h visually-hidden">Table</h3>
+        <div class="setting">
+          <span class="field__label" id="viewLabel">View</span>
+          <div id="viewSeg" class="seg seg--block" role="group" aria-labelledby="viewLabel"><button type="button" class="seg__btn" data-view="2d" aria-pressed="false">2D, from above</button><button type="button" class="seg__btn" data-view="3d" aria-pressed="false">3D</button></div>
+          <p class="caption">In 3D the camera stands behind the cue while you aim: drag sideways to turn, lower on the screen for finer turns. <kbd>V</kbd> switches, <kbd>T</kbd> looks from above, <kbd>R</kbd> replays the last shot.</p>
         </div>
-      </div>
-          </div>
-          <div class="setting" id="settingsAudienceRow">
-            <span class="field__label" id="roomAudienceLabel">Spectators</span>
-            <div class="seg js-audience" id="roomAudience" role="group" aria-labelledby="roomAudienceLabel"><button type="button" class="seg__btn" data-n="0">0</button><button type="button" class="seg__btn" data-n="1">1</button><button type="button" class="seg__btn" data-n="3">3</button><button type="button" class="seg__btn" data-n="5">5</button><button type="button" class="seg__btn" data-n="10">10</button></div>
-            <p class="caption">How many may watch and comment. Changes at once; nobody watching is sent away.</p>
-          </div>
-          <div class="setting" id="settingsInviteRow">
-            <span class="field__label">Invite</span>
-            <div class="invite-row">
-              <span id="inviteCode" class="code-text"></span>
-              <button id="inviteCopy" type="button" class="btn btn--secondary btn--small"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Copy invite link</button>
-            </div>
-          </div>
-        </section>
-        <section class="settings__group" aria-labelledby="settingsTableH">
-          <h3 id="settingsTableH" class="settings__h">Table</h3>
-          <div class="setting">
-            <span class="field__label" id="viewLabel">View</span>
-            <div id="viewSeg" class="seg seg--block" role="group" aria-labelledby="viewLabel"><button type="button" class="seg__btn" data-view="2d" aria-pressed="false">2D, from above</button><button type="button" class="seg__btn" data-view="3d" aria-pressed="false">3D</button></div>
-            <p class="caption">In 3D the camera stands behind the cue while you aim: drag sideways to turn, lower on the screen for finer turns. <kbd>V</kbd> switches, <kbd>T</kbd> looks from above, <kbd>R</kbd> replays the last shot.</p>
-          </div>
-          <div class="setting">
-            <span class="field__label" id="qualityLabel">Graphics</span>
-            <div id="qualitySeg" class="seg seg--block" role="group" aria-labelledby="qualityLabel"><button type="button" class="seg__btn" data-quality="auto" aria-pressed="true">Auto</button><button type="button" class="seg__btn" data-quality="high" aria-pressed="false">High</button><button type="button" class="seg__btn" data-quality="medium" aria-pressed="false">Medium</button><button type="button" class="seg__btn" data-quality="low" aria-pressed="false">Low</button></div>
-            <p id="qualityNote" class="caption"></p>
-          </div>
-          <div class="setting">
-            <span class="field__label" id="themeLabel">Theme</span>
-            <div id="themeSeg" class="seg seg--block" role="group" aria-labelledby="themeLabel"><button type="button" class="seg__btn" data-theme="system" aria-pressed="true">System</button><button type="button" class="seg__btn" data-theme="dark" aria-pressed="false">Dark</button><button type="button" class="seg__btn" data-theme="light" aria-pressed="false">Light</button></div>
-          </div>
-        </section>
-        <section class="settings__group" aria-labelledby="settingsPlayH">
-          <h3 id="settingsPlayH" class="settings__h">Controls</h3>
-          <div class="setting-list">
-            <button id="leftyToggle" type="button" class="toggle toggle--row" aria-pressed="false"><span class="toggle__text"><span class="toggle__title">Power bar on the left</span><span class="toggle__sub">For playing left-handed</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-            <button id="aimFrontToggle" type="button" class="toggle toggle--row" aria-pressed="false"><span class="toggle__text"><span class="toggle__title">Point at the target</span><span class="toggle__sub">Instead of holding the cue's butt while you aim</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-            <div id="hapticsRow" class="setting-list__item" hidden><button id="hapticsToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Vibration</span><span class="toggle__sub">A tick at each quarter of the power bar, and on the shot</span></span><span class="toggle__box" aria-hidden="true"></span></button></div>
-          </div>
-          <div class="setting" id="installTip" hidden>
-            <div class="setting-list"><button id="fullToggle" type="button" class="toggle toggle--row" aria-pressed="false" hidden><span class="toggle__text"><span class="toggle__title">Full screen</span><span class="toggle__sub">Or press <kbd>F</kbd></span></span><span class="toggle__box" aria-hidden="true"></span></button></div>
-            <p id="installText" class="caption">Add Pool to your home screen and it opens without the browser bars, with a bigger table. iPhone: Share, then Add to Home Screen. Android: the browser menu, then Install app.</p>
-          </div>
-        </section>
-        <section class="settings__group" aria-labelledby="settingsSoundH">
-          <h3 id="settingsSoundH" class="settings__h">Sound</h3>
-          <div class="setting-list">
-            <button id="soundToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Sound effects</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-            <label class="setting-list__item volume-row"><span class="volume-row__label">Volume</span><input id="volume" class="volume" type="range" min="0" max="100" step="5" value="80" aria-label="Volume"></label>
-            <button id="voiceToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Commentator</span><span class="toggle__sub">Vietnamese lines on great shots, misses and wins</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-            <button id="strongToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Strong language</span><span class="toggle__sub">Off keeps the commentator's lines clean</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-          </div>
-        </section>
-        <section class="settings__group" aria-labelledby="settingsMoreH">
-          <h3 id="settingsMoreH" class="settings__h">Chat and hints</h3>
-          <div class="setting-list">
-            <button id="bubblesToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Comments over the table</span><span class="toggle__sub">New comments show over the table while the chat is closed</span></span><span class="toggle__box" aria-hidden="true"></span></button>
-          </div>
-          <div class="setting setting--inline">
-            <span class="field__label">Hints</span>
-            <button id="hintsReset" type="button" class="btn btn--secondary btn--small">Show hints again</button>
-    <dl id="matchStats" class="match-stats" hidden></dl>
-          </div>
-        </section>
-      </div>
+        <div class="setting">
+          <span class="field__label" id="qualityLabel">Graphics</span>
+          <div id="qualitySeg" class="seg seg--block" role="group" aria-labelledby="qualityLabel"><button type="button" class="seg__btn" data-quality="auto" aria-pressed="true">Auto</button><button type="button" class="seg__btn" data-quality="high" aria-pressed="false">High</button><button type="button" class="seg__btn" data-quality="medium" aria-pressed="false">Medium</button><button type="button" class="seg__btn" data-quality="low" aria-pressed="false">Low</button></div>
+          <p id="qualityNote" class="caption"></p>
+        </div>
+        <div class="setting">
+          <span class="field__label" id="themeLabel">Theme</span>
+          <div id="themeSeg" class="seg seg--block" role="group" aria-labelledby="themeLabel"><button type="button" class="seg__btn" data-theme="system" aria-pressed="true">System</button><button type="button" class="seg__btn" data-theme="dark" aria-pressed="false">Dark</button><button type="button" class="seg__btn" data-theme="light" aria-pressed="false">Light</button></div>
+          <p class="caption">The table and the scoreboard stay dark in every theme, as the arena does.</p>
+        </div>
+      </section>
+      <section class="settings__group" data-tab="controls" hidden aria-labelledby="settingsPlayH">
+        <h3 id="settingsPlayH" class="settings__h visually-hidden">Controls</h3>
+        <div class="setting-list">
+          <button id="leftyToggle" type="button" class="toggle toggle--row" aria-pressed="false"><span class="toggle__text"><span class="toggle__title">Power bar on the left</span><span class="toggle__sub">For playing left-handed</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+          <button id="aimFrontToggle" type="button" class="toggle toggle--row" aria-pressed="false"><span class="toggle__text"><span class="toggle__title">Point at the target</span><span class="toggle__sub">Instead of holding the cue's butt while you aim</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+          <div id="hapticsRow" class="setting-list__item" hidden><button id="hapticsToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Vibration</span><span class="toggle__sub">A tick at each quarter of the power bar, and on the shot</span></span><span class="toggle__box" aria-hidden="true"></span></button></div>
+        </div>
+        <div class="setting" id="installTip" hidden>
+          <div class="setting-list"><button id="fullToggle" type="button" class="toggle toggle--row" aria-pressed="false" hidden><span class="toggle__text"><span class="toggle__title">Full screen</span><span class="toggle__sub">Or press <kbd>F</kbd></span></span><span class="toggle__box" aria-hidden="true"></span></button></div>
+          <p id="installText" class="caption">Add Pool to your home screen and it opens without the browser bars, with a bigger table. iPhone: Share, then Add to Home Screen. Android: the browser menu, then Install app.</p>
+        </div>
+      </section>
+      <section class="settings__group" data-tab="sound" hidden aria-labelledby="settingsSoundH">
+        <h3 id="settingsSoundH" class="settings__h">Sound</h3>
+        <div class="setting-list">
+          <button id="soundToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Sound effects</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+          <label class="setting-list__item volume-row"><span class="volume-row__label">Volume</span><input id="volume" class="volume" type="range" min="0" max="100" step="5" value="80" aria-label="Volume"></label>
+          <button id="voiceToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Commentator</span><span class="toggle__sub">Vietnamese lines on great shots, misses and wins</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+          <button id="strongToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Strong language</span><span class="toggle__sub">Off keeps the commentator's lines clean</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+        </div>
+      </section>
+      <section class="settings__group" data-tab="sound" hidden aria-labelledby="settingsMoreH">
+        <h3 id="settingsMoreH" class="settings__h">Chat and hints</h3>
+        <div class="setting-list">
+          <button id="bubblesToggle" type="button" class="toggle toggle--row" aria-pressed="true"><span class="toggle__text"><span class="toggle__title">Comments over the table</span><span class="toggle__sub">New comments show over the table while the chat is closed</span></span><span class="toggle__box" aria-hidden="true"></span></button>
+        </div>
+        <div class="setting setting--inline">
+          <span class="field__label">Hints</span>
+          <button id="hintsReset" type="button" class="btn btn--secondary btn--small">Show hints again</button>
+        </div>
+      </section>
     </div>
   </section>
 </div>
@@ -441,6 +421,7 @@
       <span id="matchNums" class="match-score__nums"></span>
       <span id="matchName1" class="match-score__name match-score__name--right"></span>
     </div>
+    <dl id="matchStats" class="match-stats" hidden></dl>
     <ol id="matchRacks" class="racks"></ol>
     <div class="conn__actions">
       <button id="matchClose" class="btn btn--primary">Done</button>

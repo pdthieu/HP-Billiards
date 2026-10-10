@@ -7,8 +7,9 @@ as token overrides. Built for the plain HTML/CSS/vanilla-JS app in `web/`.
 The interactive design canvas (one page per prompt, private to its owner):
 https://claude.ai/artifact/E8yiMbv2xfkbPmMnxNDDrf
 
-The home page and the game screen were redesigned in October 2026 (Home and
-In game below) on their own canvas, also private to its owner, a page each:
+The home page, the game screen and Settings were redesigned in October 2026
+(Home, In game and Settings below) on their own canvas, also private to its
+owner, a page each:
 https://claude.ai/artifact/828DdhzY4KrhRDNhRaHtH1
 
 New screens follow **Rules for every screen** at the end of this file.
@@ -26,7 +27,7 @@ New screens follow **Rules for every screen** at the end of this file.
 | `screens/` | Static HTML of every mock-up. Open any file in a browser; they share `tokens.css` and `components.css` |
 | `canvas-source/` | The `.dc.html` sources and `canvas.json` of the design canvas, including the four sheets that only render there: token sheet (`Main`), style tile (`StyleTile`), table spec (`T-Spec`) and motion sheet (`M-Sheet`) |
 | `home/` | The `.dc.html` sources and `canvas.json` of the home page canvas: `Main` (desktop, a fluid page), `Phone-Portrait` (390 × 844) and `Phone-Landscape` (844 × 390). Like `canvas-source/`, they render only on a canvas (they load its `support.js`) |
-| `game/` | The same canvas's In game page as built (`Game-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390). The canvas keeps the screens as they were before under them |
+| `game/`, `settings/` | The same canvas's In game and Settings pages as built (`Game-*-Proposal` and `Settings-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390). The canvas keeps the screens as they were before under them; `home/canvas.json` lays out all three pages |
 
 ## Screens
 
@@ -112,6 +113,31 @@ What it gives the table while a rack is played: at 1440 × 900 it goes from
 shorter); on a 390 × 844 phone from 312 × 582 to 330 × 614 (no trays, a
 40 px band, a 32 px power bar).
 
+## Settings (10/2026)
+
+A sheet in four tabs (`#settingsTabs`, `.seg--tabs`), opened from the
+scoreboard's gear or the home page's:
+
+- **This room** (in a room, not in practice) only lets others in: the
+  room's card as the room list draws it (`.room-row--card`: its table and
+  cloth in miniature, the code, the game, the race and the table, who
+  watches) with *Copy invite link* (*Share invite link* on a phone with a
+  share sheet), *Spectators* (the players' pick), and a line saying the
+  game, the table, the cloth and the race stay as the room was made.
+  Nothing of the match is changed in Settings.
+- **Table** (view, graphics, theme), **Controls**, **Sound & chat**.
+
+**Shapes.** Desktop and tablet: 380 px on the right, under the scoreboard.
+Phone held upright: up from the bottom (at most 520 px, with a grab bar),
+under the scoreboard and a strip of the hall where the table lies across,
+whole. Phone on its side: a 344 px card in the side column, the scoreboard
+folded to one line over it. In a room the hall gives way to the sheet
+instead of hiding under it: the table shrinks and stays in view, out of
+reach until Done (`main.game` is inert, the game keys wait), and the dock,
+the practice tools and the power bar step aside. Over the home page it
+lies on a scrim. `e2e/devices.js` checks that it fits at 1100 × 700,
+393 × 670, 844 × 390 and 844 × 340 with the table beside or above it.
+
 ## Rules for every screen
 
 Whatever comes next (a new screen, a dialog, a second language) keeps to
@@ -120,7 +146,7 @@ these, so it looks like the rest without a new design pass:
 1. **Tokens only.** Colours, radii, type, spacing and motion come from `tokens.css`; a new value goes there first, in both themes (dark on `:root`, light as overrides), unless it is like the table or the hall, the same in both. What sits in the hall gets `.on-hall` and so the dark values in either theme. Edit `design/` first, then copy `tokens.css` and `components.css` into `web/` (without the “Mockup only” block).
 2. **Two faces, two weights.** Source Sans 3 for the UI, Barlow Semi Condensed for codes, scores, the wordmark and LED type. Brass (`--accent`) marks the one thing that matters now: the primary button, the pick, your seat.
 3. **Three shapes.** Desktop/tablet (> 600 px wide and > 500 px tall), phone upright (≤ 600 px wide), phone on its side (≤ 500 px tall), with the same media queries as `style.css`. A page that works as a fluid page at 1440 px also has to work at 320 px.
-4. **Only vertical scroll.** Nothing is ever wider than the screen and nothing scrolls sideways: no carousels or swipe strips (wrap them into a grid), roots are `box-sizing: border-box` too, panes that scroll get `overflow-x: hidden` and `touch-action: pan-y`, and hit areas grow up and down, never past an edge. Hiding the overflow is not a fix; make the layout fit. `e2e/landing.js` checks the home page at 1440 × 900, 1024 × 768, 390 × 844, 360 × 640, 844 × 390 and 844 × 340; a new screen adds itself to a check like it.
-5. **Phones.** Touch targets of at least 44 px (a pseudo-element may enlarge a smaller control vertically); the main buttons in reach of a thumb (a dock on a phone upright, under the table on its side); a phone on its side shrinks the picture before the controls.
+4. **Only vertical scroll.** Nothing is ever wider than the screen and nothing scrolls sideways: no carousels or swipe strips (wrap them into a grid), roots are `box-sizing: border-box` too, panes that scroll get `overflow-x: hidden` and `touch-action: pan-y`, and hit areas grow up and down, never past an edge. Hiding the overflow is not a fix; make the layout fit. `e2e/landing.js` checks the home page at 1440 × 900, 1024 × 768, 390 × 844, 360 × 640, 844 × 390 and 844 × 340, and `e2e/devices.js` the game screen with Settings open; a new screen adds itself to a check like them.
+5. **Phones.** Touch targets of at least 44 px (a pseudo-element may enlarge a smaller control vertically); the main buttons in reach of a thumb (a dock on a phone upright, under the table on its side); a phone on its side shrinks the picture before the controls. A sheet or a panel makes room beside the table rather than lie over it.
 6. **Built in code.** Pictures are drawn from the app's own data (the hall's table, the room miniatures, the game glyphs), with inline stroke SVG for icons: no downloaded images, no emoji.
 7. **Accessible as drawn.** Real buttons, inputs and labels; `aria-pressed` on picks, `aria-label` on icon buttons, `role="img"` with a label on pictures that carry meaning; text at 4.5:1 (3:1 from 24 px).

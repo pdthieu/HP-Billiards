@@ -53,6 +53,24 @@ function stubs() {
   const overflow = (page) => page.evaluate(() => [...document.querySelectorAll('#controls > .panel, .seat__name')]
     .filter((e) => e.offsetParent && (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1)).map((e) => e.id || e.className));
   const box = (page, sel) => page.evaluate((s) => { const r = document.querySelector(s).getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; }, sel);
+  // settingsFit opens Settings and lists what does not fit: the sheet off
+  // the screen, the page wider than it, the table under the sheet or gone
+  // (the hall gives way to the sheet: the table stays in view).
+  const settingsFit = async (page) => {
+    await page.click('#settingsBtn');
+    await page.waitForTimeout(400); // the sheet slides in, the table resizes
+    const out = await page.evaluate(() => {
+      const vw = innerWidth, vh = innerHeight, bad = [];
+      const sheet = document.querySelector('.settings__sheet').getBoundingClientRect();
+      const table = document.getElementById('table').getBoundingClientRect();
+      if (document.documentElement.scrollWidth > vw) bad.push(`page ${document.documentElement.scrollWidth} wide`);
+      if (sheet.left < -0.5 || sheet.right > vw + 0.5 || sheet.top < -0.5 || sheet.bottom > vh + 0.5) bad.push(`sheet ${JSON.stringify(sheet)}`);
+      if (table.right > sheet.left + 0.5 && table.bottom > sheet.top + 0.5) bad.push('the table under the sheet');
+      if (table.width < 160 || table.height < 90) bad.push(`table ${Math.round(table.width)} x ${Math.round(table.height)}`);
+      return bad;
+    });
+    return out;
+  };
 
   try {
     // --- a phone held upright: an iPhone in Safari (393 x 670) -------------
@@ -164,8 +182,13 @@ function stubs() {
     if (pulled.moving || pulled.drag || pulled.power !== power0) fail(`a pull across the turn ${JSON.stringify(pulled)}`);
     console.log('turning the phone mid-gesture ok, ticks', buzzed.length);
 
-    // Settings offers vibration on a phone that has it.
-    await P.click('#settingsBtn');
+    // Settings comes up from the bottom under a strip of the hall, where the
+    // table lies across; it offers vibration on a phone that has it.
+    const pFit = await settingsFit(P);
+    if (pFit.length) fail(`portrait Settings: ${pFit}`);
+    if (await P.evaluate(() => view.rotated)) fail('the table did not lie across the strip over Settings');
+    await P.screenshot({ path: path.join(shots, 'devices-settings-portrait.png') });
+    await P.click('#settingsTabs [data-tab="controls"]');
     if (!(await P.isVisible('#hapticsToggle'))) fail('no vibration switch in Settings');
     await P.click('#hapticsToggle');
     if (await P.evaluate(() => S.haptics || localStorage.getItem('pool:haptics') !== 'off')) fail('vibration switch');
@@ -195,6 +218,11 @@ function stubs() {
       if (fill < 0.95 && (await L.evaluate(() => view.cssW / document.getElementById('tableWrap').clientWidth)) < 0.85) fail(`the table fills ${fill} of the height`);
       if ((await overflow(L)).length) fail(`landscape overflow at ${height}: ${await overflow(L)}`);
       await L.screenshot({ path: path.join(shots, `devices-landscape-${height}.png`) });
+      // Settings takes the dock's place in the side column
+      const lFit = await settingsFit(L);
+      if (lFit.length) fail(`landscape Settings at ${height}: ${lFit}`);
+      await L.screenshot({ path: path.join(shots, `devices-settings-landscape-${height}.png`) });
+      await L.click('#settingsClose');
       await L.close();
     }
 
@@ -222,6 +250,16 @@ function stubs() {
     const ov = (await overflow(L1)).filter((c) => !/seat__name/.test(c)); // long names may be cut
     if (ov.length) fail(`two-player landscape overflow ${ov}`);
     await L1.screenshot({ path: path.join(shots, 'devices-landscape-match.png') });
+    // with Settings open the scoreboard folds to one line over the sheet
+    const l1Fit = await settingsFit(L1);
+    if (l1Fit.length) fail(`two-player landscape Settings: ${l1Fit}`);
+    const sheet1 = await box(L1, '.settings__sheet');
+    for (const sel of ['#seat0', '#seat1', '#score']) {
+      const b = await box(L1, sel);
+      if (b.b > sheet1.t + 0.5 || b.l < sheet1.l - 0.5) fail(`${sel} not over the sheet: ${JSON.stringify(b)}`);
+    }
+    await L1.screenshot({ path: path.join(shots, 'devices-settings-landscape-match.png') });
+    await L1.click('#settingsClose');
     await L1.close();
     await D.close();
     console.log('landscape column ok');
@@ -249,6 +287,19 @@ function stubs() {
     const w3 = await M.evaluate(() => S.angle);
     if (Math.abs(deg(w3 - w2) - 0.1) > 0.001) fail(`two notches on the wheel turned ${deg(w3 - w2)}°`);
     console.log('mouse wheel ok');
+
+    // Settings beside the table: the hall gives way, the table stays in view
+    // and out of reach, the game keys wait for Done.
+    const mFit = await settingsFit(M);
+    if (mFit.length) fail(`desktop Settings: ${mFit}`);
+    if (!(await M.evaluate(() => document.querySelector('main.game').inert))) fail('the table takes input under Settings');
+    const aimBefore = await M.evaluate(() => S.angle);
+    await M.keyboard.press('ArrowRight');
+    if (await M.evaluate(() => S.angle) !== aimBefore) fail('an arrow key aimed with Settings open');
+    await M.screenshot({ path: path.join(shots, 'devices-settings-desktop.png') });
+    await M.click('#settingsClose');
+    if (await M.evaluate(() => document.querySelector('main.game').inert || document.body.classList.contains('is-settings'))) fail('Settings left the game out of reach');
+    console.log('settings sheet ok');
 
     // Full screen, by the header button or F.
     if (await M.evaluate(() => canFullscreen)) {
@@ -286,6 +337,7 @@ function stubs() {
     await practice(G);
     if (await G.evaluate(() => view.dpr) !== 3) fail(`auto pixel ratio ${await G.evaluate(() => view.dpr)}`);
     await G.click('#settingsBtn');
+    await G.click('#settingsTabs [data-tab="table"]');
     await G.click('#qualitySeg [data-quality="medium"]');
     if (await G.evaluate(() => view.dpr) !== 2) fail(`medium pixel ratio ${await G.evaluate(() => view.dpr)}`);
     await G.click('#qualitySeg [data-quality="low"]');

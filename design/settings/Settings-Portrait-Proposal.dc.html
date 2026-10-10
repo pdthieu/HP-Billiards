@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>POOL settings · phone portrait · proposal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0B1119;overflow-x:hidden}
+sc-for,sc-if{display:contents}
+.pool{
+--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--focus:#8CBFFF;--ball-ivory:#F4EFE2;--ball-disc:#FAF7EF;
+--hall:#0B1119;--hall-text:#E8ECF1;--hall-muted:#9BA8B7;--hall-line:rgba(170,190,215,.12);--hall-chip:rgba(170,190,215,.06);--hall-chip-line:rgba(170,190,215,.22);--hall-lamp:rgba(255,224,170,.08);--led:#E3B25C;--led-glow:rgba(217,164,65,.5);
+--r-md:12px;--r-lg:16px;--r-xl:22px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;
+color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool[data-theme="light"]{
+--surface-1:#F9F8F5;--surface-2:#FFFFFF;--surface-3:#E6E2DA;
+--hairline:rgba(22,32,43,.12);--hairline-strong:rgba(22,32,43,.22);
+--text:#16202B;--text-muted:#566270;--text-disabled:#A3ABB4;
+--accent-text:#87590F;--accent-soft:rgba(176,122,30,.12);--accent-ring:rgba(176,122,30,.55);--focus:#2F6FD0;
+color-scheme:light;
+}
+.pool,.pool *,.pool *::before,.pool *::after{box-sizing:border-box}
+.pool h2,.pool p{margin:0}
+.pool button,.pool input{font:inherit;color:inherit}
+.label{font:600 13px/18px var(--font-ui);color:var(--text-muted)}
+.caption{font:400 12px/16px var(--font-ui);color:var(--text-muted)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.group-h{margin:4px 0 -6px;font:600 11px/14px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted)}
+.note{padding:10px 12px;border-radius:var(--r-md);background:var(--surface-2);border:1px solid var(--hairline);font:400 14px/20px var(--font-ui);color:var(--text-muted)}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:44px;padding:0 18px;border-radius:999px;border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer}
+.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--secondary{background:var(--surface-2);color:var(--text);border-color:var(--hairline-strong)}
+.btn--small{min-height:32px;padding:0 12px;font-size:14px}
+.btn--small::before{content:"";position:absolute;inset:-6px 0}
+.icon-btn{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--hall-muted);cursor:pointer}
+.icon-btn::before{content:"";position:absolute;inset:-4px}
+.icon-btn:focus-visible,.btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.ball{position:relative;flex:none;width:6px;height:6px;border-radius:50%;background:var(--ball-ivory);box-shadow:0 0 0 .5px rgba(0,0,0,.4)}
+.ball--gone{opacity:.25;filter:grayscale(1);box-shadow:inset 0 0 0 1px var(--hall-muted);background:transparent!important}
+
+/* the scoreboard stays on top, as in the In game proposal */
+.board{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto auto;align-items:center;gap:6px;height:56px;padding:0 6px 0 10px;background:var(--hall);color:var(--hall-text);border-bottom:1px solid var(--hall-line)}
+.seat{display:flex;align-items:center;gap:6px;min-width:0;height:42px;padding:0 8px;border-radius:999px;border:1.5px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text)}
+.seat--right{flex-direction:row-reverse}
+.seat--turn{border-color:#D9A441;background:rgba(217,164,65,.14)}
+.seat__cue{flex:none;color:#D9A441}
+.seat__body{display:flex;flex-direction:column;gap:4px;min-width:0}
+.seat--right .seat__body{align-items:flex-end}
+.seat__name{font:600 14px/16px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:9ch}
+.seat__dots{display:flex;gap:1.5px}
+.hold{position:relative;flex:none;width:22px;height:22px}
+.hold svg{display:block;transform:rotate(-90deg)}
+.hold__num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:700 9px/1 var(--font-ui);color:#E3B25C;font-variant-numeric:tabular-nums}
+.score{display:flex;flex-direction:column;align-items:center;padding:0 2px;color:var(--hall-text)}
+.score__nums{display:flex;align-items:center;gap:5px;font:600 28px/28px var(--font-display);font-variant-numeric:tabular-nums}
+.score__sep{color:var(--hall-muted);font-weight:500}
+.score__race{font:600 9px/12px var(--font-display);letter-spacing:.18em;text-transform:uppercase;color:var(--led)}
+
+/* the hall: while Settings is open it is the strip above the sheet, and
+   the table lies across it, whole, so every pick shows on it at once */
+.hall{position:relative;isolation:isolate;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--hall)}
+.hall::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 62% 70% at 50% 56%,var(--hall-lamp),transparent 72%)}
+.band{position:relative;flex:none;height:34px;display:flex;align-items:center;justify-content:center;padding:0 46px}
+.band__pill{max-width:100%;padding:2px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--hall-line);color:var(--hall-text);font:400 14px/20px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.band__end{position:absolute;top:50%;transform:translateY(-50%)}
+.stage{flex:1;min-height:0;container-type:size;display:flex;align-items:center;justify-content:center;padding:0 16px 12px}
+.tbl-box{position:relative;flex:none;width:min(100cqw,calc(100cqh * 1.789));aspect-ratio:2880/1610}
+.tbl{position:absolute;inset:0}
+.tbl__glow{position:absolute;left:8%;right:8%;bottom:-8%;height:28%;border-radius:50%;background:radial-gradient(ellipse at 50% 50%,rgba(87,178,255,.4),transparent 70%);filter:blur(6px)}
+.tbl__body{position:absolute;inset:0;border-radius:2.6% / 4.6%;box-shadow:0 14px 24px -14px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5)}
+.tbl__grain{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 5px)}
+.tbl__gloss{position:absolute;inset:0;border-radius:2.6% / 4.6%;background:linear-gradient(180deg,rgba(255,255,255,.16),transparent 30%,transparent 72%,rgba(0,0,0,.2))}
+.tbl__trim{position:absolute;inset:1.5% .85%;border:1px solid transparent;border-radius:2% / 3.6%}
+.tbl__cushion{position:absolute;inset:7.45% 4.17%;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)}
+.tbl__bed{position:absolute;inset:3.65% 1.89%;box-shadow:inset 0 0 10px rgba(0,0,0,.38),inset 0 0 2px rgba(0,0,0,.5)}
+.tbl__pocket{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 50% 42%,#000 0 56%,#0C0F12)}
+.tbl__sight{position:absolute;width:.8%;aspect-ratio:1;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg);opacity:.92}
+.tbl__ball{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 .5px 1px rgba(0,0,0,.55),.5px 1.5px 2px rgba(0,0,0,.32)}
+.tbl__ball::after{content:"";position:absolute;inset:31%;border-radius:50%;background:var(--ball-disc)}
+.tbl__ball--plain::after{display:none}
+
+/* the sheet: up from the bottom, under the strip */
+.sheet{flex:none;height:520px;display:flex;flex-direction:column;background:var(--surface-1);color:var(--text);border-radius:var(--r-xl) var(--r-xl) 0 0;border-top:1px solid var(--hairline);box-shadow:0 -18px 40px -24px rgba(0,0,0,.8)}
+.sheet__grab{flex:none;align-self:center;width:36px;height:4px;margin:8px 0 0;border-radius:2px;background:var(--hairline-strong)}
+.sheet__head{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 16px 10px}
+.sheet__title{font:600 20px/26px var(--font-ui)}
+.sheet__head .btn{min-width:76px}
+.sheet__tabs{flex:none;margin:0 16px}
+.sheet__body{flex:1;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;padding:16px 16px 30px;display:flex;flex-direction:column;gap:16px}
+.seg{display:flex;gap:2px;padding:3px;border-radius:999px;background:var(--surface-2);border:1px solid var(--hairline)}
+.seg__btn{position:relative;flex:1 1 0;min-width:0;min-height:36px;padding:0 6px;border:0;border-radius:999px;background:transparent;color:var(--text-muted);font:600 14px/1 var(--font-ui);white-space:nowrap;cursor:pointer}
+.seg__btn::before{content:"";position:absolute;inset:-4px 0}
+.seg__btn[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.seg__btn:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.seg--tabs .seg__btn{flex:1 1 auto;min-height:38px;padding:0 8px;font-size:15px}
+
+/* the room as Home shows it: its table in miniature, its code, the invite */
+.room{display:flex;flex-direction:column;gap:12px;min-width:0;padding:14px 16px;border:1px solid var(--hairline);border-radius:var(--r-lg);background:var(--surface-2)}
+.room__head{display:flex;align-items:center;gap:14px;min-width:0}
+.room__id{flex:1;min-width:0;display:flex;flex-direction:column}
+.room__code{font:600 22px/26px var(--font-display);letter-spacing:.14em}
+.room__meta{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:400 13px/18px var(--font-ui);color:var(--text-muted)}
+.room__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:12px;border-top:1px solid var(--hairline)}
+.room__watch{display:inline-flex;align-items:center;gap:6px;min-width:0;overflow:hidden;font:400 13px/18px var(--font-ui);color:var(--text-muted);white-space:nowrap}
+.mini{position:relative;flex:none;width:64px;aspect-ratio:2880/1610;border-radius:5px;box-shadow:0 4px 10px -4px rgba(0,0,0,.6),inset 0 0 0 1px rgba(0,0,0,.35)}
+.mini__felt{position:absolute;inset:14% 8%;border-radius:1px;box-shadow:inset 0 0 4px rgba(0,0,0,.4)}
+.fixed{display:flex;gap:8px;align-items:flex-start;font:400 13px/18px var(--font-ui);color:var(--text-muted)}
+.fixed svg{flex:none;margin-top:2px}
+
+
+
+.setting-list{display:flex;flex-direction:column;border:1px solid var(--hairline);border-radius:var(--r-md);background:var(--surface-2);overflow:hidden}
+.setting-list > :not(:first-child){border-top:1px solid var(--hairline)}
+.toggle--row{display:flex;width:100%;align-items:center;justify-content:space-between;gap:14px;min-height:56px;padding:9px 14px;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer}
+.toggle--row:disabled{opacity:.5;cursor:not-allowed}
+.toggle--row:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.toggle__text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.toggle__title{font:600 15px/20px var(--font-ui)}
+.toggle__sub{font:400 13px/18px var(--font-ui);color:var(--text-muted)}
+.switch{position:relative;flex:none;width:44px;height:26px;border-radius:13px;background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--hairline-strong);transition:background-color 160ms}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#FFFFFF;box-shadow:0 1px 3px rgba(0,0,0,.35);transition:transform 160ms cubic-bezier(.2,.8,.2,1)}
+.toggle--row[aria-pressed="true"] .switch{background:var(--accent);box-shadow:none}
+.toggle--row[aria-pressed="true"] .switch::after{transform:translateX(18px)}
+.volume-row{display:flex;align-items:center;gap:14px;min-height:56px;padding:4px 14px}
+.volume-row__label{font:600 15px/20px var(--font-ui)}
+.volume{flex:1;min-width:0;height:44px;margin:0;accent-color:var(--accent)}
+.volume:disabled{opacity:.5}
+.setting--inline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+@media (prefers-reduced-motion: reduce){.switch,.switch::after{transition:none}}
+</style>
+</helmet>
+<div class="pool" data-theme="{{theme}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden">
+
+  <header class="board">
+    <div class="seat seat--turn">
+      <svg class="seat__cue" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M3 21 15 9"></path><circle cx="18.5" cy="5.5" r="2.5"></circle></svg>
+      <div class="seat__body">
+        <span class="seat__name">You</span>
+        <span class="seat__dots" aria-label="Solids"><sc-for list="{{dotsA}}" as="b" hint-placeholder-count="7"><span class="ball {{b.cls}}" style="background: {{b.bg}}"></span></sc-for></span>
+      </div>
+      <span class="hold" role="timer" aria-label="24 seconds left"><svg width="22" height="22" viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="11" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.5"></circle><circle cx="13" cy="13" r="11" fill="none" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="69.1" stroke-dashoffset="13.8"></circle></svg><span class="hold__num">24</span></span>
+    </div>
+    <div class="score" aria-label="Score 2 to 1, race to 5"><span class="score__nums"><span>2</span><span class="score__sep">–</span><span>1</span></span><span class="score__race">race to 5</span></div>
+    <div class="seat seat--right">
+      <div class="seat__body">
+        <span class="seat__name">Bob</span>
+        <span class="seat__dots" aria-label="Stripes"><sc-for list="{{dotsB}}" as="b" hint-placeholder-count="7"><span class="ball {{b.cls}}" style="background: {{b.bg}}"></span></sc-for></span>
+      </div>
+    </div>
+    <button class="icon-btn" type="button" aria-label="Settings" title="Settings" aria-expanded="true" style="color: var(--hall-text); background: rgba(255,255,255,.08)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button><button class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg></button>
+  </header>
+
+  <div class="hall">
+    <div class="band" aria-live="polite">
+      <button class="icon-btn band__end" type="button" aria-label="Chat" style="left: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+      <span class="band__pill">{{band}}</span>
+      <button class="icon-btn band__end" type="button" aria-label="Replay the last shot" style="right: 6px"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
+    </div>
+    <div class="stage">
+      <div class="tbl-box" role="img" aria-label="{{t.aria}}">
+        <div class="tbl">
+          <sc-if value="{{t.led}}" hint-placeholder-val="{{ false }}"><span class="tbl__glow" aria-hidden="true"></span></sc-if>
+          <div class="tbl__body" style="background: {{t.rail}}"></div>
+          <sc-if value="{{t.grain}}" hint-placeholder-val="{{ true }}"><span class="tbl__grain" aria-hidden="true"></span></sc-if>
+          <sc-if value="{{t.gloss}}" hint-placeholder-val="{{ true }}"><span class="tbl__gloss" aria-hidden="true"></span></sc-if>
+          <sc-if value="{{t.hasTrim}}" hint-placeholder-val="{{ false }}"><span class="tbl__trim" style="border-color: {{t.trim}}" aria-hidden="true"></span></sc-if>
+          <div class="tbl__cushion" style="background: {{t.cushion}}">
+            <div class="tbl__bed" style="background: {{t.bed}}">
+              <sc-for list="{{t.balls}}" as="b" hint-placeholder-count="12">
+                <span class="tbl__ball {{b.cls}}" style="left: {{b.x}}%; top: {{b.y}}%; width: {{b.d}}%; background: {{b.bg}}"></span>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{t.pockets}}" as="p" hint-placeholder-count="6">
+            <span class="tbl__pocket" style="left: {{p.x}}%; top: {{p.y}}%; width: {{p.w}}%; box-shadow: {{p.rim}}"></span>
+          </sc-for>
+          <sc-for list="{{t.sights}}" as="s" hint-placeholder-count="18">
+            <span class="tbl__sight" style="left: {{s.x}}%; top: {{s.y}}%; background: {{s.c}}"></span>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="sheet" role="dialog" aria-labelledby="sheet-title">
+    <span class="sheet__grab" aria-hidden="true"></span>
+    <header class="sheet__head">
+      <h2 class="sheet__title" id="sheet-title">Settings</h2>
+      <button class="btn btn--primary btn--small" type="button">Done</button>
+    </header>
+    <div class="seg seg--tabs sheet__tabs" role="group" aria-label="Show">
+      <sc-for list="{{tabs}}" as="o" hint-placeholder-count="4"><button class="seg__btn" type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for>
+    </div>
+    <div class="sheet__body">
+
+      <sc-if value="{{tab.room}}" hint-placeholder-val="{{ true }}">
+        <article class="room" aria-label="Room QXRTA">
+          <div class="room__head">
+            <span class="mini" style="background: {{t.rail}}" aria-hidden="true"><span class="mini__felt" style="background: {{t.mini}}"></span></span>
+            <div class="room__id"><span class="room__code">QXRTA</span><span class="room__meta">8-ball · race 5 · Diamond Pro-Am</span></div>
+          </div>
+          <div class="room__foot">
+            <span class="room__watch"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>{{room.watch}}</span>
+            <button class="btn btn--secondary btn--small" type="button"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"></path><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"></path></svg>Share invite link</button>
+          </div>
+        </article>
+        <p class="caption">Anyone with the link takes the free seat, or watches once both are taken.</p>
+        <div class="field">
+          <span class="label" id="aud-l">Spectators</span>
+          <div class="seg" role="group" aria-labelledby="aud-l"><sc-for list="{{aud}}" as="o" hint-placeholder-count="5"><button class="seg__btn" type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for></div>
+          <p class="caption">How many may watch and comment. Changes at once; nobody watching is sent away.</p>
+        </div>
+        <p class="fixed"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg><span>The game, the table, the cloth and the race stay as the room was made, for every match in it.</span></p>
+      </sc-if>
+      <sc-if value="{{tab.table}}" hint-placeholder-val="{{ false }}">
+        <div class="field">
+          <span class="label" id="view-l">View</span>
+          <div class="seg" role="group" aria-labelledby="view-l"><sc-for list="{{segs.view}}" as="o" hint-placeholder-count="2"><button class="seg__btn" type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for></div>
+          <p class="caption">In 3D the camera stands behind the cue while you aim: drag sideways to turn, lower on the screen for finer turns.</p>
+        </div>
+        <div class="field">
+          <span class="label" id="quality-l">Graphics</span>
+          <div class="seg" role="group" aria-labelledby="quality-l"><sc-for list="{{segs.quality}}" as="o" hint-placeholder-count="4"><button class="seg__btn" type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for></div>
+          <p class="caption">{{qualityNote}}</p>
+        </div>
+        <div class="field">
+          <span class="label" id="theme-l">Theme</span>
+          <div class="seg" role="group" aria-labelledby="theme-l"><sc-for list="{{segs.theme}}" as="o" hint-placeholder-count="3"><button class="seg__btn" type="button" aria-pressed="{{o.on}}" onClick="{{o.pick}}">{{o.label}}</button></sc-for></div>
+          <p class="caption">The table and the scoreboard stay dark in every theme, as the arena does.</p>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{tab.controls}}" hint-placeholder-val="{{ false }}">
+        <div class="setting-list">
+          <button class="toggle--row" type="button" aria-pressed="{{sw.lefty}}" onClick="{{flip.lefty}}"><span class="toggle__text"><span class="toggle__title">Power bar on the left</span><span class="toggle__sub">For playing left-handed</span></span><span class="switch" aria-hidden="true"></span></button>
+          <button class="toggle--row" type="button" aria-pressed="{{sw.aimFront}}" onClick="{{flip.aimFront}}"><span class="toggle__text"><span class="toggle__title">Point at the target</span><span class="toggle__sub">Instead of holding the cue’s butt while you aim</span></span><span class="switch" aria-hidden="true"></span></button>
+          <button class="toggle--row" type="button" aria-pressed="{{sw.haptics}}" onClick="{{flip.haptics}}"><span class="toggle__text"><span class="toggle__title">Vibration</span><span class="toggle__sub">A tick at each quarter of the power bar, and on the shot</span></span><span class="switch" aria-hidden="true"></span></button>
+        </div>
+        <p class="note">Add Pool to your home screen and it opens without the browser bars, with a bigger table. iPhone: Share, then Add to Home Screen. Android: the browser menu, then Install app.</p>
+      </sc-if>
+
+      <sc-if value="{{tab.sound}}" hint-placeholder-val="{{ false }}">
+        <span class="group-h">Sound</span>
+        <div class="setting-list">
+          <button class="toggle--row" type="button" aria-pressed="{{sw.sound}}" onClick="{{flip.sound}}"><span class="toggle__text"><span class="toggle__title">Sound effects</span></span><span class="switch" aria-hidden="true"></span></button>
+          <label class="volume-row"><span class="volume-row__label">Volume</span><input class="volume" type="range" min="0" max="100" step="5" value="80" aria-label="Volume" disabled="{{snd.volOff}}"></label>
+          <button class="toggle--row" type="button" aria-pressed="{{sw.voice}}" onClick="{{flip.voice}}"><span class="toggle__text"><span class="toggle__title">Commentator</span><span class="toggle__sub">Vietnamese lines on great shots, misses and wins</span></span><span class="switch" aria-hidden="true"></span></button>
+          <button class="toggle--row" type="button" aria-pressed="{{sw.strong}}" onClick="{{flip.strong}}" disabled="{{snd.strongOff}}"><span class="toggle__text"><span class="toggle__title">Strong language</span><span class="toggle__sub">Off keeps the commentator’s lines clean</span></span><span class="switch" aria-hidden="true"></span></button>
+        </div>
+        <span class="group-h">Chat and hints</span>
+        <div class="setting-list">
+          <button class="toggle--row" type="button" aria-pressed="{{sw.bubbles}}" onClick="{{flip.bubbles}}"><span class="toggle__text"><span class="toggle__title">Comments above the table</span><span class="toggle__sub">New comments show above the felt while the chat is closed</span></span><span class="switch" aria-hidden="true"></span></button>
+        </div>
+        <div class="setting--inline">
+          <span class="label">Hints</span>
+          <button class="btn btn--secondary btn--small" type="button">Show hints again</button>
+        </div>
+      </sc-if>
+
+    </div>
+  </section>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+// Proposal for a phone held upright: Settings comes up as a sheet and the
+// hall gives way to it rather than hiding under it. The scoreboard stays on
+// top, and the hall becomes the strip between them, where the table lies
+// across, whole. The sheet's four tabs are the desktop ones; a phone adds
+// Vibration and the home-screen tip under Controls, and shares the invite.
+const BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316' };
+const IVORY = '#F4EFE2';
+const TILT = { 9: 18, 10: -34, 11: 66, 12: 4, 13: -58, 14: 38, 15: -12 };
+const HI = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.6) 0, rgba(255,255,255,0) 42%)';
+const EDGE = 'radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 54%, rgba(0,0,0,.36) 100%)';
+// the rack as it stands in the match: 1, 3, 10 and 14 are down
+const SPOTS = { 0: [34, 58], 2: [78, 66], 4: [18, 24], 5: [86, 40], 6: [62, 30], 7: [48, 82], 8: [66, 76], 9: [70, 52], 11: [26, 80], 12: [88, 84], 13: [56, 14], 15: [12, 52] };
+// the room's table and cloth, as it was made on Home
+const TABLE = { name: 'Diamond Pro-Am', cornerMm: 114.3, sideMm: 127, railTop: '#6A4428', rail: '#4C2F1B', railBottom: '#341F10', sight: '#E6D7B4' };
+const CLOTH = { name: 'Tournament Blue', felt: '#1F5C9E' };
+const QUALITY_NOTES = {
+  auto: 'Sharp, and lowered by itself when the frames judder.',
+  high: 'The sharpest picture and the softest shadows, at every frame. Needs a strong device.',
+  medium: 'A little less sharp. Runs cooler on most phones.',
+  low: 'Plain and 30 frames a second: saves the battery on an old or slow phone.',
+};
+const START = { tab: 'room', aud: 3, view: '2d', quality: 'auto', theme: 'system', lefty: false, aimFront: false, haptics: true, sound: true, voice: true, strong: true, bubbles: true };
+
+function shade(hex, k) {
+  return '#' + [1, 3, 5].map(function (i) { return Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0'); }).join('');
+}
+function railBg(t) { return 'linear-gradient(165deg, ' + t.railTop + ', ' + t.rail + ' 52%, ' + t.railBottom + ')'; }
+function feltBg(felt) { return 'radial-gradient(ellipse 72% 78% at 50% 50%, ' + shade(felt, 1.2) + ' 0%, ' + felt + ' 58%, ' + shade(felt, 0.62) + ' 100%)'; }
+function ballBg(n) {
+  if (n === 0) return HI + ', ' + EDGE + ', ' + IVORY;
+  if (n <= 8) return HI + ', ' + EDGE + ', ' + BALL[n];
+  return HI + ', ' + EDGE + ', linear-gradient(' + (90 + TILT[n]) + 'deg, ' + IVORY + ' 0 27%, ' + BALL[n - 8] + ' 27% 73%, ' + IVORY + ' 73%)';
+}
+function miniFelt(felt) {
+  const hole = function (at, r) { return 'radial-gradient(circle at ' + at + ', #05070A 0 ' + r + 'px, rgba(5,7,10,0) ' + (r + 0.6) + 'px)'; };
+  return [hole('0 0', 2.6), hole('100% 0', 2.6), hole('0 100%', 2.6), hole('100% 100%', 2.6), hole('50% 0', 2.2), hole('50% 100%', 2.2),
+    'radial-gradient(ellipse at 50% 50%, ' + shade(felt, 1.2) + ', ' + felt + ' 60%, ' + shade(felt, 0.62) + ')'].join(', ');
+}
+function dotBall(n) {
+  if (n <= 8) return BALL[n];
+  return 'linear-gradient(180deg, ' + IVORY + ' 0 21%, ' + BALL[n - 8] + ' 21% 79%, ' + IVORY + ' 79% 100%)';
+}
+// pockets in % of the frame (2880 mm wide), sized from the table's mouths
+function pocketsOf(t) {
+  const c = (t.cornerMm * 1.12 / 28.8).toFixed(2), sd = (t.sideMm * 1.02 / 28.8).toFixed(2);
+  return [[5.03, 9], [50, 7.2], [94.97, 9], [5.03, 91], [50, 92.8], [94.97, 91]].map(function (p, i) { return { x: p[0], y: p[1], w: i % 3 === 1 ? sd : c, rim: '0 0 0 1px rgba(0,0,0,.4)' }; });
+}
+function sightsOf(t) {
+  const out = [];
+  for (let i = 1; i < 8; i++) {
+    if (i === 4) continue;
+    const x = (5.903 + 88.194 * i / 8).toFixed(2);
+    out.push({ x: x, y: '3.73', c: t.sight }, { x: x, y: '96.27', c: t.sight });
+  }
+  for (let j = 1; j < 4; j++) {
+    const y = (10.559 + 78.882 * j / 4).toFixed(2);
+    out.push({ x: '2.08', y: y, c: t.sight }, { x: '97.92', y: y, c: t.sight });
+  }
+  return out;
+}
+
+class Component extends DCLogic {
+  constructor(...args) {
+    super(...args);
+    this.state = Object.assign({}, START);
+  }
+  renderVals() {
+    const s = Object.assign({}, START, this.state || {});
+    const set = (patch) => () => this.setState(patch);
+    const on = (yes) => (yes ? 'true' : 'false');
+    const seg = (key, options) => options.map((o) => ({ label: o[1], on: on(s[key] === o[0]), pick: set({ [key]: o[0] }) }));
+    const sw = {}, flip = {};
+    ['lefty', 'aimFront', 'sound', 'voice', 'strong', 'bubbles', 'haptics'].forEach((k) => { sw[k] = on(s[k]); flip[k] = () => this.setState({ [k]: !s[k] }); });
+    return {
+      theme: s.theme === 'light' || s.theme === 'dark' ? s.theme : (this.props.theme ?? 'dark'),
+      band: 'Pocketed the 3. Your turn.',
+      dotsA: [1, 2, 3, 4, 5, 6, 7].map((n) => ({ bg: dotBall(n), cls: n === 1 || n === 3 ? 'ball--gone' : '' })),
+      dotsB: [9, 10, 11, 12, 13, 14, 15].map((n) => ({ bg: dotBall(n), cls: n === 10 || n === 14 ? 'ball--gone' : '' })),
+      tabs: [['room', 'This room'], ['table', 'Table'], ['controls', 'Controls'], ['sound', 'Sound & chat']].map((o) => ({ label: o[1], on: on(s.tab === o[0]), pick: set({ tab: o[0] }) })),
+      tab: { room: s.tab === 'room', table: s.tab === 'table', controls: s.tab === 'controls', sound: s.tab === 'sound' },
+      room: { watch: s.aud === 0 ? 'No spectators' : '1 of ' + s.aud + ' watching' },
+      aud: [0, 1, 3, 5, 10].map((n) => ({ label: String(n), on: on(s.aud === n), pick: set({ aud: n }) })),
+      segs: {
+        view: seg('view', [['2d', '2D, from above'], ['3d', '3D']]),
+        quality: seg('quality', [['auto', 'Auto'], ['high', 'High'], ['medium', 'Medium'], ['low', 'Low']]),
+        theme: seg('theme', [['system', 'System'], ['dark', 'Dark'], ['light', 'Light']]),
+      },
+      qualityNote: QUALITY_NOTES[s.quality],
+      snd: { volOff: !s.sound, strongOff: !s.voice },
+      sw: sw,
+      flip: flip,
+      t: {
+        aria: TABLE.name + ' with ' + CLOTH.name + ' cloth',
+        rail: railBg(TABLE),
+        gloss: true, grain: true, hasTrim: false, trim: 'transparent', led: false,
+        cushion: shade(CLOTH.felt, 0.74),
+        bed: feltBg(CLOTH.felt),
+        mini: miniFelt(CLOTH.felt),
+        balls: Object.keys(SPOTS).map(Number).map((n) => ({ x: SPOTS[n][0], y: SPOTS[n][1], d: 2.25, bg: ballBg(n), cls: n === 0 ? 'tbl__ball--plain' : '' })),
+        pockets: pocketsOf(TABLE),
+        sights: sightsOf(TABLE),
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

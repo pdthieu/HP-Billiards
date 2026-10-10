@@ -1,17 +1,222 @@
 {
   "v": 3,
-  "createdOnFiles": { "v": 1, "at": "2026-10-10T04:47:50Z" },
-  "title": "HP Billiards Home",
-  "launch": { "view": "canvas" },
-  "pages": [],
-  "boards": {
-    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1360, "title": "Desktop · web", "expand": "fill", "is_interactive": true },
-    "Phone-Portrait.dc.html": { "x": 1520, "y": 0, "w": 390, "h": 844, "title": "Phone · portrait", "is_interactive": true },
-    "Phone-Landscape.dc.html": { "x": 1990, "y": 0, "w": 844, "h": 390, "title": "Phone · landscape", "is_interactive": true }
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-10-10T04:47:50Z"
   },
-  "order": ["Main.dc.html", "Phone-Portrait.dc.html", "Phone-Landscape.dc.html"],
+  "title": "HP Billiards",
+  "launch": {
+    "view": "canvas",
+    "page": "home"
+  },
+  "pages": [
+    {
+      "id": "home",
+      "name": "Home"
+    },
+    {
+      "id": "game",
+      "name": "In game"
+    },
+    {
+      "id": "settings",
+      "name": "Settings"
+    }
+  ],
+  "boards": {
+    "Main.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 1360,
+      "title": "Home · desktop",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "home"
+    },
+    "Phone-Portrait.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Home · phone portrait",
+      "is_interactive": true,
+      "page": "home"
+    },
+    "Phone-Landscape.dc.html": {
+      "x": 1990,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "title": "Home · phone landscape",
+      "is_interactive": true,
+      "page": "home"
+    },
+    "Game-Desktop.dc.html": {
+      "x": 0,
+      "y": 1340,
+      "w": 1440,
+      "h": 900,
+      "title": "In game · desktop · before",
+      "expand": "fill",
+      "page": "game"
+    },
+    "Game-Portrait.dc.html": {
+      "x": 1520,
+      "y": 1340,
+      "w": 390,
+      "h": 844,
+      "title": "In game · phone portrait · before",
+      "page": "game"
+    },
+    "Game-Landscape.dc.html": {
+      "x": 1990,
+      "y": 1340,
+      "w": 844,
+      "h": 390,
+      "title": "In game · phone landscape · before",
+      "page": "game"
+    },
+    "Game-Desktop-Proposal.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "In game · desktop",
+      "expand": "fill",
+      "page": "game"
+    },
+    "Game-Portrait-Proposal.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "In game · phone portrait",
+      "page": "game"
+    },
+    "Game-Landscape-Proposal.dc.html": {
+      "x": 1990,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "title": "In game · phone landscape",
+      "page": "game"
+    },
+    "Settings-Desktop.dc.html": {
+      "x": 0,
+      "y": 1340,
+      "w": 1440,
+      "h": 900,
+      "title": "Settings · desktop · before",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "settings"
+    },
+    "Settings-Portrait.dc.html": {
+      "x": 1520,
+      "y": 1340,
+      "w": 390,
+      "h": 844,
+      "title": "Settings · phone portrait · before",
+      "is_interactive": true,
+      "page": "settings"
+    },
+    "Settings-Landscape.dc.html": {
+      "x": 1990,
+      "y": 1340,
+      "w": 844,
+      "h": 390,
+      "title": "Settings · phone landscape · before",
+      "is_interactive": true,
+      "page": "settings"
+    },
+    "Settings-Desktop-Proposal.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 900,
+      "title": "Settings · desktop",
+      "expand": "fill",
+      "is_interactive": true,
+      "page": "settings"
+    },
+    "Settings-Portrait-Proposal.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Settings · phone portrait",
+      "is_interactive": true,
+      "page": "settings"
+    },
+    "Settings-Landscape-Proposal.dc.html": {
+      "x": 1990,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "title": "Settings · phone landscape",
+      "is_interactive": true,
+      "page": "settings"
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Phone-Portrait.dc.html",
+    "Phone-Landscape.dc.html",
+    "Game-Desktop.dc.html",
+    "Game-Portrait.dc.html",
+    "Game-Landscape.dc.html",
+    "Game-Desktop-Proposal.dc.html",
+    "Game-Portrait-Proposal.dc.html",
+    "Game-Landscape-Proposal.dc.html",
+    "Settings-Desktop.dc.html",
+    "Settings-Portrait.dc.html",
+    "Settings-Landscape.dc.html",
+    "Settings-Desktop-Proposal.dc.html",
+    "Settings-Portrait-Proposal.dc.html",
+    "Settings-Landscape-Proposal.dc.html"
+  ],
   "notes": {
-    "row-title": { "x": 0, "y": -300, "text": "POOL · Home", "kind": "title1", "maxW": 2834 }
+    "row-title": {
+      "x": 0,
+      "y": -300,
+      "text": "POOL · Home",
+      "kind": "title1",
+      "maxW": 2834,
+      "page": "home"
+    },
+    "game-title": {
+      "x": 0,
+      "y": -300,
+      "text": "In game · as built (10/2026)",
+      "kind": "title1",
+      "maxW": 2834,
+      "page": "game"
+    },
+    "game-proposal": {
+      "x": 0,
+      "y": 1040,
+      "text": "In game · before",
+      "kind": "title1",
+      "maxW": 2834,
+      "page": "game"
+    },
+    "settings-title": {
+      "x": 0,
+      "y": -300,
+      "text": "Settings · as built (10/2026)",
+      "kind": "title1",
+      "maxW": 2834,
+      "page": "settings"
+    },
+    "settings-proposal": {
+      "x": 0,
+      "y": 1040,
+      "text": "Settings · before",
+      "kind": "title1",
+      "maxW": 2834,
+      "page": "settings"
+    }
   },
   "designSystems": []
 }

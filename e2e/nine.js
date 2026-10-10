@@ -49,19 +49,18 @@ const st = (page) => page.evaluate(() => ({
     await B.click('#join');
     await B.waitForFunction(() => document.getElementById('landing').hidden && S.mode === '9ball');
 
-    // Switching in the lobby reaches both players.
+    // The room stays the 9-ball room it was made as: Settings → This room
+    // shows it, with nothing of the match to change.
     await A.waitForFunction(() => document.getElementById('seat1').textContent.includes('Bob'));
     await A.click('#settingsBtn');
-    await A.click('#settingsMode [data-mode="8ball"]');
+    await A.click('#settingsTabs [data-tab="room"]');
+    if (!(await A.textContent('#roomMeta')).startsWith('9-ball')) fail(`room card: ${await A.textContent('#roomMeta')}`);
+    if (await A.locator('#settings [data-mode]').count()) fail('a game picker in Settings');
     await A.click('#settingsClose');
-    await B.waitForFunction(() => S.mode === '8ball');
-    await B.click('#settingsBtn');
-    await B.click('#settingsMode [data-mode="9ball"]');
-    await B.click('#settingsClose');
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10);
     await B.waitForFunction(() => S.balls.size === 10);
     await B.screenshot({ path: path.join(shots, 'nine-lobby-B.png') });
-    console.log('lobby switch ok');
+    console.log('lobby room ok');
 
     await A.click('#ready');
     await B.click('#ready');

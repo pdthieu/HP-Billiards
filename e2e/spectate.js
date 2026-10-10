@@ -97,6 +97,7 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     if (!(await X.textContent('#landingError')).includes('no more spectators')) fail(`second spectator: ${await X.textContent('#landingError')}`);
     // the players raise the limit in Settings
     await A.click('#settingsBtn');
+    await A.click('#settingsTabs [data-tab="room"]');
     await A.click('#roomAudience [data-n="3"]');
     await A.waitForFunction(() => S.audience.max === 3);
     await A.click('#settingsClose');

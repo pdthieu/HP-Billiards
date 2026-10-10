@@ -886,7 +886,8 @@ function resetToLanding(error) {
   S.shownScore = null;
   S.oppLeft = false;
   keepAwake(false);
-  for (const id of ['matchDialog', 'settings', 'leaveConfirm']) $(id).hidden = true;
+  closeSettings();
+  for (const id of ['matchDialog', 'leaveConfirm']) $(id).hidden = true;
   S.players = [
     { seat: 0, name: '', connected: false, ready: false },
     { seat: 1, name: '', connected: false, ready: false },
@@ -4073,7 +4074,7 @@ canvas.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') 
 document.addEventListener('keydown', (e) => {
   const t = e.target;
   if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement) return;
-  if (document.querySelector('.scrim:not([hidden])')) return; // keys belong to the dialog
+  if (document.querySelector('.scrim:not([hidden])') || !$('settings').hidden) return; // keys belong to the dialog, or to Settings
   if (S.replay) { stopReplay(); e.preventDefault(); return; } // any key ends a replay
   if (!e.metaKey && !e.ctrlKey && !e.altKey) {
     const k = e.key.toLowerCase();
@@ -4702,12 +4703,12 @@ function refreshPanels() {
       $('lobbySub').textContent = 'Their seat is held for a moment.';
     } else if (me.ready) {
       setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
-      $('lobbySub').textContent = 'The match starts when both players are ready. Changing the game, the race or the table makes you both ready again.';
+      $('lobbySub').textContent = 'The match starts when both players are ready.';
     } else {
       setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
       $('lobbySub').textContent = isCarom()
-        ? `3-cushion to ${points(S.race)}. Change it in Settings.`
-        : `${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]} Change it in Settings.`;
+        ? `3-cushion to ${points(S.race)}.`
+        : `${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]}`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -4746,8 +4747,7 @@ function refreshPanels() {
   refreshDecision();
 }
 
-// renderModes shows the room's game in the header and on the lobby and
-// game-over pickers.
+// renderModes shows the room's game on the scoreboard.
 function renderModes() {
   $('roomEyebrow').textContent = S.spectator ? `Watching · ${MODE_NAME[S.mode]}` : S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
   $('leaveBtn').hidden = !inRoom() || S.practice;
@@ -4760,9 +4760,8 @@ function setSeg(seg, mode) {
   for (const b of seg.querySelectorAll('[data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === mode));
 }
 
-// The landing picker chooses the game of a new room (remembered); the
-// lobby and game-over pickers change the room's game for both players.
-// The hall on the home page draws the picks once they are all read
+// The landing picker chooses the game of a new room (remembered); the room
+// keeps it. The hall on the home page draws the picks once they are all read
 // (hallReady, set where the spectator pick is).
 let hallReady = false;
 let landingMode = MODE_NAME[readSetting('pool:mode')] ? readSetting('pool:mode') : '8ball';
@@ -4777,10 +4776,10 @@ $('landingMode').addEventListener('click', (e) => {
   renderLandingTable();
 });
 
-// The table and cloth pickers: the landing's set up a new room
-// (remembered) and dress the table behind the landing, the room's in
-// Settings change them for everyone in the room (set_table). Their buttons
-// are built from TABLES and CLOTHS.
+// The table and cloth pickers set up a new room on the landing (remembered)
+// and dress the table behind it. A room keeps the table and the cloth it was
+// made with: Settings → This room only shows them. The buttons are built
+// from TABLES and CLOTHS.
 const inches = (m) => `${Math.round(m / INCH * 100) / 100}″`;
 function fillTablePick(el) {
   el.replaceChildren(...Object.entries(TABLES).map(([id, t]) => {
@@ -4815,8 +4814,8 @@ function setPick(el, key, value, disabled = false) {
   const name = el.parentElement.querySelector('.js-cloth-name');
   if (name) name.textContent = CLOTHS[value] ? CLOTHS[value].name : '';
 }
-for (const id of ['landingTable', 'settingsTable']) fillTablePick($(id));
-for (const id of ['landingCloth', 'settingsCloth']) fillClothPick($(id));
+fillTablePick($('landingTable'));
+fillClothPick($('landingCloth'));
 let landingTable = TABLES[readSetting('pool:table')] ? readSetting('pool:table') : DEFAULT_TABLE;
 let landingCloth = CLOTHS[readSetting('pool:cloth')] ? readSetting('pool:cloth') : DEFAULT_CLOTH;
 function renderLandingTable() {
@@ -4849,14 +4848,6 @@ $('landingCloth').addEventListener('click', (e) => {
   renderLandingTable();
 });
 renderLandingTable();
-$('settingsTable').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-table]');
-  if (b && !b.disabled && b.dataset.table !== S.table) send({ type: 'set_table', table: b.dataset.table });
-});
-$('settingsCloth').addEventListener('click', (e) => {
-  const b = e.target.closest('[data-cloth]');
-  if (b && !b.disabled && b.dataset.cloth !== S.cloth) send({ type: 'set_table', cloth: b.dataset.cloth });
-});
 
 const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function setPanelMsg(id, html) { $(id).innerHTML = html; }
@@ -5209,7 +5200,6 @@ function renderMatchDialog() {
   $('matchEyebrow').textContent = carom ? `3-cushion · to ${points(m.race)}` : `${MODE_NAME[S.mode]} · race to ${m.race}`;
   $('matchTitle').textContent = over ? matchTitle(m) : carom ? 'Game' : 'Match';
   let text;
-  renderCaromLines(carom);
   if (carom && over && last.end !== 'forfeit') text = `${caromReason() || `${m.score[0]}–${m.score[1]}`}.`;
   else if (carom && !over) text = `First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
   else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
@@ -5219,6 +5209,7 @@ function renderMatchDialog() {
   $('matchName0').textContent = matchName(0);
   $('matchName1').textContent = matchName(1);
   $('matchNums').textContent = `${m.score[0]} – ${m.score[1]}`;
+  renderCaromLines(carom);
   const list = $('matchRacks');
   list.replaceChildren();
   if (!m.racks.length) {
@@ -5232,6 +5223,15 @@ function renderMatchDialog() {
     li.className = 'rack';
     const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
     const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
+    const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
+    const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
+    const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
+    li.append(n, who, sc, why);
+    list.append(li);
+  });
+  list.lastElementChild.scrollIntoView({ block: 'nearest' });
+}
+
 // renderCaromLines gives each 3-cushion player's line in the match dialog:
 // points of the target, innings, average and best run, and the run going on.
 function renderCaromLines(carom) {
@@ -5251,15 +5251,6 @@ function renderCaromLines(carom) {
   }));
 }
 
-    const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
-    const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
-    const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
-    li.append(n, who, sc, why);
-    list.append(li);
-  });
-  list.lastElementChild.scrollIntoView({ block: 'nearest' });
-}
-
 function openLeaveConfirm() {
   const m = S.match;
   const opp = matchName(1 - S.seat);
@@ -5269,8 +5260,8 @@ function openLeaveConfirm() {
   $('leaveStay').focus();
 }
 
-// renderOverPanel: between racks the next rack, after the match a new one
-// (the game and the race can change then).
+// renderOverPanel: between racks the next rack, after the match a new one,
+// as the room was made.
 function renderOverPanel() {
   const m = S.practice ? null : S.match;
   const live = matchLive();
@@ -5296,7 +5287,7 @@ function renderOverPanel() {
   } else $('overText').textContent = winnerTitle();
   $('rematch').textContent = long ? 'New match' : 'Rematch';
   const goal = isCarom() ? `to ${points(S.race)}` : `race to ${S.race}`;
-  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`) + ' Change them in Settings.';
+  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`);
 }
 
 // Match pickers: race (quick picks or a number) and who breaks. In
@@ -5383,10 +5374,6 @@ wireMatchPick($('landingMatch'), () => ({ race: landingGoal(), mode: landingMode
   if (c.breaks) { landingBreaks = c.breaks; writeSetting('pool:breaks', c.breaks); }
   renderLandingMatch();
 });
-wireMatchPick($('roomMatch'), () => ({ race: S.race, mode: S.mode }), (c) => {
-  if ((c.race && c.race !== S.race) || (c.breaks && c.breaks !== S.breaks)) send({ type: 'set_match', ...c });
-});
-
 
 // closable wires a dialog's close button, backdrop and Escape.
 function closable(scrimId, closeId) {
@@ -5702,8 +5689,12 @@ $('landingAudience').addEventListener('click', (e) => {
   setAudiencePick($('landingAudience'), landingAudience);
   renderLandingRules();
 });
+// renderAudienceSetting presses the room's spectator pick and says who
+// watches on the room's card in Settings.
 function renderAudienceSetting() {
   setAudiencePick($('roomAudience'), S.audience.max);
+  const max = S.audience.max, n = S.audience.names.length;
+  $('roomWatching').textContent = !max ? 'No spectators' : n ? `${n} of ${max} watching` : `Up to ${max} may watch`;
 }
 $('roomAudience').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
@@ -5899,41 +5890,26 @@ $('fullBtn').onclick = toggleFullscreen;
 $('fullToggle').onclick = toggleFullscreen;
 renderFullscreen();
 
-// renderRoomSettings: the game, the next match and the invite link, for the
-// room the player is in. They change only between matches.
+// renderRoomSettings fills This room for the room the player is in (not
+// practice). Nothing of the match changes there: the game, the table, the
+// cloth and the race stay as the room was made on the landing. It only lets
+// others in: the room's card as the room list shows it, with the invite
+// link, and how many may watch (the players' pick; a spectator only shares).
 function renderRoomSettings() {
-  const inRoom = S.seat >= 0;
-  $('roomSettings').hidden = !inRoom;
-  if (!inRoom) return;
-  $('settingsMatchRow').hidden = S.practice;
-  $('settingsAudienceRow').hidden = S.practice;
-  $('settingsInviteRow').hidden = S.practice;
-  renderAudienceSetting();
-  const locked = !S.practice && (matchLive() || !(S.phase === 'lobby' || S.phase === 'game_over'));
-  setSeg($('settingsMode'), S.mode);
-  for (const b of $('roomSettings').querySelectorAll('#settingsMode .seg__btn, #roomMatch button, #roomMatch input')) b.disabled = locked;
-  $('settingsTableRow').hidden = isCarom(); // 3-cushion is played on the carom table
-  setPick($('settingsTable'), 'table', S.table, locked);
-  setPick($('settingsCloth'), 'cloth', S.cloth, locked);
-  const note = $('settingsModeNote');
-  note.hidden = !locked && !S.practice;
-  note.textContent = locked ? 'Locked while a match is played: change them after it, or in the lobby.' : 'A new game or table starts a fresh rack.';
-  if (!S.practice) setMatchPick($('roomMatch'), S.race, S.breaks, S.mode);
+  const on = inRoom() && !S.practice;
+  $('settingsTabs').querySelector('[data-tab="room"]').hidden = !on;
+  if (!on) return;
+  const carom = isCarom();
+  $('roomSettings').querySelector('.mini').style.background = railGradient(carom ? LOOKS.carom : LOOKS[S.table] || LOOKS[DEFAULT_TABLE]);
+  $('roomMiniBed').style.background = miniBed(S.cloth, !carom);
   $('inviteCode').textContent = S.roomCode;
+  const goal = carom ? ` · to ${S.race}` : S.race > 1 ? ` · race ${S.race}` : '';
+  const table = carom ? ' · carom table' : TABLES[S.table] ? ` · ${TABLES[S.table].name}` : '';
+  $('roomMeta').textContent = `${MODE_NAME[S.mode]}${goal}${table}`;
+  $('inviteCopyText').textContent = navigator.share && compactMedia.matches ? 'Share invite link' : 'Copy invite link';
+  $('settingsAudienceRow').hidden = S.seat < 0;
+  renderAudienceSetting();
 }
-
-$('settingsMode').addEventListener('click', (e) => {
-  const b = e.target.closest('.seg__btn');
-  if (!b || b.disabled || b.dataset.mode === S.mode) return;
-  if (S.practice) {
-    if (S.moving) return;
-    resetOrientations();
-    send({ type: 'rerack', mode: b.dataset.mode });
-    setStatus(`New ${MODE_NAME[b.dataset.mode]} rack. Free play.`);
-  } else {
-    send({ type: 'set_mode', mode: b.dataset.mode });
-  }
-});
 
 function renderSettings() {
   renderRoomSettings();
@@ -5960,24 +5936,48 @@ function renderSettings() {
   $('volume').value = String(Math.round(SND.volume * 100));
   $('volume').disabled = !SND.on;
 }
-// Settings opens from the header in a room and from the landing page; it
-// opens at its top, with Done (in its header) focused, and gives the focus
-// back to the button that opened it.
+// Settings opens from the scoreboard in a room and from the landing page, as a
+// sheet (design/README.md, "Settings"). In a room the hall gives way to it:
+// the table shrinks and stays in view, out of reach until Done, and the dock
+// and the power bar step aside. Over the landing it lies on a scrim. It
+// opens on the tab picked last (else the first there is), at its top, with
+// Done focused, and gives the focus back to the button that opened it.
 let settingsOpener = null;
+let settingsTab = null;
+const settingsTabsOn = () => [...$('settingsTabs').querySelectorAll('.seg__btn')].filter((b) => !b.hidden).map((b) => b.dataset.tab);
+function showSettingsTab(tab) {
+  const on = settingsTabsOn();
+  if (!on.includes(tab)) tab = on[0];
+  for (const b of $('settingsTabs').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.tab === tab));
+  for (const g of $('settingsBody').querySelectorAll('.settings__group')) g.hidden = g.dataset.tab !== tab;
+  $('settingsBody').scrollTop = 0;
+  return tab;
+}
+$('settingsTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (b) settingsTab = showSettingsTab(b.dataset.tab);
+});
 function openSettings(e) {
   renderSettings();
   settingsOpener = e && e.currentTarget;
+  showSettingsTab(settingsTab);
   $('settings').hidden = false;
   $('settingsBody').scrollTop = 0;
+  document.body.classList.add('is-settings');
+  if (!document.body.classList.contains('is-landing')) document.querySelector('main.game').inert = true;
+  $('settingsBtn').setAttribute('aria-expanded', 'true');
   $('settingsClose').focus({ preventScroll: true });
 }
 function closeSettings() {
   if ($('settings').hidden) return;
   $('settings').hidden = true;
+  document.body.classList.remove('is-settings');
+  if (!document.body.classList.contains('is-landing')) document.querySelector('main.game').inert = false;
+  $('settingsBtn').setAttribute('aria-expanded', 'false');
   if (settingsOpener && settingsOpener.offsetParent) settingsOpener.focus({ preventScroll: true });
   settingsOpener = null;
 }
-$('settingsBtn').onclick = openSettings;
+$('settingsBtn').onclick = (e) => { if ($('settings').hidden) openSettings(e); else closeSettings(); };
 $('landingSettings').onclick = openSettings;
 $('settingsClose').onclick = closeSettings;
 $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });

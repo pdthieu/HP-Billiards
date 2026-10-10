@@ -1,8 +1,9 @@
 // Tables and cloths: picked on the landing (the table behind it shows the
 // pick), sent with the new room, shown to the player who joins and in the
-// room list; changed in Settings → This room for everyone, a new table
-// asking both players to be ready again and a new cloth not; a practice
-// room racks again on a new table; 3D builds each table's legs.
+// room list. Settings → This room shows them and changes nothing; the
+// protocol still carries a change (set_table), a new table asking both
+// players to be ready again and a new cloth not; a practice room racks
+// again on a new table; 3D builds each table's legs.
 // Usage: node tables.js <base>
 const { chromium } = require('playwright');
 const flat = require('./flat');
@@ -59,30 +60,23 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     if (!(await A.textContent('#lobbySub')).includes('Predator Apex')) fail(`lobby line: ${await A.textContent('#lobbySub')}`);
     console.log('room on its table ok');
 
-    // Settings: a new cloth keeps Ann ready, a new table does not.
-    await A.click('#ready');
-    await B.waitForFunction(() => S.players[0].ready);
+    // Settings → This room shows the room's table on its card and has no
+    // picker; a new cloth (set_table) keeps Ann ready, a new table does not.
     await A.click('#settingsBtn');
-    await A.click('#settingsCloth [data-cloth="burgundy"]');
-    await B.waitForFunction(() => S.cloth === 'burgundy');
-    if (!(await B.evaluate(() => S.players[0].ready))) fail('a new cloth unreadied Ann');
-    await A.click('#settingsTable [data-table="acurra"]');
-    await B.waitForFunction(() => S.table === 'acurra' && Math.abs(POCKETS[0].half - 2 * 0.0254) < 1e-9);
-    if (await B.evaluate(() => S.players[0].ready)) fail('a new table left Ann ready');
-    await A.waitForFunction(() => document.querySelector('#settingsTable [data-table="acurra"]').getAttribute('aria-pressed') === 'true', null, { timeout: 5000 })
-      .catch(() => fail('settings do not show the new table'));
+    await A.click('#settingsTabs [data-tab="room"]');
+    if (!(await A.textContent('#roomMeta')).includes('Predator Apex')) fail(`room card: ${await A.textContent('#roomMeta')}`);
+    if (await A.locator('#settings [data-table], #settings [data-cloth]').count()) fail('table or cloth pickers in Settings');
     await A.screenshot({ path: path.join(shots, 'tables-settings.png') });
     await A.click('#settingsClose');
-    console.log('changing table and cloth ok');
-
-    // Locked while a rack is played.
     await A.click('#ready');
-    await B.click('#ready');
-    await A.waitForFunction(() => S.phase === 'breaking');
-    await A.click('#settingsBtn');
-    if (!(await A.isDisabled('#settingsTable [data-table="diamond"]')) || !(await A.isDisabled('#settingsCloth [data-cloth="spruce"]'))) fail('table and cloth not locked during the rack');
-    await A.click('#settingsClose');
-    console.log('locked during a rack ok');
+    await B.waitForFunction(() => S.players[0].ready);
+    await A.evaluate(() => send({ type: 'set_table', cloth: 'burgundy' }));
+    await B.waitForFunction(() => S.cloth === 'burgundy');
+    if (!(await B.evaluate(() => S.players[0].ready))) fail('a new cloth unreadied Ann');
+    await A.evaluate(() => send({ type: 'set_table', table: 'acurra' }));
+    await B.waitForFunction(() => S.table === 'acurra' && Math.abs(POCKETS[0].half - 2 * 0.0254) < 1e-9);
+    if (await B.evaluate(() => S.players[0].ready)) fail('a new table left Ann ready');
+    console.log('changing table and cloth ok');
 
     // Practice: a new table racks again.
     const P = await mk({ viewport: { width: 1100, height: 760 } });
@@ -91,10 +85,8 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     await P.click('#landingTable [data-table="diamond"]');
     await P.click('#practice');
     await P.waitForFunction(() => S.practice && S.phase === 'open' && S.table === 'diamond');
-    await P.click('#settingsBtn');
-    await P.click('#settingsTable [data-table="rasson"]');
+    await P.evaluate(() => send({ type: 'set_table', table: 'rasson' }));
     await P.waitForFunction(() => S.table === 'rasson' && Math.abs(POCKETS[0].half - 4.25 * 0.0254 / 2) < 1e-9);
-    await P.click('#settingsClose');
     console.log('practice on a new table ok');
 
     // 3D (software WebGL, as in view3d.js): the table behind the landing is

@@ -200,6 +200,7 @@ async function practice(page) {
     // Graphics in Settings: each level sets the sharpness and the shadows;
     // only Auto steps down by itself.
     await P.click('#settingsBtn');
+    await P.click('#settingsTabs [data-tab="table"]');
     const level = async (q) => {
       await P.click(`#qualitySeg [data-quality="${q}"]`);
       return P.evaluate(() => v3.quality);

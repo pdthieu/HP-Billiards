@@ -145,11 +145,12 @@ async function shootAndSettle(page, angle, power) {
     await A.waitForFunction(() => S.undos === 0);
     console.log('massé ok');
 
-    // Rack a 9-ball game from Settings; no match or invite there in practice.
+    // Practice has no This room in Settings; a 9-ball rack (rerack) still
+    // comes when asked for.
     await A.click('#settingsBtn');
-    if (await A.isVisible('#settingsMatchRow') || await A.isVisible('#settingsInviteRow')) fail('match or invite settings in practice');
-    await A.click('#settingsMode [data-mode="9ball"]');
+    if (await A.isVisible('#settingsTabs [data-tab="room"]')) fail('This room in practice');
     await A.click('#settingsClose');
+    await A.evaluate(() => send({ type: 'rerack', mode: '9ball' }));
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10 && S.phase === 'open');
     await A.click('#rackBtn'); // the Rack button racks the same game again
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10);
@@ -186,8 +187,9 @@ async function shootAndSettle(page, angle, power) {
 
     // Settings: sound on by default, a volume slider.
     await A.click('#settingsBtn');
+    await A.click('#settingsTabs [data-tab="sound"]');
     if ((await A.getAttribute('#soundToggle', 'aria-pressed')) !== 'true') fail('sound off by default');
-    await A.waitForTimeout(500); // the dialog fades in
+    await A.waitForTimeout(500); // the sheet slides in
     await A.screenshot({ path: path.join(shots, 'settings-sound.png') });
     await A.click('#soundToggle');
     if (await A.evaluate(() => SND.on)) fail('sound toggle did not turn it off');

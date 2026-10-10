@@ -21,20 +21,22 @@ The game, 8-ball, 9-ball or 3-cushion, is picked with a three-button switch
 above *Create a room* (remembered in `localStorage` as `pool:mode`); under
 it the table and its cloth (see Tables).
 
-Inside a room, Settings (the gear in the header) has a *This room* group at
-the top, so that the screen around the table stays bare. It holds:
+Inside a room, Settings (the gear on the scoreboard) opens on its *This
+room* tab, beside *Table*, *Controls* and *Sound & chat*. Nothing of the
+match changes there: the game, the table, the cloth and the race stay as
+the room was made on the landing, for every match in it. The tab only lets
+others in:
 
-- the game switch;
-- the table and the cloth;
-- the next match's race and break rule;
-- the room code with *Copy invite link* (a share sheet on phones).
+- the room's card as the room list shows it (its table and cloth in
+  miniature, the code, the game, the race and the table, who watches),
+  with *Copy invite link* (*Share invite link* where a phone has a share
+  sheet);
+- *Spectators*, how many may watch and comment (the players' pick; a
+  spectator only shares the link).
 
-Either player may change the game, the table, the cloth and the match
-settings in the lobby (both press ready again, but not for a new cloth) or
-once the match is won. While a match is played they are disabled with a
-note. In practice only the game switch, the table and the cloth show; a new
-game or table racks the table again. The lobby panel keeps *Copy invite
-link* while the player waits alone.
+Practice has no *This room*. The lobby panel keeps *Copy invite link* while
+the player waits alone. The server still takes `set_mode`, `set_table` and
+`set_match` (PROTOCOL.md); the client no longer sends them.
 
 ## Tables
 
@@ -122,12 +124,10 @@ from 1 to 25 in the field next to them (Enter commits, never submits the
 form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are remembered as `pool:race`
 (default 3) and `pool:breaks`. The room list chip adds "race 5".
 
-- **Changing the settings.** Settings has the same pickers under *Next
-  match*. Changes go to both players with `set_match`; in the lobby both
-  press ready again. The lobby line and the game-over note say what the
-  next match is and that Settings changes it.
-- **Header score.** The score between the seats reads "2 – 1, race to 5"
-  and is a button.
+- **The next match** is the room's own, as it was made: Settings does not
+  change it. The lobby line and the game-over note say what it is.
+- **The score** on the scoreboard, between the seats, reads "2 – 1, race
+  to 5" (the race in LED brass) and is a button.
   - A digit that goes up ticks: the old digit slides out, the new one
     springs in and stays brass for 1.2 s.
   - Clicking the score opens the match dialog: the score, and one row per
@@ -137,10 +137,11 @@ form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are reme
     banner, or at once on a forfeit. A race to 1 does not open it.
 - **Game-over panel.**
   - Between racks: "You win the rack", the score and who breaks next, and
-    *Next rack*. The game and race pickers are hidden.
-  - After the match: "You win the match 5–3", the pickers for the next
-    match and *New match*. A race to 1 keeps *Rematch*.
-- **Leaving.** The header has a Leave button (an exit icon) next to
+    *Next rack*.
+  - After the match: "You win the match 5–3", the next match (the room's
+    game and race, who breaks first) and *New match*. A race to 1 keeps
+    *Rematch*.
+- **Leaving.** The scoreboard has a Leave button (an exit icon) after
   Settings.
   - During a match it asks first: "Leave and forfeit the match?", showing
     the score, with *Stay* and *Leave and forfeit*.
@@ -148,12 +149,17 @@ form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are reme
   - Leaving sends `leave`, so the seat is freed immediately. The player
     who stays gets "Ann left. You win the match 2–1." and the match dialog,
     and waits in the lobby: "Ann left the room."
-- **Phones.** Held upright, the header holds Settings, Leave, the seats and
-  the score, and in the lobby the room code; while a rack is played the code
-  steps aside (Settings → Invite has it) and the 2D/3D switch is in Settings
-  → View, so the seats have the width. Their clock ring and ball dots are
-  smaller there, and on a 320 px phone the seat on turn shows it by its
-  brass alone. There is no invite button there, so the score always fits.
+- **The scoreboard** (design/README.md, "In game") is dark in both themes,
+  as the hall round the table is: the room in LED type on the left ("8-BALL
+  ROOM · QXRTA"), the two seats either side of the score (the second one
+  mirrored, so each clock ring sits by the score), the 2D/3D switch,
+  Settings, full screen and Leave on the right.
+- **Phones.** Held upright, the scoreboard holds the seats either side of
+  the score with Settings and Leave at its end, and in the lobby the room
+  code at its start; while a rack is played the code steps aside (Settings
+  → This room has it) and the 2D/3D switch is in Settings → Table, so the
+  seats have the width. Their clock ring and ball dots are smaller there,
+  and on a 320 px phone the seat on turn shows it by its brass alone.
 - **Tablets and narrow windows** (601 to 1099 px wide): one row cannot hold
   what to hit, the aim, the spin and the jump, so the dock takes two rows
   (what to hit and its buttons over the aim, the spin and the jump) in a
@@ -181,7 +187,8 @@ landscape phones, icons only on phones) has:
 - *Move balls* (`M`): while on, dragging any ball moves it instead of
   aiming; with it off the cue ball can still be dragged anywhere at any
   time;
-- *Rack*: a fresh rack of the same game (Settings switches the game);
+- *Rack*: a fresh rack of the same game (another game is a new practice
+  from the landing);
 - *Leave*.
 
 1. **Landing**: the name field is prefilled with the last name used (kept in
@@ -358,16 +365,29 @@ landscape phones, icons only on phones) has:
      straight.
    - Hovering a ball with the mouse shows its number and group above it; on
      touch the label shows for 1.5 s after a tap.
-   - The panel slot and the status line have fixed heights, so the table
-     never jumps when panels swap or a sentence wraps; both cross-fade.
-   - *Settings* (gear in the header, or on the landing page): *Done* stays
-     at the top while the groups scroll under it (*This room* in a room,
-     *Table*, *Controls*, *Sound*, *Chat and hints*), in two columns where
-     the dialog is wide enough and over the whole screen on a phone; it
-     opens at its top. Each on/off setting is a row with a switch at its
-     end. Theme (system, dark, light), power bar on the left for
-     left-handed play, vibration, full screen and "show hints again".
-     Stored in `localStorage` under `pool:*`.
+   - The game screen stands in the hall: the band with the status line
+     over the table, the stage, the dock under it (one card, 100 px on a
+     desktop, for every panel), all dark in both themes but the dock, which
+     follows the theme (`.on-hall` in tokens.css takes the dark values back
+     for the scoreboard, the band, the stage and the practice tools).
+   - The dock and the band have fixed heights, so the table never jumps
+     when panels swap or a sentence wraps; both cross-fade.
+   - *Settings* (gear on the scoreboard, or on the landing page) is a sheet
+     in four tabs: *This room* (in a room, not in practice), *Table* (view,
+     graphics, theme), *Controls* and *Sound & chat*; *Done* stays at the
+     top while the tab scrolls under it, and it opens on the tab picked
+     last (else the first there is). In a room the hall gives way to it
+     beside the table (380 px on a desktop or a tablet, a card of 344 px in
+     a sideways phone's column) or under it (a phone held upright: up from
+     the bottom, the table lying across the strip of hall left over it):
+     the table shrinks and stays in view, out of reach (`main.game` is
+     inert) and the game keys wait (`body.is-settings`), and the dock, the
+     practice tools and the power bar step aside until *Done*, Escape or
+     the gear again. Over the landing it lies on a scrim. Each on/off
+     setting is a row with a switch at its end. Theme (system, dark,
+     light), power bar on the left for left-handed play, vibration, full
+     screen and "show hints again". Stored in `localStorage` under
+     `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
 4. **Opponent's shot**: their aim is drawn translucent. During a shot the
    wait panel reads "Balls are rolling…".
@@ -579,7 +599,7 @@ play there.
 
 - **Watching.** A room lets up to its number of spectators watch: 0, 1, 3
   (the default), 5 or 10, picked under *Spectators* when creating it and
-  changed by either player in Settings → Room. The room list shows *Watch*
+  changed by either player in Settings → This room. The room list shows *Watch*
   while there is room, and "2 watching" in the chip; an invite link to a full
   room offers *Watch instead*.
 - **A spectator** (`S.spectator`, seat -1) sees everything the players see,
@@ -591,13 +611,13 @@ play there.
   their seat colour, spectators with an eye) and a field of 200 characters.
   After each comment Send counts down the 5 s the server makes everyone
   wait. While the chat is closed new comments float over the top left of the
-  table for 4 s and the button counts them; Settings → Chat turns the
-  floating off (`pool:bubbles`). Comments are text only, never HTML.
+  table for 4 s and the button counts them; Settings → Sound & chat turns
+  the floating off (`pool:bubbles`). Comments are text only, never HTML.
 
 ## 3D view
 
 The table can also be shown in 3D (`web/view3d.js`, Three.js r186). Settings →
-*View* chooses 2D or 3D (`pool:view`), and so do the header's 2D/3D button and
+*Table* → *View* chooses 2D or 3D (`pool:view`), and so do the scoreboard's 2D/3D button and
 the `V` key. Without a stored choice a desktop opens in 3D and a phone
 (`compactLayout`) in 2D, where the flat table aims more precisely and spares
 the battery.
