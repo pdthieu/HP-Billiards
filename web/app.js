@@ -24,6 +24,11 @@ const RAIL = 0.1;          // drawn wooden rail width beyond the cushions
 const CUSHION = 0.045;     // drawn cushion depth behind the nose line
 const RAIL_TOP = 0.044;    // the rail's top above the bed in 3D (view3d.js RAIL_H)
 const FLOOR_DROP = 0.78;   // the floor below the bed in 3D (view3d.js FLOOR)
+// The 3D arena's LED boards stand round the floor of play this far beyond
+// the rails, at the ends and along the sides (arena3d.js), BOARD_TOP high
+// above the bed: a ball rolling off the table bounces back off them.
+const BOARDS_END = 2.4, BOARDS_SIDE = 2.0, BOARD_TOP = 1.0 - FLOOR_DROP;
+const boardsRect = () => ({ x0: -RAIL - BOARDS_END, x1: W + RAIL + BOARDS_END, y0: -RAIL - BOARDS_SIDE, y1: H + RAIL + BOARDS_SIDE });
 // Pocket geometry, WPA equipment specification; keep in sync with
 // game.DefaultConfig on the server.
 const INCH = 0.0254;
@@ -1811,13 +1816,14 @@ function flyOff(p, vel) {
 // where it comes to rest on the floor: a point {x, y, z} (z the ball's bottom
 // above the bed) every FALL_STEP_MS. Over the rail it comes down onto it,
 // rolls over its outer edge and drops; the floor takes some of each bounce,
-// then it rolls, slowing, until it stops. It leaves going outward, however
-// slowly it was last seen.
+// then it rolls, slowing, until it stops, back off the arena's boards if it
+// reaches them. It leaves going outward, however slowly it was last seen.
 const FALL_STEP_MS = 1000 / 120;
 const FALL_HOLD_MS = 900; // it lies on the floor this long, then is gone
 const FLOOR_BOUNCE = 0.45, RAIL_BOUNCE = 0.3; // what a bounce keeps of the speed into it
 const FLOOR_SKID = 0.6; // what a bounce on the floor keeps of the speed along it
 const FLOOR_ROLL = 2.5; // m/s², how fast it slows rolling on the floor
+const BOARD_BOUNCE = 0.4; // what a bounce off the arena's boards keeps
 function fallPath(from, vel, dir, out) {
   const dt = FALL_STEP_MS / 1000;
   const ex = from.x - dir.x * out, ey = from.y - dir.y * out; // the edge of the bed
@@ -1832,6 +1838,7 @@ function fallPath(from, vel, dir, out) {
   if (sp > 3) { vx *= 3 / sp; vy *= 3 / sp; }
   if (outOf(x, y) < RAIL && z < RAIL_TOP) { z = RAIL_TOP; vz = Math.max(0, vz); }
   const floor = -FLOOR_DROP;
+  const b = boardsRect();
   const pts = [];
   for (let i = 0; i < 1200; i++) {
     pts.push({ x, y, z });
@@ -1853,6 +1860,10 @@ function fallPath(from, vel, dir, out) {
         vz = -vz * FLOOR_BOUNCE;
         vx *= FLOOR_SKID; vy *= FLOOR_SKID;
       } else vz = 0;
+    }
+    if (z < BOARD_TOP) {
+      if (x < b.x0 + R || x > b.x1 - R) { x = Math.max(b.x0 + R, Math.min(b.x1 - R, x)); vx = -vx * BOARD_BOUNCE; }
+      if (y < b.y0 + R || y > b.y1 - R) { y = Math.max(b.y0 + R, Math.min(b.y1 - R, y)); vy = -vy * BOARD_BOUNCE; }
     }
   }
   return pts;
@@ -1991,9 +2002,22 @@ function view3dKit(onLost) {
     carom: isCarom() ? { colors: CAROM_COLORS, dots: CAROM_DOTS } : null, // plain balls with six dots, no numbers
     cueSegments: CUE_SEGMENTS,
     cueLength: CUE_LEN,
+    boards: boardsRect(),
+    info: arenaInfo(),
     reduceMotion: () => reduceMotion.matches,
     level: S.quality,
     onLost,
+  };
+}
+
+// arenaInfo is what the arena's LED boards show (arena3d.js): the game, the
+// players with the match score, and the room.
+function arenaInfo() {
+  const m = S.practice ? null : S.match;
+  return {
+    mode: S.mode, practice: S.practice, room: S.roomCode,
+    names: S.players.map((p) => p.name || ''),
+    score: m ? m.score : null, race: m ? m.race : 0,
   };
 }
 
@@ -2303,11 +2327,15 @@ function checkPace(ms) {
 // keeps it cool. The first touch, key or message draws at full rate again;
 // the slow frames are only a safety net. 3D keeps every frame: its camera
 // glides on its own. Graphics → Low spaces every frame LOW_FRAME_MS apart,
-// about 30 a second, in 2D and 3D.
+// about 30 a second, in 2D and 3D. Behind the landing, where the table only
+// shows blurred or not at all, either is drawn every LANDING_FRAME_MS.
 
 const REST_AFTER_MS = 3000;
 const REST_FRAME_MS = 250;
 const LOW_FRAME_MS = 30; // under 33 ms: a 60 Hz screen draws every other refresh
+// over 500 ms, a gap the 3D view's checkSpeed takes for a stall, not for a
+// slow device
+const LANDING_FRAME_MS = 600;
 const rest = { hotUntil: 0, last: 0 };
 
 function wakeDraw() { rest.hotUntil = performance.now() + REST_AFTER_MS; }
@@ -2318,7 +2346,7 @@ document.addEventListener('visibilitychange', wakeDraw);
 function skipFrame(now) {
   const resting = !v3 && now >= rest.hotUntil &&
     !(S.moving || S.snaps.length || S.replay || S.pendingDrops.length || fx.length || S.drag || S.pointer !== null);
-  const gap = resting ? REST_FRAME_MS : S.quality === 'low' ? LOW_FRAME_MS : 0;
+  const gap = !$('landing').hidden ? LANDING_FRAME_MS : resting ? REST_FRAME_MS : S.quality === 'low' ? LOW_FRAME_MS : 0;
   if (now - rest.last < gap) return true;
   rest.last = now;
   return false;
@@ -2494,7 +2522,17 @@ function cameraFor(balls, aim) {
     if (aim) camAngle = aim.angle;
     return { mode: 'aim', cue, angle: camAngle };
   }
+  if (S.phase === 'lobby' || S.phase === 'game_over') return { mode: 'arena', angle: arenaAngle(performance.now()) };
   return { mode: 'overview' };
+}
+// arenaAngle turns the camera round the arena in the lobby and at a game's
+// end: once in two minutes, from the near side toward the foot end, after
+// any other camera from the start; still with reduced motion.
+const orbit = { from: 0, last: 0 };
+function arenaAngle(now) {
+  if (now - orbit.last > 250) orbit.from = now;
+  orbit.last = now;
+  return Math.PI / 2 - 0.45 - (reduceMotion.matches ? 0 : (now - orbit.from) * Math.PI * 2 / 120000);
 }
 // fallWatched is the camera on a ball falling off the table, the latest one,
 // until a moment after it has come to rest on the floor; else null.
@@ -4591,6 +4629,7 @@ function showPanel(id) {
 
 function refreshPanels() {
   refreshReplay();
+  if (v3) v3.setInfo(arenaInfo());
   renderModes();
   renderSeat(0);
   renderSeat(1);

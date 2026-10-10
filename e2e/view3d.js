@@ -1,9 +1,9 @@
-// The 3D view: the default per device, aiming from behind the cue (with
-// ball in hand too), the camera following a shot, carrying the cue ball and
-// looking from above to place it, the replay in 3D and 2D, switching back
-// and forth without running out of WebGL contexts, a lost context, naming a
-// ball through the 3D camera, the fall back to 2D without WebGL, and the
-// Graphics levels.
+// The 3D view: the default per device, the arena round the table in the
+// lobby, aiming from behind the cue (with ball in hand too), the camera
+// following a shot, carrying the cue ball and looking from above to place
+// it, the replay in 3D and 2D, switching back and forth without running out
+// of WebGL contexts, a lost context, naming a ball through the 3D camera,
+// the fall back to 2D without WebGL, and the Graphics levels.
 // Usage: node view3d.js <base>
 const { chromium } = require('playwright');
 const path = require('path');
@@ -45,8 +45,18 @@ async function practice(page) {
     return page;
   };
   try {
-    // A desktop opens in 3D, behind the cue.
+    // A desktop opens in 3D; in a room's lobby the camera goes slowly round
+    // the arena.
     const A = await mk({ viewport: { width: 1100, height: 700 } });
+    await A.goto(base + '/');
+    await A.fill('#name', 'Ann');
+    await A.click('#create');
+    await A.waitForFunction(() => S.phase === 'lobby' && !!v3, null, { timeout: 45000 });
+    await cameraIs(A, 'arena', false);
+    await A.screenshot({ path: path.join(shots, 'view3d-arena.png') });
+    console.log('arena in the lobby ok');
+
+    // In practice, behind the cue.
     await practice(A);
     await A.waitForFunction(() => S.view === '3d' && !!v3, null, { timeout: 45000 });
     await cameraIs(A, 'aim');

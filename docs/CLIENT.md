@@ -531,12 +531,12 @@ the `V` key. Without a stored choice a desktop opens in 3D and a phone
 the battery.
 
 - **Loading.** `view3d.js` is an ES module that `app.js` imports the first
-  time 3D is turned on; it imports `vendor/three-r186/three.min.js`, Three.js
-  bundled into one minified module (esbuild, from the npm package's
-  `build/three.module.js`; MIT, its licence beside it). The versioned path is
-  cached for a year, and the server gzips text files (190 KB on the wire).
-  No WebGL 2 or a failed load: back to 2D with a notice, without storing the
-  choice.
+  time 3D is turned on; it imports `arena3d.js` (the arena, below) and
+  `vendor/three-r186/three.min.js`, Three.js bundled into one minified
+  module (esbuild, from the npm package's `build/three.module.js`; MIT, its
+  licence beside it). The versioned path is cached for a year, and the
+  server gzips text files (190 KB on the wire). No WebGL 2 or a failed load:
+  back to 2D with a notice, without storing the choice.
 - **Switching.** Each time 3D is turned on it gets a new canvas and WebGL
   context; turned off (or rebuilt for another table), the view gives the
   context back at once (`dispose`, `forceContextLoss`): a page holds only 16
@@ -557,7 +557,47 @@ the battery.
 - **Table.** The cloth is the 2D table from above (`feltCanvas`, drawn by
   `drawTableStatic`) on a bed with the pocket holes cut out; cushions are the
   2D cushion quads raised 40 mm, the rail goes round the pockets, and a dark
-  liner hangs under each hole. Two spot lights cast the shadows.
+  liner hangs under each hole. Under the rail the apron, then the body, on
+  six tapered legs to the floor 78 cm below the bed. Two spot lights cast
+  the shadows. The table's scene has no background or fog of its own: it is
+  drawn over the arena's.
+- **Arena** (`arena3d.js`, `createArena`): a scene of its own, drawn first
+  with its own lights (the table's lamps again for the floor round the
+  table, a wash from high above over the floor of play, a light spilling
+  onto the stands), then the table's scene over it without clearing, so the
+  table keeps its look. Everything is Three.js shapes and canvas paint;
+  nothing is downloaded.
+  - *Floor of play*: a dark blue carpet (`paintCarpet`) with a lighter zone
+    round the table, brass lines inside the boards, the game's mark at each
+    end (POOL, or CAROM for 3-cushion) and soft shadows painted under the
+    table, its legs and the furniture.
+  - *LED boards*: 1 m high, 2.4 m beyond the rails at the ends and 2 m along
+    the sides (`BOARDS_END`, `BOARDS_SIDE` in `app.js`), screens facing in.
+    Both long boards show one picture, both ends another: four pages
+    (`paintBoard`), each shown 9 s, then the next slides up (a cut with
+    reduced motion): the match (the names either side of the score in a
+    brass box, the game and the race beside them; practice, or a player
+    waiting, says who is there), the game's mark, the room's code, and a
+    word on the game ("CALL YOUR SHOT", "LOWEST BALL FIRST", "THREE
+    CUSHIONS"). The main band sits in the upper part of the screen, which is
+    what shows over the far rail from behind the cue; a line of small print
+    runs under it. `app.js` hands the boards `arenaInfo()` on every
+    `refreshPanels` (`v3.setInfo`, repainted only when it changes); they are
+    painted again once their font has loaded.
+  - *Corners*: in two opposite corners a player's chair and a small table
+    beside it (water, a glass, a towel, chalk), in the other two a
+    television camera on a tripod, its tally light red; all face the middle
+    of the table. A piece the camera comes within reach of is hidden.
+  - *Stands*: beyond a 1.4 m aisle behind each board, seven tiers of seats
+    facing the table, a stairway every seven seats, the corners left open;
+    dark, but for a blue line along each tier's edge and small warm lights
+    on the stairways' steps. No one is in them yet. The tiers, the seats
+    (instanced), the edge lights, the step lights and the rails are a draw
+    each. *Low* graphics, or Auto finding the device slow, leave the stands
+    out.
+  - A ball off the table that rolls to a board bounces back off it
+    (`fallPath`), and casts a soft shadow on the floor, darker and smaller
+    as it comes down.
 - **Balls.** Each ball's markings are painted once on a sphere texture in its
   own frame; the mesh turns by the 2D orientation, so a ball shows the same
   face in both views (axes: table x → world x, table y → world z, into the
@@ -587,7 +627,11 @@ the battery.
     under a carried ball, so in 3D it does not jump to the pointer: it moves
     as far as the pointer does over the table, both ends seen through the
     camera as it is at that moment (`carry`). Aiming there is the 2D drag;
-  - *overview*: three quarters, in the lobby and after a rack.
+  - *arena*: in the lobby and at a game's end, slowly round the table, a
+    turn in two minutes, high enough to have the arena about it (on a screen
+    held upright, swaying either side of the head end); still with reduced
+    motion;
+  - *overview*: three quarters, while a decision is pending.
 - **Speed.** Pixel ratio at most 2, and lower where that would draw more
   than 3.5 million pixels (a laptop window at 2× is about 5 million). From
   the tenth frame (the first ones compile shaders) the pace is checked a
@@ -655,6 +699,10 @@ moved in practice).
   3 s, frames are skipped. A phone waiting for the opponent then spares its
   battery and stays cool. Any touch, key, wheel, message or resize draws
   every frame again at once. 3D draws every frame: its camera glides.
+  Behind the landing, where the table shows only blurred (or not at all on
+  a phone), either view is drawn every 600 ms: over the 500 ms the 3D
+  view's pace check takes for a stall, so it does not count those frames
+  as slow ones.
 - While a shot runs, `snapshot`s are kept in arrival order and the frame drawn
   is `RENDER_DELAY_MS` (100 ms) behind the newest one, interpolating between
   the two surrounding snapshots. A ball missing from the later snapshot stays
@@ -666,9 +714,10 @@ moved in practice).
   ball off the table fades out beyond the rail. In 3D it goes on from where
   and how fast it was last seen (`fallPath`): onto the rail and over its
   outer edge if it is over it, down to the floor, a few bounces that each
-  lose some speed, then a roll that slows to a stop; it lies there a moment,
-  then is gone. A copy of the ball falls, so the ball itself can already be
-  back on the table. `settled` replaces everything with exact positions. After a reconnect in
+  lose some speed, then a roll that slows to a stop, back off the arena's
+  boards if it reaches them; it lies there a moment, then is gone. A copy
+  of the ball falls, so the ball itself can already be back on the table.
+  `settled` replaces everything with exact positions. After a reconnect in
   the middle of a shot the clock is re-aligned to the first snapshot received.
 - A ball in the air (`z` in the snapshots, interpolated like `x` and `y`)
   is drawn over the others and bigger the higher it is, up to twice its

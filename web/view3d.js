@@ -6,12 +6,14 @@
 // Axes: the table's x stays x, its y (down the screen in 2D) is world z,
 // and "into the slate" is world −y, so up is +y and the bed is at y = 0.
 import * as THREE from '/vendor/three-r186/three.min.js';
+import { createArena, merge } from '/arena3d.js';
 
 const CUSHION_H = 0.040; // cushion top above the bed
 const RAIL_H = 0.044;    // rail top above the bed
 const FOV = 42;          // vertical field of view, degrees; more on a tall screen
 const FOV_TALL = 60;
 const CUE_TILT = 6 * Math.PI / 180;
+const FLOOR = -0.78;     // the floor below the bed (app.js FLOOR_DROP)
 // MAX_PIXELS caps the drawing buffer. A laptop window at 2× is about 5
 // million pixels, where the shading and shadows take even a recent GPU
 // past a frame on a 120 Hz screen now and then; the antialiasing already
@@ -35,7 +37,8 @@ const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 //   per pocket), felt (a canvas of the 2D table from above, RAIL beyond the
 //   cushions on every side), colors, ballColors, carom (3-cushion: {colors,
 //   dots} by id for plain dotted balls, else null), cueSegments, cueLength,
-//   reduceMotion(), level (a LEVELS key) and onLost().
+//   boards (where the arena's LED boards stand: arena3d.js), info (what
+//   they show: setInfo), reduceMotion(), level (a LEVELS key) and onLost().
 // It throws when WebGL is not available.
 export function createView3D(canvas, k) {
   const { W, H, R, RAIL } = k;
@@ -49,10 +52,10 @@ export function createView3D(canvas, k) {
   const onLost = (e) => { e.preventDefault(); k.onLost(); };
   canvas.addEventListener('webglcontextlost', onLost);
 
+  // The table's scene has no background: it is drawn over the arena's
+  // (see draw).
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0b0e12');
-  scene.fog = new THREE.Fog('#0b0e12', 4, 9);
-  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.02, 20);
+  const camera = new THREE.PerspectiveCamera(FOV, 1, 0.02, 40);
 
   const V = (x, y, h = 0) => new THREE.Vector3(x, h, y);
   const disposables = [];
@@ -74,20 +77,33 @@ export function createView3D(canvas, k) {
     scene.add(lamp, lamp.target);
     lamps.push(lamp);
   }
-  // reflections: a dark room with the lamp's panel overhead
+  // reflections: a dark hall with the lamp's panel overhead, the floor
+  // below and the arena's LED boards glowing round the table at their
+  // distance (the middle of the table is the origin here)
   const pmrem = new THREE.PMREMGenerator(renderer);
   const room = new THREE.Scene();
-  const box = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 6), new THREE.MeshBasicMaterial({ color: '#202326', side: THREE.BackSide }));
-  box.position.y = 1.2;
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 0.5), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
-  panel.material.color.multiplyScalar(6);
-  panel.position.set(0, 1.4, 0);
-  panel.rotation.x = Math.PI / 2;
-  room.add(box, panel);
+  const parts = [];
+  const add = (geo, color, scale, x, y, z, rx = 0, side = THREE.DoubleSide) => {
+    const mat = new THREE.MeshBasicMaterial({ color, side });
+    mat.color.multiplyScalar(scale);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, y, z);
+    m.rotation.x = rx;
+    room.add(m);
+    parts.push(m);
+  };
+  add(new THREE.BoxGeometry(16, 8, 16), '#202326', 1, 0, 2.2, 0, 0, THREE.BackSide);
+  add(new THREE.PlaneGeometry(16, 16), '#13161b', 1, 0, FLOOR, 0, -Math.PI / 2);
+  add(new THREE.PlaneGeometry(2.2, 0.5), '#ffffff', 6, 0, 1.4, 0, Math.PI / 2);
+  { const bx = k.boards.x1 - W / 2, bz = k.boards.y1 - H / 2, h = FLOOR + 0.43;
+    add(new THREE.BoxGeometry(2 * bx, 0.7, 0.05), '#8a6d3a', 1.6, 0, h, -bz);
+    add(new THREE.BoxGeometry(2 * bx, 0.7, 0.05), '#8a6d3a', 1.6, 0, h, bz);
+    add(new THREE.BoxGeometry(0.05, 0.7, 2 * bz), '#8a6d3a', 1.6, -bx, h, 0);
+    add(new THREE.BoxGeometry(0.05, 0.7, 2 * bz), '#8a6d3a', 1.6, bx, h, 0); }
   const env = pmrem.fromScene(room, 0.03).texture;
   scene.environment = env;
   scene.environmentIntensity = 0.55;
-  box.geometry.dispose(); panel.geometry.dispose(); box.material.dispose(); panel.material.dispose();
+  for (const m of parts) { m.geometry.dispose(); m.material.dispose(); }
   pmrem.dispose();
   keep(env);
 
@@ -186,7 +202,7 @@ export function createView3D(canvas, k) {
   rail.receiveShadow = true;
   scene.add(rail);
   // the apron under the rail: four boards at the outer edge, clear of the
-  // pockets (a solid block would show through the holes); a floor far below
+  // pockets (a solid block would show through the holes)
   const apronMat = keep(new THREE.MeshStandardMaterial({ color: k.colors.railBottom, roughness: 0.6 }));
   const board = 0.008;
   for (const [w, d, x, z] of [
@@ -197,11 +213,24 @@ export function createView3D(canvas, k) {
     m.position.set(x, -0.104, z);
     scene.add(m);
   }
-  const floor = new THREE.Mesh(keep(new THREE.PlaneGeometry(14, 14)), keep(new THREE.MeshStandardMaterial({ color: '#15171a', roughness: 1 })));
-  floor.rotation.x = -Math.PI / 2;
-  floor.position.set(W / 2, -0.78, H / 2);
-  floor.receiveShadow = true;
-  scene.add(floor);
+  // under it the body, below the pockets' cups, on six legs to the floor
+  const APRON = -0.204, BODY = -0.3, FOOT = 0.04;
+  const body = new THREE.Mesh(keep(new THREE.BoxGeometry(W + 2 * RAIL - 0.1, APRON - BODY, H + 2 * RAIL - 0.1)), apronMat);
+  body.position.set(W / 2, (APRON + BODY) / 2, H / 2);
+  scene.add(body);
+  const legs = [], legParts = [], feet = [];
+  for (const x of [-RAIL + 0.2, W / 2, W + RAIL - 0.2]) {
+    for (const z of [-RAIL + 0.17, H + RAIL - 0.17]) {
+      const leg = new THREE.BoxGeometry(0.15, BODY - FLOOR - FOOT, 0.15);
+      const pos = leg.attributes.position; // tapering to the foot
+      for (let i = 0; i < pos.count; i++) if (pos.getY(i) < 0) pos.setXYZ(i, pos.getX(i) * 0.72, pos.getY(i), pos.getZ(i) * 0.72);
+      legParts.push({ geo: leg, matrix: new THREE.Matrix4().setPosition(x, (BODY + FLOOR + FOOT) / 2, z) });
+      feet.push({ geo: new THREE.CylinderGeometry(0.035, 0.04, FOOT, 16), matrix: new THREE.Matrix4().setPosition(x, FLOOR + FOOT / 2, z) });
+      legs.push({ x, y: z });
+    }
+  }
+  scene.add(new THREE.Mesh(keep(merge(legParts)), apronMat));
+  scene.add(new THREE.Mesh(keep(merge(feet)), keep(new THREE.MeshStandardMaterial({ color: '#16181b', roughness: 0.5, metalness: 0.4 }))));
 
   // cushions: the 2D quads (nose, jaws, back) raised to cushion height
   const clothSide = keep(new THREE.MeshStandardMaterial({ color: k.colors.cushion, roughness: 0.92 }));
@@ -471,6 +500,45 @@ export function createView3D(canvas, k) {
   kitchen.position.set(k.HEAD / 2, 0.0004, H / 2);
   scene.add(kitchen);
 
+  // --- arena ------------------------------------------------------------
+  // arena3d.js: the floor, the boards and the stands round the table, a
+  // scene drawn before this one (see draw). A ball off the table casts a
+  // soft shadow on its floor, nearer and darker as it comes down.
+  const arena = createArena({
+    W, H, RAIL, floor: FLOOR, boards: k.boards, legs, lamps: lamps.map((l) => l.position.x), carom: !!k.carom,
+    info: k.info, level: k.level || 'auto', env, anisotropy: felt.anisotropy, reduceMotion: k.reduceMotion,
+  });
+  const blob = keep(new THREE.CanvasTexture((() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 64;
+    const g = c.getContext('2d');
+    const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.45)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 64, 64);
+    return c;
+  })()));
+  const blobGeo = keep(flat(new THREE.PlaneGeometry(1, 1)));
+  const blobMat = keep(new THREE.MeshBasicMaterial({ map: blob, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  const floorShadows = new Map();
+  // floorShadow places ball id's shadow under it on the floor, h above it.
+  function floorShadow(id, x, y, h) {
+    let m = floorShadows.get(id);
+    if (!m) {
+      m = new THREE.Mesh(blobGeo, blobMat.clone());
+      disposables.push(m.material);
+      scene.add(m);
+      floorShadows.set(id, m);
+    }
+    const s = 2 * R * (1.3 + 2.5 * h);
+    m.visible = h < 1;
+    m.position.set(x, FLOOR + 0.001, y);
+    m.scale.set(s, 1, s);
+    m.material.opacity = Math.max(0, 1 - h / 0.8);
+  }
+
   // --- camera -----------------------------------------------------------
   const cam = { pos: new THREE.Vector3(W / 2, 2.4, H / 2 + 2), look: new THREE.Vector3(W / 2, 0, H / 2), up: new THREE.Vector3(0, 1, 0), mode: '', since: 0, last: 0, yaw: 0, fresh: true };
   const size = { w: 1, h: 1, dpr: 1 };
@@ -519,6 +587,18 @@ export function createView3D(canvas, k) {
         const hgt = Math.max(along / 2 / t, across / 2 / (t * aspect)) * 1.03 + RAIL_H;
         return { pos: V(W / 2, H / 2, hgt), look: V(W / 2, H / 2, 0), up: portrait ? new THREE.Vector3(1, 0, 0) : new THREE.Vector3(0, 0, -1) };
       }
+      case 'arena': {
+        // the lobby and a game's end: slowly round the table (app.js turns
+        // c.angle, 0 at the foot end, π/2 the near side), high enough to
+        // have the arena about it; upright, swaying either side of the
+        // head end instead, far enough back to have the table's width
+        const portrait = aspect < 1;
+        const a = portrait ? Math.PI + 0.4 * Math.sin(c.angle) : c.angle;
+        const pitch = (portrait ? 40 : 28) * Math.PI / 180;
+        const dist = portrait ? Math.max(4.2, (H / 2 + RAIL + 0.5) / (t * aspect) + W / 2) : Math.max(3.9, (W / 2 + RAIL + 0.6) / (t * aspect));
+        const h = dist * Math.cos(pitch);
+        return { pos: V(W / 2 + Math.cos(a) * h, H / 2 + Math.sin(a) * h, dist * Math.sin(pitch)), look: V(W / 2, H / 2, -0.1), up: new THREE.Vector3(0, 1, 0) };
+      }
       default: { // overview: three quarters from the side facing the screen
         const portrait = aspect < 1;
         const dist = (portrait ? 3.6 : 2.7) / Math.max(0.75, Math.min(1.6, aspect));
@@ -547,7 +627,7 @@ export function createView3D(canvas, k) {
   }
 
   // --- frame ------------------------------------------------------------
-  const timing = { warm: 0, last: 0, since: 0, gaps: [], ratio: Infinity, low: false, level: LEVELS.auto, fixed: false };
+  const timing = { warm: 0, last: 0, since: 0, gaps: [], ratio: Infinity, low: false, level: LEVELS.auto, name: 'auto', fixed: false };
   function render(frame, now) {
     for (const [id, mesh] of balls) {
       const p = frame.balls.get(id);
@@ -557,11 +637,14 @@ export function createView3D(canvas, k) {
       placeBall(mesh, id, p, frame.orient(id), lift + (p.z || 0));
     }
     for (const m of offBalls.values()) m.visible = false;
+    for (const m of floorShadows.values()) m.visible = false;
     for (const d of frame.drops) {
       const mesh = d.off ? offBall(d.id) : balls.get(d.id);
       if (!mesh || (!d.off && frame.balls.has(d.id))) continue;
       mesh.visible = d.alpha > 0;
       placeBall(mesh, d.id, d, d.o || frame.orient(d.id), -d.sink);
+      // below the bed's edge it is over the floor
+      if (d.off && mesh.visible && -d.sink < -0.05) floorShadow(d.id, d.x, d.y, -d.sink - FLOOR);
     }
     placeCue(frame.cue);
     marks.begin();
@@ -582,8 +665,20 @@ export function createView3D(canvas, k) {
     marks.end();
     kitchen.visible = !!frame.kitchenLine;
     moveCamera(frame.cam, now);
-    renderer.render(scene, camera);
+    draw(now);
     checkSpeed(now);
+  }
+  // draw renders the arena, then the table over it without clearing: each
+  // scene keeps its own lights.
+  function draw(now) {
+    arena.update(now, camera);
+    renderer.render(arena.scene, camera);
+    renderer.autoClear = false;
+    try {
+      renderer.render(scene, camera);
+    } finally {
+      renderer.autoClear = true;
+    }
   }
   // checkSpeed watches the pace, a window at a time (90 frames, or 2 s on
   // a slow device). A median over 25 ms is a slow device (software
@@ -613,6 +708,7 @@ export function createView3D(canvas, k) {
   }
   function setQuality(low) {
     timing.low = low;
+    arena.setLevel(low ? 'low' : timing.name);
     timing.ratio = low ? 1 : Infinity;
     timing.gaps.length = 0;
     renderer.shadowMap.type = low ? THREE.BasicShadowMap : THREE.PCFShadowMap;
@@ -623,7 +719,8 @@ export function createView3D(canvas, k) {
   // checks again for 'auto'.
   function setLevel(name) {
     const l = LEVELS[name] || LEVELS.auto;
-    Object.assign(timing, { level: l, fixed: name !== 'auto', low: false, ratio: Infinity, warm: 0, last: 0 });
+    Object.assign(timing, { level: l, name: LEVELS[name] ? name : 'auto', fixed: name !== 'auto', low: false, ratio: Infinity, warm: 0, last: 0 });
+    arena.setLevel(timing.name);
     timing.gaps.length = 0;
     renderer.shadowMap.type = l.soft ? THREE.PCFShadowMap : THREE.BasicShadowMap;
     for (const lamp of lamps) {
@@ -688,6 +785,7 @@ export function createView3D(canvas, k) {
   function dispose() {
     canvas.removeEventListener('webglcontextlost', onLost);
     for (const d of disposables) d.dispose();
+    arena.dispose();
     renderer.dispose();
     if (!gl.isContextLost()) renderer.forceContextLoss();
   }
@@ -695,7 +793,7 @@ export function createView3D(canvas, k) {
   setLevel(k.level || 'auto');
 
   return {
-    render, pick, project, pxPerM, resize, dispose, setQuality, setLevel,
+    render, pick, project, pxPerM, resize, dispose, setQuality, setLevel, setInfo: arena.setInfo,
     get mode() { return cam.mode; },
     get settled() { return !!cam.settled; },
     get lowQuality() { return timing.low; },
