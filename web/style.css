@@ -1115,3 +1115,28 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
   body.is-settings.is-playing:not(.is-landing) :is(#settingsBtn, #viewBtn, #leaveBtn) { display: none; }
   body.is-settings.is-playing:not(.is-landing) .status { right: calc(env(safe-area-inset-right, 0px) + 20px + var(--sheet-w)); }
 }
+
+/* 2v2: a side's cell holds both players, a line each; the cue marks the
+   one on turn */
+.seat--team { height: auto; min-height: 46px; padding-top: 4px; padding-bottom: 4px; }
+.seat--team .seat__body { gap: 1px; }
+.seat--team .seat__name { font-size: 13px; line-height: 16px; max-width: 12ch; }
+.seat--team .seat__line:not(.is-on) .seat__name { opacity: .72; }
+.seat--team .seat__name--open { font-style: italic; opacity: .5; }
+.seat--team .seat__dots .ball { --size: 8px; }
+.seat--team .tag { font-size: 10px; line-height: 14px; padding: 0 5px; }
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  .seat--team, body.is-playing .seat--team { height: auto; min-height: 34px; padding: 2px 8px; }
+  .seat--team .seat__name { font-size: 11px; line-height: 13px; max-width: 8ch; }
+  .seat--team .seat__dots .ball { --size: 5px; }
+  .seat--team .tag { display: none; }
+}
+
+/* 2v2 lobby: the teams, a free seat taken with "Sit here" */
+.team-pick { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; }
+.team-pick__side { display: flex; align-items: center; gap: 6px; }
+.team-pick__label { font: 600 11px/14px var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.team-pick__seat { padding: 3px 10px; border-radius: var(--r-pill); border: 1px solid var(--hairline-strong); font: 600 13px/18px var(--font-ui); }
+.team-pick__seat.is-me { border-color: var(--accent-ring); background: var(--accent-soft); color: var(--accent-text); }
+.team-pick__seat.is-ready::after { content: " ✓"; color: var(--ok); }
+.team-pick__sit { min-height: 26px; padding: 0 10px; font-size: 13px; }

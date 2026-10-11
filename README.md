@@ -82,6 +82,8 @@ home page fitting six screen sizes without sideways scroll), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
+`team` (a 2v2 room: teams picked in the lobby, the rotation, a player
+leaving while the match goes on),
 `tables` (picking a table and its cloth, which the room keeps),
 `view3d` (the 3D view under software WebGL: the arena, camera, aiming,
 carrying the cue ball, replay, switching and a lost context, the fall back

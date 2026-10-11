@@ -261,6 +261,7 @@ const S = {
     { seat: 0, name: '', connected: false, ready: false },
     { seat: 1, name: '', connected: false, ready: false },
   ],
+  size: 2,               // seats: 2, or 4 in a 2v2 room (isTeams)
   phase: 'lobby',
   turn: 0,
   mode: '8ball',         // the room's game: '8ball', '9ball' or '3cushion'
@@ -576,10 +577,15 @@ function handle(msg) {
 
 function onWelcome(msg) {
   const reconnected = inRoom() && S.reconnectAttempt > 0;
+  // the same seat token in the same room: a move to another seat (sit),
+  // which keeps the thread; otherwise chat_log follows when there is any
+  const moved = inRoom() && msg.token && msg.token === S.token && msg.roomCode === S.roomCode && S.reconnectAttempt === 0;
   S.seat = msg.seat;
   S.spectator = !!msg.spectator;
-  S.chat = []; // chat_log follows when there is any
-  renderChat();
+  if (!moved) {
+    S.chat = [];
+    renderChat();
+  }
   if (typeof msg.aimLine === 'number') S.aimLine = msg.aimLine / 1000;
   S.token = msg.token;
   S.roomCode = msg.roomCode;
@@ -628,6 +634,7 @@ function onRoomState(msg) {
   S.audience = { names: msg.spectators || [], max: msg.maxSpectators || 0 };
   renderChatHead();
   S.players = msg.players;
+  S.size = msg.size || msg.players.length;
   S.moving = msg.moving;
   setBalls(msg.balls);
   S.snaps = []; // a shot in progress resumes from the next snapshot
@@ -644,7 +651,7 @@ function onRoomState(msg) {
   S.placedAt = null;
   S.drag = null;
   if (turnChanged || (hadDecision && !S.decision)) newTurn();
-  if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = msg.turn;
+  if (msg.phase === 'breaking' && !msg.decision) S.lastBreaker = sideOf(msg.turn);
   if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
     resetOrientations(); // a fresh rack
     if (S.practice) S.rackMode = msg.mode; // the Rack picker starts on the game being played
@@ -656,18 +663,18 @@ function onRoomState(msg) {
   } else if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
     // Not by a shot (that comes as settled): a third foul on the clock.
     const loser = 1 - S.winner;
-    S.resultReason = `${nameOf(loser)} fouled three times in a row`;
-    setStatus(`${S.resultReason}. ${isMe(S.winner) ? 'You win!' : `${nameOf(S.winner)} wins.`}`, 'foul');
+    S.resultReason = `${teamName(loser)} fouled three times in a row`;
+    setStatus(`${S.resultReason}. ${winLine(S.winner)}`, 'foul');
   } else if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
     const m = S.match;
     const last = m && m.racks.length ? m.racks[m.racks.length - 1] : null;
-    const who = S.lastOppName || 'Your opponent';
-    if (last && last.end === 'forfeit' && isMe(m.winner)) {
-      setStatus(`${who} ${S.oppLeft ? 'left' : 'didn’t come back'}. You win the match ${m.score[S.seat]}–${m.score[1 - S.seat]}.`);
+    const who = isTeams() ? 'The other team' : S.lastOppName || 'Your opponent';
+    if (last && last.end === 'forfeit' && isMySide(m.winner)) {
+      setStatus(`${who} ${S.oppLeft ? 'left' : 'didn’t come back'}. ${isTeams() ? 'Your team wins' : 'You win'} the match ${m.score[mySide()]}–${m.score[1 - mySide()]}.`);
       S.lobbyNote = S.oppLeft ? `${who} left the room.` : `${who} didn’t come back in time.`;
     } else {
       setStatus('The game was abandoned.', 'foul');
-      const gone = S.players[1 - S.seat];
+      const gone = !isTeams() && S.players[1 - S.seat];
       if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
     }
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
@@ -831,19 +838,20 @@ function clockLeft() {
 
 function onTimeout(msg) {
   const who = nameOf(msg.seat);
-  const other = nameOf(1 - msg.seat);
+  const oSide = 1 - sideOf(msg.seat);
+  const other = teamName(oSide);
   let text = `${isMe(msg.seat) ? 'You' : who} ran out of time`;
   if (msg.option) {
     text += `; “${optionText(msg.option, other)[0]}” was chosen.`;
   } else if (isCarom() && S.phase !== 'breaking') {
-    text += S.carom && S.carom.equalizing && msg.seat !== S.carom.breaker ? ': the equalizing inning is over.' : `. ${isMe(1 - msg.seat) ? 'Your' : `${other}’s`} turn.`;
+    text += S.carom && S.carom.equalizing && msg.seat !== S.carom.breaker ? ': the equalizing inning is over.' : `. ${isMySide(oSide) ? 'Your' : `${other}’s`} turn.`;
   } else if (S.phase === 'breaking') {
-    text += `. ${other} ${isMe(1 - msg.seat) ? 'break' : 'breaks'} instead.`;
-  } else if (isNine() && S.fouls[msg.seat] + 1 >= 3) {
+    text += `. ${sideDoes(oSide, 'break')} instead.`;
+  } else if (isNine() && S.fouls[sideOf(msg.seat)] + 1 >= 3) {
     text += ': a third foul in a row.'; // the room_state that follows ends the rack
   } else {
-    text += `. ${other} ${isMe(1 - msg.seat) ? 'have' : 'has'} ball in hand.`;
-    if (isNine() && S.fouls[msg.seat] + 1 === 2) text += ` ${isMe(msg.seat) ? 'You are' : `${who} is`} on two fouls.`;
+    text += `. ${sideDoes(oSide, 'have')} ball in hand.`;
+    if (isNine() && S.fouls[sideOf(msg.seat)] + 1 === 2) text += ` ${isMe(msg.seat) ? 'You are' : `${who} is`} on two fouls.`;
   }
   S.clock = null;
   toast(text, isMe(msg.seat));
@@ -945,16 +953,16 @@ function describeShot(msg) {
   if (off.length) parts.push(`Off the table: ${off.map(offName).join(', ')}.`);
   if (nine && !over && (made.includes(9) || off.includes(9))) parts.push('The 9 goes back on the foot spot.');
   if (!nine && !over && off.includes(8)) parts.push('The 8 goes back on the foot spot.');
-  if (nine && !over && msg.foul && msg.fouls && msg.fouls[msg.shooter] === 2) {
+  if (nine && !over && msg.foul && msg.fouls && msg.fouls[sideOf(msg.shooter)] === 2) {
     parts.push(`${me ? 'You are' : `${who} is`} on two fouls: a third loses the rack.`);
   }
   if (over) {
-    parts.push(isMe(msg.winner) ? 'You win!' : `${nameOf(msg.winner)} wins.`);
+    parts.push(winLine(msg.winner));
     S.resultReason = nine ? nineResultReason(msg, who) : eightResultReason(msg, who, made);
   } else if (msg.decision) {
     parts.push(`${nameOf(msg.decision.seat)} ${isMe(msg.decision.seat) ? 'choose' : 'chooses'} how to continue.`);
   } else {
-    let t = isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn`;
+    let t = isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn${isTeams() && isMySide(sideOf(msg.turn)) ? ' (your team)' : ''}`;
     if (msg.ballInHand) t += msg.kitchen ? ', ball in hand in the kitchen' : ', ball in hand';
     if (msg.pushOut) t += isMe(msg.turn) ? '; you may push out' : '; they may push out';
     parts.push(t + '.');
@@ -1042,9 +1050,9 @@ function nineResultReason(msg, who) {
 
 // eightResultReason says why an 8-ball rack ended with this shot.
 function eightResultReason(msg, who, made) {
-  const g = S.groups[msg.shooter];
+  const g = S.groups[sideOf(msg.shooter)];
   const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
-  if (msg.winner === msg.shooter) return '8-ball pocketed in the called pocket';
+  if (msg.winner === sideOf(msg.shooter)) return '8-ball pocketed in the called pocket';
   if ((msg.offTable || []).includes(8)) return `${who} jumped the 8-ball off the table`;
   if (msg.foul) return `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
   return early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
@@ -1056,6 +1064,34 @@ function eightResultReason(msg, who, made) {
 const isMe = (seat) => seat === S.seat;
 const sideName = (seat) => (seat ? 'Side B' : 'Side A');
 const nameOf = (seat) => (isMe(seat) ? 'You' : S.practice ? sideName(seat) : (S.players[seat].name || `Player ${seat + 1}`));
+
+// Teams (2v2, PROTOCOL.md "Teams"): seats 0 and 2 against 1 and 3. Who
+// acts is a seat (S.turn, decision.seat, clock.seat, settled.shooter);
+// what a team owns is by side, seat % 2 (S.groups, S.fouls, S.winner, the
+// match score). In a room of two the seat is the side, so every helper
+// below says what it said before.
+const isTeams = () => S.size > 2;
+const sideOf = (seat) => (seat >= 0 ? seat % 2 : -1);
+const mySide = () => sideOf(S.seat);
+const isMySide = (side) => side !== null && side !== undefined && side >= 0 && side === mySide();
+// teamNames are the names seated on side, in seat order.
+const teamNames = (side) => S.players.filter((p) => p.seat % 2 === side && p.name).map((p) => p.name);
+// teamName names side: the player in a room of two ("You" for me), the
+// team in 2v2 ("Your team", "Bob & Dan").
+function teamName(side) {
+  if (!isTeams()) return nameOf(side);
+  if (isMySide(side)) return 'Your team';
+  return teamNames(side).join(' & ') || `Team ${side ? 'B' : 'A'}`;
+}
+// sideDoes puts a verb after teamName: "You win", "Bob wins", "Your team
+// wins", "Bob & Dan win".
+function sideDoes(side, verb) {
+  const plural = isTeams() ? !isMySide(side) && teamNames(side).length !== 1 : isMySide(side);
+  return `${teamName(side)} ${plural ? verb : verb === 'have' ? 'has' : `${verb}s`}`;
+}
+const winLine = (side) => `${sideDoes(side, 'win')}${isMySide(side) ? '!' : '.'}`;
+// oppName names the other side for the decision texts.
+const oppName = () => (isTeams() ? teamName(1 - mySide()) : S.players[1 - S.seat].name || 'your opponent');
 const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? 'stripes' : '');
 const isNine = () => S.mode === '9ball';
 const isCarom = () => S.mode === '3cushion';
@@ -1072,7 +1108,7 @@ const canPushOut = () => isNine() && S.pushOut && isMyShot();
 function eightOn() {
   if (S.practice || S.mode !== '8ball') return false; // practice calls nothing
   if (S.phase === 'open') return remaining('solids') === 0 || remaining('stripes') === 0;
-  if (S.phase === 'assigned') return remaining(S.groups[S.seat]) === 0;
+  if (S.phase === 'assigned') return remaining(S.groups[mySide()]) === 0;
   return false;
 }
 const needsPocket = () => eightOn() && !(S.call && S.call.safety);
@@ -1097,7 +1133,7 @@ function legalTargets() {
     return out;
   }
   if (S.phase === 'breaking') return out;
-  const mine = S.groups[S.seat];
+  const mine = S.groups[mySide()];
   const eight = eightOn();
   for (const id of S.balls.keys()) {
     if (id === 0) continue;
@@ -2113,7 +2149,7 @@ function arenaInfo() {
   const m = S.practice ? null : S.match;
   return {
     mode: S.mode, practice: S.practice, room: S.roomCode, table: isCarom() ? '' : SPEC.name,
-    names: S.players.map((p) => p.name || ''),
+    names: isTeams() ? [0, 1].map((sd) => teamNames(sd).join(' & ')) : S.players.map((p) => p.name || ''),
     score: m ? m.score : null, race: m ? m.race : 0,
   };
 }
@@ -3800,7 +3836,7 @@ function voiceFor(msg) {
   const scratch = msg.pocketed.includes(0) || msg.foul === 'scratch';
   const over = msg.winner !== undefined && msg.winner !== null;
   if (isCarom()) {
-    if (!S.practice && msg.phase === 'game_over') { if (over) say(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
+    if (!S.practice && msg.phase === 'game_over') { if (over) say(msg.winner === sideOf(msg.shooter) ? 'win' : 'lose'); return; }
     if (msg.foul) { say('foul'); return; }
     const chance = rnd();
     if (msg.made) {
@@ -3812,7 +3848,7 @@ function voiceFor(msg) {
     return;
   }
   if (!S.practice) {
-    if (over) { say(msg.winner === msg.shooter ? 'win' : 'lose'); return; }
+    if (over) { say(msg.winner === sideOf(msg.shooter) ? 'win' : 'lose'); return; }
     if (scratch) { say('scratch'); return; }
     if (msg.foul) { say('foul'); return; }
   } else if (scratch) { say('scratch'); return; }
@@ -4315,11 +4351,13 @@ async function describeInvite(code) {
     renderHall({ eyebrow: `Room ${code}`, mode: room.mode, table: room.table, cloth: room.cloth, race: room.race, audience: room.maxSpectators });
     $('hall').hidden = false;
     const host = room.players.find(Boolean);
-    if (room.seated >= 2) {
+    const size = room.size || 2;
+    if (room.seated >= size || (size > 2 && room.phase !== 'lobby')) {
       const canWatch = room.spectators < room.maxSpectators;
-      $('landingLead').textContent = canWatch ? 'Both seats are taken. You can watch the game.' : 'This room is full right now.';
+      $('landingLead').textContent = canWatch ? `${size > 2 ? 'The game is on' : 'Both seats are taken'}. You can watch the game.` : 'This room is full right now.';
       $('watchInvite').hidden = !canWatch;
     }
+    else if (host && size > 2) $('landingLead').textContent = `${host} is gathering a 2v2 game: ${size - room.seated} ${size - room.seated === 1 ? 'seat is' : 'seats are'} free.`;
     else if (host) $('landingLead').textContent = `${host} is at the table and waiting for an opponent.`;
   } catch { /* keep the generic lead */ }
 }
@@ -4398,7 +4436,8 @@ function renderRooms(list) {
     li.querySelector('.mini__bed').style.background = miniBed(room.cloth, !carom);
     const goal = carom ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
     const table = carom ? ' · carom table' : TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
-    li.querySelector('.room-row__meta').textContent = `${MODE_NAME[room.mode] || '8-ball'}${goal}${table}`;
+    const size = room.size || 2;
+    li.querySelector('.room-row__meta').textContent = `${MODE_NAME[room.mode] || '8-ball'}${size > 2 ? ' · 2v2' : ''}${goal}${table}`;
     li.querySelector('.chip').className = `chip chip--${phase}`;
     li.querySelector('.chip__text').textContent = phase;
     // who: both names with the score between them once a match is on, the
@@ -4407,7 +4446,13 @@ function renderRooms(list) {
     const part = (className, textContent) => Object.assign(document.createElement('span'), { className, textContent });
     const score = room.score || [0, 0];
     const who = li.querySelector('.room-row__who');
-    if (names.length === 2) {
+    const side = (sd) => room.players.filter((n, i) => n && i % 2 === sd).join(' & ');
+    if (size > 2 && names.length) {
+      const scored = phase !== 'lobby' || score[0] || score[1];
+      who.replaceChildren(part('room-row__name', side(0) || '—'),
+        scored ? part('room-row__score', `${score[0]} – ${score[1]}`) : part('room-row__vs', 'vs'), part('room-row__name', side(1) || '—'));
+      if (room.seated < size) who.append(part('room-row__muted', `${size - room.seated} free`));
+    } else if (names.length === 2) {
       const scored = phase !== 'lobby' || score[0] || score[1];
       who.replaceChildren(part('room-row__name', room.players[0]),
         scored ? part('room-row__score', `${score[0]} – ${score[1]}`) : part('room-row__vs', 'vs'), part('room-row__name', room.players[1]));
@@ -4420,7 +4465,7 @@ function renderRooms(list) {
     watch.hidden = !(room.spectators < room.maxSpectators);
     watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
     const btn = li.querySelector('.room-row__join');
-    const open = room.seated < 2;
+    const open = room.seated < size && (size === 2 || room.phase === 'lobby');
     btn.textContent = open ? 'Join' : 'Full';
     btn.disabled = !open;
   }
@@ -4504,27 +4549,109 @@ function renderSeat(seat) {
     body.append(dots);
   }
   const g = S.groups[seat];
-  if (g) {
-    const dots = document.createElement('div');
-    dots.className = 'seat__dots';
-    const left = [];
-    for (let i = 1; i <= 7; i++) {
-      const id = g === 'solids' ? i : i + 8;
-      const dot = document.createElement('span');
-      dot.className = 'ball' + (g === 'stripes' ? ' ball--stripe' : '') + (S.balls.has(id) ? '' : ' ball--gone');
-      dot.style.setProperty('--c', `var(--ball-${i})`);
-      dots.append(dot);
-      if (S.balls.has(id)) left.push(id);
-    }
-    dots.setAttribute('aria-label', `${g} left: ${left.join(', ') || 'none'}`);
-    body.append(dots);
-  }
+  if (g) body.append(groupDots(g));
   el.append(body);
   if (!p.connected) el.append(holdRing(seat));
   else if (state && !compact) {
     el.append(Object.assign(document.createElement('span'), { className: 'seat__state', textContent: state }));
   }
   if (p.connected && S.clock && S.clock.seat === seat) el.append(clockRing());
+}
+
+// groupDots shows a group's seven balls, dimmed as they are pocketed.
+function groupDots(g) {
+  const dots = document.createElement('div');
+  dots.className = 'seat__dots';
+  const left = [];
+  for (let i = 1; i <= 7; i++) {
+    const id = g === 'solids' ? i : i + 8;
+    const dot = document.createElement('span');
+    dot.className = 'ball' + (g === 'stripes' ? ' ball--stripe' : '') + (S.balls.has(id) ? '' : ' ball--gone');
+    dot.style.setProperty('--c', `var(--ball-${i})`);
+    dots.append(dot);
+    if (S.balls.has(id)) left.push(id);
+  }
+  dots.setAttribute('aria-label', `${g} left: ${left.join(', ') || 'none'}`);
+  return dots;
+}
+
+// renderTeamSeat draws one side of a 2v2 room in the header: both players
+// (the cue by the one on turn, ready and offline tags), the side's group,
+// and the shot clock while one of them must act.
+function renderTeamSeat(side) {
+  const el = $(`seat${side}`);
+  el.hidden = false;
+  const compact = compactMedia.matches;
+  el.className = 'seat seat--team' + (side === 1 ? ' seat--right' : '') + (compact ? ' seat--compact' : '');
+  el.replaceChildren();
+  const live = inPlay() || S.moving;
+  if (live && sideOf(S.turn) === side) {
+    el.classList.add(isMe(S.turn) ? 'seat--turn' : 'seat--theirs');
+    if (S.moving) el.classList.add('is-moving');
+  }
+  const body = document.createElement('div');
+  body.className = 'seat__body';
+  for (const s of [side, side + 2]) {
+    const p = S.players[s] || { name: '' };
+    const line = document.createElement('div');
+    line.className = 'seat__line' + (live && S.turn === s ? ' is-on' : '');
+    if (live && S.turn === s) line.insertAdjacentHTML('beforeend', CUE_SVG);
+    const name = document.createElement('span');
+    name.className = 'seat__name' + (p.name ? '' : ' seat__name--open');
+    name.textContent = !p.name ? 'Open seat' : compact && isMe(s) ? 'You' : p.name;
+    name.title = p.name || 'Open seat';
+    line.append(name);
+    if (p.name && isMe(s) && !compact) line.append(tag('you', 'you'));
+    if (p.name && !p.connected) line.append(tag('offline', 'offline'));
+    if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
+    body.append(line);
+  }
+  const g = S.groups[side];
+  if (g) body.append(groupDots(g));
+  el.append(body);
+  if (S.clock && sideOf(S.clock.seat) === side && S.players[S.clock.seat].connected) el.append(clockRing());
+}
+
+// renderTeamLobby fills the lobby of a 2v2 room: the two teams with a
+// "Sit here" on each free seat (sit), and who is still missing.
+function renderTeamLobby(me) {
+  const box = $('lobbySeats');
+  box.replaceChildren(...[0, 1].map((sd) => {
+    const col = document.createElement('div');
+    col.className = 'team-pick__side';
+    col.append(Object.assign(document.createElement('span'), { className: 'team-pick__label', textContent: sd ? 'Team B' : 'Team A' }));
+    for (const s of [sd, sd + 2]) {
+      const p = S.players[s];
+      if (p && p.name) {
+        const chip = Object.assign(document.createElement('span'), { className: 'team-pick__seat' + (isMe(s) ? ' is-me' : '') + (p.ready ? ' is-ready' : ''), textContent: isMe(s) ? 'You' : p.name });
+        chip.title = p.ready ? `${p.name} is ready` : p.name;
+        col.append(chip);
+      } else {
+        const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn--secondary btn--small team-pick__sit', textContent: 'Sit here' });
+        b.dataset.seat = String(s);
+        b.setAttribute('aria-label', `Sit in Team ${sd ? 'B' : 'A'}`);
+        b.onclick = () => send({ type: 'sit', seat: s });
+        col.append(b);
+      }
+    }
+    return col;
+  }));
+  const missing = S.size - S.players.filter((p) => p.name).length;
+  $('ready').hidden = missing > 0 || me.ready;
+  $('lobbyCopy').hidden = missing === 0;
+  if (missing) setPanelMsg('lobbyText', `Waiting for <strong>${missing}</strong> more ${missing === 1 ? 'player' : 'players'}.`);
+  else if (me.ready) setPanelMsg('lobbyText', '<strong>You’re ready.</strong> Waiting for the others…');
+  else setPanelMsg('lobbyText', '<strong>All four are here.</strong> Ready when you are.');
+  $('lobbySub').textContent = 'Seats across the table play together: tap a free seat to switch teams.';
+}
+
+// awaySeat is the seat the game waits for while its player is offline, or
+// -1. In a room of two that is the opponent; in 2v2 whoever must act.
+function awaySeat() {
+  if (S.seat < 0) return -1;
+  const s = isTeams() ? (S.decision ? S.decision.seat : S.turn) : 1 - S.seat;
+  const p = S.players[s];
+  return s !== S.seat && p && p.name && !p.connected ? s : -1;
 }
 
 // clockRing shows the shot clock of the player who must act. It shares the
@@ -4644,7 +4771,7 @@ function nudge(pattern) {
   try { navigator.vibrate(pattern); } catch { /* not allowed */ }
 }
 
-const canExtend = () => !!S.clock && isMe(S.clock.seat) && S.clock.extensions[S.seat];
+const canExtend = () => !!S.clock && isMe(S.clock.seat) && S.clock.extensions[mySide()];
 
 // extend spends this game's extension: the server resets the clock.
 function extend() {
@@ -4692,7 +4819,7 @@ function tickHolds() {
   if (!rings.length) { clearInterval(S.holdTimer); S.holdTimer = 0; return; }
   rings.forEach(updateHold);
   // the waiting panel's sentence counts down too
-  const left = S.seat >= 0 ? holdRemaining(1 - S.seat) : null;
+  const left = S.seat >= 0 && $('waitHold').dataset.seat ? holdRemaining(Number($('waitHold').dataset.seat)) : null;
   if (left !== null && !$('waitPanel').hidden && !$('waitHold').hidden) {
     $('waitSub').textContent = `Their seat is held for ${Math.ceil(left)} more seconds.`;
   }
@@ -4717,8 +4844,7 @@ function refreshPanels() {
   refreshReplay();
   if (v3) v3.setInfo(arenaInfo());
   renderModes();
-  renderSeat(0);
-  renderSeat(1);
+  for (const sd of [0, 1]) { if (isTeams()) renderTeamSeat(sd); else renderSeat(sd); }
   renderScore();
   if (!$('matchDialog').hidden) renderMatchDialog();
   if (!$('settings').hidden) renderRoomSettings();
@@ -4726,7 +4852,7 @@ function refreshPanels() {
   if (S.clock && !S.clockTimer) S.clockTimer = setInterval(tickClock, 200);
   renderTurn();
   const me = S.seat >= 0 ? S.players[S.seat] : null;
-  const opp = S.seat >= 0 ? S.players[1 - S.seat] : null;
+  const opp = S.seat >= 0 && !isTeams() ? S.players[1 - S.seat] : null;
 
   const myShot = isMyShot();
   const barHidden = S.phase === 'lobby' || S.phase === 'game_over' || S.seat < 0;
@@ -4747,7 +4873,9 @@ function refreshPanels() {
   }
   if (!myShot) closeSpinPop();
 
-  if (panel === 'lobbyPanel' && me) {
+  $('lobbySeats').hidden = !(panel === 'lobbyPanel' && me && isTeams());
+  if (panel === 'lobbyPanel' && me && isTeams()) renderTeamLobby(me);
+  else if (panel === 'lobbyPanel' && me) {
     const alone = !opp.connected && !opp.name;
     $('ready').hidden = alone || me.ready;
     $('lobbyCopy').hidden = !alone;
@@ -4774,26 +4902,28 @@ function refreshPanels() {
     let msg, sub = '';
     if (S.spectator && S.phase === 'lobby') {
       const seated = S.players.filter((p) => p.name).map((p) => `<strong>${esc(p.name)}</strong>`);
-      msg = seated.length === 2 ? `${seated.join(' and ')} are getting ready.` : seated.length ? `${seated[0]} is waiting for an opponent.` : 'Nobody is at the table yet.';
+      msg = seated.length === S.size ? `${seated.join(isTeams() ? ', ' : ' and ')} are getting ready.` : seated.length ? `${seated.join(', ')} ${seated.length === 1 ? 'is' : 'are'} waiting for ${isTeams() ? `${S.size - seated.length} more` : 'an opponent'}.` : 'Nobody is at the table yet.';
       sub = 'You are watching. Say something in the chat.';
     } else if (S.spectator && S.phase === 'game_over') {
       msg = `<strong>${esc(winnerTitle())}</strong>`;
       sub = 'You are watching.';
     } else if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
     else if (S.practice) { msg = '<span class="muted">Setting up the table…</span>'; }
-    else if (opp && opp.name && !opp.connected) {
-      msg = `Waiting for <strong>${esc(opp.name)}</strong> to reconnect…`;
-      const left = holdRemaining(1 - S.seat);
+    else if (awaySeat() >= 0) {
+      const away = awaySeat();
+      msg = `Waiting for <strong>${esc(S.players[away].name)}</strong> to reconnect…`;
+      const left = holdRemaining(away);
       sub = left === null ? 'Their seat is held for a moment.' : `Their seat is held for ${Math.ceil(left)} more seconds.`;
       hold.hidden = false;
-      hold.replaceChildren(...holdRing(1 - S.seat).childNodes);
-      hold.dataset.seat = String(1 - S.seat);
+      hold.replaceChildren(...holdRing(away).childNodes);
+      hold.dataset.seat = String(away);
       if (!S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
     } else if (S.decision) {
       msg = isMe(S.decision.seat) ? 'Your decision.' : `Waiting for <strong>${esc(nameOf(S.decision.seat))}</strong> to decide.`;
       sub = S.lastDecisionReason;
     } else {
-      msg = `<strong>${esc(nameOf(S.turn))}’s turn.</strong>${S.ballInHand ? ' Ball in hand.' : ''}`;
+      const mate = isTeams() && isMySide(sideOf(S.turn)) ? ' <span class="muted">(your team)</span>' : '';
+      msg = `<strong>${esc(nameOf(S.turn))}’s turn.</strong>${mate}${S.ballInHand ? ' Ball in hand.' : ''}`;
       sub = 'You see their aim as they line up.';
     }
     setPanelMsg('waitText', msg);
@@ -4911,7 +5041,7 @@ function setPanelMsg(id, html) { $(id).innerHTML = html; }
 function refreshShotPanel() {
   const callEl = $('callText');
   let html, called = false;
-  const opp = S.players[1 - S.seat].name || 'your opponent';
+  const opp = oppName();
   if (S.practice && isCarom()) {
     html = 'Free play: <span class="muted">both balls, three cushions before the second' + (compactLayout.matches ? '.' : '. Drag the white anywhere; Move sets up the others.') + '</span>';
     called = true;
@@ -4956,7 +5086,7 @@ function refreshShotPanel() {
     html = 'Open table: <span class="muted">any ball but the 8 counts.</span>';
     called = true;
   } else {
-    html = `Your group: <span class="call__value">${esc(S.groups[S.seat])}</span> <span class="muted">· any that drops counts.</span>`;
+    html = `Your group: <span class="call__value">${esc(S.groups[mySide()])}</span> <span class="muted">· any that drops counts.</span>`;
     called = true;
   }
   if (callEl.dataset.html !== html) {
@@ -5028,7 +5158,7 @@ function refreshDecision() {
   $('decisionText').textContent = S.lastDecisionReason || '';
   const box = $('decisionOptions');
   box.replaceChildren();
-  const opp = S.players[1 - S.seat].name || 'your opponent';
+  const opp = oppName();
   d.options.forEach((opt, i) => {
     const [title, desc] = optionText(opt, opp);
     const b = document.createElement('button');
@@ -5050,7 +5180,7 @@ function renderDecisionClock() {
   const left = clockLeft();
   el.hidden = left === null || !S.decision || !isMe(S.clock.seat);
   if (el.hidden) return;
-  const opp = S.players[1 - S.seat].name || 'your opponent';
+  const opp = oppName();
   const text = `${Math.ceil(left)} s left, then “${optionText(S.decision.options[0], opp)[0]}” is chosen for you.`;
   if (el.dataset.text === text) return;
   el.dataset.text = text;
@@ -5117,14 +5247,14 @@ function winnerTitle() {
   }
   if (S.winner === null) return 'Game over';
   if (S.practice) return `${sideName(S.winner)} wins the rack`;
-  return isMe(S.winner) ? 'You win the rack' : `${nameOf(S.winner)} wins the rack`;
+  return `${sideDoes(S.winner, 'win')} the rack`;
 }
 
 function renderResult() {
   let el = $('tableWrap').querySelector('.result');
   const draw = isCarom() && !S.practice && S.winner === null;
   if (S.phase !== 'game_over' || (S.winner === null && !draw)) { if (el) el.remove(); return; }
-  const win = isMe(S.winner) && !S.practice;
+  const win = isMySide(S.winner) && !S.practice;
   const m = S.practice ? null : S.match;
   const matchWon = m && m.race > 1 && m.winner !== null && !isCarom();
   const title = matchWon ? matchTitle(m) : winnerTitle();
@@ -5167,15 +5297,16 @@ function matchLive() {
   return !S.practice && S.seat >= 0 && !!S.match && S.match.winner === null && !S.match.draw && S.phase !== 'lobby';
 }
 
-// matchName names a seat in the match history, even after its player left.
+// matchName names a side in the match history, even after its player left.
 function matchName(seat) {
+  if (isTeams()) return teamName(seat);
   if (isMe(seat)) return 'You';
   return S.players[seat].name || S.lastOppName || `Player ${seat + 1}`;
 }
 
 function matchTitle(m) {
   if (m.winner === null) return 'A draw';
-  return isMe(m.winner) ? 'You win the match' : `${matchName(m.winner)} wins the match`;
+  return isTeams() ? `${sideDoes(m.winner, 'win')} the match` : isMe(m.winner) ? 'You win the match' : `${matchName(m.winner)} wins the match`;
 }
 
 // rackWhy says how a rack of the match ended.
@@ -5258,7 +5389,7 @@ function renderMatchDialog() {
   let text;
   if (carom && over && last.end !== 'forfeit') text = `${caromReason() || `${m.score[0]}–${m.score[1]}`}.`;
   else if (carom && !over) text = `First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
-  else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMe(m.winner) ? 'you' : matchName(m.winner)}.`;
+  else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMySide(m.winner) ? (isTeams() ? 'your team' : 'you') : matchName(m.winner)}.`;
   else if (over) text = `${m.score[m.winner]}–${m.score[1 - m.winner]} after ${m.racks.length} ${m.racks.length === 1 ? 'rack' : 'racks'}.`;
   else text = `First to ${m.race} ${m.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[m.breaks]}`;
   $('matchText').textContent = text;
@@ -5278,9 +5409,9 @@ function renderMatchDialog() {
     const li = document.createElement('li');
     li.className = 'rack';
     const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
-    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMe(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
+    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMySide(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
     const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
-    const broke = isMe(r.breaker) ? 'you broke' : `${matchName(r.breaker)} broke`;
+    const broke = isMySide(r.breaker) ? (isTeams() ? 'your team broke' : 'you broke') : `${matchName(r.breaker)} broke`;
     const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
     li.append(n, who, sc, why);
     list.append(li);
@@ -5309,9 +5440,12 @@ function renderCaromLines(carom) {
 
 function openLeaveConfirm() {
   const m = S.match;
-  const opp = matchName(1 - S.seat);
-  const score = m.racks.length || isCarom() ? `The score is ${m.score[S.seat]}–${m.score[1 - S.seat]} (you first). ` : '';
-  $('leaveText').textContent = `${score}Leaving now gives ${opp} the match.`;
+  const opp = matchName(1 - mySide());
+  const score = m.racks.length || isCarom() ? `The score is ${m.score[mySide()]}–${m.score[1 - mySide()]} (you first). ` : '';
+  const mate = isTeams() && S.players.find((p) => p.seat !== S.seat && p.seat % 2 === mySide() && p.name);
+  $('leaveText').textContent = mate ? `${score}${mate.name} plays on alone for your team.` : `${score}Leaving now gives ${opp} the match.`;
+  $('leaveTitle').textContent = mate ? 'Leave the match?' : 'Leave and forfeit the match?';
+  $('leaveForfeit').textContent = mate ? 'Leave' : 'Leave and forfeit';
   $('leaveConfirm').hidden = false;
   $('leaveStay').focus();
 }
@@ -5327,7 +5461,7 @@ function renderOverPanel() {
     $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.`;
     return;
   }
-  const breaks = (seat) => `${nameOf(seat)} ${isMe(seat) ? 'break' : 'breaks'}`;
+  const breaks = (side) => sideDoes(side, 'break');
   if (live) {
     const next = m.breaks === 'winner' ? S.winner : 1 - S.lastBreaker;
     $('overText').textContent = winnerTitle();
@@ -5407,15 +5541,32 @@ const landingGoal = () => (landingMode === '3cushion' ? landingPoints : landingR
 let landingRulesReady = false; // once the spectator pick below is read
 function renderLandingMatch() {
   setMatchPick($('landingMatch'), landingGoal(), landingBreaks, landingMode);
+  renderLandingPlayers();
   if (landingRulesReady) renderLandingRules();
 }
+// Players: 1 v 1, or 2 v 2 (8-ball only; teammates alternate shots).
+let landingPlayers = readSetting('pool:players') === '4' ? 4 : 2;
+const landingSize = () => (landingMode === '8ball' ? landingPlayers : 2);
+function renderLandingPlayers() {
+  $('landingPlayersRow').hidden = landingMode !== '8ball';
+  for (const b of $('landingPlayers').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.players) === landingPlayers));
+}
+$('landingPlayers').addEventListener('click', (e) => {
+  const b = e.target.closest('.seg__btn');
+  if (!b) return;
+  landingPlayers = Number(b.dataset.players);
+  writeSetting('pool:players', landingPlayers === 4 ? '4' : null);
+  renderLandingPlayers();
+  renderLandingRules();
+});
+
 // On a phone the match rules fold away under a line that sums them up
 // (CLIENT.md, "Landing"); a tap opens them.
 function renderLandingRules() {
   const goal = landingMode === '3cushion' ? `${landingPoints} points` : `Race to ${landingRace}`;
   const breaks = landingMode === '3cushion' ? '' : landingBreaks === 'winner' ? ' · winner breaks' : ' · alternate breaks';
   const watch = landingAudience ? `${landingAudience} may watch` : 'no spectators';
-  $('landingOptsSum').textContent = `${goal}${breaks} · ${watch}`;
+  $('landingOptsSum').textContent = `${landingSize() > 2 ? '2v2 · ' : ''}${goal}${breaks} · ${watch}`;
   if (hallReady && !$('landingForm').classList.contains('landing--invited')) renderHall();
 }
 $('landingOptsBtn').onclick = () => {
@@ -5580,7 +5731,7 @@ async function createRoom(practice) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(practice
         ? { mode: landingMode, table: landingTable, cloth: landingCloth, practice }
-        : { mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience }),
+        : { mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience, players: landingSize() }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
@@ -5961,7 +6112,7 @@ function renderRoomSettings() {
   $('inviteCode').textContent = S.roomCode;
   const goal = carom ? ` · to ${S.race}` : S.race > 1 ? ` · race ${S.race}` : '';
   const table = carom ? ' · carom table' : TABLES[S.table] ? ` · ${TABLES[S.table].name}` : '';
-  $('roomMeta').textContent = `${MODE_NAME[S.mode]}${goal}${table}`;
+  $('roomMeta').textContent = `${MODE_NAME[S.mode]}${isTeams() ? ' · 2v2' : ''}${goal}${table}`;
   $('inviteCopyText').textContent = navigator.share && compactMedia.matches ? 'Share invite link' : 'Copy invite link';
   $('settingsAudienceRow').hidden = S.seat < 0;
   renderAudienceSetting();

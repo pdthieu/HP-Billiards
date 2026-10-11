@@ -599,6 +599,33 @@ play there.
   script keeps existing files unless run with `--force`. A new line is one
   more entry in `lines.json` (`id`, `kind`, `text`, `strong`) and its file.
 
+## Teams (2v2)
+
+8-ball can be played two against two (PROTOCOL.md, "Teams"): *Players →
+2 v 2* under the match rules when creating a room (only for 8-ball;
+remembered as `pool:players`). Seats 0 and 2 are Team A, 1 and 3 Team B.
+
+- **The lobby** shows both teams under the message (`#lobbySeats`), with
+  *Sit here* on each free seat (`sit`): that is how players pick their
+  team. *I'm ready* shows once all four are in; the rack starts when all
+  four are ready. The invite stays on show until the room is full.
+- **The header** keeps one cell per side (`#seat0`, `#seat1`,
+  `renderTeamSeat`): both names, the cue by the one who shoots, the side's
+  group and the shot clock. On a phone the names are smaller and the tags
+  are left out.
+- **Turns** go round A1 → B1 → A2 → B2; whoever pockets shoots on. Only the
+  player whose turn it is gets the shot panel, the power bar, the pointer
+  and the "Your turn" cue; the teammate's waiting panel says "Bob's turn
+  (your team)". Results name teams: "Your team wins the rack", "Bob & Dan
+  win the match".
+- **Leaving** while the teammate stays asks "Leave the match?": the teammate
+  plays on alone for the side. A player who drops out has their seat held
+  as in a room of two; the waiting panel counts it down when it is their
+  turn.
+- In code, who acts is a seat and what a team owns is by side
+  (`sideOf`, `mySide`, `isMySide`, `teamName`, `sideDoes`); in a room of two
+  the seat is the side, so 1v1 reads the same.
+
 ## Spectators and chat
 
 - **Watching.** A room lets up to its number of spectators watch: 0, 1, 3

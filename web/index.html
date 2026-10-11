@@ -81,6 +81,7 @@
       <div class="panel__group panel__group--center">
         <p id="lobbyText" class="panel__msg"></p>
         <p id="lobbySub" class="panel__sub"></p>
+        <div id="lobbySeats" class="team-pick" role="group" aria-label="Teams" hidden></div>
       </div>
       <div class="panel__actions">
         <button id="ready" class="btn btn--primary btn--lg">I’m ready</button>
@@ -242,6 +243,10 @@
             </button>
             <div id="landingOptsBody" class="opts__body">
               <div class="match-pick" id="landingMatch">
+                <div class="match-pick__row" id="landingPlayersRow">
+                  <span class="field__label">Players</span>
+                  <div class="seg" id="landingPlayers" role="group" aria-label="Players"><button type="button" class="seg__btn" data-players="2" aria-pressed="true">1 v 1</button><button type="button" class="seg__btn" data-players="4" aria-pressed="false">2 v 2</button></div>
+                </div>
                 <div class="match-pick__row">
                   <span class="field__label js-race-label">Race to</span>
                   <div class="seg js-race" role="group" aria-label="Race to"><button type="button" class="seg__btn" data-race="1">1</button><button type="button" class="seg__btn" data-race="3">3</button><button type="button" class="seg__btn" data-race="5">5</button><button type="button" class="seg__btn" data-race="7">7</button><button type="button" class="seg__btn" data-race="9">9</button></div>
