@@ -209,27 +209,23 @@ async function shootAndSettle(page, angle, power) {
       rotated: view.rotated,
       ball: 2 * R * view.s,
       overflow: [...document.querySelectorAll('#controls > .panel')].filter((e) => !e.hidden && e.scrollHeight > e.clientHeight).map((e) => e.id),
+      tableH: view.cssH / innerHeight, tableW: view.cssW / innerWidth,
     }));
     if (!layout.rotated || layout.ball < 9 || layout.overflow.length) fail(`phone layout ${JSON.stringify(layout)}`);
+    // the table takes the screen: practice's tools still leave it 70 % of the height
+    if (layout.tableH < 0.70) fail(`the table is ${Math.round(layout.tableH * 100)}% of the height`);
+    console.log('phone table:', Math.round(layout.tableW * 100) + '% wide,', Math.round(layout.tableH * 100) + '% high');
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
 
-    // The fine aim wheel and the jump slider are always in the shot panel,
-    // clear of the table; the spin is behind the small cue ball.
+    // The fine aim wheel is always in the strip under the table; the spin
+    // and the jump slider are behind the small cue ball.
     if (await P.isVisible('#spinPad')) fail('spin pad shown in the phone shot row');
-    for (const id of ['aimJog', 'elevRange']) {
-      if (!(await P.isVisible(`#shotPanel #${id}`))) fail(`#${id} not in the phone shot panel`);
-    }
-    const under = await P.evaluate(() => {
-      const t = document.getElementById('table').getBoundingClientRect();
-      return ['aimJog', 'elevRange'].filter((id) => document.getElementById(id).getBoundingClientRect().top < t.bottom);
-    });
-    if (under.length) fail(`over the table: ${under}`);
+    if (await P.isVisible('#elevRange')) fail('jump slider shown in the phone shot row');
+    if (!(await P.isVisible('#shotPanel #aimJog'))) fail('#aimJog not in the phone shot panel');
+    const under = await P.evaluate(() => document.getElementById('aimJog').getBoundingClientRect().top < document.getElementById('table').getBoundingClientRect().bottom);
+    if (under) fail('the wheel is over the table');
     const pj = await P.locator('#shotPanel #aimJog').boundingBox();
-    const jw = await P.locator('#shotPanel #elevRange').boundingBox();
-    if (pj.width < 60 || jw.width < 100) fail(`wheel ${pj.width}px, jump slider ${jw.width}px wide`);
-    // the jump slider; a raised cue rings the small cue ball
-    await P.locator('#shotPanel #elevRange').fill('30');
-    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the jump slider');
+    if (pj.width < 60) fail(`wheel ${pj.width}px wide`);
     // the fine aim wheel, under the finger
     const p0 = await P.evaluate(() => S.angle);
     await P.touchscreen.tap(pj.x + 10, pj.y + pj.height / 2); // a tap alone turns nothing
@@ -249,6 +245,11 @@ async function shootAndSettle(page, angle, power) {
     await P.mouse.click(pad.x + pad.width / 2, pad.y + pad.height * 0.25);
     const picked = await P.evaluate((a) => ({ spin: S.spin, turned: S.angle - a, dot: document.getElementById('optsDot').style.top }), a0);
     if (!(picked.spin.y > 0.3) || picked.turned || picked.dot === '50%') fail(`spin picker ${JSON.stringify(picked)}`);
+    // the jump slider under it; a raised cue rings the small cue ball
+    const jw = await P.locator('#spinPop #elevRange').boundingBox();
+    if (!jw || jw.width < 200) fail(`jump slider ${JSON.stringify(jw)}`);
+    await P.locator('#spinPop #elevRange').fill('30');
+    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the jump slider');
     await P.waitForTimeout(300);
     await P.screenshot({ path: path.join(shots, 'practice-phone-spin.png') });
     // a tap on the dimmed table beside it puts it away and does not aim
@@ -292,8 +293,9 @@ async function shootAndSettle(page, angle, power) {
     await P.waitForTimeout(100);
     const named = await P.evaluate(() => S.hoverBall);
     if (named === null) fail('a touch beside a ball named nothing');
-    const aimed = await P.evaluate(() => { const c = S.balls.get(0), t = S.balls.get(1); setAngle(Math.atan2(t.y - c.y, t.x - c.x)); return castAim(displayBalls(), c, S.angle).hit; });
-    if (aimed !== 1) fail(`aim at the 1 hits ${aimed}`);
+    // racks are shuffled: aim at the apex, the ball nearest the cue ball
+    const aimed = await P.evaluate(() => { const c = S.balls.get(0); let t = null, id = -1; for (const [k, b] of S.balls) if (k && (!t || Math.hypot(b.x - c.x, b.y - c.y) < Math.hypot(t.x - c.x, t.y - c.y))) { t = b; id = k; } setAngle(Math.atan2(t.y - c.y, t.x - c.x)); return { id, hit: castAim(displayBalls(), c, S.angle).hit }; });
+    if (aimed.hit !== aimed.id) fail(`aim at the ${aimed.id} hits ${aimed.hit}`);
     await P.waitForTimeout(2100); // the touch label fades, the aim tag stays
     await P.screenshot({ path: path.join(shots, 'practice-phone-aim-tag.png') });
     console.log('ball names ok, touch named', named);

@@ -493,13 +493,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 
 /* tall phones: the table is as wide as the screen allows already, so the
    wheel and the jump slider each take a row the panel's width */
-@media (max-width: 600px) and (min-height: 760px) {
-  #shotPanel { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "call call" "angle opts" "elev opts"; gap: 6px 12px; padding: 6px 10px 8px 12px; }
-  body.is-playing .slot { height: 128px; }
-  #shotPanel .angle__readout, #shotPanel .elev__head { width: 4.4em; }
-  #shotPanel .angle__readout, #shotPanel .elev__readout { font-size: 13px; }
-  #shotPanel .jog, #shotPanel .elev__range { height: 32px; }
-}
 
 /* short screens: give the table room */
 @media (max-height: 700px) and (max-width: 600px) and (orientation: portrait) {
@@ -522,25 +515,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .seat .hold, .seat .hold svg { width: 22px; height: 22px; }
   .seat .hold__num { font-size: 9px; }
 }
-/* a short phone */
-@media (max-width: 600px) and (max-height: 759px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) and (max-height: 759px) {
-  /* three buttons (below) take the row's whole width: the cue ball steps down */
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { grid-template-areas: "call call call" "angle elev opts"; }
-}
-/* Push out, Safety and +40s at once (the shot after a 9-ball break; or
-   Clear on a called 8) left a phone's call line no width beside them: it
-   goes over them, on one smaller line, and everything tightens to keep the
-   slot's height, so the table does not resize for that shot */
-@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { row-gap: 2px; padding-top: 1px; padding-bottom: 1px; }
-  #shotPanel .call:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) { flex-wrap: wrap; row-gap: 2px; }
-  #shotPanel .call:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .call__line { flex: 1 0 100%; -webkit-line-clamp: 1; font-size: 12px; line-height: 14px; }
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .call__actions :is(.toggle, .btn) { min-height: 26px; padding: 0 10px; font-size: 13px; }
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) :is(.jog, .elev__range) { height: 22px; }
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .elev__head .field__label { display: none; }
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .opts-btn { width: 28px; height: 28px; }
-  #shotPanel:has(.call__actions > :not([hidden], #handTag) ~ :not([hidden], #handTag) ~ :not([hidden], #handTag)) .opts-btn::after { content: ""; position: absolute; inset: -8px; } /* still a fingertip */
-}
 /* the narrowest phones (320 px): what to hit gets the panel's width, the
    wheel and the jump slider a row each; the seat on turn shows it by its
    brass, without the cue */
@@ -548,10 +522,49 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .hdr { padding: 0 6px 0 8px; gap: 4px; }
   .seat--compact .seat__cue { display: none; }
   .seat--compact .seat__name { max-width: 7ch; }
-  #shotPanel { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "call call" "angle opts" "elev opts"; gap: 4px 10px; padding: 4px 8px 6px 10px; }
-  body.is-playing .slot { height: 112px; }
   .stage { min-height: 280px; } /* room for practice's tools too */
 }
+
+/* a phone held upright, in a rack: the table takes the screen. A slim
+   header and status band, the power bar 22 px wide at the screen's edge,
+   and under the table one 64 px strip: what to hit (with the shot's
+   toggles) over the angle and the fine aim wheel, and the cue ball that
+   opens the shot options (spin and jump, placeShotOptions). The strip is
+   the same height for every turn, so the table never resizes mid-rack. */
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  body.is-playing .hdr { height: 44px; }
+  body.is-playing .seat { height: 34px; }
+  body.is-playing button.score { height: 34px; }
+  body.is-playing .status { height: 28px; padding: 0 8px; font-size: 12px; line-height: 16px; }
+  body.is-playing .status__layer { -webkit-line-clamp: 1; padding: 1px 10px; }
+  body.is-playing .status:has(.status__chat:not([hidden])), body.is-playing .status.has-replay { padding-left: 40px; padding-right: 40px; }
+  body.is-playing :is(.status__chat, .status__replay) { width: 28px; height: 28px; }
+  body.is-playing .status__chat { left: 4px; }
+  body.is-playing .status__replay { right: 4px; }
+  body.is-playing .stage { padding: 0 2px 4px 4px; gap: 4px; }
+  body.is-playing .stage:has(.pbar--left) { padding: 0 4px 4px 2px; }
+  body.is-playing .pbar { width: 22px; gap: 4px; }
+  body.is-playing .pbar__label { bottom: 8px; gap: 4px; font-size: 10px; }
+  body.is-playing .pbar__readout { font-size: 16px; line-height: 22px; padding: 2px 10px; }
+  body.is-playing .slot { height: 64px; padding: 0 4px 4px; }
+  body.is-playing .toasts { top: 76px; }
+  body.is-playing #shotPanel { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "call opts" "angle opts"; gap: 2px 8px; padding: 2px 6px 2px 10px; }
+  body.is-playing #shotPanel .call { flex-wrap: nowrap; gap: 6px; min-height: 24px; }
+  body.is-playing #shotPanel .call__line { flex: 1 1 auto; -webkit-line-clamp: 1; font-size: 12px; line-height: 15px; }
+  body.is-playing #shotPanel .call__actions { gap: 4px; }
+  body.is-playing #shotPanel .call__actions :is(.toggle, .btn) { min-height: 24px; padding: 0 8px; font-size: 12px; }
+  body.is-playing #shotPanel .angle__readout { width: 3.7em; font-size: 12px; }
+  body.is-playing #shotPanel .jog { height: 28px; }
+  body.is-playing #shotPanel .opts-btn { width: 40px; height: 40px; }
+  body.is-playing #waitPanel { padding: 4px 12px; }
+  body.is-playing #waitText { font-size: 13px; line-height: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+}
+/* the jump slider behind the cue ball, under the spin pad */
+.spin-pop .elev { width: min(280px, 76vw); gap: 10px; }
+.spin-pop .elev__pic { width: 48px; flex: none; }
+.spin-pop .elev__meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.spin-pop .elev__head { display: flex; justify-content: space-between; align-items: baseline; }
+.spin-pop .elev__range { width: 100%; height: 32px; writing-mode: horizontal-tb; direction: ltr; }
 
 /* landscape phones: table | bar on the left, the shot panel as a sidebar */
 @media (orientation: landscape) and (max-height: 500px) {

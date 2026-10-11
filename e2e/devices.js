@@ -110,7 +110,8 @@ function stubs() {
 
     // While a finger aims, a loupe in a corner clear of the contact shows it
     // magnified; it goes with the finger.
-    await P.evaluate(() => { const c = S.balls.get(0), t = S.balls.get(1); setAngle(Math.atan2(t.y - c.y, t.x - c.x)); });
+    // racks are shuffled: aim at the apex, the ball nearest the cue ball
+    const apex = await P.evaluate(() => { const c = S.balls.get(0); let t = null, id = -1; for (const [k, b] of S.balls) if (k && (!t || Math.hypot(b.x - c.x, b.y - c.y) < Math.hypot(t.x - c.x, t.y - c.y))) { t = b; id = k; } setAngle(Math.atan2(t.y - c.y, t.x - c.x)); return id; });
     await touch('touchStart', [await at(-100, 0.3)]);
     await touch('touchMove', [await at(-100.3, 0.3)]);
     await P.waitForTimeout(100);
@@ -118,7 +119,7 @@ function stubs() {
       const g = toScreen(castAim(displayBalls(), S.balls.get(0), S.angle).ghost);
       return loupe.shown && { ...loupe.shown, clear: Math.hypot(loupe.shown.x - g.x, loupe.shown.y - g.y) - LOUPE_PX };
     });
-    if (!lp || lp.hit !== 1 || lp.clear < 0) fail(`loupe ${JSON.stringify(lp)}`);
+    if (!lp || lp.hit !== apex || lp.clear < 0) fail(`loupe ${JSON.stringify(lp)}, apex ${apex}`);
     await P.screenshot({ path: path.join(shots, 'devices-loupe.png') });
     await touch('touchEnd', []);
     await P.waitForTimeout(100);

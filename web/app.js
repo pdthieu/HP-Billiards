@@ -1618,18 +1618,23 @@ elevRange.addEventListener('input', () => setElev(Number(elevRange.value)));
 // --- spin picker (phones) ----------------------------------------------------
 //
 // On a phone the shot panel holds what to hit, the situational toggles, the
-// fine aim wheel and the jump slider, always at hand, and a small cue ball
-// showing the spin. Tapping it opens the spin pad as a big cue ball in the
-// middle of the screen over the dimmed table, so the tip's spot is picked
-// precisely; Done, a tap beside it or Escape puts it away.
+// fine aim wheel and a small cue ball showing the spin. Tapping it opens the
+// spin pad as a big cue ball in the middle of the screen over the dimmed
+// table, so the tip's spot is picked precisely; Done, a tap beside it or
+// Escape puts it away. Held upright the phone gives the table every pixel:
+// the jump slider goes behind the cue ball too (its brass ring says the cue
+// is raised). Sideways, the side panel keeps it at hand.
 
 const compactLayout = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
 const spinBox = document.querySelector('#shotPanel .spin');
 const spinHome = document.createComment('');
 spinBox.before(spinHome);
+const portraitPhone = matchMedia('(max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px)');
+const elevHome = document.createComment('');
+elevBox.before(elevHome);
 
-// placeShotOptions puts the spin pad in the picker on a phone and back in
-// the shot panel elsewhere.
+// placeShotOptions puts the spin pad in the picker on a phone (and the jump
+// slider too, held upright) and back in the shot panel elsewhere.
 function placeShotOptions() {
   if (compactLayout.matches) {
     $('spinPopBody').append(spinBox);
@@ -1637,6 +1642,10 @@ function placeShotOptions() {
     spinHome.after(spinBox);
     closeSpinPop();
   }
+  const elevAway = compactLayout.matches && portraitPhone.matches;
+  if (elevAway) $('spinPopBody').append(elevBox);
+  else elevHome.after(elevBox);
+  $('spinPopTitle').textContent = elevAway ? 'Spin and jump' : 'Spin';
 }
 
 function openSpinPop() {
@@ -1660,6 +1669,7 @@ $('spinPop').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeSpinPop(); $('optionsBtn').focus({ preventScroll: true }); }
   e.stopPropagation(); // the game's keys (aim, shoot) wait while it is open
 });
+portraitPhone.addEventListener('change', placeShotOptions);
 compactLayout.addEventListener('change', () => {
   placeShotOptions();
   refreshPanels();

@@ -419,29 +419,27 @@ landscape phones, icons only on phones) has:
 9. **Phones**:
    - **Portrait.** The table stands upright unless lying down is 5 % bigger.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
-   - **The shot panel** while a rack is played (`body.is-playing`) keeps
-     its height for every turn, so the table never resizes mid-rack. It
-     holds:
-     - the call line (two lines at most) and the situational toggles
-       (Safety, Push out, +40s);
-     - the fine aim wheel with the angle readout, and the jump slider with
-       its words (Jump or Massé, the angle), always at hand; the ±5° and
+   - **The table takes the screen** while a rack is played
+     (`body.is-playing`) on a phone held upright: the header is 44 px, the
+     status band 28 px with one line, the power bar 22 px wide at the
+     screen's edge, and under the table one 64 px strip. On a 390×800
+     screen the table is 358×660 px. The strip keeps its height for every
+     turn, so the table never resizes mid-rack. It holds:
+     - the call line (one line, cut short with an ellipsis; the status band
+       says the rest) and the situational toggles (Safety, Push out, +40s);
+     - under it the fine aim wheel with the angle readout; the ±5° and
        ±0.25° buttons are left out;
      - on the right, a small cue ball showing the spin (`#optionsBtn`); a
        brass ring round it says the cue is raised.
 
-     On a short phone (under 760 px tall, where the height limits the
-     table) the slot is 80 px: the call over the wheel and the jump slider
-     side by side, the slider getting the wider share. On a taller one the
-     table is limited by the width anyway, so the slot is 128 px and the
-     wheel and the slider each take a row the panel's width. On a 320 px
-     phone the call gets the panel's width and the wheel and the slider a
-     row each, in a 112 px slot.
+     The jump slider is behind the cue ball, under the spin pad
+     (`placeShotOptions` moves it there when the phone is upright; sideways
+     it stays in the side column).
 
-     Tapping the small cue ball opens the spin picker (`#spinPop`): the spin
-     pad as a big cue ball in the middle of the screen (up to 280 px) over
-     the table, dimmed and lightly blurred, with the spin's words, Reset and
-     Done. `placeShotOptions` moves the spin pad there from the panel
+     Tapping the small cue ball opens the spin picker (`#spinPop`, "Spin
+     and jump" upright): the spin pad as a big cue ball in the middle of
+     the screen (up to 280 px) over the table, dimmed and lightly blurred,
+     with the spin's words, Reset, the jump slider (upright) and Done. `placeShotOptions` moves the spin pad there from the panel
      whenever the phone layout applies. Done, Escape or a tap on the dimmed
      table beside it puts it away; that tap does not aim.
    - **Naming balls.** The numbers on balls under 16 px across are too
