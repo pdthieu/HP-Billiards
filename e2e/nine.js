@@ -82,6 +82,14 @@ const st = (page) => page.evaluate(() => ({
     const shooterSeat = after.turn;
     console.log('break ok:', (await A.textContent('#status')).trim().split('\n').pop().trim());
 
+    // The pointer: over the lowest ball, for the shooter alone.
+    const ptr = await shooter.evaluate(() => ({ next: pointerBall(), low: lowestBall() }));
+    if (ptr.next !== ptr.low) fail(`pointer at ${ptr.next}, lowest ${ptr.low}`);
+    if ((await other.evaluate(() => pointerBall())) !== null) fail('the waiting player has a pointer');
+    await shooter.waitForFunction(() => document.getElementById('turnBanner').hidden, null, { timeout: 4000 });
+    await shooter.screenshot({ path: path.join(shots, 'nine-pointer.png') });
+    console.log('pointer ok: ball', ptr.next);
+
     await shooter.waitForFunction(() => !document.getElementById('pushOut').hidden);
     await shooter.click('#pushOut');
     if (!(await st(shooter)).callText.startsWith('Push out')) fail(`push out line: ${(await st(shooter)).callText}`);

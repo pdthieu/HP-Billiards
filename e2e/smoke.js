@@ -231,6 +231,26 @@ async function waitFor(page, pred, what, ms = 15000) {
   await shooter.mouse.click(pt.x, pt.y);
   if ((await state(shooter)).call !== null) fail('a ball tap set a call');
 
+  // The pointer: none on an open table; with groups, the nearest ball of
+  // mine to the cue ball; the 8 once they are gone; off in Settings.
+  const ptr = await shooter.evaluate(() => {
+    const saved = { phase: S.phase, groups: S.groups.slice() };
+    const out = { open: (S.phase = 'open', pointerBall()) };
+    S.groups = S.seat === 0 ? ['solids', 'stripes'] : ['stripes', 'solids'];
+    S.phase = 'assigned';
+    const cue = S.balls.get(0);
+    const mine = [...S.balls.keys()].filter((id) => groupOf(id) === S.groups[S.seat]);
+    const d = (id) => Math.hypot(S.balls.get(id).x - cue.x, S.balls.get(id).y - cue.y);
+    out.nearest = mine.sort((a, b) => d(a) - d(b))[0];
+    out.next = pointerBall();
+    S.nextBall = false; out.off = pointerBall(); S.nextBall = true;
+    S.phase = saved.phase; S.groups = saved.groups;
+    return out;
+  });
+  if (ptr.open !== null || ptr.next !== ptr.nearest || ptr.off !== null) fail(`pointer ${JSON.stringify(ptr)}`);
+  if ((await watcher.evaluate(() => pointerBall())) !== null) fail('the waiting player has a pointer');
+  console.log('pointer ok: ball', ptr.next);
+
   // On the 8-ball a pocket must be called: pretend to be there for a moment.
   await shooter.evaluate(() => {
     window.__saved = { balls: S.balls, phase: S.phase, groups: S.groups.slice() };
@@ -241,6 +261,7 @@ async function waitFor(page, pred, what, ms = 15000) {
   });
   st = await state(shooter);
   if (!st.callText.startsWith('On the 8-ball')) fail(`on the 8 text: ${st.callText}`);
+  if ((await shooter.evaluate(() => pointerBall())) !== 8) fail('no pointer at the 8');
   // releasing the power bar without a pocket is refused
   const bar2 = await shooter.locator('#powerBar').boundingBox();
   await shooter.mouse.move(bar2.x + bar2.width / 2, bar2.y + 2);

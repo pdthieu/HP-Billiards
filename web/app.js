@@ -305,6 +305,8 @@ const S = {
   lastPower: 0,          // power of the last shot, shown faintly in the bar
   lefty: false,          // power bar on the left
   aimFront: readSetting('pool:aim') === 'front', // aim by pointing at the target, not by the butt of the cue
+  nextBall: readSetting('pool:pointer') !== 'off', // point at the ball to shoot next (pointerBall)
+  pointerAt: 0,          // performance.now() the turn began: the pointer bounces for a moment
   hoverBall: null,       // ball under the mouse, for its label
   call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
   roomsTimer: 0,
@@ -901,6 +903,8 @@ function resetToLanding(error) {
 // newTurn resets the per-shot UI when the shooter or phase changes.
 function newTurn() {
   S.aimShownAt = performance.now();
+  S.pointerAt = S.aimShownAt;
+  wakeDraw(); // full frame rate while the pointer bounces
   S.call = null;
   S.aiming = false;
   S.drag = null;
@@ -1104,6 +1108,28 @@ function legalTargets() {
 }
 
 // lowestBall mirrors Rules.lowest: the 9-ball shooter's legal first contact.
+// pointerBall is the ball to shoot next, pointed at for the shooter alone
+// (Settings → Table → Next-ball pointer): in 9-ball the lowest, in 8-ball the
+// nearest ball of my group to the cue ball, or the 8 once the group is
+// cleared. None on the break, on an open table or in practice, where any
+// ball will do. newTurn has aimed the cue at the same ball.
+function pointerBall(balls = S.balls) {
+  if (!S.nextBall || !isMyShot() || S.replay || S.practice || S.phase === 'breaking') return null;
+  if (isNine()) return lowestBall();
+  if (S.mode !== '8ball' || S.phase !== 'assigned') return null;
+  if (eightOn()) return balls.has(8) ? 8 : null;
+  const cue = balls.get(0);
+  if (!cue) return null;
+  let best = null, bestD = Infinity;
+  for (const id of legalTargets()) {
+    const b = balls.get(id);
+    if (!b) continue;
+    const d = Math.hypot(b.x - cue.x, b.y - cue.y);
+    if (d < bestD) { bestD = d; best = id; }
+  }
+  return best;
+}
+
 function lowestBall() {
   let low = null;
   for (const id of S.balls.keys()) if (id > 0 && (low === null || id < low)) low = id;
@@ -2325,6 +2351,8 @@ function draw() {
       if (p) ring(p, R + 0.010, rgba('#FFFFFF', 0.55), 0.003);
     }
   }
+  const next = pointerBall(balls);
+  if (next !== null && balls.has(next)) ring(balls.get(next), R + 0.016, PAL.brass, 0.004);
   if (myShot && needsPocket()) {
     // the pockets are tappable; the called one is ringed in brass
     for (let n = 0; n < POCKETS.length; n++) {
@@ -2492,6 +2520,35 @@ function drawLabels(balls, cast, aim, cue, now) {
     drawBallLabel(target, balls.get(target), { x: b.x - a.x, y: b.y - a.y });
   }
   if (S.hoverBall !== null && balls.has(S.hoverBall)) drawBallLabel(S.hoverBall, balls.get(S.hoverBall));
+  const next = pointerBall(balls);
+  if (next !== null && balls.has(next) && !S.drag) drawPointer(balls.get(next), now);
+}
+
+// POINTER_BOUNCE_MS: how long the pointer bounces once a turn begins; then
+// it stands still, so a table left alone does not keep drawing.
+const POINTER_BOUNCE_MS = 2500;
+
+// drawPointer draws the next-ball arrow over p, in screen pixels so it keeps
+// its size and stays upright in 2D (turned or not) and in 3D.
+function drawPointer(p, now) {
+  const r = R * pxPerM(p);
+  const top = v3 ? v3.project(p, 2 * R) : (() => { const c = toScreen(p); return { x: c.x, y: c.y - r }; })();
+  const t = now - S.pointerAt;
+  const bounce = reduceMotion.matches || t > POINTER_BOUNCE_MS ? 0 : 4 * Math.abs(Math.sin(t / 170));
+  const tip = top.y - 5 - bounce, w = 8, h = 12;
+  ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+  ctx.beginPath();
+  ctx.moveTo(top.x, tip);
+  ctx.lineTo(top.x - w, tip - h);
+  ctx.lineTo(top.x + w, tip - h);
+  ctx.closePath();
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = rgba(PAL.labelBg, 0.7);
+  ctx.stroke();
+  ctx.fillStyle = PAL.brass;
+  ctx.fill();
+  applyTableTransform();
 }
 
 // draw3d hands the frame to the 3D view, then draws the labels on the 2D
@@ -2534,6 +2591,8 @@ function draw3d(now, balls, st) {
       if (p) rings.push({ x: p.x, y: p.y, r: R + 0.010, w: 0.003, color: '#FFFFFF', alpha: 0.55 });
     }
   }
+  const next = pointerBall(balls);
+  if (next !== null && balls.has(next)) { const p = balls.get(next); rings.push({ x: p.x, y: p.y, r: R + 0.016, w: 0.004, color: PAL.brass, alpha: 1 }); }
   if (myShot && needsPocket()) {
     for (let n = 0; n < POCKETS.length; n++) {
       const h = pocketHole(POCKETS[n]);
@@ -5912,6 +5971,7 @@ function renderSettings() {
   for (const b of $('themeSeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.theme === theme));
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
   $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
+  $('pointerToggle').setAttribute('aria-pressed', String(S.nextBall));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
   $('bubblesToggle').setAttribute('aria-pressed', String(readSetting('pool:bubbles') !== 'off'));
   renderViewControls();
@@ -5977,6 +6037,12 @@ $('themeSeg').addEventListener('click', (e) => {
   applyTheme(t);
   renderSettings();
 });
+$('pointerToggle').onclick = () => {
+  S.nextBall = !S.nextBall;
+  writeSetting('pool:pointer', S.nextBall ? null : 'off');
+  wakeDraw();
+  renderSettings();
+};
 $('aimFrontToggle').onclick = () => {
   S.aimFront = !S.aimFront;
   writeSetting('pool:aim', S.aimFront ? 'front' : null);

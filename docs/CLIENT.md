@@ -291,6 +291,13 @@ landscape phones, icons only on phones) has:
      line. *Safety* (or the `S` key) declares a safety instead. *Clear*
      starts over. *+40s* (or the `X` key) spends the game's one extension
      and is hidden once used.
+   - *Next ball*: a brass arrow bobs over the ball to shoot next, ringed in
+     brass (`pointerBall`): in 9-ball the lowest ball, in 8-ball the ball
+     of your group nearest the cue ball, or the 8 once your group is gone.
+     There is none on the break, on an open table or in practice, and only
+     the shooter sees it. The cue starts aimed at the same ball. It bobs for
+     2.5 s as the turn begins, then holds still. Settings → Controls →
+     *Next-ball pointer* turns it off (`pool:pointer`).
    - *Aim*: drag on the felt. The pointer holds the butt of the cue: the
      cue lies between it and the cue ball, and the shot goes the other way,
      as with a real cue. The aim changes only once the pointer moves, not
