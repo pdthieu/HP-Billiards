@@ -282,8 +282,8 @@ type RoomState struct {
 	Cloth      string           `json:"cloth"`    // the cloth's colour (set_table)
 	Practice   bool             `json:"practice"` // one player plays both seats
 	Balls      []game.BallState `json:"balls"`    // balls on the table
-	Players    []PlayerInfo     `json:"players"` // every seat: 2, or 4 in a 2v2 room
-	Size       int              `json:"size"`    // how many seats: 2, or 4 (2v2)
+	Players    []PlayerInfo     `json:"players"`  // every seat: 2, or 4 in a 2v2 room
+	Size       int              `json:"size"`     // how many seats: 2, or 4 (2v2)
 	Phase      game.Phase       `json:"phase"`
 	Turn       int              `json:"turn"`       // the seat that shoots (or decides) next
 	Groups     [2]game.Group    `json:"groups"`     // by side (seat % 2), "" until assigned

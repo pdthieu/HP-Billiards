@@ -128,14 +128,15 @@ type room struct {
 	practice    bool
 	history     []game.Snapshot
 	game        *game.Game
-	seats       []seat // 2, or 4 in a 2v2 room
+	seats       []seat       // 2, or 4 in a 2v2 room
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
 	lastSnapT   int          // simulated ms of the last snapshot sent
 	impactsSent int          // Table.Impacts already sent this shot
-	lastBreaker int // the side that broke the rack
+	lastBreaker int          // the side that broke the rack
 	clock       clock
 	extended    [2]bool // by side: the extension of this game is used
+	breakShot   bool    // the shot in progress is the break
 	// Teams (2v2): the game knows two sides, the room the seats. next is
 	// each side's place in its rotation (0 or 1), turnSide the side whose
 	// turn it is (-1 before the first of a rack), shooter the seat that
@@ -145,7 +146,6 @@ type room struct {
 	turnSide int
 	shooter  int
 	shotBy   int
-	breakShot   bool    // the shot in progress is the break
 	// timerGen is bumped whenever the away-timers are re-armed; a timer
 	// event carrying an older generation is stale and ignored.
 	timerGen int
