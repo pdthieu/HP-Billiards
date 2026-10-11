@@ -140,15 +140,15 @@ gây `error` từ server (test chạy 100 ván bot với bot).
    `-max-spectators` 10); có chat chung cho người chơi và khán giả, mỗi
    người 5 giây một tin (`-chat-cooldown`). Xem PROTOCOL.md, mục
    *Spectators and chat*.
-5. ~~**2 đấu 2**~~ Đã làm (10/2026): phòng 8-ball cho 4 người
-   (`players: 4`), ghế 0, 2 đấu ghế 1, 3, đồng đội bắn xen kẽ theo vòng
-   A1 → B1 → A2 → B2; chọn đội ở sảnh chờ (`sit`); một người rời thì đồng
-   đội đánh thay cả hai lượt. Xem PROTOCOL.md, mục *Teams (2v2)*.
 2. **Emote**: message `emote` với 6 giá trị cố định, hiện bong bóng cạnh tên 3
    giây, giới hạn 1 cái/2 giây. Không chat tự do để khỏi lọc nội dung.
 3. **Phòng riêng**: `POST /api/rooms` với `{"private": true}`; không hiện
    trong danh sách, chỉ vào bằng link.
 4. **Danh sách phòng** hiện số người xem và tỉ số trận đang diễn ra.
+5. ~~**2 đấu 2**~~ Đã làm (10/2026): phòng 8-ball cho 4 người
+   (`players: 4`), ghế 0, 2 đấu ghế 1, 3, đồng đội bắn xen kẽ theo vòng
+   A1 → B1 → A2 → B2; chọn đội ở sảnh chờ (`sit`); một người rời thì đồng
+   đội đánh thay cả hai lượt. Xem PROTOCOL.md, mục *Teams (2v2)*.
 
 ## Phase 12 · Độ sâu gameplay (L)
 
