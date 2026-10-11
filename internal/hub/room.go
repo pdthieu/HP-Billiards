@@ -48,8 +48,9 @@ type event struct {
 	gen    int       // evHoldExpired, evAbandon: see room.timerGen; evClock: clock.gen
 }
 
-// seat is one of the two places at the table. Empty: name == "". Held for a
-// reconnect: name != "" and client == nil. Occupied: client != nil.
+// seat is one of the places at the table: two, or four in a 2v2 room (see
+// Teams below). Empty: name == "". Held for a reconnect: name != "" and
+// client == nil. Occupied: client != nil.
 type seat struct {
 	client *ws.Client
 	id     string
@@ -93,12 +94,15 @@ var (
 	errBadRace       = errors.New("the race must be 1 to 25 (3-cushion: 1 to 50 points) and the breaks alternate or winner")
 	errBadSpectators = errors.New("that many spectators are not allowed here")
 	errBadTable      = errors.New("unknown table or cloth")
+	errBadPlayers    = errors.New("a room has 2 players, or 4 (2v2) for 8-ball")
+	errSeatTaken     = errors.New("that seat is taken")
+	errGameOn        = errors.New("a 2v2 game is on; join when it is back in the lobby")
 )
 
 // maxUndo is how many shots a practice room can take back.
 const maxUndo = 20
 
-// room is one table and its two seats. Everything below inbox is owned by the
+// room is one table and its seats. Everything below inbox is owned by the
 // run goroutine and must not be touched from anywhere else.
 type room struct {
 	hub   *Hub
@@ -124,14 +128,23 @@ type room struct {
 	practice    bool
 	history     []game.Snapshot
 	game        *game.Game
-	seats       [2]seat
+	seats       []seat // 2, or 4 in a 2v2 room
 	ticker      *time.Ticker // non-nil only while a shot is in progress
 	ticks       int          // since the shot started
 	lastSnapT   int          // simulated ms of the last snapshot sent
 	impactsSent int          // Table.Impacts already sent this shot
-	lastBreaker int
+	lastBreaker int // the side that broke the rack
 	clock       clock
-	extended    [2]bool // by seat: the extension of this game is used
+	extended    [2]bool // by side: the extension of this game is used
+	// Teams (2v2): the game knows two sides, the room the seats. next is
+	// each side's place in its rotation (0 or 1), turnSide the side whose
+	// turn it is (-1 before the first of a rack), shooter the seat that
+	// shoots now and shotBy the seat that took the shot in progress. See
+	// syncShooter.
+	next     [2]int
+	turnSide int
+	shooter  int
+	shotBy   int
 	breakShot   bool    // the shot in progress is the break
 	// timerGen is bumped whenever the away-timers are re-armed; a timer
 	// event carrying an older generation is stale and ignored.
@@ -157,6 +170,7 @@ func newRoom(h *Hub, code string, settings RoomSettings) *room {
 		breaks:   settings.Breaks,
 		match:    game.NewMatch(settings.Race, settings.Breaks),
 		practice: settings.Practice,
+		seats:    make([]seat, max(2, settings.Players)),
 	}
 	if settings.Spectators != nil && !settings.Practice {
 		r.maxSpectators = *settings.Spectators
@@ -171,6 +185,97 @@ func (r *room) resetGame() {
 	r.game = game.NewGame(r.poolConfig())
 	r.game.SetFree(r.practice) // practice is free play, without the rules
 	r.game.SetMode(r.mode)
+	r.turnSide, r.shooter = -1, 0
+}
+
+// --- teams -------------------------------------------------------------------
+//
+// A 2v2 room has four seats: 0 and 2 are one side, 1 and 3 the other. The
+// game (rules, groups, fouls, the match) knows only the two sides; the room
+// turns a side's turn into a seat. Teammates take turns in a fixed rotation,
+// A1 → B1 → A2 → B2: whoever pockets shoots on, and when the turn crosses
+// to the other side, that side's next player shoots. A decision (after the
+// break) is made by the deciding side's next player and moves no rotation.
+// A seat left empty mid-match (its player did not come back) is skipped:
+// the teammate shoots every turn of the side. In a room of two, a seat is
+// its side and all of this is the identity.
+
+func side(s int) int { return s % 2 }
+
+func (r *room) teamRoom() bool { return len(r.seats) > 2 }
+
+// seatAt is the i-th seat of side sd.
+func (r *room) seatAt(sd, i int) int { return sd + 2*(i%(len(r.seats)/2)) }
+
+// pickShooter is the seat that plays side sd's next turn: its next in the
+// rotation, or the teammate when that seat is empty. A seat held for a
+// reconnect still plays (its clock waits, as in a room of two).
+func (r *room) pickShooter(sd int) int {
+	s := r.seatAt(sd, r.next[sd])
+	if r.seats[s].empty() {
+		s = r.seatAt(sd, r.next[sd]+1)
+	}
+	return s
+}
+
+// syncShooter follows the game's turn: when it crosses to the other side,
+// the side that had it moves on in its rotation. It runs after every change
+// to the rules, before the clock starts for the next player.
+func (r *room) syncShooter() {
+	sd := r.game.Rules.Turn
+	if sd != r.turnSide {
+		if r.turnSide >= 0 {
+			r.next[r.turnSide] = (r.next[r.turnSide] + 1) % (len(r.seats) / 2)
+		}
+		r.turnSide = sd
+	}
+	r.shooter = r.pickShooter(sd)
+}
+
+// turnSeat is the seat that shoots next (Rules.Turn is a side).
+func (r *room) turnSeat() int {
+	if !r.teamRoom() {
+		return r.game.Rules.Turn
+	}
+	return r.shooter
+}
+
+// sideEmpty reports whether nobody sits on side sd.
+func (r *room) sideEmpty(sd int) bool {
+	for i := sd; i < len(r.seats); i += 2 {
+		if !r.seats[i].empty() {
+			return false
+		}
+	}
+	return true
+}
+
+// wireDecision is the pending decision as sent: Seat is the seat that
+// chooses, not the side.
+func (r *room) wireDecision(d *game.Decision) *game.Decision {
+	if d == nil || !r.teamRoom() {
+		return d
+	}
+	c := *d
+	c.Seat = r.actor()
+	return &c
+}
+
+// teammateErr refuses a player acting in a teammate's turn: the game sees
+// only sides and would let either play. Someone of the other side gets the
+// game's own answer.
+func (r *room) teammateErr(s int) error {
+	if a := r.actor(); r.teamRoom() && side(s) == side(a) && s != a {
+		return game.ErrNotYourTurn
+	}
+	return nil
+}
+
+// unready makes every player press ready again.
+func (r *room) unready() {
+	for i := range r.seats {
+		r.seats[i].ready = false
+	}
 }
 
 // poolConfig is the server's table with the room's pockets.
@@ -184,6 +289,7 @@ func (r *room) publishInfo() {
 		RoomCode: r.code, Mode: r.mode, Race: r.race, Breaks: r.breaks, Table: r.table, Cloth: r.cloth,
 		Phase: r.game.Rules.Phase, Practice: r.practice, Score: r.match.Score,
 		Spectators: len(r.watchers), MaxSpectators: r.maxSpectators,
+		Players: make([]string, len(r.seats)), Size: len(r.seats),
 	}
 	for i := range r.seats {
 		info.Players[i] = r.seats[i].name
@@ -343,6 +449,10 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 	if r.practice && s != 0 {
 		s = -1 // a practice table has one player
 	}
+	if s >= 0 && r.teamRoom() && r.game.Rules.Phase != game.PhaseLobby {
+		c.SendJSON(protocol.NewError(protocol.ErrRoomFull, errGameOn.Error()))
+		return false
+	}
 	if s < 0 {
 		c.SendJSON(protocol.NewError(protocol.ErrRoomFull, "the room is full"))
 		return false
@@ -375,9 +485,16 @@ func (r *room) seatByToken(tok string) int {
 	return -1
 }
 
-// welcome tells c about its seat and the room, and the other player about c.
+// welcome tells c about its seat and the room, and the others about c.
 func (r *room) welcome(c *ws.Client, s int) {
-	c.SendJSON(protocol.Welcome{
+	c.SendJSON(r.welcomeMsg(s))
+	c.SendJSON(r.roomState())
+	r.sendChatLog(c)
+	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+}
+
+func (r *room) welcomeMsg(s int) protocol.Welcome {
+	return protocol.Welcome{
 		Type:     protocol.TypeWelcome,
 		V:        protocol.Version,
 		PlayerID: r.seats[s].id,
@@ -385,10 +502,28 @@ func (r *room) welcome(c *ws.Client, s int) {
 		Token:    r.seats[s].token,
 		RoomCode: r.code,
 		AimLine:  int(math.Round(max(0, r.hub.opts.AimLine) * 1000)),
-	})
-	c.SendJSON(r.roomState())
-	r.sendChatLog(c)
-	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	}
+}
+
+// handleSit moves seat s to the empty seat to, in the lobby: a 2v2 room's
+// players pick their teams so. The mover gets a new welcome (same token),
+// everyone the new room_state; the mover must press ready again.
+func (r *room) handleSit(s, to int) error {
+	switch {
+	case r.practice || r.game.Rules.Phase != game.PhaseLobby:
+		return game.ErrWrongPhase
+	case to < 0 || to >= len(r.seats):
+		return game.ErrBadInput
+	case to == s:
+		return nil
+	case !r.seats[to].empty():
+		return errSeatTaken
+	}
+	r.seats[to], r.seats[s] = r.seats[s], seat{}
+	r.seats[to].ready = false
+	r.sendTo(to, r.welcomeMsg(to))
+	r.broadcast(r.roomState())
+	return nil
 }
 
 // handleLeave runs when a socket closes. In the lobby the seat is freed at
@@ -419,24 +554,24 @@ func (r *room) handleLeave(c *ws.Client) {
 // away, from who is connected right now. It runs after every connectivity
 // change during a game.
 //
-//   - One player connected: the other's seat is held for ReconnectGrace;
-//     someone is waiting, so the absence is short.
+//   - Someone connected: each seat held for a reconnect is held for
+//     ReconnectGrace; someone is waiting, so the absence is short.
 //   - Nobody connected: nobody is waiting; the game survives AbandonTimeout
-//     and is then cancelled with both seats freed.
-//   - Both connected: nothing pending.
+//     and is then cancelled with every seat freed.
+//   - Everyone connected: nothing pending.
 //
 // Earlier timers are not stopped; they become stale through timerGen.
 func (r *room) rearmAwayTimers() {
 	r.timerGen++
 	gen := r.timerGen
-	switch r.connected() {
-	case 1:
+	switch n := r.connected(); {
+	case n > 0 && n < len(r.seats):
 		for i := range r.seats {
 			if st := &r.seats[i]; st.client == nil && !st.empty() {
 				r.after(r.hub.opts.ReconnectGrace, event{kind: evHoldExpired, seat: i, gen: gen})
 			}
 		}
-	case 0:
+	case n == 0:
 		r.after(r.hub.opts.AbandonTimeout, event{kind: evAbandon, gen: gen})
 	}
 }
@@ -471,20 +606,36 @@ func (r *room) handleAbandon(gen int) {
 
 // vacate empties a seat and, if a game was on, abandons it. A player who
 // leaves a match in progress, or does not come back to it in time, forfeits
-// it.
+// it. In 2v2 the match goes on while the side has a player left: the
+// teammate plays every turn of the side, and takes over the clock if it was
+// the empty seat's.
 func (r *room) vacate(s int) {
-	if r.matchLive() {
-		r.match.Forfeit(s, r.lastBreaker)
-	}
+	sd := side(s)
 	r.seats[s] = seat{}
+	goesOn := r.teamRoom() && r.game.Rules.Phase != game.PhaseLobby && !r.sideEmpty(sd)
+	if !goesOn && r.matchLive() {
+		r.match.Forfeit(sd, r.lastBreaker)
+	}
 	r.sendOthers(s, protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
+	if goesOn {
+		if r.turnSide >= 0 {
+			r.shooter = r.pickShooter(r.turnSide)
+		}
+		if r.clock.on && r.clock.seat == s {
+			r.clock.seat = r.actor()
+			r.syncClock()
+		}
+		r.rearmAwayTimers()
+		r.broadcast(r.roomState())
+		return
+	}
 
 	// A game cannot go on with an empty seat: back to the lobby.
 	if r.game.Rules.Phase != game.PhaseLobby {
 		r.stopTicker()
 		r.stopClock()
 		r.resetGame()
-		r.seats[1-s].ready = false
+		r.unready()
 		r.broadcast(r.roomState())
 	}
 }
@@ -503,17 +654,25 @@ func (r *room) handleMessage(s int, msg protocol.ClientMessage) {
 	case protocol.TypeAim:
 		r.handleAim(act, msg)
 	case protocol.TypeShoot:
-		err = r.handleShoot(act, msg)
+		if err = r.teammateErr(s); err == nil {
+			err = r.handleShoot(act, msg)
+		}
 	case protocol.TypePlaceCue:
 		if r.practice {
 			err = r.placeFree(game.CueBall, msg)
-		} else if err = r.game.PlaceCue(s, game.Vec{X: msg.X, Y: msg.Y}); err == nil {
-			r.broadcast(r.roomState())
+		} else if err = r.teammateErr(s); err == nil {
+			if err = r.game.PlaceCue(side(s), game.Vec{X: msg.X, Y: msg.Y}); err == nil {
+				r.broadcast(r.roomState())
+			}
 		}
 	case protocol.TypeChoose:
-		if err = r.choose(act, msg.Option); err == nil {
-			r.broadcast(r.roomState())
+		if err = r.teammateErr(s); err == nil {
+			if err = r.choose(side(act), msg.Option); err == nil {
+				r.broadcast(r.roomState())
+			}
 		}
+	case protocol.TypeSit:
+		err = r.handleSit(s, msg.Seat)
 	case protocol.TypePlaceBall:
 		err = r.placeFree(msg.ID, msg)
 	case protocol.TypeUndo:
@@ -557,11 +716,13 @@ func (r *room) handleReady(s int) error {
 	r.seats[s].ready = true
 	r.broadcast(protocol.Player{Type: protocol.TypePlayer, PlayerInfo: r.playerInfo(s)})
 
-	other := &r.seats[1-s]
-	if other.client != nil && other.ready {
-		r.newMatch()
-		r.startRack(r.hub.opts.Breaker() & 1)
+	for i := range r.seats {
+		if st := &r.seats[i]; st.client == nil || !st.ready {
+			return nil // the rack starts when everyone is ready
+		}
 	}
+	r.newMatch()
+	r.startRack(r.hub.opts.Breaker() & 1)
 	return nil
 }
 
@@ -574,6 +735,11 @@ func (r *room) handleRematch() error {
 	switch {
 	case r.practice:
 		r.startRack(0)
+	case r.match.Over() && slices.ContainsFunc(r.seats, func(st seat) bool { return st.empty() }):
+		// 2v2 with a seat left empty: back to the lobby to fill it
+		r.resetGame()
+		r.unready()
+		r.broadcast(r.roomState())
 	case r.match.Over():
 		opener := r.match.Opener(1 - r.lastBreaker)
 		r.newMatch()
@@ -584,9 +750,11 @@ func (r *room) handleRematch() error {
 	return nil
 }
 
-// newMatch replaces the match with an unplayed one of the room's settings.
+// newMatch replaces the match with an unplayed one of the room's settings;
+// in 2v2 each side starts again from its first player.
 func (r *room) newMatch() {
 	r.match = game.NewMatch(r.race, r.breaks)
+	r.next, r.turnSide = [2]int{}, -1
 }
 
 // matchLive reports whether a match is being played: a rack is on, or one
@@ -644,9 +812,7 @@ func (r *room) handleSetMatch(race int, breaks game.BreakRule) error {
 		r.newMatch()
 	}
 	if ph == game.PhaseLobby {
-		for i := range r.seats {
-			r.seats[i].ready = false
-		}
+		r.unready()
 	}
 	r.broadcast(r.roomState())
 	return nil
@@ -685,6 +851,7 @@ func (r *room) handleUndo() error {
 	last := len(r.history) - 1
 	r.game.Restore(r.history[last])
 	r.history = r.history[:last]
+	r.syncShooter()
 	r.broadcast(r.roomState())
 	return nil
 }
@@ -719,6 +886,8 @@ func (r *room) handleSetMode(mode game.Mode) error {
 		return game.ErrWrongPhase
 	case mode == r.mode:
 		return nil
+	case r.teamRoom() && mode != game.ModeEight:
+		return errBadPlayers
 	}
 	if (mode == game.ModeCarom) != (r.mode == game.ModeCarom) {
 		// Racks and points do not convert: the new game starts from its
@@ -734,9 +903,7 @@ func (r *room) handleSetMode(mode game.Mode) error {
 	r.mode = mode
 	r.game.SetMode(mode)
 	if ph == game.PhaseLobby {
-		for i := range r.seats {
-			r.seats[i].ready = false
-		}
+		r.unready()
 	}
 	r.broadcast(r.roomState())
 	return nil
@@ -767,9 +934,7 @@ func (r *room) handleSetTable(table game.TableID, cloth string) error {
 			r.startRack(0)
 			return nil
 		case ph == game.PhaseLobby:
-			for i := range r.seats {
-				r.seats[i].ready = false
-			}
+			r.unready()
 		}
 	}
 	r.broadcast(r.roomState())
@@ -783,8 +948,14 @@ func (r *room) startRack(breaker int) {
 		target = 0
 	}
 	r.game.SetTarget(target)
+	if r.turnSide >= 0 {
+		// the last turn of the rack before is over: its side moves on
+		r.next[r.turnSide] = (r.next[r.turnSide] + 1) % (len(r.seats) / 2)
+	}
+	r.turnSide = -1
 	r.game.Start(breaker)
 	r.noteRack()
+	r.syncShooter()
 	r.extended = [2]bool{}
 	r.startClock(r.hub.opts.ShotClock)
 	r.broadcast(r.roomState())
@@ -798,11 +969,11 @@ func (r *room) noteRack() {
 	}
 }
 
-// handleAim relays the shooter's aim preview unchanged to the other player
+// handleAim relays the shooter's aim preview unchanged to the other players
 // and the spectators.
 // Aim from anyone else is dropped silently: it is only cosmetic.
 func (r *room) handleAim(s int, msg protocol.ClientMessage) {
-	if r.practice || !r.game.Rules.InPlay() || r.game.Moving() || r.game.Rules.Turn != s {
+	if r.practice || !r.game.Rules.InPlay() || r.game.Moving() || r.turnSeat() != s {
 		return // nobody else to show it to in practice
 	}
 	if math.IsNaN(msg.Angle) || math.IsInf(msg.Angle, 0) || math.IsNaN(msg.Power) {
@@ -818,8 +989,12 @@ func (r *room) handleAim(s int, msg protocol.ClientMessage) {
 		Power:     math.Max(0, math.Min(1, msg.Power)),
 		Elevation: math.Max(0, math.Min(game.MaxElevation, msg.Elevation)),
 	}
-	r.sendDroppableTo(1-s, aim)
 	if data, err := json.Marshal(aim); err == nil {
+		for i := range r.seats {
+			if c := r.seats[i].client; c != nil && i != s {
+				c.SendDroppable(data)
+			}
+		}
 		for _, w := range r.watchers {
 			w.client.SendDroppable(data)
 		}
@@ -832,9 +1007,10 @@ func (r *room) handleShoot(s int, msg protocol.ClientMessage) error {
 	if r.practice {
 		before = r.game.Save()
 	}
-	if err := r.game.ShootElevated(s, msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec(), msg.Elevation); err != nil {
+	if err := r.game.ShootElevated(side(s), msg.Angle, msg.Power, msg.Call.Game(), msg.Spin.Vec(), msg.Elevation); err != nil {
 		return err
 	}
+	r.shotBy = s
 	r.breakShot = breaking
 	if r.practice {
 		r.history = append(r.history, before)
@@ -870,6 +1046,7 @@ func (r *room) tick() {
 		return
 	}
 	r.stopTicker()
+	r.syncShooter()
 	limit := r.hub.opts.ShotClock
 	if r.breakShot && r.game.Rules.Phase == game.PhaseOpen {
 		limit = r.hub.opts.LongShotClock // the first shot after the break
@@ -887,7 +1064,7 @@ func (r *room) tick() {
 	r.broadcast(protocol.Settled{
 		Type:         protocol.TypeSettled,
 		Balls:        st.Balls,
-		Shooter:      res.Shooter,
+		Shooter:      r.shotBy,
 		Pocketed:     pocketed,
 		OffTable:     res.OffTable,
 		Foul:         res.Foul,
@@ -897,11 +1074,11 @@ func (r *room) tick() {
 		PushedOut:    res.PushOut,
 		Safety:       res.Safety,
 		Phase:        st.Phase,
-		Turn:         st.Turn,
+		Turn:         r.turnSeat(),
 		Groups:       st.Groups,
 		BallInHand:   st.BallInHand,
 		Kitchen:      st.Kitchen,
-		Decision:     st.Decision,
+		Decision:     r.wireDecision(st.Decision),
 		Winner:       winner(st.Winner),
 		Clock:        r.clockInfo(),
 		Fouls:        st.Fouls,
@@ -917,29 +1094,37 @@ func (r *room) tick() {
 	})
 }
 
-// handleExtend spends seat s's extension: their running clock is set back to
-// the long limit.
+// handleExtend spends seat s's extension (one per side and game: in 2v2 one
+// per team): their running clock is set back to the long limit.
 func (r *room) handleExtend(s int) error {
 	switch {
 	case !r.clock.on:
 		return game.ErrWrongPhase
 	case r.clock.seat != s:
 		return game.ErrNotYourTurn
-	case r.extended[s]:
+	case r.extended[side(s)]:
 		return errNoExtension
 	}
-	r.extended[s] = true
+	r.extended[side(s)] = true
 	r.startClock(r.hub.opts.LongShotClock)
 	r.broadcast(r.clockUpdate())
 	return nil
 }
 
 // actor is the seat that must act next: the one deciding, or the shooter.
+// In 2v2 a decision by the shooter's side is the shooter's; one by the
+// other side is that side's next player's.
 func (r *room) actor() int {
-	if d := r.game.Rules.Decision; d != nil {
+	d := r.game.Rules.Decision
+	switch {
+	case !r.teamRoom() && d != nil:
 		return d.Seat
+	case !r.teamRoom():
+		return r.game.Rules.Turn
+	case d != nil && d.Seat != r.turnSide:
+		return r.pickShooter(d.Seat)
 	}
-	return r.game.Rules.Turn
+	return r.shooter
 }
 
 // startClock sets the shot clock to d for whoever must act now, or stops it
@@ -959,7 +1144,7 @@ func (r *room) stopClock() {
 	r.clock.gen++
 }
 
-// choose applies seat s's answer to the pending decision and starts the
+// choose applies side s's answer to the pending decision and starts the
 // clock for the shot it leads to: the long one for the first shot after an
 // 8-ball break, the normal one for a new break or a shot after a 9-ball
 // push out.
@@ -970,6 +1155,7 @@ func (r *room) choose(s int, opt game.Option) error {
 		return err
 	}
 	r.noteRack()
+	r.syncShooter()
 	limit := r.hub.opts.LongShotClock
 	if afterPush || r.game.Rules.Phase == game.PhaseBreaking {
 		limit = r.hub.opts.ShotClock
@@ -1015,13 +1201,14 @@ func (r *room) handleClockExpired(gen int) {
 	out := protocol.Timeout{Type: protocol.TypeTimeout, Seat: s}
 	if d := r.game.Rules.Decision; d != nil {
 		out.Option = d.Options[0]
-		if r.choose(s, out.Option) != nil {
+		if r.choose(side(s), out.Option) != nil {
 			return
 		}
 	} else {
-		if r.game.TimeFoul(s) != nil {
+		if r.game.TimeFoul(side(s)) != nil {
 			return
 		}
+		r.syncShooter()
 		r.endRack(game.FoulNone) // a third foul in a row loses a 9-ball rack
 		r.startClock(r.hub.opts.ShotClock)
 	}
@@ -1106,13 +1293,14 @@ func (r *room) roomState() protocol.RoomState {
 		Cloth:      r.cloth,
 		Practice:   r.practice,
 		Balls:      st.Balls,
-		Players:    [2]protocol.PlayerInfo{r.playerInfo(0), r.playerInfo(1)},
+		Players:    r.playerInfos(),
+		Size:       len(r.seats),
 		Phase:      st.Phase,
-		Turn:       st.Turn,
+		Turn:       r.turnSeat(),
 		Groups:     st.Groups,
 		BallInHand: st.BallInHand,
 		Kitchen:    st.Kitchen,
-		Decision:   st.Decision,
+		Decision:   r.wireDecision(st.Decision),
 		Winner:     winner(st.Winner),
 		Moving:     r.game.Moving(),
 		Clock:      r.clockInfo(),
@@ -1143,6 +1331,14 @@ func (r *room) matchInfo() *protocol.Match {
 	return &protocol.Match{Race: m.Race, Breaks: m.Breaks, Score: m.Score, Racks: racks, Winner: winner(m.Winner), Draw: m.Draw}
 }
 
+func (r *room) playerInfos() []protocol.PlayerInfo {
+	out := make([]protocol.PlayerInfo, len(r.seats))
+	for i := range out {
+		out[i] = r.playerInfo(i)
+	}
+	return out
+}
+
 func (r *room) playerInfo(s int) protocol.PlayerInfo {
 	st := &r.seats[s]
 	if r.practice {
@@ -1169,14 +1365,16 @@ func (r *room) broadcast(msg any) {
 }
 
 // sendOthers queues msg for everyone but the player in seat s: the other
-// player and the spectators.
+// players and the spectators.
 func (r *room) sendOthers(s int, msg any) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return
 	}
-	if c := r.seats[1-s].client; c != nil {
-		c.Send(data)
+	for i := range r.seats {
+		if c := r.seats[i].client; c != nil && i != s {
+			c.Send(data)
+		}
 	}
 	for _, w := range r.watchers {
 		w.client.Send(data)
@@ -1203,16 +1401,6 @@ func (r *room) broadcastDroppable(msg any) {
 func (r *room) sendTo(s int, msg any) {
 	if c := r.seats[s].client; c != nil {
 		c.SendJSON(msg)
-	}
-}
-
-func (r *room) sendDroppableTo(s int, msg any) {
-	c := r.seats[s].client
-	if c == nil {
-		return
-	}
-	if data, err := json.Marshal(msg); err == nil {
-		c.SendDroppable(data)
 	}
 }
 
@@ -1281,6 +1469,10 @@ func errorCode(err error) string {
 		return protocol.ErrBadSpectator
 	case errors.Is(err, game.ErrNoPushOut):
 		return protocol.ErrBadCall
+	case errors.Is(err, errBadPlayers):
+		return protocol.ErrBadPlayers
+	case errors.Is(err, errSeatTaken):
+		return protocol.ErrSeatTaken
 	}
 	return protocol.ErrBadMessage
 }

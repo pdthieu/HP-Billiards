@@ -39,6 +39,9 @@ const (
 	// changes how many spectators may watch (players only).
 	TypeChat        = "chat"
 	TypeSetAudience = "set_audience"
+	// TypeSit moves the sender to another empty seat, in the lobby of a
+	// room of four (2v2) or two; the server answers with a new welcome.
+	TypeSit = "sit"
 	// TypePing may be sent at any time, even before join; the server answers
 	// with TypePong. Lets a client notice a dead connection quickly.
 	TypePing = "ping"
@@ -65,7 +68,7 @@ const (
 	ErrBadMessage   = "bad_message"    // not JSON, unknown type or missing fields
 	ErrNotJoined    = "not_joined"     // anything but join before a successful join
 	ErrRoomNotFound = "room_not_found" // join with an unknown room code
-	ErrRoomFull     = "room_full"      // both seats are taken
+	ErrRoomFull     = "room_full"      // every seat is taken, or a 2v2 game is on
 	ErrWrongPhase   = "wrong_phase"    // the action is not allowed in this phase
 	ErrBallsMoving  = "balls_moving"   // a shot is still in progress
 	ErrNotYourTurn  = "not_your_turn"
@@ -85,6 +88,8 @@ const (
 	ErrChatCooldown = "chat_cooldown"  // a comment too soon after the sender's last; see Error.RetryMs
 	ErrBadSpectator = "bad_spectators" // set_audience (or room creation) with a number outside 0 to the server's limit
 	ErrBadTable     = "bad_table"      // set_table (or room creation) with an unknown table or cloth
+	ErrSeatTaken    = "seat_taken"     // sit on a seat someone has
+	ErrBadPlayers   = "bad_players"    // room creation with players other than 2 or 4, 4 outside 8-ball, or set_mode away from 8-ball in a 2v2 room
 )
 
 // ClientMessage is any client → server message; only the fields of its Type
@@ -105,6 +110,9 @@ type ClientMessage struct {
 
 	// set_audience
 	Spectators *int `json:"spectators"`
+
+	// sit: the seat to move to
+	Seat int `json:"seat"`
 
 	// aim, shoot
 	Angle float64 `json:"angle"` // radians, 0 = +x, y down
@@ -189,7 +197,8 @@ type Clock struct {
 	Paused bool `json:"paused"` // the player is offline; the clock waits for them
 	// Extension is what an extension sets the clock to, in milliseconds.
 	Extension int `json:"extension"`
-	// Extensions by seat: whether that player may still extend this game.
+	// Extensions by side (seat % 2): whether that player, or team, may
+	// still extend this game.
 	Extensions [2]bool `json:"extensions"`
 }
 
@@ -273,17 +282,18 @@ type RoomState struct {
 	Cloth      string           `json:"cloth"`    // the cloth's colour (set_table)
 	Practice   bool             `json:"practice"` // one player plays both seats
 	Balls      []game.BallState `json:"balls"`    // balls on the table
-	Players    [2]PlayerInfo    `json:"players"`
+	Players    []PlayerInfo     `json:"players"` // every seat: 2, or 4 in a 2v2 room
+	Size       int              `json:"size"`    // how many seats: 2, or 4 (2v2)
 	Phase      game.Phase       `json:"phase"`
-	Turn       int              `json:"turn"`
-	Groups     [2]game.Group    `json:"groups"`     // by seat, "" until assigned
+	Turn       int              `json:"turn"`       // the seat that shoots (or decides) next
+	Groups     [2]game.Group    `json:"groups"`     // by side (seat % 2), "" until assigned
 	BallInHand bool             `json:"ballInHand"` // Turn may place the cue ball
 	Kitchen    bool             `json:"kitchen"`    // ...only above the head string
 	Decision   *game.Decision   `json:"decision"`   // pending post-break choice or null
-	Winner     *int             `json:"winner"`     // seat or null
+	Winner     *int             `json:"winner"`     // side (seat % 2) or null
 	Moving     bool             `json:"moving"`     // a shot is in progress
 	Clock      *Clock           `json:"clock"`      // null while nobody has to act
-	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by seat
+	Fouls      [2]int           `json:"fouls"`      // 9-ball: consecutive fouls by side
 	PushOut    bool             `json:"pushOut"`    // 9-ball: turn may push out on this shot
 	Undos      int              `json:"undos"`      // practice: shots undo can take back
 	// Target and Carom: 3-cushion only, the points the game is played to
@@ -340,7 +350,7 @@ var ImpactKinds = [...]string{game.ImpactBall: "ball", game.ImpactCushion: "rail
 type Settled struct {
 	Type         string           `json:"type"`
 	Balls        []game.BallState `json:"balls"`
-	Shooter      int              `json:"shooter"`
+	Shooter      int              `json:"shooter"`            // the seat that shot
 	Pocketed     []int            `json:"pocketed"`           // ids in order, cue ball (0) included
 	OffTable     []int            `json:"offTable,omitempty"` // ids driven off the table, in order, cue ball included
 	Foul         game.Foul        `json:"foul,omitempty"`
@@ -349,8 +359,8 @@ type Settled struct {
 	PushedOut    bool             `json:"pushedOut"`        // 9-ball: this shot was a push out
 	Safety       bool             `json:"safety,omitempty"` // 8-ball: the shooter called a safety
 	Phase        game.Phase       `json:"phase"`
-	Turn         int              `json:"turn"`
-	Groups       [2]game.Group    `json:"groups"`
+	Turn         int              `json:"turn"`   // the seat that shoots (or decides) next
+	Groups       [2]game.Group    `json:"groups"` // by side, as Winner and Fouls
 	BallInHand   bool             `json:"ballInHand"`
 	Kitchen      bool             `json:"kitchen"`
 	Decision     *game.Decision   `json:"decision"`

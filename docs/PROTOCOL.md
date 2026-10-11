@@ -4,8 +4,8 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "table": "predator", "cloth": "electric-blue", "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), the table and its cloth (see Tables; default `diamond` and `tournament-blue`), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`, an unknown table or cloth `400 {"error": "bad_table", ...}`. Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
-- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "table": "diamond", "cloth": "tournament-blue", "players": ["Ann", ""], "phase": "lobby", "score": [0, 0], "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `score` the match in play by seat (racks won; in 3-cushion the game's points), `[0, 0]` until a match starts. `seated` counts taken seats including ones held for a reconnect; a room with `seated` < 2 can be joined. `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "table": "predator", "cloth": "electric-blue", "players": 2, "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), the table and its cloth (see Tables; default `diamond` and `tournament-blue`), how many play (`2`, the default, or `4` for 2v2 in 8-ball; see Teams), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`, an unknown table or cloth `400 {"error": "bad_table", ...}`, `players` other than 2 or 4, or 4 outside 8-ball, `400 {"error": "bad_players", ...}` (practice is always one player). Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "table": "diamond", "cloth": "tournament-blue", "players": ["Ann", ""], "size": 2, "phase": "lobby", "score": [0, 0], "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `size` how many seats (2, or 4 in 2v2), `score` the match in play by side (racks won; in 3-cushion the game's points), `[0, 0]` until a match starts. `seated` counts taken seats including ones held for a reconnect; a room with `seated` < `size` can be joined (a 2v2 room only in the `lobby`). `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
 
@@ -25,8 +25,9 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 | type | fields | notes |
 |---|---|---|
 | `join` | `roomCode`, `name`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
-| `ready` | – | Lobby only. The rack starts when both seated players are ready. |
-| `aim` | `angle`, `power`, `elevation?` | Shooter only, at most ~10 Hz. Relayed to the other player; silently dropped when it is not the sender's turn. |
+| `ready` | – | Lobby only. The rack starts when every seat is taken and every player is ready. |
+| `sit` | `seat` | Lobby only: moves the sender to an empty seat (picks a team in 2v2). The sender gets a new `welcome` with the same token, then everyone a `room_state`; the sender must press ready again. Fails with `seat_taken`, `bad_input` (no such seat) or `wrong_phase`. |
+| `aim` | `angle`, `power`, `elevation?` | Shooter only, at most ~10 Hz. Relayed to the other players and the spectators; silently dropped when it is not the sender's turn. |
 | `shoot` | `angle`, `power`, `call?`, `spin?`, `elevation?` | `power` is clamped to [0,1]. `call` is optional; in 8-ball it is required, with a pocket, when the 8-ball is the shooter's legal target; in 9-ball it is only `{"pushOut": true}` (see 9-ball). `spin` is `{"x", "y"}`, the cue tip offset from the centre of the cue ball in units of the usable radius, clamped to the unit disc: `x` > 0 right english (as the shooter sees it), `y` > 0 top spin. Omitted means a centre hit. `elevation` is how far the butt of the cue is raised, in radians above the horizontal, clamped to [0, 85°]; omitted or 0 is a level cue (see Jump shots and Massé). |
 | `place_cue` | `x`, `y` | Only for the player to shoot while `ballInHand` is true. |
 | `choose` | `option` | Answers a pending `decision`. |
@@ -157,6 +158,18 @@ UMB three-cushion carom, on a match table without pockets: 2.84 × 1.42 m betwee
 
 In practice (`rerack` with `3cushion`) the player always strikes the white; shots are judged for `made` and `cushions` but nothing is counted.
 
+## Teams (2v2)
+
+A room created with `players: 4` (8-ball only) has four seats: seats 0 and 2 are one side, 1 and 3 the other (the side is `seat % 2`). The rules are those of 8-ball between the two sides; teammates take turns in a fixed rotation, 0 → 1 → 2 → 3 → 0:
+
+- Whoever pockets shoots on. When the turn crosses to the other side, that side's next player shoots: each side keeps its own place in the rotation, from rack to rack, and starts again from its first seat with each match.
+- A decision after the break (see Decisions) is made by the deciding side's next player, and moves nobody's place: after `rerack_opponent_breaks` the same player breaks again.
+- Who must act is always a **seat**: `turn`, `decision.seat`, `clock.seat`, `timeout.seat`, `settled.shooter` (who shot), `aim.seat`, `chat.seat`. What belongs to a team is by **side**: `groups`, `fouls`, `winner`, `match.score`, `racks[].winner` and `.breaker`, and `clock.extensions` (one extension per team per game). In a room of two the seat is the side, so nothing changes there.
+- `shoot`, `place_cue` and `choose` from the teammate of the player who must act fail with `not_your_turn`.
+- The rack starts when all four are seated and ready. Teams are picked in the lobby with `sit`. While a game is on, nobody can join a 2v2 room (`room_full`); spectators can.
+- A player who drops out has their seat held for `-hold` (60 s) as in a room of two; their clock waits. If they do not come back (or `leave`), the seat empties and the match goes on: the teammate plays every turn of the side and takes over the clock. Only when a side has nobody left does it forfeit the match. After a match won with a seat empty, `rematch` goes back to the lobby so the seat can be filled.
+- `set_mode` away from 8-ball fails with `bad_players`.
+
 ## Spectators and chat
 
 A spectator joins with `{"type": "join", "roomCode", "name", "watch": true}`. It gets `welcome` with `seat` -1, `spectator` true and no token, then `room_state`, then `chat_log` if there are comments. From then on it gets what the players get: `room_state`, `snapshot`, `settled`, `player`, `clock`, `timeout`, and the shooter's `aim`.
@@ -200,6 +213,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
     {"seat": 0, "name": "Ann", "connected": true, "ready": true},
     {"seat": 1, "name": "", "connected": false, "ready": false}
   ],
+  "size": 2,
   "phase": "breaking",
   "turn": 0,
   "groups": ["", ""],
@@ -217,10 +231,11 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 }
 ```
 
-- `players[].connected` false with a non-empty `name` is a seat held for a player who dropped out (see Reconnecting); `name` `""` is an empty seat.
+- `players` has one entry per seat: `size` of them, 2 or 4 (see Teams). `players[].connected` false with a non-empty `name` is a seat held for a player who dropped out (see Reconnecting); `name` `""` is an empty seat.
+- `turn` is the seat that shoots next; `groups`, `fouls` and `winner` are by side (`seat % 2`), which in a room of two is the seat.
 - `ballInHand`: the player in `turn` may send `place_cue`. `kitchen`: placement is limited to x ≤ 0.635 (break, and after a foul on the break).
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
-- `winner`: seat or `null`.
+- `winner`: side or `null`.
 - `moving`: a shot is in progress; `snapshot`s and a `settled` will follow.
 - `mode`: `8ball`, `9ball` or `3cushion`. `table` and `cloth`: the room's table and the colour of its cloth (see Tables).
 - `target` and `carom`: 3-cushion only (left out otherwise). `target` is the points the game is played to (0 in practice); `carom` is the score: `{"points": [7, 5], "innings": [12, 12], "highRun": [3, 2], "run": 1, "cue": [0, 1], "breaker": 0, "equalizing": false}` with each seat's points, innings started and best run, the points of the inning in progress, each seat's ball and who broke.
@@ -302,7 +317,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_message` | Not JSON, no `type`, unknown `type`, or `join` when already joined. |
 | `not_joined` | A message other than `join` before joining. |
 | `room_not_found` | Unknown room code. |
-| `room_full` | Both seats are taken. |
+| `room_full` | Every seat is taken, or a 2v2 game is on. |
 | `wrong_phase` | Not allowed in the current phase, or a decision is pending. |
 | `balls_moving` | A shot is still in progress. |
 | `not_your_turn` | It is the other player's turn or decision. |
@@ -322,12 +337,14 @@ Ends a shot. Positions are exact; clients snap to them.
 | `chat_cooldown` | A comment within 5 seconds of the sender's last; `retryMs` says how long to wait. |
 | `bad_spectators` | `set_audience` (or room creation) with a number outside 0 to the server's limit, or in a practice room. |
 | `bad_table` | `set_table` (or room creation) with a table or cloth not listed under Tables. |
+| `seat_taken` | `sit` on a seat someone has. |
+| `bad_players` | Room creation with `players` other than 2 or 4, or 4 outside 8-ball; `set_mode` away from 8-ball in a 2v2 room. |
 
 ## Shot clock
 
 The player who must act has 30 seconds (`-shot-clock`) for each shot, ball-in-hand placement included, and for each post-break decision. The first shot after the break gets 40 seconds (`-shot-clock-long`), whoever takes it, and also when a decision leads to playing on.
 
-- Each player has one extension per game: `extend` sets their running clock back to 40 seconds. Rematches give a new one.
+- Each player has one extension per game (in 2v2, each team): `extend` sets their running clock back to 40 seconds. Rematches give a new one.
 - The clock stops while balls move and restarts for whoever acts next when the shot settles.
 - It runs only while the player it counts for is connected. A dropped connection pauses it with the time left; it resumes on reconnect. The seat hold (see below) is what limits an absence.
 - When it runs out (`timeout`):

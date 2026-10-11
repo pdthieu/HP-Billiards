@@ -156,6 +156,9 @@ type RoomSettings struct {
 	// same cloth.
 	Table game.TableID `json:"table"`
 	Cloth string       `json:"cloth"`
+	// Players is 2, or 4 for 2v2 (8-ball only): seats 0 and 2 against 1
+	// and 3, teammates shooting in turn. 0 is 2; practice is always 2.
+	Players int `json:"players"`
 }
 
 // Cloths are the cloth colours a room can pick: Simonis's names for the
@@ -204,6 +207,14 @@ func (s *RoomSettings) fill(limit int) {
 	if s.Cloth == "" {
 		s.Cloth = DefaultCloth
 	}
+	if s.Players == 0 || s.Practice {
+		s.Players = 2
+	}
+}
+
+// validPlayers: 2 players, or 4 for 2v2 8-ball.
+func (s *RoomSettings) validPlayers() bool {
+	return s.Players == 2 || s.Players == 4 && s.Mode == game.ModeEight
 }
 
 // CreateRoom starts a new empty room and returns its code. It fails with
@@ -216,6 +227,9 @@ func (h *Hub) CreateRoom(settings RoomSettings) (string, error) {
 	}
 	if !settings.Table.Valid() || !Cloths[settings.Cloth] {
 		return "", errBadTable
+	}
+	if !settings.validPlayers() {
+		return "", errBadPlayers
 	}
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -242,13 +256,15 @@ type RoomInfo struct {
 	Breaks   game.BreakRule `json:"breaks"`
 	Table    game.TableID   `json:"table"`
 	Cloth    string         `json:"cloth"`
-	Players  [2]string      `json:"players"` // names; "" for an empty seat
+	Players  []string       `json:"players"` // names by seat; "" for an empty seat
+	Size     int            `json:"size"`    // seats: 2, or 4 for 2v2
 	Phase    game.Phase     `json:"phase"`
-	// Score is the match in play by seat: racks won, or a 3-cushion game's
-	// points; 0–0 until a match starts.
+	// Score is the match in play by side (seat % 2): racks won, or a
+	// 3-cushion game's points; 0–0 until a match starts.
 	Score [2]int `json:"score"`
 	// Seated counts taken seats, including seats held for a reconnect;
-	// a room with Seated < 2 can be joined.
+	// a room with Seated < Size can be joined, a 2v2 room only in the
+	// lobby.
 	Seated int `json:"seated"`
 	// Spectators watch now; one more may join while it is below
 	// MaxSpectators.
@@ -334,6 +350,9 @@ func (h *Hub) HandleCreateRoom(w http.ResponseWriter, req *http.Request) {
 		return
 	case !body.Table.Valid() || !Cloths[body.Cloth]:
 		bad(protocol.ErrBadTable, "unknown table or cloth")
+		return
+	case !body.validPlayers():
+		bad(protocol.ErrBadPlayers, errBadPlayers.Error())
 		return
 	}
 	code, err := h.CreateRoom(body)
