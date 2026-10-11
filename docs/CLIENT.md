@@ -551,9 +551,8 @@ loudness within its kind:
 ### Commentary
 
 A commentator says a short line in Vietnamese after some shots, picked from
-`web/voice/lines.json` (78 lines in 10 kinds), at most one every 3 s. The line
-also shows as a caption over the table, also with the sound off. Replays stay
-quiet.
+`web/voice/lines.json` (78 lines in 10 kinds), at most one every 3 s. It is
+only heard: nothing is written over the table. Replays stay quiet.
 
 Everyone in the room, players and spectators, hears the same line. There is
 no extra message for it: every client draws the line, and whether one is

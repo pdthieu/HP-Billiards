@@ -3652,7 +3652,7 @@ function setVolume(v) {
 // strong language; Settings → Sound can leave them out. Everyone in the
 // room hears the same line: each machine draws it from a generator seeded
 // by what it got from the server about the shot, which is the same for all.
-// At most one line every 3 s, shown as a caption too.
+// At most one line every 3 s, heard only: nothing is written on the table.
 
 const VOICE_GAP_MS = 3000;
 const VOICE_DELAY_MS = 250; // after the balls have had their say
@@ -3690,8 +3690,8 @@ function seeded(text) {
 
 // pickLine draws a line of kind with rnd. Someone who leaves strong language
 // out gets a clean line of the same kind in place of a strong one (drawn
-// with the next number, so everyone's draws stay in step). Lines not loaded
-// yet still count, as captions.
+// with the next number, so everyone's draws stay in step). A line not loaded
+// yet still counts, silently, so the draws stay in step too.
 function pickLine(kind, rnd) {
   const all = SND.lines.filter((l) => l.kind === kind);
   if (!all.length) return null;
@@ -3720,19 +3720,6 @@ function speak(kind, rnd) {
     src.connect(g).connect(SND.master);
     src.start(ctx.currentTime + VOICE_DELAY_MS / 1000);
   }
-  caption(line.text);
-}
-
-// caption shows the line over the table for a moment, also with the sound off.
-function caption(text) {
-  const el = $('voiceCaption');
-  el.textContent = text;
-  el.hidden = false;
-  el.classList.remove('is-on');
-  void el.offsetWidth;
-  el.classList.add('is-on');
-  clearTimeout(caption.timer);
-  caption.timer = setTimeout(() => { el.hidden = true; }, 2200);
 }
 
 // voiceFor picks what the commentator says about a settled shot. Every

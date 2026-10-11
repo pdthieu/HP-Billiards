@@ -111,7 +111,7 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
     console.log('audience limit ok');
 
     // The commentator: the lines load, a shot with two balls made gets a
-    // great line with its caption, and strong language can be left out.
+    // great line (heard, not written), and strong language can be left out.
     await A.mouse.click(10, 300); // a gesture: the audio starts
     await A.waitForFunction(() => SND.lines.length > 60, null, { timeout: 10000 });
     const said = await A.evaluate(() => {
@@ -122,7 +122,6 @@ function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw ne
       return { n: SND.voices - before, line: SND.lines.find((l) => l.id === SND.lastLine) };
     });
     if (said.n !== 1 || said.line.kind !== 'great') fail(`commentator ${JSON.stringify(said)}`);
-    await A.waitForFunction((t) => document.getElementById('voiceCaption').textContent === t && !document.getElementById('voiceCaption').hidden, said.line.text);
     const strong = await A.evaluate(() => {
       SND.strong = false;
       let n = 0;

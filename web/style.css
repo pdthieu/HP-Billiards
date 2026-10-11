@@ -153,15 +153,6 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
 .chat-bubble.is-leaving { opacity: 0; }
 .chat-bubble .chat__from { color: #FFFFFF; }
 
-/* the commentator's line, under the top of the table */
-.voice-caption { position: absolute; top: 14%; left: 50%; z-index: 2; transform: translateX(-50%); pointer-events: none; max-width: 80%;
-  padding: 6px 16px; border-radius: var(--r-pill); background: rgba(13, 18, 24, .8); color: #FFE2B4; text-align: center;
-  font: 600 18px/24px var(--font-ui); letter-spacing: .01em; }
-.voice-caption::before { content: "🎙 "; }
-.voice-caption.is-on { animation: caption-in 2.2s var(--ease-out) both; }
-@keyframes caption-in { 0% { opacity: 0; transform: translate(-50%, 6px) scale(.96); } 10%, 82% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { .voice-caption.is-on { animation: none; } }
-
 /* your move: the table lights up (gold), red in the shot clock's last ten
    seconds and pulsing faster in the last five; resize() lays the light
    over the table canvas */
