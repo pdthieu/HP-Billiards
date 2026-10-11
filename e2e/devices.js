@@ -196,6 +196,7 @@ function stubs() {
     await P.click('#hapticsToggle');
     await P.click('#settingsClose');
 
+    await P.click('#menuBtn'); // the practice tools, from the header on a phone held upright
     await P.click('#practiceLeave');
     await P.waitForFunction(() => !document.getElementById('landing').hidden);
     if (await P.evaluate(() => window.__wake) !== 0) fail('the wake lock outlived the room');

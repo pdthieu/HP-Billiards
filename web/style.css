@@ -1140,3 +1140,92 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
 .team-pick__seat.is-me { border-color: var(--accent-ring); background: var(--accent-soft); color: var(--accent-text); }
 .team-pick__seat.is-ready::after { content: " ✓"; color: var(--ok); }
 .team-pick__sit { min-height: 26px; padding: 0 10px; font-size: 13px; }
+
+/* --- a phone held upright, in a rack: laid out like 8 Ball Pool -------------
+   A column either side of the table: side A's balls over the power bar on
+   the left, side B's balls, the cue-ball button and the upright fine aim
+   wheel on the right (Settings → "Power bar on the right" swaps the bar
+   and the tools). Nothing under the table: the band over it holds what to
+   hit and the shot's toggles (statusCall). The header holds a card per
+   player and the game with the score between them. Elsewhere none of
+   these pieces show. */
+.seat__avatar, .seat__faces, .tray, .side-tools, .status .call { display: none; }
+.menu-btn[hidden] { display: none; }
+@media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
+  body.is-playing .slot { display: none; }
+  body.is-playing .stage { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas: "tl table tr" "bar table tools"; gap: 10px 4px; padding: 0 2px 8px; place-items: center; }
+  body.is-playing .stage:has(.pbar--left) { grid-template-areas: "tl table tr" "tools table bar"; padding: 0 2px 8px; }
+  body.is-playing .stage__table { grid-area: table; }
+  body.is-playing .pbar { grid-area: bar; order: 0; width: 22px; height: auto; align-self: stretch; }
+  body.is-playing .pbar__readout { right: auto; left: calc(100% + 8px); }
+  body.is-playing .pbar--left .pbar__readout { left: auto; right: calc(100% + 8px); }
+
+  /* the balls of each side */
+  body.is-playing .tray { grid-area: tl; align-self: start; display: flex; flex-direction: column; gap: 5px; padding: 5px 4px; margin-top: 6px;
+    border-radius: var(--r-pill); background: rgba(0, 0, 0, .22); box-shadow: inset 0 0 0 1px var(--hall-chip-line); transition: box-shadow var(--dur-3) var(--ease-out); }
+  body.is-playing #trayR { grid-area: tr; }
+  body.is-playing .tray[hidden] { display: none; }
+  body.is-playing .tray--on { box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .tray__slot { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6); }
+  .tray__slot .ball { --size: 18px; }
+
+  /* the cue ball (spin and jump) and the fine aim wheel, upright */
+  body.is-playing .side-tools { grid-area: tools; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }
+  body.is-playing .side-tools.is-off { visibility: hidden; }
+  .side-tools .opts-btn { display: inline-block; flex: none; width: 34px; height: 34px; }
+  .side-tools .angle { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .side-tools .angle > .field__label, .side-tools .angle__row .nudge { display: none; }
+  .side-tools .angle__row { display: block; order: -1; }
+  .side-tools .angle__readout { display: block; min-width: 0; width: 36px; text-align: center; font-size: 9px; line-height: 12px; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  .side-tools .jog { flex: 1; min-height: 90px; width: 26px; height: auto; }
+
+  /* what to hit and the toggles, on the band over the table */
+  body.is-playing .status .call { grid-area: 1 / 1; z-index: 1; width: 100%; min-width: 0; display: none; align-items: center; gap: 6px; padding: 0 2px; }
+  body.is-playing .status--call .call { display: flex; }
+  body.is-playing .status--call .status__layer { opacity: 0 !important; pointer-events: none; }
+  body.is-playing .status .call__line { flex: 1 1 auto; min-width: 0; margin: 0; font-size: 12px; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+  body.is-playing .status .call__actions { flex: none; display: flex; gap: 4px; }
+  body.is-playing .status .call__actions :is(.toggle, .btn) { min-height: 22px; padding: 0 8px; font-size: 12px; }
+  body.is-playing .status .hint, body.is-playing .status #handTag { display: none; }
+
+  /* the header: a card per player, the game and the score between */
+  body.is-playing .hdr { height: 62px; align-items: center; }
+  body.is-playing .hdr__match { justify-content: space-between; align-items: center; }
+  body.is-playing .seat, body.is-playing .seat--team { flex-direction: column; height: auto; min-height: 0; max-width: 112px; gap: 2px; padding: 3px 8px 2px; border-radius: 12px; }
+  body.is-playing .seat--right .seat__body { align-items: center; }
+  body.is-playing .seat__body { align-items: center; gap: 0; }
+  body.is-playing .seat__line { justify-content: center; }
+  body.is-playing .seat__name, body.is-playing .seat--compact .seat__name { font-size: 11px; line-height: 14px; max-width: 10ch; }
+  body.is-practice.is-playing .seat__name { max-width: 20ch; } /* one card: room for the name */
+  body.is-playing .seat .tag, body.is-playing .seat__cue, body.is-playing .seat__state { display: none; }
+  body.is-playing .seat__avatar { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+    font: 700 14px/1 var(--font-ui); color: #0D1218; background: var(--accent); box-shadow: 0 0 0 2px rgba(0, 0, 0, .35); }
+  body.is-playing .seat__avatar--p1 { background: var(--ball-2); color: #fff; }
+  body.is-playing .seat__avatar.is-empty { background: transparent; box-shadow: inset 0 0 0 1.5px var(--hall-chip-line); }
+  body.is-playing .seat--team .seat__faces { display: flex; }
+  body.is-playing .seat--team .seat__faces .seat__avatar { width: 24px; height: 24px; font-size: 11px; }
+  body.is-playing .seat--team .seat__faces .seat__avatar + .seat__avatar { margin-left: -6px; }
+  body.is-playing .seat--team .seat__line:not(.is-on) { display: none; } /* the one who shoots, or the first */
+  body.is-playing .seat--team:not(:has(.is-on)) .seat__line:first-child { display: flex; }
+  body.is-playing .seat .seat__dots:not(:has(.ball:only-child)) { display: none; } /* the trays show the groups; 3-cushion keeps its ball */
+  body.is-playing .seat .hold { position: absolute; top: -2px; right: -4px; }
+  body.is-playing .seat--right .hold { right: auto; left: -4px; }
+  body.is-playing button.score { display: flex; flex-direction: column; align-items: center; }
+  body.is-playing button.score::before { content: attr(data-mode); font: 700 11px/14px var(--font-ui); letter-spacing: .04em; color: var(--hall-text); text-transform: uppercase; }
+
+  /* the practice tools open from the menu button as a small list */
+  body.is-playing .practice { position: fixed; top: 58px; right: 8px; z-index: var(--z-overlay); height: auto; flex-direction: column; align-items: stretch; gap: 6px;
+    padding: 8px; border-radius: var(--r-lg); background: var(--surface-1); border: 1px solid var(--hairline-strong); box-shadow: 0 16px 40px -12px rgba(0, 0, 0, .6); }
+  body.is-playing .practice:not(.is-open) { display: none; }
+  body.is-playing .practice .practice__label { display: inline; }
+  body.is-playing .practice .practice__sep { display: none; }
+  body.is-playing .practice .btn--small { justify-content: flex-start; min-height: 40px; gap: 8px; padding: 0 14px; }
+}
+@media not ((max-width: 600px) and (orientation: portrait)) { .menu-btn { display: none; } }
+/* the upright wheel: the ticks roll downwards */
+.jog--v { cursor: ns-resize; }
+.jog--v .jog__ticks { inset: 0 7px;
+  background: repeating-linear-gradient(0deg, var(--text-muted) 0 1px, transparent 1px 10px) 4px var(--jog-y, 0px) / 8px auto repeat-y,
+              repeating-linear-gradient(0deg, var(--text) 0 1.5px, transparent 1.5px 50px) 0 var(--jog-y, 0px) / 100% auto repeat-y; }
+.jog--v .jog__mark { left: 4px; right: 4px; top: 50%; bottom: auto; width: auto; height: 2px; margin: -1px 0 0; }

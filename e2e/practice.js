@@ -217,21 +217,31 @@ async function shootAndSettle(page, angle, power) {
     console.log('phone table:', Math.round(layout.tableW * 100) + '% wide,', Math.round(layout.tableH * 100) + '% high');
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
 
-    // The fine aim wheel is always in the strip under the table; the spin
-    // and the jump slider are behind the small cue ball.
-    if (await P.isVisible('#spinPad')) fail('spin pad shown in the phone shot row');
-    if (await P.isVisible('#elevRange')) fail('jump slider shown in the phone shot row');
-    if (!(await P.isVisible('#shotPanel #aimJog'))) fail('#aimJog not in the phone shot panel');
-    const under = await P.evaluate(() => document.getElementById('aimJog').getBoundingClientRect().top < document.getElementById('table').getBoundingClientRect().bottom);
-    if (under) fail('the wheel is over the table');
-    const pj = await P.locator('#shotPanel #aimJog').boundingBox();
-    if (pj.width < 60) fail(`wheel ${pj.width}px wide`);
-    // the fine aim wheel, under the finger
+    // Laid out like 8 Ball Pool: the power bar in the left column, the cue
+    // ball and the upright fine aim wheel in the right one, nothing under
+    // the table; the spin and the jump slider are behind the cue ball, the
+    // practice tools behind the menu button.
+    if (await P.isVisible('#spinPad')) fail('spin pad shown beside the table');
+    if (await P.isVisible('#elevRange')) fail('jump slider shown beside the table');
+    if (!(await P.isVisible('#sideTools #aimJog')) || !(await P.isVisible('#sideTools #optionsBtn'))) fail('no wheel or cue ball in the right column');
+    if (await P.isVisible('#controls') || await P.isVisible('#practiceBar')) fail('something under the table');
+    const cols = await P.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      return { bar: r('powerBar').right <= r('table').left, wheel: r('aimJog').left >= r('table').right };
+    });
+    if (!cols.bar || !cols.wheel) fail(`columns ${JSON.stringify(cols)}`);
+    await P.click('#menuBtn');
+    if (!(await P.isVisible('#undoBtn')) || !(await P.isVisible('#rackBtn'))) fail('the menu has no practice tools');
+    await P.click('#menuBtn');
+    if (await P.isVisible('#undoBtn')) fail('the practice menu stayed open');
+    const pj = await P.locator('#sideTools #aimJog').boundingBox();
+    if (pj.height < 90) fail(`wheel ${pj.height}px tall`);
+    // the fine aim wheel, under the finger: downwards turns clockwise
     const p0 = await P.evaluate(() => S.angle);
-    await P.touchscreen.tap(pj.x + 10, pj.y + pj.height / 2); // a tap alone turns nothing
-    await P.mouse.move(pj.x + 20, pj.y + pj.height / 2);
+    await P.touchscreen.tap(pj.x + pj.width / 2, pj.y + 10); // a tap alone turns nothing
+    await P.mouse.move(pj.x + pj.width / 2, pj.y + 20);
     await P.mouse.down();
-    await P.mouse.move(pj.x + 70, pj.y + pj.height / 2, { steps: 5 });
+    await P.mouse.move(pj.x + pj.width / 2, pj.y + 70, { steps: 5 });
     await P.mouse.up();
     const pturn = (await P.evaluate(() => S.angle) - p0) * 180 / Math.PI;
     if (Math.abs(pturn - 1) > 0.01) fail(`the wheel turned ${pturn}°`);

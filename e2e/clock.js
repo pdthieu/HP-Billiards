@@ -99,7 +99,7 @@ async function ring(page, seat) {
     }
     const status = await waiter.textContent('#status');
     if (!/ran out of time/.test(status) || !/break instead/.test(status)) fail(`status after the time foul: ${status}`);
-    if (await waiter.isHidden('#shotPanel')) fail('the new breaker has no shot panel');
+    if (!(await waiter.evaluate(() => isMyShot()))) fail('the new breaker has no shot');
     if (!(await ring(A, 1 - turn))) fail('no ring for the new breaker');
     await waiter.waitForFunction(() => $('tableWrap').classList.contains('is-my-turn') && SND.chimes >= 1, null, { timeout: 3000 });
     await shooter.waitForFunction(() => !$('tableWrap').className.match(/is-my-turn|is-hurry/), null, { timeout: 3000 });

@@ -767,6 +767,7 @@ function onSettled(msg) {
   setClock(msg.clock);
   newTurn();
   describeShot(msg);
+  holdStatus();
   voiceFor(msg);
   refreshPanels();
   showMatchIfWon(1600); // after the result banner
@@ -856,6 +857,7 @@ function onTimeout(msg) {
   S.clock = null;
   toast(text, isMe(msg.seat));
   setStatus(text, 'foul');
+  holdStatus();
   speak('timeout', seeded(JSON.stringify([S.roomCode, 'timeout', msg])));
 }
 
@@ -1668,6 +1670,20 @@ spinBox.before(spinHome);
 const portraitPhone = matchMedia('(max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px)');
 const elevHome = document.createComment('');
 elevBox.before(elevHome);
+// Held upright in a rack the phone lays out like 8 Ball Pool: a column
+// either side of the table (the power bar and side A's balls on the left,
+// side B's balls, the cue-ball button and the fine aim wheel, upright, on
+// the right) and nothing under it: what to hit and the shot's toggles go
+// on the band over the table (statusCall). The pieces move there and back.
+const callBox = document.querySelector('#shotPanel .call');
+const callHome = document.createComment('');
+callBox.before(callHome);
+const angleBox = document.querySelector('#shotPanel .angle');
+const angleHome = document.createComment('');
+angleBox.before(angleHome);
+const optsHome = document.createComment('');
+$('optionsBtn').before(optsHome);
+const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 
 // placeShotOptions puts the spin pad in the picker on a phone (and the jump
 // slider too, held upright) and back in the shot panel elsewhere.
@@ -1678,10 +1694,19 @@ function placeShotOptions() {
     spinHome.after(spinBox);
     closeSpinPop();
   }
-  const elevAway = compactLayout.matches && portraitPhone.matches;
-  if (elevAway) $('spinPopBody').append(elevBox);
-  else elevHome.after(elevBox);
-  $('spinPopTitle').textContent = elevAway ? 'Spin and jump' : 'Spin';
+  const away = phoneLayout();
+  if (away) {
+    $('spinPopBody').append(elevBox);
+    $('status').append(callBox);
+    $('sideTools').append($('optionsBtn'), angleBox);
+  } else {
+    elevHome.after(elevBox);
+    callHome.after(callBox);
+    angleHome.after(angleBox);
+    optsHome.after($('optionsBtn'));
+  }
+  $('aimJog').classList.toggle('jog--v', away);
+  $('spinPopTitle').textContent = away ? 'Spin and jump' : 'Spin';
 }
 
 function openSpinPop() {
@@ -2197,7 +2222,9 @@ function resize() {
   const gap = parseFloat(cs.columnGap || cs.gap || '12') || 0;
   const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + gap || 0;
   const room = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  const availW = Math.max(100, room - barW);
+  // a phone held upright in a rack: the table's column of the grid
+  const cols = cs.display === 'grid' ? cs.gridTemplateColumns.split(' ').map(parseFloat) : null;
+  const availW = cols && cols.length === 3 ? Math.max(100, cols[1]) : Math.max(100, room - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const dpr = Math.min(S.quality === 'auto' ? pace.cap : QUALITY_DPR[S.quality], window.devicePixelRatio || 1);
   pace.times = [];
@@ -2236,7 +2263,7 @@ function resize() {
   // The way round is chosen as if the power bar were there: it comes and
   // goes with the rack, and the table must not turn with it (a tablet held
   // upright turned it sideways for the lobby and the game over).
-  const turnW = Math.max(100, room - (bar.hidden ? (parseFloat(getComputedStyle(bar).width) || 40) + gap : barW));
+  const turnW = cols && cols.length === 3 ? availW : Math.max(100, room - (bar.hidden ? (parseFloat(getComputedStyle(bar).width) || 40) + gap : barW));
   const tLand = Math.min(turnW / fullW, availH / fullH), tPort = Math.min(turnW / fullH, availH / fullW);
   const portrait = window.innerHeight > window.innerWidth;
   view.rotated = portrait ? tPort >= tLand * 0.95 : tPort > tLand * 1.15;
@@ -4209,6 +4236,21 @@ const STATUS_ICONS = {
 
 // setStatus cross-fades the status sentence: the new text goes into the
 // inactive layer, the layers swap, and the old text is cleared once faded.
+// statusCall: on a phone held upright, once a shot's result has been read
+// (STATUS_HOLD_MS), the band over the table shows what to hit and the
+// shot's toggles while it is my shot.
+const STATUS_HOLD_MS = 2500;
+function holdStatus() {
+  S.statusHoldUntil = performance.now() + STATUS_HOLD_MS;
+  clearTimeout(holdStatus.timer);
+  holdStatus.timer = setTimeout(statusCall, STATUS_HOLD_MS + 20);
+}
+function statusCall() {
+  const on = phoneLayout() && document.body.classList.contains('is-playing') && isMyShot() && !S.replay &&
+    performance.now() >= (S.statusHoldUntil || 0);
+  $('status').classList.toggle('status--call', on);
+}
+
 function setStatus(text, tone) {
   const [a, b] = $('status').querySelectorAll('.status__layer');
   const active = a.classList.contains('is-active') ? a : b;
@@ -4516,6 +4558,7 @@ function renderSeat(seat) {
   }
   if (!p.connected) el.classList.add('seat--offline');
 
+  el.append(avatar(seat));
   const body = document.createElement('div');
   body.className = 'seat__body';
   const line = document.createElement('div');
@@ -4558,6 +4601,17 @@ function renderSeat(seat) {
   if (p.connected && S.clock && S.clock.seat === seat) el.append(clockRing());
 }
 
+// avatar is a player's initial in a disc of their side's colour: the face
+// of the player cards on a phone held upright (CSS shows it only there).
+function avatar(seat) {
+  const p = S.players[seat] || { name: '' };
+  const name = p.name;
+  const el = Object.assign(document.createElement('span'), { className: `seat__avatar seat__avatar--p${seat % 2}` + (p.name ? '' : ' is-empty') });
+  el.textContent = name ? [...name.trim()][0].toUpperCase() : '';
+  el.setAttribute('aria-hidden', 'true');
+  return el;
+}
+
 // groupDots shows a group's seven balls, dimmed as they are pocketed.
 function groupDots(g) {
   const dots = document.createElement('div');
@@ -4589,6 +4643,10 @@ function renderTeamSeat(side) {
     el.classList.add(isMe(S.turn) ? 'seat--turn' : 'seat--theirs');
     if (S.moving) el.classList.add('is-moving');
   }
+  const faces = document.createElement('span');
+  faces.className = 'seat__faces';
+  faces.append(avatar(side), avatar(side + 2));
+  el.append(faces);
   const body = document.createElement('div');
   body.className = 'seat__body';
   for (const s of [side, side + 2]) {
@@ -4872,6 +4930,9 @@ function refreshPanels() {
     resize();
   }
   if (!myShot) closeSpinPop();
+  $('sideTools').classList.toggle('is-off', !myShot);
+  renderTrays();
+  statusCall();
 
   $('lobbySeats').hidden = !(panel === 'lobbyPanel' && me && isTeams());
   if (panel === 'lobbyPanel' && me && isTeams()) renderTeamLobby(me);
@@ -5222,11 +5283,58 @@ function renderPracticeBar() {
   const bar = $('practiceBar');
   const on = S.practice && S.seat >= 0;
   if (bar.hidden === on) { bar.hidden = !on; resize(); }
-  if (!on) return;
+  $('menuBtn').hidden = !on;
+  if (!on) { closePracticeMenu(); return; }
   $('undoBtn').disabled = S.undos === 0 || S.moving;
   $('undoBtn').title = S.undos ? `Take back the last shot (Z) · ${S.undos} left` : 'Nothing to take back yet';
   $('moveBtn').setAttribute('aria-pressed', String(S.moveTool));
   $('rackBtn').disabled = S.moving;
+}
+
+// On a phone held upright the practice tools open from the header's menu
+// button as a small list (CSS), not as a row under the table.
+function closePracticeMenu() {
+  $('practiceBar').classList.remove('is-open');
+  $('menuBtn').setAttribute('aria-expanded', 'false');
+}
+$('menuBtn').onclick = (e) => {
+  e.stopPropagation();
+  const open = !$('practiceBar').classList.contains('is-open');
+  $('practiceBar').classList.toggle('is-open', open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+};
+document.addEventListener('click', (e) => { if (!e.target.closest('#practiceBar, #menuBtn')) closePracticeMenu(); });
+$('practiceBar').addEventListener('click', (e) => { if (e.target.closest('button')) setTimeout(closePracticeMenu, 0); });
+
+// renderTrays fills the columns beside the table on a phone held upright
+// (8-ball, not practice): each side's seven balls, left side A, right side
+// B, emptied as they drop; the 8 once a side's group is gone; empty slots
+// before the groups are known. The side on turn is lit.
+function renderTrays() {
+  const show = phoneLayout() && S.mode === '8ball' && !S.practice && S.phase !== 'lobby';
+  for (const side of [0, 1]) {
+    const el = $(side ? 'trayR' : 'trayL');
+    el.hidden = !show;
+    if (!show) continue;
+    const g = S.groups[side];
+    const ids = !g ? [] : remaining(g) === 0 ? [8] : [...Array(7)].map((_, i) => (g === 'solids' ? i + 1 : i + 9));
+    const key = `${g}|${ids.filter((id) => S.balls.has(id)).join()}`;
+    el.classList.toggle('tray--on', (inPlay() || S.moving) && sideOf(S.turn) === side);
+    if (el.dataset.key === key) continue;
+    el.dataset.key = key;
+    el.replaceChildren(...[...Array(7)].map((_, i) => {
+      const slot = document.createElement('span');
+      slot.className = 'tray__slot';
+      const id = ids[i];
+      if (id !== undefined && S.balls.has(id)) {
+        const ball = document.createElement('span');
+        ball.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
+        ball.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
+        slot.append(ball);
+      }
+      return slot;
+    }));
+  }
 }
 
 function undo() {
@@ -5337,6 +5445,7 @@ function showMatchIfWon(delay) {
 function renderScore() {
   const el = $('score');
   el.hidden = S.practice;
+  el.dataset.mode = `${MODE_NAME[S.mode] || ''}${isTeams() ? ' · 2v2' : ''}`; // the phone's player cards name the game over the score
   const m = S.seat >= 0 && !S.practice ? S.match : null;
   const compact = compactLayout.matches ? ' score--compact' : '';
   el.disabled = !m;
@@ -5623,7 +5732,7 @@ for (const b of document.querySelectorAll('.nudge')) {
 
 const aimJog = $('aimJog');
 const JOG_DEG_PER_PX = 0.02;
-let jogFrom = null; // the pointer's x while dragging
+let jogFrom = null; // the pointer's x (y on the upright wheel) while dragging
 let jogType = '';   // and its kind
 let jogRolled = 0;  // px the ticks have rolled
 function turnJog(px) {
@@ -5631,27 +5740,30 @@ function turnJog(px) {
   setAngle(S.angle + px * JOG_DEG_PER_PX * DEG);
   jogRolled += px;
   aimJog.style.setProperty('--jog-x', `${jogRolled}px`);
+  aimJog.style.setProperty('--jog-y', `${jogRolled}px`);
   aimJog.setAttribute('aria-valuetext', $('angleText').textContent);
 }
 aimJog.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   aimJog.focus({ preventScroll: true }); // the arrows go on in its steps
-  jogFrom = e.clientX;
+  jogFrom = aimJog.classList.contains('jog--v') ? e.clientY : e.clientX;
   jogType = e.pointerType;
   aimJog.setPointerCapture(e.pointerId);
   aimJog.classList.add('jog--drag');
 });
 aimJog.addEventListener('pointermove', (e) => {
   if (jogFrom === null) return;
-  const dx = e.clientX - jogFrom;
-  jogFrom = e.clientX;
-  turnJog(dx);
+  // sideways to the right, or upright downwards, turns clockwise
+  const at = aimJog.classList.contains('jog--v') ? e.clientY : e.clientX;
+  const d = at - jogFrom;
+  jogFrom = at;
+  turnJog(d);
 });
 const endJog = () => { jogFrom = null; aimJog.classList.remove('jog--drag'); };
 aimJog.addEventListener('pointerup', endJog);
 aimJog.addEventListener('pointercancel', endJog);
 aimJog.addEventListener('keydown', (e) => {
-  const dir = { ArrowLeft: -1, ArrowRight: 1 }[e.key];
+  const dir = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -1, ArrowDown: 1 }[e.key];
   if (!dir) return;
   e.preventDefault();
   e.stopPropagation(); // not the table's 0.5° step

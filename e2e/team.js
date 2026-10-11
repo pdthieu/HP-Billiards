@@ -75,13 +75,14 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     console.log('2v2 room, teams and room list ok');
 
     for (const p of [A, B, C, D]) await p.click('#ready');
-    for (const p of [A, B, C, D]) await p.waitForFunction(() => S.phase === 'breaking' && S.turn === 0);
+    // the server picks the breaking side; its first player breaks
+    for (const p of [A, B, C, D]) await p.waitForFunction(() => S.phase === 'breaking' && (S.turn === 0 || S.turn === 1));
     const header = await text(A, '#top');
     if (!['Ann', 'Dan', 'Bob', 'Cat'].every((n) => header.includes(n === 'Ann' ? 'You' : n) || header.includes(n))) fail(`header ${header}`);
     await A.screenshot({ path: path.join(shots, 'team-break-A.png') });
     await B.screenshot({ path: path.join(shots, 'team-break-B.png') });
 
-    // Shots: Ann breaks; after that each shooter misses everything (a foul,
+    // Shots: the breaker breaks; after that each shooter misses everything (a foul,
     // so the turn crosses every time). The rotation must hold.
     const all = [A, B, C, D];
     const seatPage = async (seat) => {
@@ -114,7 +115,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
       shoot();
     };
     let next = [0, 1]; // each side's next seat
-    let cur = 0;
+    let cur = await A.evaluate(() => S.turn);
     const seen = new Set();
     const step = async (label) => {
       const t = await A.evaluate(() => S.turn);
@@ -138,7 +139,7 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
         if (!w.includes('(your team)')) fail(`${label}: teammate's wait panel ${w}`);
       }
     };
-    await A.evaluate(() => { setAngle(0); setPower(1); shoot(); });
+    await (await seatPage(cur)).evaluate(() => { setAngle(S.balls.get(0).x < 1.27 ? 0 : Math.PI); setPower(1); shoot(); });
     await settle(null);
     while (await decide()) await A.waitForTimeout(300);
     await step('after the break');

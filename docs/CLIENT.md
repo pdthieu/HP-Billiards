@@ -419,22 +419,33 @@ landscape phones, icons only on phones) has:
 9. **Phones**:
    - **Portrait.** The table stands upright unless lying down is 5 % bigger.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
-   - **The table takes the screen** while a rack is played
-     (`body.is-playing`) on a phone held upright: the header is 44 px, the
-     status band 28 px with one line, the power bar 22 px wide at the
-     screen's edge, and under the table one 64 px strip. On a 390×800
-     screen the table is 358×660 px. The strip keeps its height for every
-     turn, so the table never resizes mid-rack. It holds:
-     - the call line (one line, cut short with an ellipsis; the status band
-       says the rest) and the situational toggles (Safety, Push out, +40s);
-     - under it the fine aim wheel with the angle readout; the ±5° and
-       ±0.25° buttons are left out;
-     - on the right, a small cue ball showing the spin (`#optionsBtn`); a
-       brass ring round it says the cue is raised.
+   - **Laid out like 8 Ball Pool** while a rack is played
+     (`body.is-playing`) on a phone held upright (`phoneLayout`): the stage
+     is a grid with a 36 px column either side of the table and nothing
+     under it, so the table stands in the middle (346×644 px on 430×745).
+     - *Left column*: side A's seven balls (`#trayL`), emptied as they
+       drop, the 8 once the group is gone, empty slots before the groups
+       are known; under them the 22 px power bar.
+     - *Right column*: side B's balls (`#trayR`), the cue-ball button
+       (spin, and the jump slider behind it) and the fine aim wheel standing
+       upright (`jog--v`: dragging down turns clockwise, as right does
+       lying down), with the angle over it. Hidden while it is not my shot.
+     - The tray of the side on turn is lit. Trays show in 8-ball only.
+     - Settings → *Power bar on the left* (lefty) swaps the bar and the
+       tools here: the bar goes right.
+     - *The band over the table* shows the last shot's result for 2.5 s
+       (`holdStatus`), then, while it is my shot, what to hit with the
+       toggles (Safety, Push out, +40s, Clear; `statusCall`).
+     - *The header* holds a card per player: the initial in a disc of the
+       side's colour (two discs for a 2v2 side), the name, the clock as a
+       badge; the game and the score between the cards.
+     - *Practice*: Undo, Move balls, Rack and Leave open as a list from the
+       menu button in the header (`#menuBtn`).
 
-     The jump slider is behind the cue ball, under the spin pad
-     (`placeShotOptions` moves it there when the phone is upright; sideways
-     it stays in the side column).
+     `placeShotOptions` moves the pieces (the call line into `#status`, the
+     cue-ball button and the wheel into `#sideTools`, the jump slider into
+     the picker) and back when the phone turns. Sideways, the side column
+     layout below is unchanged.
 
      Tapping the small cue ball opens the spin picker (`#spinPop`, "Spin
      and jump" upright): the spin pad as a big cue ball in the middle of
