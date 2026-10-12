@@ -49,7 +49,7 @@ New screens follow **Rules for every screen** at the end of this file.
 
 - Fonts: Source Sans 3 (UI) and Barlow Semi Condensed (room codes, score). Both have Vietnamese subsets.
 - `--accent-text` now means brass used as text; the old meaning (text on the brass button) is `--on-accent`.
-- On a 390 × 844 phone the rotated table is about 261 px wide, so balls draw at ~10 px: below 15 px the number disc is dropped and the stripe band is widened to ±0.58 R so solids and stripes stay distinct.
+- On a 390 × 844 phone the table stands about 306 px wide between its columns, so balls draw at ~12 px. Under 24 px a ball is drawn to be read (canvas-spec.md, "Small balls"): a bigger number disc with the number upright in the condensed face, a lighter shade at the edge so the colours stay apart, a rim of light so a dark ball stands off the cloth. The stripe band is ±0.58 R so solids and stripes stay distinct.
 - The panel slot and the status line have fixed heights, so the table never jumps when panels swap or a status sentence wraps.
 - One 240 ms step covers card/dialog entry and the score tick (the prompts mentioned both 220 and 240 ms).
 
@@ -96,10 +96,12 @@ the table is big, and nothing lies on the felt that can sit beside it.
   table: the status pill, the chat button at its start, the replay at its
   end. A phone on its side keeps the status over the felt's lower edge: a
   band there would cost the table about 8 % of its size.
-- **The stage**: the table and the power bar (32 px on a phone held
-  upright), nothing else around it. There are no trays: the seats' ball
-  dots show what is down; 3-cushion's lines (points, innings, average, best
-  run) are in the match dialog.
+- **The stage**: the table and the power bar, nothing else around it on a
+  desktop, a tablet or a phone on its side: the seats' ball dots show what
+  is down; 3-cushion's lines (points, innings, average, best run) are in
+  the match dialog. A phone held upright (laid out like 8 Ball Pool,
+  docs/CLIENT.md) shows each side's balls, numbered, in a column either
+  side of the table.
 - **The dock** (`#controls`, one `.panel` card with `--r-xl`, the same
   height for every panel: 100 px on a desktop, two rows in 188 px on a
   tablet, 80 to 128 px on a phone): what to hit and its toggles (and the

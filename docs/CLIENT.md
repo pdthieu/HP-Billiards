@@ -423,9 +423,9 @@ landscape phones, icons only on phones) has:
      (`body.is-playing`) on a phone held upright (`phoneLayout`): the stage
      is a grid with a 36 px column either side of the table and nothing
      under it, so the table stands in the middle (346×644 px on 430×745).
-     - *Left column*: side A's seven balls (`#trayL`), emptied as they
-       drop, the 8 once the group is gone, empty slots before the groups
-       are known; under them the 22 px power bar.
+     - *Left column*: side A's seven balls (`#trayL`), 22 px and
+       numbered, emptied as they drop, the 8 once the group is gone, empty
+       slots before the groups are known; under them the 22 px power bar.
      - *Right column*: side B's balls (`#trayR`), the cue-ball button
        (spin, and the jump slider behind it) and the fine aim wheel standing
        upright (`jog--v`: dragging down turns clockwise, as right does
@@ -453,8 +453,14 @@ landscape phones, icons only on phones) has:
      with the spin's words, Reset, the jump slider (upright) and Done. `placeShotOptions` moves the spin pad there from the panel
      whenever the phone layout applies. Done, Escape or a tap on the dimmed
      table beside it puts it away; that tap does not aim.
-   - **Naming balls.** The numbers on balls under 16 px across are too
-     small to read, so:
+   - **Small balls.** A ball under 24 px across (every phone, a tablet
+     held upright, a small window; design/canvas-spec.md, "Small balls") is
+     drawn to be read: a bigger number disc whose number stands upright in
+     the condensed face, a lighter shade at the edge so the colours stay
+     apart (the 3 and the 7, the 2 and the 4), and a rim of light so a dark
+     ball stands off the cloth.
+   - **Naming balls.** A number on the ball's edge still does not read,
+     so:
      - a touch within a fingertip (22 px) of a ball names it for 2 s, with
        a swatch of its colour, at any time, the other player's turn
        included;

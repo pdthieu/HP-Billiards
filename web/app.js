@@ -2995,14 +2995,17 @@ function resetOrientations() { orient.clear(); lastPos.clear(); texCache.clear()
 
 // ballTexture returns the ball's markings for its current orientation as an
 // n × n canvas (n device pixels across the ball), rasterised at 2× when small.
-function ballTexture(id, n) {
+// A small ball (smallBall) gets bigger number discs, room for a number that
+// can be read.
+function ballTexture(id, n, small) {
   let tex = texCache.get(id);
-  if (tex && !tex.dirty && tex.n === n) return tex.canvas;
+  if (tex && !tex.dirty && tex.n === n && tex.small === !!small) return tex.canvas;
   if (!tex) { tex = { canvas: document.createElement('canvas'), n: 0, dirty: true }; texCache.set(id, tex); }
   const ss = n < 64 ? 2 : 1;
   const N = n * ss;
   tex.canvas.width = tex.canvas.height = N;
   tex.n = n;
+  tex.small = !!small;
   tex.dirty = false;
   const m = orientationOf(id);
   const img = tex.canvas.getContext('2d').createImageData(N, N);
@@ -3011,7 +3014,7 @@ function ballTexture(id, n) {
   const base = carom ? hexToRgb(CAROM_COLORS[id]) : id === 0 ? IVORY_RGB : id > 8 ? IVORY_RGB : BALL_RGB[id];
   const band = !carom && id > 8 ? BALL_RGB[id - 8] : null;
   const dots = carom ? hexToRgb(CAROM_DOTS[id]) : id === 0 ? DOT_RGB : null; // the cue ball's six dots
-  const cosDisc = 0.877, cosDot = 0.985; // disc r 0.48 R, dot r 0.17 R
+  const cosDisc = small ? 0.785 : 0.877, cosDot = 0.985; // disc r 0.48 R (0.62 R small), dot r 0.17 R
   for (let j = 0; j < N; j++) {
     const ny = ((j + 0.5) / N) * 2 - 1;
     for (let i = 0; i < N; i++) {
@@ -3041,13 +3044,32 @@ function ballTexture(id, n) {
 }
 
 // drawBallNumbers writes the number on each disc that faces the viewer, in
-// the table frame (the context is translated to the ball's centre).
-function drawBallNumbers(id) {
+// the table frame (the context is translated to the ball's centre). On a
+// small ball (smallBall) it writes it once, on the disc that faces up most,
+// upright on the screen in the condensed face and as big as the disc holds:
+// turned and foreshortened it would not be read at 12 px.
+function drawBallNumbers(id, small) {
   const m = orientationOf(id);
   const stripe = id > 8;
   const discs = stripe ? [[1, 0, 0], [-1, 0, 0]] : [[0, 0, 1], [0, 0, -1]];
   const up = stripe ? [0, 0, -1] : [0, -1, 0];
   const world = (l) => [m[0] * l[0] + m[1] * l[1] + m[2] * l[2], m[3] * l[0] + m[4] * l[1] + m[5] * l[2], m[6] * l[0] + m[7] * l[1] + m[8] * l[2]];
+  if (small) {
+    const d = discs.map(world).reduce((a, b) => (b[2] < a[2] ? b : a)); // the one facing up most
+    const f = -d[2];
+    if (f < 0.45) return; // on the edge: the disc shows, its number would not fit
+    const size = R * (id > 9 ? 0.92 : 1.02) * Math.min(1, 0.45 + 0.6 * f);
+    ctx.save();
+    ctx.translate(d[0] * R, d[1] * R);
+    if (view.rotated) ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = PAL.ink;
+    ctx.font = `600 ${size}px "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(id), 0, size * 0.06);
+    ctx.restore();
+    return;
+  }
   const u = world(up);
   ctx.fillStyle = PAL.ink;
   ctx.font = `700 ${R * 0.62}px "Source Sans 3", system-ui, sans-serif`;
@@ -3088,6 +3110,14 @@ function drawBallShadow(p, lift) {
   ctx.fill();
 }
 
+// A ball under SMALL_BALL_PX across (a phone either way up, a tablet held
+// upright, a small window: 10 to 20 px) is drawn to be read, not only seen
+// (design/canvas-spec.md, "Small balls"): bigger number discs with the number
+// upright, a lighter shade at the edge so the colours stay apart (the red 3
+// and the maroon 7, the blue 2 and the purple 4), and a rim of light on the
+// lamp's side, so a dark ball stands off any cloth.
+const SMALL_BALL_PX = 24;
+
 // drawBall draws one ball: its markings in the table frame, as the ball
 // has rolled, then the lighting in a screen-aligned frame so it reads the
 // same way whether or not the table is rotated.
@@ -3097,6 +3127,7 @@ function drawBall(id, p, opts) {
   const carom = isCarom();
   const colour = carom ? CAROM_COLORS[id] : id === 0 ? PAL.ivory : BALL_COLORS[id > 8 ? id - 8 : id];
   const diamPx = 2 * R * view.s * scale;
+  const small = diamPx < SMALL_BALL_PX;
   ctx.save();
   ctx.translate(p.x, p.y);
   if (scale !== 1) ctx.scale(scale, scale);
@@ -3108,16 +3139,16 @@ function drawBall(id, p, opts) {
   ctx.fill();
   ctx.save();
   ctx.clip();
-  ctx.drawImage(ballTexture(id, Math.max(8, Math.ceil(diamPx * view.dpr))), -R, -R, 2 * R, 2 * R);
+  ctx.drawImage(ballTexture(id, Math.max(8, Math.ceil(diamPx * view.dpr)), small), -R, -R, 2 * R, 2 * R);
   ctx.restore();
-  if (id !== 0 && !carom && diamPx >= 15) drawBallNumbers(id);
+  if (id !== 0 && !carom && diamPx >= (small ? 8 : 15)) drawBallNumbers(id, small);
   if (view.rotated) ctx.rotate(Math.PI / 2);
   // shade
   const g = ctx.createRadialGradient(-0.24 * R, -0.32 * R, 0, -0.24 * R, -0.32 * R, 1.56 * R);
-  g.addColorStop(0, rgba('#FFFFFF', 0.5));
-  g.addColorStop(0.3, rgba('#FFFFFF', 0.1));
+  g.addColorStop(0, rgba('#FFFFFF', small ? 0.42 : 0.5));
+  g.addColorStop(0.3, rgba('#FFFFFF', small ? 0.08 : 0.1));
   g.addColorStop(0.72, rgba('#000000', 0));
-  g.addColorStop(1, rgba('#000000', 0.4));
+  g.addColorStop(1, rgba('#000000', small ? 0.2 : 0.4));
   ctx.fillStyle = g;
   ctx.beginPath();
   ctx.arc(0, 0, R, 0, Math.PI * 2);
@@ -3129,12 +3160,25 @@ function drawBall(id, p, opts) {
     ctx.ellipse(-0.38 * R, -0.42 * R, 0.2 * R, 0.14 * R, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // edge
-  ctx.strokeStyle = rgba('#000000', 0.35);
-  ctx.lineWidth = 0.0015;
-  ctx.beginPath();
-  ctx.arc(0, 0, R - 0.00075, 0, Math.PI * 2);
-  ctx.stroke();
+  // edge: on a small ball a rim of light, bright on the lamp's side
+  if (small) {
+    const px = 1 / (view.s * scale); // a screen pixel, in metres
+    const rim = ctx.createLinearGradient(-0.7 * R, -0.7 * R, 0.7 * R, 0.7 * R);
+    rim.addColorStop(0, rgba('#FFFFFF', 0.8));
+    rim.addColorStop(0.55, rgba('#FFFFFF', 0.35));
+    rim.addColorStop(1, rgba('#FFFFFF', 0.15));
+    ctx.strokeStyle = rim;
+    ctx.lineWidth = 1.1 * px;
+    ctx.beginPath();
+    ctx.arc(0, 0, R - 0.55 * px, 0, Math.PI * 2);
+    ctx.stroke();
+  } else {
+    ctx.strokeStyle = rgba('#000000', 0.35);
+    ctx.lineWidth = 0.0015;
+    ctx.beginPath();
+    ctx.arc(0, 0, R - 0.00075, 0, Math.PI * 2);
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
@@ -5332,6 +5376,7 @@ function renderTrays() {
         const ball = document.createElement('span');
         ball.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
         ball.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
+        ball.append(Object.assign(document.createElement('span'), { className: 'ball__num', textContent: String(id) }));
         slot.append(ball);
       }
       return slot;

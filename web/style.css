@@ -1167,8 +1167,12 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
   body.is-playing #trayR { grid-area: tr; }
   body.is-playing .tray[hidden] { display: none; }
   body.is-playing .tray--on { box-shadow: inset 0 0 0 1.5px var(--accent); }
-  .tray__slot { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6); }
-  .tray__slot .ball { --size: 18px; }
+  .tray__slot { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6); }
+  /* each ball with its number, as on the table: a big disc, the condensed
+     face, a rim of light so the dark ones stand off the slot */
+  .tray__slot .ball { --size: 22px;
+    box-shadow: inset -2.6px -3.5px 6px rgba(0, 0, 0, .3), inset 1.3px 1.8px 3.5px rgba(255, 255, 255, .14), 0 0 0 1px rgba(255, 255, 255, .3); }
+  .tray__slot .ball__num { inset: 20%; font: 600 10px/1 var(--font-display); letter-spacing: -.02em; }
 
   /* the cue ball (spin and jump) and the fine aim wheel, upright */
   body.is-playing .side-tools { grid-area: tools; align-self: stretch; display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 0; }

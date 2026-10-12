@@ -48,11 +48,27 @@ geometry as `buildTable()`.
 | Shadow | circle at screen (+6, +9), r 1.08 R; radial `#000` α .5 0 · α .25 .7 · α 0 1 | Lifted cue ball: offset × 1.8, r × 1.05 |
 | Body | circle r R; stripes and cue ball ivory | |
 | Stripe band | the zone within ±0.58 R of the ball's own equator; horizontal **on screen** when racked, then it rolls with the ball (orientation integrated from the ball's movement, |Δp| / R about the horizontal axis) | Was ±0.55 R. Markings are rasterised per ball into a cached canvas; the cue ball carries six 0.17 R `#B4322A` dots |
-| Number disc | r 0.48 R `#FAF7EF` at the ball's poles (solids) or on the band (stripes); text 700, 0.62 R, `#111316`, baseline +0.22 R, drawn on every disc that faces up more than 0.35, foreshortened with the disc | The number turns with the ball |
+| Number disc | r 0.48 R `#FAF7EF` at the ball's poles (solids) or on the band (stripes); text 700, 0.62 R, `#111316`, baseline +0.22 R, drawn on every disc that faces up more than 0.35, foreshortened with the disc | The number turns with the ball. A small ball's disc and number: below |
 | Shade | radial in the ball's box, centre (.38, .34), r .78: `#FFF` α .5 0 · α .1 .3 · `#000` α 0 .72 · α .4 1 | Rotated: centre (.66, .38) |
 | Specular | ellipse at screen (−.38 R, −.42 R), 0.2 R × 0.14 R, `#FFF` α .7 | |
-| Edge | circle r R − .75, 1.5 mm `#000` α .35 | |
-| Level of detail | diameter on screen < 15 px: skip the numbers; < 9 px: skip specular. Markings are rasterised at 2× below 64 device px | Phone portrait draws balls at ~10 px |
+| Edge | circle r R − .75, 1.5 mm `#000` α .35 | A small ball has a rim of light instead: below |
+| Level of detail | diameter on screen < 24 px: a small ball (below), numbers from 8 px; < 9 px: skip specular. Markings are rasterised at 2× below 64 device px | A phone draws balls at 10 to 13 px, a tablet held upright at ~15, a small window at 18 to 22 |
+
+### Small balls (< 24 px across: `SMALL_BALL_PX`)
+
+Drawn to be read, not only seen; the ball keeps its size (the table's
+scale), its colours and its rolling markings.
+
+| Part | Spec | Why |
+|---|---|---|
+| Number disc | r 0.62 R | room for a number at 12 px |
+| Number | once, on the disc that faces up most, when it faces up more than 0.45; upright on screen; Barlow Semi Condensed 600, 1.02 R (two digits 0.92 R) × min(1, .45 + .6 f), `#111316`, centred on the disc | turned and foreshortened it would not read; on the edge the disc shows, the number would not fit |
+| Shade | as above with `#FFF` α .42 0 · α .08 .3 · `#000` α .2 1 | a lighter edge keeps the colours apart: the red 3 and the maroon 7, the blue 2 and the purple 4 |
+| Rim | circle r R − .55 px, 1.1 px, linear across the ball from the lamp's side: `#FFF` α .8 0 · α .35 .55 · α .15 1 | a dark ball stands off any cloth (the 2 on blue, the 8 and the 7 on dark) |
+
+The trays of a phone held upright show each side's balls at 22 px, numbered
+the same way (`.tray__slot .ball__num`: the disc at 20 % inset, Barlow Semi
+Condensed 600 10 px), with a 1 px rim of light `#FFF` α .3.
 
 ## Cue stick
 
