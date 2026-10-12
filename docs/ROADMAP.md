@@ -148,7 +148,9 @@ gây `error` từ server (test chạy 100 ván bot với bot).
 5. ~~**2 đấu 2**~~ Đã làm (10/2026): phòng 8-ball cho 4 người
    (`players: 4`), ghế 0, 2 đấu ghế 1, 3, đồng đội bắn xen kẽ theo vòng
    A1 → B1 → A2 → B2; chọn đội ở sảnh chờ (`sit`); một người rời thì đồng
-   đội đánh thay cả hai lượt. Xem PROTOCOL.md, mục *Teams (2v2)*.
+   đội đánh thay cả hai lượt. 9-ball đôi theo luật scotch doubles của WPA:
+   đồng đội thay phiên từng cú, luân phiên phá. Xem PROTOCOL.md, mục
+   *Teams (2v2)*.
 
 ## Phase 12 · Độ sâu gameplay (L)
 

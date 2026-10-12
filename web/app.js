@@ -5127,7 +5127,9 @@ function refreshShotPanel() {
     } else if (S.call && S.call.pushOut) {
       html = `Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
     } else {
-      html = `Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.</span>`;
+      // scotch doubles: say so where there is room
+      const scotch = isTeams() && !compactLayout.matches ? ' Partners alternate every shot.' : '';
+      html = `Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.${scotch}</span>`;
     }
   } else if (!canCall()) {
     // On a phone the "ball in hand · kitchen" tag beside it says the rest.
@@ -5653,11 +5655,12 @@ function renderLandingMatch() {
   renderLandingPlayers();
   if (landingRulesReady) renderLandingRules();
 }
-// Players: 1 v 1, or 2 v 2 (8-ball only; teammates alternate shots).
+// Players: 1 v 1, or 2 v 2 (8-ball: whoever pockets shoots on; 9-ball:
+// scotch doubles, partners alternate every shot). Not in 3-cushion.
 let landingPlayers = readSetting('pool:players') === '4' ? 4 : 2;
-const landingSize = () => (landingMode === '8ball' ? landingPlayers : 2);
+const landingSize = () => (landingMode === '3cushion' ? 2 : landingPlayers);
 function renderLandingPlayers() {
-  $('landingPlayersRow').hidden = landingMode !== '8ball';
+  $('landingPlayersRow').hidden = landingMode === '3cushion';
   for (const b of $('landingPlayers').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.players) === landingPlayers));
 }
 $('landingPlayers').addEventListener('click', (e) => {

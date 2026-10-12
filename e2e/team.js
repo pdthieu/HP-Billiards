@@ -1,7 +1,9 @@
 // 2v2: a room for four made on the landing page, teams picked with "Sit
 // here", all four ready, teammates shooting in turn (A1 → B1 → A2 → B2), the
 // header naming both players of each side, and a player leaving while the
-// match goes on with the teammate playing both turns.
+// match goes on with the teammate playing both turns. Then 9-ball doubles
+// (scotch doubles): partners alternate every shot, and after a push out
+// passed back the pusher's partner shoots.
 // Usage: node team.js <base>
 const { chromium } = require('playwright');
 const flat = require('./flat');
@@ -29,11 +31,13 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
   const D = await mk({ width: 1000, height: 680 });
   const pages = { Ann: A, Bob: B, Cat: C, Dan: D };
   try {
-    // 2 v 2 on the landing page (8-ball only).
+    // 2 v 2 on the landing page (8-ball and 9-ball, not 3-cushion).
     await A.goto(base + '/');
     await A.click('#landingOptsBtn');
+    await A.click('#landingMode [data-mode="3cushion"]');
+    if (await A.isVisible('#landingPlayersRow')) fail('2 v 2 offered for 3-cushion');
     await A.click('#landingMode [data-mode="9ball"]');
-    if (await A.isVisible('#landingPlayersRow')) fail('2 v 2 offered for 9-ball');
+    if (!(await A.isVisible('#landingPlayersRow'))) fail('no 2 v 2 for 9-ball');
     await A.click('#landingMode [data-mode="8ball"]');
     await A.click('#landingPlayers [data-players="4"]');
     if (!(await text(A, '#landingOptsSum')).startsWith('2v2')) fail(`summary ${await text(A, '#landingOptsSum')}`);
@@ -179,6 +183,52 @@ const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, 
     }
     await A.screenshot({ path: path.join(shots, 'team-alone-A.png') });
     console.log('a player left, the match went on ok');
+    for (const p of [A, B, C]) await p.context().close();
+
+    // 9-ball doubles: scotch doubles.
+    const N = [];
+    for (let i = 0; i < 4; i++) N.push(await mk({ width: 1000, height: 680 }));
+    await N[0].goto(base + '/');
+    await N[0].click('#landingOptsBtn');
+    await N[0].click('#landingMode [data-mode="9ball"]');
+    await N[0].click('#landingPlayers [data-players="4"]');
+    await N[0].fill('#name', 'Ann');
+    await N[0].click('#create');
+    await N[0].waitForFunction(() => document.getElementById('landing').hidden && S.size === 4 && S.mode === '9ball');
+    const code9 = await N[0].textContent('#roomCode');
+    for (const [i, name] of [[1, 'Bob'], [2, 'Cat'], [3, 'Dan']]) {
+      await N[i].goto(`${base}/?room=${code9}`);
+      await N[i].fill('#name', name);
+      await N[i].click('#join');
+      await N[i].waitForFunction((s) => S.seat === s, i);
+    }
+    for (const p of N) await p.click('#ready');
+    for (const p of N) await p.waitForFunction(() => S.phase === 'breaking');
+    const brk = await N[0].evaluate(() => S.turn);
+    await N[brk].evaluate(() => { setAngle(0); setPower(1); shoot(); });
+    for (const p of N) await p.waitForFunction(() => S.phase !== 'breaking' && !S.moving, null, { timeout: 20000 });
+    if (await N[0].evaluate(() => S.phase === 'game_over')) {
+      console.log('the 9 dropped on the break: scotch doubles not played out');
+    } else {
+      const t = await N[0].evaluate(() => S.turn);
+      const want = t % 2 === brk % 2 ? brk ^ 2 : 1 - brk; // the breaker's partner, or the other side's first
+      if (t !== want) fail(`after the break seat ${t} shoots, want ${want}`);
+      if (!(await text(N[t ^ 2], '#waitText')).includes('(your team)')) fail(`partner's wait panel: ${await text(N[t ^ 2], '#waitText')}`);
+      await N[t].click('#pushOut');
+      await N[t].evaluate(() => { setPower(0.02); shoot(); });
+      await N[0].waitForFunction(() => !!S.decision && !S.moving, null, { timeout: 15000 });
+      const decider = await N[0].evaluate(() => S.decision.seat);
+      if (decider % 2 === t % 2) fail(`seat ${decider} decides its own side's push out`);
+      await N[decider].waitForFunction(() => !document.getElementById('decision').hidden);
+      await N[decider].click('.option:has-text("Pass it back")');
+      for (const p of N) await p.waitForFunction((s) => S.turn === s && !S.decision, t ^ 2, { timeout: 5000 });
+      await N[t ^ 2].waitForFunction(() => !document.getElementById('shotPanel').hidden);
+      const call = await text(N[t ^ 2], '#callText');
+      if (!call.includes('Partners alternate every shot')) fail(`scotch call line: ${call}`);
+      if (!(await text(N[t], '#waitText')).includes('(your team)')) fail(`pusher's wait panel: ${await text(N[t], '#waitText')}`);
+      await N[t ^ 2].screenshot({ path: path.join(shots, 'team-nine.png') });
+      console.log(`scotch doubles ok: ${brk} broke, ${t} pushed out, ${decider} passed back, ${t ^ 2} shoots`);
+    }
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);
     console.log('OK');
   } finally {

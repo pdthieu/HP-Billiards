@@ -612,9 +612,11 @@ play there.
 
 ## Teams (2v2)
 
-8-ball can be played two against two (PROTOCOL.md, "Teams"): *Players →
-2 v 2* under the match rules when creating a room (only for 8-ball;
-remembered as `pool:players`). Seats 0 and 2 are Team A, 1 and 3 Team B.
+8-ball and 9-ball can be played two against two (PROTOCOL.md, "Teams"):
+*Players → 2 v 2* under the match rules when creating a room (not for
+3-cushion; remembered as `pool:players`). 9-ball doubles are scotch
+doubles: partners alternate every shot, and the call line on a desktop says
+so. Seats 0 and 2 are Team A, 1 and 3 Team B.
 
 - **The lobby** shows both teams under the message (`#lobbySeats`), with
   *Sit here* on each free seat (`sit`): that is how players pick their
@@ -624,7 +626,9 @@ remembered as `pool:players`). Seats 0 and 2 are Team A, 1 and 3 Team B.
   `renderTeamSeat`): both names, the cue by the one who shoots, the side's
   group and the shot clock. On a phone the names are smaller and the tags
   are left out.
-- **Turns** go round A1 → B1 → A2 → B2; whoever pockets shoots on. Only the
+- **Turns** go round A1 → B1 → A2 → B2. In 8-ball whoever pockets shoots
+  on; in 9-ball the partner shoots next after every shot, and after a pass
+  back the pusher's partner shoots. Only the
   player whose turn it is gets the shot panel, the power bar, the pointer
   and the "Your turn" cue; the teammate's waiting panel says "Bob's turn
   (your team)". Results name teams: "Your team wins the rack", "Bob & Dan
