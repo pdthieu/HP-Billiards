@@ -27,7 +27,7 @@ New screens follow **Rules for every screen** at the end of this file.
 | `screens/` | Static HTML of every mock-up. Open any file in a browser; they share `tokens.css` and `components.css` |
 | `canvas-source/` | The `.dc.html` sources and `canvas.json` of the design canvas, including the four sheets that only render there: token sheet (`Main`), style tile (`StyleTile`), table spec (`T-Spec`) and motion sheet (`M-Sheet`) |
 | `home/` | The `.dc.html` sources and `canvas.json` of the home page canvas: `Main` (desktop, a fluid page), `Phone-Portrait` (390 × 844) and `Phone-Landscape` (844 × 390). Like `canvas-source/`, they render only on a canvas (they load its `support.js`) |
-| `game/`, `settings/` | The same canvas's In game and Settings pages as built (`Game-*-Proposal` and `Settings-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390). The canvas keeps the screens as they were before under them; `home/canvas.json` lays out all three pages |
+| `game/`, `settings/` | The same canvas's In game and Settings pages as built (`Game-*-Proposal` and `Settings-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390; a phone held upright in a rack since 12/10: `Game-Portrait-Big` 390 × 844 and `Game-Portrait-Big-Short` 390 × 664). The canvas keeps the screens as they were before under them; `home/canvas.json` lays out all three pages |
 
 ## Screens
 
@@ -49,7 +49,7 @@ New screens follow **Rules for every screen** at the end of this file.
 
 - Fonts: Source Sans 3 (UI) and Barlow Semi Condensed (room codes, score). Both have Vietnamese subsets.
 - `--accent-text` now means brass used as text; the old meaning (text on the brass button) is `--on-accent`.
-- On a 390 × 844 phone the table stands about 306 px wide between its columns, so balls draw at ~12 px. Under 24 px a ball is drawn to be read (canvas-spec.md, "Small balls"): a bigger number disc with the number upright in the condensed face, a lighter shade at the edge so the colours stay apart, a rim of light so a dark ball stands off the cloth. The stripe band is ±0.58 R so solids and stripes stay distinct.
+- On a 390 × 844 phone the table stands 360 px wide beside the power bar, so balls draw at ~14 px. Under 24 px a ball is drawn to be read (canvas-spec.md, "Small balls"): a bigger number disc with the number upright in the condensed face, a lighter shade at the edge so the colours stay apart, a rim of light so a dark ball stands off the cloth. The stripe band is ±0.58 R so solids and stripes stay distinct.
 - The panel slot and the status line have fixed heights, so the table never jumps when panels swap or a status sentence wraps.
 - One 240 ms step covers card/dialog entry and the score tick (the prompts mentioned both 220 and 240 ms).
 
@@ -92,20 +92,20 @@ the table is big, and nothing lies on the felt that can sit beside it.
   in LED brass under it, and the room's buttons on the right (2D/3D,
   Settings, full screen, Leave). Seats are hall chips (`--hall-chip`,
   `--hall-chip-line`); your seat on turn is brass.
-- **The band** (`#status`, 46 px; 40 px on a phone held upright) over the
+- **The band** (`#status`, 46 px; 28 px in a rack on a phone held upright) over the
   table: the status pill, the chat button at its start, the replay at its
   end. A phone on its side keeps the status over the felt's lower edge: a
   band there would cost the table about 8 % of its size.
 - **The stage**: the table and the power bar, nothing else around it on a
   desktop, a tablet or a phone on its side: the seats' ball dots show what
   is down; 3-cushion's lines (points, innings, average, best run) are in
-  the match dialog. A phone held upright (laid out like 8 Ball Pool,
-  docs/CLIENT.md) shows each side's balls, numbered, in a column either
-  side of the table.
+  the match dialog. A phone held upright shows each side's balls,
+  numbered (below).
 - **The dock** (`#controls`, one `.panel` card with `--r-xl`, the same
   height for every panel: 100 px on a desktop, two rows in 188 px on a
-  tablet, 80 to 128 px on a phone): what to hit and its toggles (and the
-  keyboard hint beside them from 1400 px), the aim, the spin, the jump.
+  tablet, 76 px in a rack on a tall phone held upright): what to hit and
+  its toggles (and the keyboard hint beside them from 1400 px), the aim,
+  the spin, the jump.
 - **Colour**: the hall, the scoreboard, the band, the stage and the practice
   tools are dark in both themes (`.on-hall`, in `tokens.css`, takes the dark
   values back for them); the dock and the dialogs follow the theme.
@@ -114,6 +114,30 @@ What it gives the table while a rack is played: at 1440 × 900 it goes from
 1103 × 592 to 1237 × 664 (the trays are gone and the dock is 24 px
 shorter); on a 390 × 844 phone from 312 × 582 to 330 × 614 (no trays, a
 40 px band, a 32 px power bar).
+
+**A phone held upright, in a rack (12/10).** The table comes first, and the
+four things a shot needs are always out, in reach of a thumb: the power
+bar, the fine aim wheel, the jump and the cue ball for spin. None of them
+waits behind a popover; a drag on the small cue ball moves the spin's dot
+and a tap opens the big pad. What to hit and the shot's toggles ride in
+the 28 px band over the felt. The phone takes whichever of two layouts
+leaves the table bigger (`phoneMode`, docs/CLIENT.md):
+
+- *A dock* (a tall screen, 390 × 800 and taller): only a 16 px power bar
+  beside the table. Under it a 76 px dock holds the wheel over the jump,
+  with a 62 px cue ball beside both. The scoreboard is two rows: Leave, your
+  card, the score, the opponent's card, Settings; under the cards each
+  side's balls. On 390 × 844 the table goes from 306 × 570 (the 11/10
+  build, a column either side) to 360 × 671.
+- *Columns* (a short screen: Safari with its bars, 390 × 664): height runs
+  out first, so the scoreboard keeps to one row and the pieces stand
+  beside the table. Your balls go over the power bar on the left; the
+  opponent's go on the right, over the cue ball, the jump and the wheel,
+  both upright. The table goes from 303 × 566 to 312 × 582.
+
+The cards carry an initial in the side's colour; the shot clock rings it,
+its seconds under the name. The canvas's In game page keeps both layouts
+on its top row, beside screenshots of the 11/10 build.
 
 ## Settings (10/2026)
 

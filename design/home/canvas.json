@@ -54,7 +54,7 @@
     },
     "Game-Desktop.dc.html": {
       "x": 0,
-      "y": 1340,
+      "y": 2680,
       "w": 1440,
       "h": 900,
       "title": "In game · desktop · before",
@@ -63,7 +63,7 @@
     },
     "Game-Portrait.dc.html": {
       "x": 1520,
-      "y": 1340,
+      "y": 2680,
       "w": 390,
       "h": 844,
       "title": "In game · phone portrait · before",
@@ -71,7 +71,7 @@
     },
     "Game-Landscape.dc.html": {
       "x": 1990,
-      "y": 1340,
+      "y": 2680,
       "w": 844,
       "h": 390,
       "title": "In game · phone landscape · before",
@@ -79,7 +79,7 @@
     },
     "Game-Desktop-Proposal.dc.html": {
       "x": 0,
-      "y": 0,
+      "y": 1340,
       "w": 1440,
       "h": 900,
       "title": "In game · desktop",
@@ -88,15 +88,15 @@
     },
     "Game-Portrait-Proposal.dc.html": {
       "x": 1520,
-      "y": 0,
+      "y": 1340,
       "w": 390,
       "h": 844,
-      "title": "In game · phone portrait",
+      "title": "In game · phone portrait · 10/10 (replaced on 11/10)",
       "page": "game"
     },
     "Game-Landscape-Proposal.dc.html": {
       "x": 1990,
-      "y": 0,
+      "y": 1340,
       "w": 844,
       "h": 390,
       "title": "In game · phone landscape",
@@ -157,6 +157,38 @@
       "title": "Settings · phone landscape",
       "is_interactive": true,
       "page": "settings"
+    },
+    "Game-Portrait-Now.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Phone upright · before (11/10) · table 306 × 570",
+      "page": "game"
+    },
+    "Game-Portrait-Big.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "Phone upright · as built 12/10 · table 360 × 671",
+      "page": "game"
+    },
+    "Game-Portrait-Now-Short.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 664,
+      "title": "Short screen (Safari, 390 × 664) · before (11/10) · table 303 × 566",
+      "page": "game"
+    },
+    "Game-Portrait-Big-Short.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 664,
+      "title": "Short screen · as built 12/10 · table 312 × 582",
+      "page": "game"
     }
   },
   "order": [
@@ -169,6 +201,10 @@
     "Game-Desktop-Proposal.dc.html",
     "Game-Portrait-Proposal.dc.html",
     "Game-Landscape-Proposal.dc.html",
+    "Game-Portrait-Now.dc.html",
+    "Game-Portrait-Big.dc.html",
+    "Game-Portrait-Now-Short.dc.html",
+    "Game-Portrait-Big-Short.dc.html",
     "Settings-Desktop.dc.html",
     "Settings-Portrait.dc.html",
     "Settings-Landscape.dc.html",
@@ -185,9 +221,17 @@
       "maxW": 2834,
       "page": "home"
     },
-    "game-title": {
+    "game-big": {
       "x": 0,
       "y": -300,
+      "text": "In game · phone upright: the biggest table (built 12/10)",
+      "kind": "title1",
+      "maxW": 1800,
+      "page": "game"
+    },
+    "game-title": {
+      "x": 0,
+      "y": 1040,
       "text": "In game · as built (10/2026)",
       "kind": "title1",
       "maxW": 2834,
@@ -195,7 +239,7 @@
     },
     "game-proposal": {
       "x": 0,
-      "y": 1040,
+      "y": 2380,
       "text": "In game · before",
       "kind": "title1",
       "maxW": 2834,

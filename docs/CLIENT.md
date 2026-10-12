@@ -157,9 +157,9 @@ form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are reme
 - **Phones.** Held upright, the scoreboard holds the seats either side of
   the score with Settings and Leave at its end, and in the lobby the room
   code at its start; while a rack is played the code steps aside (Settings
-  → This room has it) and the 2D/3D switch is in Settings → Table, so the
-  seats have the width. Their clock ring and ball dots are smaller there,
-  and on a 320 px phone the seat on turn shows it by its brass alone.
+  → This room has it), Leave starts the row and the 2D/3D switch is in
+  Settings → Table, so the seats have the width (see **Phones** below). On
+  a 320 px phone the seat on turn shows it by its brass alone.
 - **Tablets and narrow windows** (601 to 1099 px wide): one row cannot hold
   what to hit, the aim, the spin and the jump, so the dock takes two rows
   (what to hit and its buttons over the aim, the spin and the jump) in a
@@ -392,7 +392,8 @@ landscape phones, icons only on phones) has:
      practice tools and the power bar step aside until *Done*, Escape or
      the gear again. Over the landing it lies on a scrim. Each on/off
      setting is a row with a switch at its end. Theme (system, dark,
-     light), power bar on the left for left-handed play, vibration, full
+     light), power bar on the left for left-handed play (on the right, held
+     upright), vibration, full
      screen and "show hints again". Stored in `localStorage` under
      `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.
@@ -419,38 +420,56 @@ landscape phones, icons only on phones) has:
 9. **Phones**:
    - **Portrait.** The table stands upright unless lying down is 5 % bigger.
      Without a margin, Safari's bars growing or shrinking cannot flip it.
-   - **Laid out like 8 Ball Pool** while a rack is played
-     (`body.is-playing`) on a phone held upright (`phoneLayout`): the stage
-     is a grid with a 36 px column either side of the table and nothing
-     under it, so the table stands in the middle (346×644 px on 430×745).
-     - *Left column*: side A's seven balls (`#trayL`), 22 px and
-       numbered, emptied as they drop, the 8 once the group is gone, empty
-       slots before the groups are known; under them the 22 px power bar.
-     - *Right column*: side B's balls (`#trayR`), the cue-ball button
-       (spin, and the jump slider behind it) and the fine aim wheel standing
-       upright (`jog--v`: dragging down turns clockwise, as right does
-       lying down), with the angle over it. Hidden while it is not my shot.
-     - The tray of the side on turn is lit. Trays show in 8-ball only.
-     - Settings → *Power bar on the left* (lefty) swaps the bar and the
-       tools here: the bar goes right.
+   - **The table first** while a rack is played (`body.is-playing`) on a
+     phone held upright (`phoneLayout`). The four things a shot needs are
+     always out, in reach of a thumb: the power bar, the fine aim wheel,
+     the jump slider and the small cue ball for spin. `phoneMode` lays the
+     rack out in whichever of two ways leaves the table bigger, worked out
+     from the screen alone, so neither Settings nor a panel coming and
+     going swaps it:
+     - *A dock* (`body.phone-dock`, a tall screen: 390×800 and taller):
+       only the 16 px power bar stands beside the table (360×671 px on
+       390×844). Under it a 76 px dock holds the fine aim wheel over the
+       jump slider, the angle and the jump's words before them, and a 62 px
+       cue ball beside both; while it is not my shot it says whose shot it
+       is. The scoreboard takes a second row: each side's seven balls
+       (`#trayL`, `#trayR`, 18 px and numbered) under its player.
+     - *Columns* (`body.phone-side`, a short screen such as Safari with its
+       bars: 393×670): height runs out first. The scoreboard keeps to one
+       row, and the stage is a grid with a column either side of the table
+       (312×582 px on 390×664): side A's balls over the 16 px power bar on
+       the left; side B's balls, the cue ball, the jump slider and the fine
+       aim wheel, both upright, on the right (`jog--v`: dragging down turns
+       clockwise, as right does lying down). The tools hide while it is
+       not my shot.
+     - The power bar's grip runs on to the screen's edge and over the
+       table's wood. The balls drop out of their tray as they are pocketed,
+       the 8 shows once the group is gone, and the tray of the side on turn
+       is lit; trays show in 8-ball only.
+     - Settings → *Power bar on the right* (lefty; it reads so held
+       upright) moves the bar to the other side, and on a short screen the
+       tools' column with it.
      - *The band over the table* shows the last shot's result for 2.5 s
        (`holdStatus`), then, while it is my shot, what to hit with the
        toggles (Safety, Push out, +40s, Clear; `statusCall`).
      - *The header* holds a card per player: the initial in a disc of the
-       side's colour (two discs for a 2v2 side), the name, the clock as a
-       badge; the game and the score between the cards.
+       side's colour (two discs for a 2v2 side) and the name; the shot clock
+       rings the disc, its seconds under the name. Leave starts the row,
+       Settings ends it, and the game and the score sit between the cards
+       (on one row the game shares the race's line).
      - *Practice*: Undo, Move balls, Rack and Leave open as a list from the
-       menu button in the header (`#menuBtn`).
+       menu button at the start of the header (`#menuBtn`).
 
-     `placeShotOptions` moves the pieces (the call line into `#status`, the
-     cue-ball button and the wheel into `#sideTools`, the jump slider into
-     the picker) and back when the phone turns. Sideways, the side column
-     layout below is unchanged.
+     `placeShotOptions` moves the pieces (the call line into `#status`; on
+     a short screen the cue ball, the jump slider and the wheel into
+     `#sideTools`; over a dock the trays into the header) and back when the
+     phone turns. Sideways, the side column layout below is unchanged.
 
-     Tapping the small cue ball opens the spin picker (`#spinPop`, "Spin
-     and jump" upright): the spin pad as a big cue ball in the middle of
-     the screen (up to 280 px) over the table, dimmed and lightly blurred,
-     with the spin's words, Reset, the jump slider (upright) and Done. `placeShotOptions` moves the spin pad there from the panel
+     A drag on the small cue ball carries the spin's dot with the finger,
+     from where it was. A tap opens the spin picker (`#spinPop`): the spin
+     pad as a big cue ball in the middle of the screen (up to 280 px) over
+     the table, dimmed and lightly blurred, with the spin's words, Reset
+     and Done. `placeShotOptions` moves the spin pad there from the panel
      whenever the phone layout applies. Done, Escape or a tap on the dimmed
      table beside it puts it away; that tap does not aim.
    - **Small balls.** A ball under 24 px across (every phone, a tablet

@@ -1656,12 +1656,11 @@ elevRange.addEventListener('input', () => setElev(Number(elevRange.value)));
 // --- spin picker (phones) ----------------------------------------------------
 //
 // On a phone the shot panel holds what to hit, the situational toggles, the
-// fine aim wheel and a small cue ball showing the spin. Tapping it opens the
-// spin pad as a big cue ball in the middle of the screen over the dimmed
-// table, so the tip's spot is picked precisely; Done, a tap beside it or
-// Escape puts it away. Held upright the phone gives the table every pixel:
-// the jump slider goes behind the cue ball too (its brass ring says the cue
-// is raised). Sideways, the side panel keeps it at hand.
+// fine aim wheel, the jump slider and a small cue ball showing the spin. A
+// drag on the small cue ball moves the tip's spot, as on the big pad; a tap
+// opens the spin pad as a big cue ball in the middle of the screen over the
+// dimmed table, so the spot is picked precisely; Done, a tap beside it or
+// Escape puts it away.
 
 const compactLayout = matchMedia('(max-width: 600px), (orientation: landscape) and (max-height: 500px)');
 const spinBox = document.querySelector('#shotPanel .spin');
@@ -1670,11 +1669,10 @@ spinBox.before(spinHome);
 const portraitPhone = matchMedia('(max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px)');
 const elevHome = document.createComment('');
 elevBox.before(elevHome);
-// Held upright in a rack the phone lays out like 8 Ball Pool: a column
-// either side of the table (the power bar and side A's balls on the left,
-// side B's balls, the cue-ball button and the fine aim wheel, upright, on
-// the right) and nothing under it: what to hit and the shot's toggles go
-// on the band over the table (statusCall). The pieces move there and back.
+// Held upright in a rack the phone lays the shot's pieces out round the
+// table in one of two ways (phoneMode): under it in a dock, or beside it in
+// a column either side. What to hit and the shot's toggles go on the band
+// over the table either way (statusCall). The pieces move there and back.
 const callBox = document.querySelector('#shotPanel .call');
 const callHome = document.createComment('');
 callBox.before(callHome);
@@ -1683,10 +1681,55 @@ const angleHome = document.createComment('');
 angleBox.before(angleHome);
 const optsHome = document.createComment('');
 $('optionsBtn').before(optsHome);
+const trayHome = document.createComment('');
+$('trayL').before(trayHome);
 const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 
-// placeShotOptions puts the spin pad in the picker on a phone (and the jump
-// slider too, held upright) and back in the shot panel elsewhere.
+// phoneMode is the layout of a phone held upright for a rack, whichever
+// leaves the table bigger (design/README.md, "In game"):
+// - 'dock', a tall screen: only the 16 px power bar stands beside the
+//   table. The fine aim wheel, the jump and the cue ball sit in a dock
+//   under it; the balls each side still needs ride in the scoreboard, a
+//   second row under the players.
+// - 'side', a short screen (Safari with its bars): height runs out first,
+//   so the scoreboard keeps to one row, and the balls and the tools stand in
+//   a column either side: yours over the power bar, the opponent's over the
+//   cue ball, the jump and the fine aim wheel, upright.
+// It is worked out from the screen alone, so neither Settings nor a panel
+// coming and going swaps it. PHONE_DOCK and PHONE_SIDE are what each takes
+// round the table, as style.css lays them out: across, the stage's padding,
+// the columns and their gaps; down, the scoreboard, the band, the dock and
+// the stage's padding.
+const PHONE_DOCK = { w: 4 + 16 + 6 + 4, h: 60 + 28 + 76 + 8 };
+const PHONE_SIDE = { w: 4 + 22 + 4 + 4 + 40 + 4, h: 40 + 28 + 8 };
+function phoneMode() {
+  if (!phoneLayout()) return '';
+  const cs = getComputedStyle(document.body);
+  const w = document.documentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const h = innerHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+  const across = (H + 2 * RAIL) / (W + 2 * RAIL); // the upright table's width for each unit of its height
+  const dock = Math.min(w - PHONE_DOCK.w, (h - PHONE_DOCK.h) * across);
+  const side = Math.min(w - PHONE_SIDE.w, (h - PHONE_SIDE.h) * across);
+  return dock >= side ? 'dock' : 'side';
+}
+
+// applyPhoneMode sets body.phone-dock or body.phone-side (style.css lays a
+// rack out by them) and moves the pieces when that changes. resize() calls
+// it first, so the table is measured in the layout it ends up in.
+let phoneSet = null, phoneKey = '';
+function applyPhoneMode() {
+  const key = `${phoneLayout()} ${innerWidth}x${innerHeight} ${W}`;
+  if (key === phoneKey) return;
+  phoneKey = key;
+  const mode = phoneMode();
+  document.body.classList.toggle('phone-dock', mode === 'dock');
+  document.body.classList.toggle('phone-side', mode === 'side');
+  if (mode !== phoneSet) { phoneSet = mode; placeShotOptions(); }
+}
+
+// placeShotOptions puts the spin pad in the picker on a phone and, held
+// upright, the shot's other pieces where phoneMode lays them out; back in
+// the shot panel elsewhere.
 function placeShotOptions() {
   if (compactLayout.matches) {
     $('spinPopBody').append(spinBox);
@@ -1694,19 +1737,21 @@ function placeShotOptions() {
     spinHome.after(spinBox);
     closeSpinPop();
   }
-  const away = phoneLayout();
-  if (away) {
-    $('spinPopBody').append(elevBox);
-    $('status').append(callBox);
-    $('sideTools').append($('optionsBtn'), angleBox);
+  const mode = phoneLayout() ? phoneSet : '';
+  if (mode) $('status').append(callBox);
+  else callHome.after(callBox);
+  if (mode === 'side') {
+    $('sideTools').append($('optionsBtn'), elevBox, angleBox);
   } else {
-    elevHome.after(elevBox);
-    callHome.after(callBox);
     angleHome.after(angleBox);
+    elevHome.after(elevBox);
     optsHome.after($('optionsBtn'));
   }
-  $('aimJog').classList.toggle('jog--v', away);
-  $('spinPopTitle').textContent = away ? 'Spin and jump' : 'Spin';
+  if (mode === 'dock') $('top').append($('trayL'), $('trayR'));
+  else trayHome.after($('trayL'), $('trayR'));
+  $('aimJog').classList.toggle('jog--v', mode === 'side');
+  // held upright the bar stands on the left: the switch takes it right
+  $('leftyToggle').querySelector('.toggle__title').textContent = mode ? 'Power bar on the right' : 'Power bar on the left';
 }
 
 function openSpinPop() {
@@ -1722,7 +1767,37 @@ function closeSpinPop() {
   $('optionsBtn').setAttribute('aria-expanded', 'false');
 }
 
-$('optionsBtn').onclick = () => { if ($('spinPop').hidden) openSpinPop(); else closeSpinPop(); };
+// The small cue ball is a spin pad too: a finger dragged on it carries the
+// dot along (its travel to the limit is the dot's), from where the spin
+// was, so it never jumps to the finger; a tap opens the big pad.
+const optsBtn = $('optionsBtn');
+let optsDrag = null, optsDragged = false;
+optsBtn.addEventListener('pointerdown', (e) => {
+  optsDragged = false;
+  if (!isMyShot() || optsDrag) return;
+  optsDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, spin: { ...S.spin }, moved: false };
+  optsBtn.setPointerCapture(e.pointerId);
+});
+optsBtn.addEventListener('pointermove', (e) => {
+  if (!optsDrag || e.pointerId !== optsDrag.id) return;
+  const dx = e.clientX - optsDrag.x, dy = e.clientY - optsDrag.y;
+  if (!optsDrag.moved && Math.hypot(dx, dy) < 6) return; // a tap may wobble
+  if (!optsDrag.moved) { optsDrag.moved = true; optsBtn.classList.add('opts-btn--drag'); }
+  const full = optsBtn.getBoundingClientRect().width / 2 * SPIN_LIMIT; // px from the centre to the limit
+  setSpin(optsDrag.spin.x + dx / full, optsDrag.spin.y - dy / full);
+});
+const endOptsDrag = (e) => {
+  if (!optsDrag || e.pointerId !== optsDrag.id) return;
+  optsDragged = e.type === 'pointerup' && optsDrag.moved;
+  optsDrag = null;
+  optsBtn.classList.remove('opts-btn--drag');
+};
+optsBtn.addEventListener('pointerup', endOptsDrag);
+optsBtn.addEventListener('pointercancel', endOptsDrag);
+optsBtn.onclick = () => {
+  if (optsDragged) { optsDragged = false; return; } // the end of a drag, not a tap
+  if ($('spinPop').hidden) openSpinPop(); else closeSpinPop();
+};
 $('spinPopDone').onclick = () => { closeSpinPop(); $('optionsBtn').focus({ preventScroll: true }); };
 // a tap on the dimmed table beside the card puts it away
 $('spinPop').addEventListener('click', (e) => { if (e.target === e.currentTarget) closeSpinPop(); });
@@ -1730,12 +1805,14 @@ $('spinPop').addEventListener('keydown', (e) => {
   if (e.key === 'Escape') { closeSpinPop(); $('optionsBtn').focus({ preventScroll: true }); }
   e.stopPropagation(); // the game's keys (aim, shoot) wait while it is open
 });
-portraitPhone.addEventListener('change', placeShotOptions);
+portraitPhone.addEventListener('change', () => { applyPhoneMode(); placeShotOptions(); });
 compactLayout.addEventListener('change', () => {
+  applyPhoneMode();
   placeShotOptions();
   refreshPanels();
   if (!readSetting('pool:view')) setView(initialView(), false);
 });
+applyPhoneMode();
 placeShotOptions();
 
 function queueAim() {
@@ -2216,6 +2293,7 @@ function renderViewControls() {
 // --- geometry helpers -------------------------------------------------------
 
 function resize() {
+  applyPhoneMode();
   const wrap = $('tableWrap');
   const cs = getComputedStyle(wrap);
   const bar = $('powerBar');

@@ -217,19 +217,20 @@ async function shootAndSettle(page, angle, power) {
     console.log('phone table:', Math.round(layout.tableW * 100) + '% wide,', Math.round(layout.tableH * 100) + '% high');
     await P.screenshot({ path: path.join(shots, 'practice-phone.png') });
 
-    // Laid out like 8 Ball Pool: the power bar in the left column, the cue
-    // ball and the upright fine aim wheel in the right one, nothing under
-    // the table; the spin and the jump slider are behind the cue ball, the
-    // practice tools behind the menu button.
+    // A short screen: height runs out first, so the tools stand beside the
+    // table, all out: the power bar in the left column; the cue ball, the
+    // jump slider and the upright fine aim wheel in the right one; nothing
+    // under the table. The big spin pad is behind the cue ball, the practice
+    // tools behind the menu button.
+    if (!(await P.evaluate(() => document.body.classList.contains('phone-side')))) fail('a short phone did not stand the tools beside the table');
     if (await P.isVisible('#spinPad')) fail('spin pad shown beside the table');
-    if (await P.isVisible('#elevRange')) fail('jump slider shown beside the table');
-    if (!(await P.isVisible('#sideTools #aimJog')) || !(await P.isVisible('#sideTools #optionsBtn'))) fail('no wheel or cue ball in the right column');
+    for (const id of ['aimJog', 'optionsBtn', 'elevRange']) if (!(await P.isVisible(`#sideTools #${id}`))) fail(`no #${id} in the right column`);
     if (await P.isVisible('#controls') || await P.isVisible('#practiceBar')) fail('something under the table');
     const cols = await P.evaluate(() => {
       const r = (id) => document.getElementById(id).getBoundingClientRect();
-      return { bar: r('powerBar').right <= r('table').left, wheel: r('aimJog').left >= r('table').right };
+      return { bar: r('powerBar').right <= r('table').left, wheel: r('aimJog').left >= r('table').right, jump: r('elevRange').left >= r('table').right };
     });
-    if (!cols.bar || !cols.wheel) fail(`columns ${JSON.stringify(cols)}`);
+    if (!cols.bar || !cols.wheel || !cols.jump) fail(`columns ${JSON.stringify(cols)}`);
     await P.click('#menuBtn');
     if (!(await P.isVisible('#undoBtn')) || !(await P.isVisible('#rackBtn'))) fail('the menu has no practice tools');
     await P.click('#menuBtn');
@@ -245,7 +246,26 @@ async function shootAndSettle(page, angle, power) {
     await P.mouse.up();
     const pturn = (await P.evaluate(() => S.angle) - p0) * 180 / Math.PI;
     if (Math.abs(pturn - 1) > 0.01) fail(`the wheel turned ${pturn}°`);
-    // The small cue ball opens a big one in the middle of the screen.
+    // the jump slider, upright beside the table; a raised cue rings the
+    // small cue ball
+    const jw = await P.locator('#sideTools #elevRange').boundingBox();
+    if (!jw || jw.height < 90) fail(`jump slider ${JSON.stringify(jw)}`);
+    await P.locator('#sideTools #elevRange').fill('30');
+    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the jump slider');
+    await P.locator('#sideTools #elevRange').fill('0');
+    // A drag on the small cue ball carries the spin's dot with the finger,
+    // from where it was; it opens nothing.
+    await P.evaluate(() => setSpin(0, 0));
+    const ob = await P.locator('#optionsBtn').boundingBox();
+    const full = ob.width / 2 * 0.72; // SPIN_LIMIT: the dot's travel to the limit
+    await P.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2);
+    await P.mouse.down();
+    await P.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2 + full / 2, { steps: 4 });
+    await P.mouse.up();
+    const dragged = await P.evaluate(() => ({ spin: S.spin, open: !document.getElementById('spinPop').hidden, dot: document.getElementById('optsDot').style.top }));
+    if (dragged.open || Math.abs(dragged.spin.y + 0.5) > 0.06 || Math.abs(dragged.spin.x) > 0.02 || dragged.dot === '50%') fail(`a drag on the cue ball ${JSON.stringify(dragged)}`);
+    await P.evaluate(() => setSpin(0, 0));
+    // A tap on the small cue ball opens a big one in the middle of the screen.
     await P.click('#optionsBtn');
     await P.waitForFunction(() => !document.getElementById('spinPop').hidden);
     const pad = await P.locator('#spinPad').boundingBox();
@@ -255,11 +275,7 @@ async function shootAndSettle(page, angle, power) {
     await P.mouse.click(pad.x + pad.width / 2, pad.y + pad.height * 0.25);
     const picked = await P.evaluate((a) => ({ spin: S.spin, turned: S.angle - a, dot: document.getElementById('optsDot').style.top }), a0);
     if (!(picked.spin.y > 0.3) || picked.turned || picked.dot === '50%') fail(`spin picker ${JSON.stringify(picked)}`);
-    // the jump slider under it; a raised cue rings the small cue ball
-    const jw = await P.locator('#spinPop #elevRange').boundingBox();
-    if (!jw || jw.width < 200) fail(`jump slider ${JSON.stringify(jw)}`);
-    await P.locator('#spinPop #elevRange').fill('30');
-    if (await P.evaluate(() => S.elev) !== 30 || !(await P.getAttribute('#optionsBtn', 'class')).includes('opts-btn--jump')) fail('the jump slider');
+    if (await P.locator('#spinPop #elevRange').count()) fail('the jump slider went behind the cue ball');
     await P.waitForTimeout(300);
     await P.screenshot({ path: path.join(shots, 'practice-phone-spin.png') });
     // a tap on the dimmed table beside it puts it away and does not aim
@@ -318,6 +334,31 @@ async function shootAndSettle(page, angle, power) {
     });
     if (manifest.type !== 'application/manifest+json' || manifest.body.display !== 'standalone' || manifest.icon !== 'image/png') fail(`manifest ${JSON.stringify(manifest)}`);
     console.log('phone layout and manifest ok');
+
+    // A tall phone (390 x 844, from the home screen): the tools sit in a dock
+    // under the table instead, the power bar alone beside it, and the table
+    // takes nearly the screen's width.
+    const T = await (await flat(browser, { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })).newPage();
+    T.on('pageerror', (e) => errors.push(e.message));
+    await T.goto(base + '/');
+    await T.fill('#name', 'Tal');
+    await T.click('#practice');
+    await T.waitForFunction(() => S.practice && S.phase === 'open');
+    await T.waitForTimeout(400);
+    const dock = await T.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const t = r('table');
+      return {
+        dock: document.body.classList.contains('phone-dock'), w: Math.round(t.width), h: Math.round(t.height),
+        under: r('controls').top >= t.bottom, inDock: ['aimJog', 'elevRange', 'optionsBtn'].every((id) => $('controls').contains($(id))),
+        bar: r('powerBar').right <= t.left, wheel: r('aimJog').width, jump: r('elevRange').width,
+        overflow: [...document.querySelectorAll('#controls > .panel, .seat__name')].filter((e) => e.offsetParent && (e.scrollHeight > e.clientHeight + 1 || e.scrollWidth > e.clientWidth + 1)).map((e) => e.id || e.className),
+      };
+    });
+    if (!dock.dock || dock.w < 340 || !dock.under || !dock.inDock || !dock.bar || dock.wheel < 160 || dock.jump < 160 || dock.overflow.length) fail(`tall phone ${JSON.stringify(dock)}`);
+    await T.screenshot({ path: path.join(shots, 'practice-phone-tall.png') });
+    await T.close();
+    console.log(`tall phone ok: the table ${dock.w} x ${dock.h} over the dock`);
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);
     console.log('OK');
   } finally {

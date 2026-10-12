@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>POOL in game · phone upright · the biggest table</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0B1119;overflow-x:hidden}
+sc-for,sc-if{display:contents}
+.pool{
+--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);
+--text:#E8ECF1;--text-muted:#9BA8B7;--text-disabled:#5E6B7A;
+--accent:#D9A441;--on-accent:#1A1206;--accent-text:#E3B25C;--accent-soft:rgba(217,164,65,.14);--accent-ring:rgba(217,164,65,.55);
+--focus:#8CBFFF;--ball-disc:#FAF7EF;--ball-3:#CC3326;
+--hall:#0B1119;--hall-text:#E8ECF1;--hall-muted:#9BA8B7;--hall-line:rgba(170,190,215,.12);--hall-chip:rgba(170,190,215,.06);--hall-chip-line:rgba(170,190,215,.22);--hall-lamp:rgba(255,224,170,.08);--led:#E3B25C;
+--r-xl:22px;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;
+color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool[data-theme="light"]{
+--surface-1:#F9F8F5;--surface-2:#FFFFFF;--surface-3:#E6E2DA;
+--hairline:rgba(22,32,43,.12);--hairline-strong:rgba(22,32,43,.22);
+--text:#16202B;--text-muted:#566270;--text-disabled:#A3ABB4;
+--accent-text:#87590F;--accent-soft:rgba(176,122,30,.12);--accent-ring:rgba(176,122,30,.55);--focus:#2F6FD0;
+color-scheme:light;
+}
+.pool,.pool *,.pool *::before,.pool *::after{box-sizing:border-box}
+.pool p{margin:0}
+.pool button{font:inherit;color:inherit}
+.muted{color:var(--text-muted)}
+
+.btn{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:0 18px;border-radius:999px;border:1px solid transparent;font:600 15px/20px var(--font-ui);white-space:nowrap;cursor:pointer}
+.btn--primary{background:var(--accent);color:var(--on-accent)}
+.btn--quiet{background:transparent;color:var(--text-muted);padding:0 12px}
+.icon-btn{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;padding:0;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--hall-muted);cursor:pointer}
+.icon-btn::before{content:"";position:absolute;inset:-6px}
+.icon-btn:focus-visible,.btn:focus-visible,.toggle:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* the scoreboard, two rows: you, the score and your opponent; under each
+   player the balls still to pocket, numbered. Dark in both themes. */
+.board{flex:none;display:grid;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);grid-template-rows:34px 20px;column-gap:3px;row-gap:2px;align-items:center;height:60px;padding:2px 4px 1px;background:var(--hall);color:var(--hall-text);border-bottom:1px solid var(--hall-line)}
+.side{display:flex;align-items:center;gap:2px;min-width:0}
+.side--b{justify-content:flex-end}
+.seat{display:flex;align-items:center;gap:7px;min-width:0;height:34px;padding:0 11px 0 3px;border-radius:999px;border:1.5px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text)}
+.seat--right{flex-direction:row-reverse;padding:0 3px 0 11px}
+.seat--turn{border-color:var(--accent);background:rgba(217,164,65,.14)}
+.seat--theirs{border-color:rgba(217,164,65,.55)}
+.face{position:relative;flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;font:700 13px/1 var(--font-ui)}
+.face--a{background:#D9A441;color:#0D1218}
+.face--b{background:#1F4FB4;color:#FFFFFF}
+.face__ring{position:absolute;left:-4px;top:-4px;transform:rotate(-90deg)}
+.seat__body{display:flex;flex-direction:column;min-width:0}
+.seat--right .seat__body{align-items:flex-end}
+.seat__name{font:600 13px/15px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:8ch}
+.seat__clock{font:600 10px/12px var(--font-ui);color:var(--led);font-variant-numeric:tabular-nums}
+.score{grid-column:2;grid-row:1 / 3;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;height:100%;padding:0;border:0;background:transparent;color:var(--hall-text);cursor:pointer}
+.score__game{font:700 10px/12px var(--font-ui);letter-spacing:.06em;text-transform:uppercase}
+.score__nums{display:flex;align-items:center;gap:4px;font:600 26px/26px var(--font-display);font-variant-numeric:tabular-nums}
+.score__sep{color:var(--hall-muted);font-weight:500}
+.score__race{font:600 9px/11px var(--font-display);letter-spacing:.14em;text-transform:uppercase;color:var(--led)}
+.tray{grid-row:2;grid-column:1;display:flex;gap:1.5px;min-width:0}
+.tray--b{grid-column:3;justify-content:flex-end}
+.tray__slot{flex:none;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.45);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.tray__slot--empty .tball{display:none}
+.tray--on .tray__slot{box-shadow:inset 0 1px 3px rgba(0,0,0,.6),0 0 0 1px rgba(217,164,65,.35)}
+.tball{position:relative;width:18px;height:18px;border-radius:50%;box-shadow:inset -2.2px -2.9px 5px rgba(0,0,0,.3),inset 1.1px 1.4px 2.9px rgba(255,255,255,.14),0 0 0 1px rgba(255,255,255,.3)}
+.tball__num{position:absolute;inset:20%;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--ball-disc);color:#111316;font:600 8.5px/1 var(--font-display);letter-spacing:-.02em}
+
+/* the hall: one line of status over the felt, the slim power bar and the
+   table stood upright, as wide as the screen leaves it */
+.hall{position:relative;isolation:isolate;flex:1;min-height:0;display:flex;flex-direction:column;background:var(--hall)}
+.hall::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 70% 55% at 50% 50%,var(--hall-lamp),transparent 72%)}
+.band{position:relative;flex:none;height:28px;display:flex;align-items:center;justify-content:center;padding:0 34px;color:var(--hall-text)}
+.band__end{position:absolute;top:0;width:28px;height:28px}
+.band__pill{max-width:100%;padding:1px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--hall-line);font:400 12px/18px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.call{display:flex;align-items:center;gap:6px;width:100%;min-width:0}
+.call__line{flex:1;min-width:0;font:400 12px/16px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.call__value{color:var(--led);font-weight:600}
+.call__muted{color:var(--hall-muted)}
+.toggle{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 9px;border-radius:999px;border:1px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text);font:600 12px/16px var(--font-ui);white-space:nowrap;cursor:pointer}
+.toggle::before{content:"";position:absolute;inset:-8px -2px}
+.toggle__box{width:11px;height:11px;border-radius:3px;border:1.5px solid currentColor}
+.stage{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;gap:6px;padding:4px}
+
+/* the power bar: a 16 px rail at the screen's edge, the table's height
+   (its grip runs to the edge and over the table's wood, under the left
+   thumb). Pull down: the brass is the power, the grey the last shot's; the
+   top 8 % takes the shot back. */
+.pbar{position:relative;flex:none;width:16px;height:671px}
+.pbar--off{opacity:.35}
+.pbar__track{position:absolute;inset:0;border-radius:999px;overflow:hidden;background:rgba(255,255,255,.05);border:1px solid var(--hall-chip-line)}
+.pbar__last{position:absolute;left:0;right:0;top:0;background:#9BA8B7;opacity:.16}
+.pbar__fill{position:absolute;left:0;right:0;top:0;background:linear-gradient(180deg,rgba(217,164,65,.25),#D9A441)}
+.pbar__cancel{position:absolute;left:0;right:0;top:0;height:8%;display:flex;align-items:center;justify-content:center;border-bottom:1px dashed var(--hall-chip-line);color:var(--hall-muted)}
+.pbar__tick{position:absolute;left:3px;right:3px;height:1px;background:var(--hall-chip-line)}
+.pbar__pull{position:absolute;left:0;right:0;bottom:8px;display:flex;justify-content:center;color:var(--hall-muted)}
+.pbar__readout{position:absolute;left:calc(100% + 12px);z-index:3;transform:translateY(-50%);padding:2px 10px;border-radius:999px;background:rgba(11,17,25,.92);border:1px solid rgba(217,164,65,.55);color:#E3B25C;font:600 15px/20px var(--font-display);white-space:nowrap;font-variant-numeric:tabular-nums}
+
+/* the table, upright: the app's own proportions (2740 x 1470 mm with
+   its rails), the head and kitchen at the bottom */
+.tbl-rot{position:relative;flex:none;width:360px;aspect-ratio:1470/2740;container-type:size}
+.tbl-rot--glow::after{content:"";position:absolute;inset:0;border-radius:10px;box-shadow:0 0 0 2px var(--accent),0 0 20px 4px rgba(217,164,65,.45);opacity:.85;pointer-events:none}
+.tbl{position:absolute;left:50%;top:50%;width:100cqh;height:100cqw;transform:translate(-50%,-50%) rotate(-90deg)}
+.tbl__body{position:absolute;inset:0;border-radius:10px;box-shadow:0 18px 30px -16px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5)}
+.tbl__grain{position:absolute;inset:0;border-radius:10px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 5px)}
+.tbl__gloss{position:absolute;inset:0;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.14),transparent 30%,transparent 72%,rgba(0,0,0,.2))}
+.tbl__cushion{position:absolute;inset:3.741% 2.007%;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)}
+.tbl__bed{position:absolute;inset:3.309% 1.711%;container-type:inline-size;box-shadow:inset 0 0 14px rgba(0,0,0,.38),inset 0 0 2px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.07)}
+.tbl__head{position:absolute;left:25%;top:0;bottom:0;width:0;border-left:1px dashed rgba(255,255,255,.14)}
+.tbl__spot{position:absolute;width:.35%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.35)}
+.tbl__mouth{position:absolute;left:50%;width:4.64%;height:3.06%;transform:translateX(-50%);background:#020304}
+.tbl__mouth--top{clip-path:polygon(16% 0,84% 0,100% 100%,0 100%)}
+.tbl__mouth--bottom{clip-path:polygon(0 0,100% 0,84% 100%,16% 100%)}
+.tbl__pocket{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 50% 44%,#000 0 58%,#0C0F12);box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.tbl__sight{position:absolute;width:.55%;aspect-ratio:1;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg);background:#E6D7B4;opacity:.92}
+.tbl__ball{position:absolute;width:2.25%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 1px rgba(0,0,0,.55),.5px 2px 3px rgba(0,0,0,.32),0 0 0 .5px rgba(255,255,255,.3)}
+.tbl__num{position:absolute;inset:19%;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--ball-disc);color:#111316;font:600 1.1cqw/1 var(--font-display);letter-spacing:-.03em;transform:rotate(90deg)}
+.tbl__ball--plain .tbl__num{display:none}
+.tbl__aim{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.ptr{position:absolute;z-index:2;display:flex;align-items:center;gap:5px;padding:2px 9px 2px 4px;transform:translate(calc(-100% - 14px),-50%);border-radius:999px;background:rgba(11,17,25,.86);border:1px solid rgba(217,164,65,.55);color:var(--hall-text);font:600 12px/16px var(--font-ui);white-space:nowrap}
+.ptr__ball{width:12px;height:12px;border-radius:50%;box-shadow:inset -1.5px -2px 3px rgba(0,0,0,.35)}
+
+/* under the table, in the theme's colours and under the right thumb: the
+   fine aim wheel over the jump, both always out, and the cue ball, where
+   the spin is set by dragging the dot (a tap opens the large pad) */
+.tools-wrap{flex:none;height:76px;padding:0 4px 4px;background:var(--hall)}
+.tools{display:grid;grid-template-columns:4.2em minmax(0,1fr) 62px;grid-template-rows:30px 30px;grid-template-areas:"angle jog spin" "elev slide spin";align-items:center;column-gap:10px;row-gap:2px;height:72px;padding:0 4px 0 14px;align-content:center;border-radius:36px;background:var(--surface-1);color:var(--text);border:1px solid var(--hairline);box-shadow:0 14px 30px -20px rgba(0,0,0,.7)}
+.tools__angle{grid-area:angle;text-align:right;font:600 13px/16px var(--font-ui);font-variant-numeric:tabular-nums}
+.jog{grid-area:jog;position:relative;height:30px;border-radius:999px;border:1px solid var(--hairline-strong);background:var(--surface-2);overflow:hidden;cursor:ew-resize}
+.jog__ticks{position:absolute;inset:6px 0;opacity:.55;background:repeating-linear-gradient(90deg,var(--text-muted) 0 1px,transparent 1px 10px) 0 4px / auto 8px repeat-x,repeating-linear-gradient(90deg,var(--text) 0 1.5px,transparent 1.5px 50px) 0 0 / auto 100% repeat-x}
+.jog__mark{position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--accent)}
+.elev__head{grid-area:elev;display:flex;flex-direction:column;align-items:flex-end}
+.elev__label{font:600 10px/12px var(--font-ui);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)}
+.elev__value{font:600 13px/15px var(--font-ui);font-variant-numeric:tabular-nums}
+.elev{grid-area:slide;position:relative;height:30px;cursor:ew-resize}
+.elev:focus-visible,.jog:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:999px}
+.elev__track{position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;border-radius:999px;background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--hairline)}
+.elev__fill{position:absolute;left:0;top:50%;height:6px;margin-top:-3px;border-radius:999px;background:var(--accent)}
+.elev__stop{position:absolute;top:50%;width:1px;height:12px;margin-top:-6px;background:var(--hairline-strong)}
+.elev__thumb{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--surface-2);border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.spin{grid-area:spin;position:relative;width:62px;height:62px;padding:0;border:0;border-radius:50%;cursor:pointer;background:radial-gradient(circle at 36% 30%,#FFFFFF 0%,#F4EFE2 34%,#D9D2C1 78%,#B9B09D 100%);box-shadow:0 0 0 1px rgba(0,0,0,.35),0 4px 10px -4px rgba(0,0,0,.5)}
+.spin:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.spin__cross{position:absolute;inset:0;border-radius:50%;background:linear-gradient(rgba(17,19,22,.16),rgba(17,19,22,.16)) 50% 50% / 1px 72% no-repeat,linear-gradient(rgba(17,19,22,.16),rgba(17,19,22,.16)) 50% 50% / 72% 1px no-repeat}
+.spin__dot{position:absolute;width:13px;height:13px;margin:-6.5px 0 0 -6.5px;border-radius:50%;background:var(--ball-3);box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.4)}
+.tools--msg{display:flex;align-items:center;justify-content:center;padding:0 18px}
+.tools__msg{flex:1;min-width:0;font:400 14px/20px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tools--msg .tools__msg{flex:none;max-width:100%;text-align:center}
+.tools__msg strong{font-weight:600}
+</style>
+</helmet>
+<div class="pool" data-theme="{{theme}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden">
+
+  <header class="board">
+    <div class="side">
+      <button class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4"></path><path d="M8 17l-5-5 5-5"></path><path d="M3 12h12"></path></svg></button>
+      <div class="seat {{g.seatA}}">
+        <span class="face face--a">A<sc-if value="{{g.aimA}}" hint-placeholder-val="{{ true }}"><svg class="face__ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.5"></circle><circle cx="17" cy="17" r="15.5" fill="none" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="19.5"></circle></svg></sc-if></span>
+        <span class="seat__body">
+          <span class="seat__name">You</span>
+          <sc-if value="{{g.aimA}}" hint-placeholder-val="{{ true }}"><span class="seat__clock" role="timer" aria-label="24 seconds left">24s</span></sc-if>
+        </span>
+      </div>
+    </div>
+    <button class="score" type="button" aria-label="8-ball, {{g.scoreA}} to 1, race to 5">
+      <span class="score__game">8-ball</span>
+      <span class="score__nums"><span>{{g.scoreA}}</span><span class="score__sep">–</span><span>1</span></span>
+      <span class="score__race">race to 5</span>
+    </button>
+    <div class="side side--b">
+      <div class="seat seat--right {{g.seatB}}">
+        <span class="face face--b">B<sc-if value="{{g.aimB}}" hint-placeholder-val="{{ false }}"><svg class="face__ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.5"></circle><circle cx="17" cy="17" r="15.5" fill="none" stroke="#D9A441" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="39"></circle></svg></sc-if></span>
+        <span class="seat__body">
+          <span class="seat__name">Bob</span>
+          <sc-if value="{{g.aimB}}" hint-placeholder-val="{{ false }}"><span class="seat__clock" role="timer" aria-label="18 seconds left">18s</span></sc-if>
+        </span>
+      </div>
+      <button class="icon-btn" type="button" aria-label="Settings" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+    </div>
+    <div class="tray {{g.trayOnA}}" role="img" aria-label="{{g.trayLabelA}}">
+      <sc-for list="{{g.trayA}}" as="b" hint-placeholder-count="7"><span class="tray__slot {{b.cls}}"><span class="tball" style="background: {{b.bg}}"><span class="tball__num">{{b.n}}</span></span></span></sc-for>
+    </div>
+    <div class="tray tray--b {{g.trayOnB}}" role="img" aria-label="Bob’s stripes: 5 to pocket">
+      <sc-for list="{{g.trayB}}" as="b" hint-placeholder-count="7"><span class="tray__slot {{b.cls}}"><span class="tball" style="background: {{b.bg}}"><span class="tball__num">{{b.n}}</span></span></span></sc-for>
+    </div>
+  </header>
+
+  <div class="hall">
+    <div class="band" aria-live="polite">
+      <button class="icon-btn band__end" type="button" aria-label="Chat" style="left: 2px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+      <sc-if value="{{g.isCall}}" hint-placeholder-val="{{ true }}">
+        <div class="call">
+          <p class="call__line">Your group: <span class="call__value">solids</span> <span class="call__muted">· any that drops counts.</span></p>
+          <button class="toggle" type="button" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
+          <button class="toggle" type="button" aria-label="40 more seconds">+40s</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{g.notCall}}" hint-placeholder-val="{{ false }}"><span class="band__pill">{{g.status}}</span></sc-if>
+      <button class="icon-btn band__end" type="button" aria-label="Replay the last shot" style="right: 2px"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
+    </div>
+
+    <div class="stage">
+      <div class="pbar {{g.pbar}}" aria-hidden="true">
+        <div class="pbar__track">
+          <span class="pbar__last" style="height: 58%"></span>
+          <span class="pbar__fill" style="height: {{p.fill}}%"></span>
+          <span class="pbar__cancel"><svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></span>
+          <span class="pbar__tick" style="top: 25%"></span>
+          <span class="pbar__tick" style="top: 50%"></span>
+          <span class="pbar__tick" style="top: 75%"></span>
+          <span class="pbar__pull"><svg width="8" height="13" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 2.5 5 6l3.5-3.5"></path><path d="M1.5 9.5 5 13l3.5-3.5"></path></svg></span>
+        </div>
+        <sc-if value="{{p.on}}" hint-placeholder-val="{{ false }}"><span class="pbar__readout" style="top: {{p.fill}}%">{{p.speed}}</span></sc-if>
+      </div>
+
+      <div class="tbl-rot {{g.glow}}" role="img" aria-label="{{t.aria}}">
+        <div class="tbl">
+          <div class="tbl__body" style="background: {{t.rail}}"></div>
+          <span class="tbl__grain" aria-hidden="true"></span>
+          <span class="tbl__gloss" aria-hidden="true"></span>
+          <div class="tbl__cushion" style="background: {{t.cushion}}">
+            <div class="tbl__bed" style="background: {{t.bed}}">
+              <span class="tbl__head" aria-hidden="true"></span>
+              <span class="tbl__spot" style="left: 75%; top: 50%" aria-hidden="true"></span>
+              <sc-for list="{{t.balls}}" as="b" hint-placeholder-count="12">
+                <span class="tbl__ball {{b.cls}}" style="left: {{b.x}}%; top: {{b.y}}%; background: {{b.bg}}"><span class="tbl__num">{{b.n}}</span></span>
+              </sc-for>
+            </div>
+          </div>
+          <span class="tbl__mouth tbl__mouth--top" style="top: 3.74%" aria-hidden="true"></span>
+          <span class="tbl__mouth tbl__mouth--bottom" style="top: 93.2%" aria-hidden="true"></span>
+          <sc-for list="{{t.pockets}}" as="p" hint-placeholder-count="6">
+            <span class="tbl__pocket" style="left: {{p.x}}%; top: {{p.y}}%; width: {{p.w}}%"></span>
+          </sc-for>
+          <sc-for list="{{t.sights}}" as="s" hint-placeholder-count="18">
+            <span class="tbl__sight" style="left: {{s.x}}%; top: {{s.y}}%"></span>
+          </sc-for>
+          <sc-if value="{{a.show}}" hint-placeholder-val="{{ true }}">
+            <svg class="tbl__aim" viewBox="0 0 2740 1470" preserveAspectRatio="none" aria-hidden="true">
+              <circle cx="{{a.tx}}" cy="{{a.ty}}" r="46" fill="none" stroke="#D9A441" stroke-opacity="{{a.ring}}" stroke-width="6"></circle>
+              <line x1="{{a.p1x}}" y1="{{a.p1y}}" x2="{{a.p2x}}" y2="{{a.p2y}}" stroke="{{a.guide}}" stroke-opacity=".45" stroke-width="6" stroke-dasharray="18 18"></line>
+              <line x1="{{a.l1x}}" y1="{{a.l1y}}" x2="{{a.l2x}}" y2="{{a.l2y}}" stroke="{{a.guide}}" stroke-opacity=".8" stroke-width="7" stroke-dasharray="26 20"></line>
+              <circle cx="{{a.gx}}" cy="{{a.gy}}" r="28.6" fill="none" stroke="{{a.guide}}" stroke-opacity=".85" stroke-width="6"></circle>
+              <line x1="{{a.b1x}}" y1="{{a.b1y}}" x2="{{a.b2x}}" y2="{{a.b2y}}" stroke="#2B1A10" stroke-opacity="{{a.cueAlpha}}" stroke-width="26" stroke-linecap="round"></line>
+              <line x1="{{a.s1x}}" y1="{{a.s1y}}" x2="{{a.s2x}}" y2="{{a.s2y}}" stroke="#D8BE8A" stroke-opacity="{{a.cueAlpha}}" stroke-width="17" stroke-linecap="round"></line>
+              <line x1="{{a.f1x}}" y1="{{a.f1y}}" x2="{{a.f2x}}" y2="{{a.f2y}}" stroke="#F4F1E8" stroke-opacity="{{a.cueAlpha}}" stroke-width="16" stroke-linecap="round"></line>
+            </svg>
+          </sc-if>
+        </div>
+        <sc-if value="{{ptr.show}}" hint-placeholder-val="{{ true }}">
+          <span class="ptr" style="left: {{ptr.left}}%; top: {{ptr.top}}%" aria-hidden="true"><span class="ptr__ball" style="background: {{ptr.bg}}"></span>6 · solids</span>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+
+  <div class="tools-wrap">
+    <sc-if value="{{g.isCall}}" hint-placeholder-val="{{ true }}">
+      <section class="tools" aria-label="Fine aim, jump and spin">
+        <output class="tools__angle">{{a.angle}}</output>
+        <div class="jog" role="slider" tabindex="0" aria-label="Fine aim: drag sideways" aria-valuetext="{{a.angle}}"><span class="jog__ticks"></span><span class="jog__mark"></span></div>
+        <span class="elev__head"><span class="elev__label">Jump</span><output class="elev__value">{{j.text}}</output></span>
+        <div class="elev" role="slider" tabindex="0" aria-label="Jump: how far the cue is raised" aria-valuemin="0" aria-valuemax="85" aria-valuenow="{{j.deg}}" aria-valuetext="{{j.text}}">
+          <span class="elev__track"></span>
+          <span class="elev__fill" style="width: calc(12px + {{j.k}} * (100% - 24px))"></span>
+          <span class="elev__stop" style="left: calc(12px + 0.353 * (100% - 24px))"></span>
+          <span class="elev__stop" style="left: calc(12px + 0.706 * (100% - 24px))"></span>
+          <span class="elev__thumb" style="left: calc(12px + {{j.k}} * (100% - 24px))"></span>
+        </div>
+        <button class="spin" type="button" aria-haspopup="dialog" aria-label="Spin: {{s.text}}. Drag the dot, or tap for the large pad" title="Spin"><span class="spin__cross"></span><span class="spin__dot" style="left: {{s.x}}%; top: {{s.y}}%"></span></button>
+      </section>
+    </sc-if>
+    <sc-if value="{{g.isWait}}" hint-placeholder-val="{{ false }}">
+      <section class="tools tools--msg" aria-label="Waiting">
+        <p class="tools__msg"><strong>Bob’s shot.</strong> <span class="muted">You see the aim as it moves.</span></p>
+      </section>
+    </sc-if>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"state":{"editor":"enum","options":["aim","pull","jump","wait"],"default":"aim"},"$preview":{"width":390,"height":844}}'>
+// A phone held upright, the table as big as the screen allows, and the four
+// things a shot needs always out and in reach: the power bar (16 px, the
+// table's height, at the left edge), and under the table the fine aim
+// wheel, the jump and the cue ball for spin. Nothing else stands beside the
+// table: the balls each player still needs ride in the scoreboard, what to
+// hit and the toggles in the band over the felt. The table is 360 x 671
+// (306 x 570 as built on 11/10). state: aim = your shot, pull = pulling the
+// power bar, jump = the cue raised 30°, wait = Bob aims. As built on 12/10
+// (a rack's end keeps the layout between racks).
+const BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316' };
+const IVORY = '#F4EFE2';
+const FELT = '#1F5C9E';
+const HI = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.55) 0, rgba(255,255,255,0) 40%)';
+const EDGE = 'radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 54%, rgba(0,0,0,.3) 100%)';
+// the table in mm, lying down: 2540 x 1270 of bed inside 100 mm of rail;
+// x runs from the head (the bottom of the screen) to the foot
+const OUT_W = 2740, OUT_H = 1470, RAIL = 100, R = 28.575;
+// where the balls lie, in % of the bed: [along, across]
+const SPOTS = { 0: [38, 55], 2: [80, 78], 4: [8, 12], 5: [64, 80], 6: [62, 35], 7: [6, 90], 8: [78, 50], 9: [92, 26], 11: [86, 70], 12: [12, 30], 13: [46, 88], 15: [24, 42] };
+// the corner pockets at the foot, as the screen shows them: top left, top right
+const POCKET = { tl: [2660, 80], tr: [2660, 1390] };
+
+function shade(hex, k) {
+  return '#' + [1, 3, 5].map(function (i) { return Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0'); }).join('');
+}
+function stripe(n, deg) {
+  return 'linear-gradient(' + deg + 'deg, ' + IVORY + ' 0 24%, ' + BALL[n - 8] + ' 24% 76%, ' + IVORY + ' 76%)';
+}
+function feltBall(n) {
+  if (n === 0) return HI + ', ' + EDGE + ', ' + IVORY;
+  if (n <= 8) return HI + ', ' + EDGE + ', ' + BALL[n];
+  return HI + ', ' + EDGE + ', ' + stripe(n, 90 + (n * 37) % 100 - 50);
+}
+function trayBall(n) {
+  if (n <= 8) return BALL[n];
+  return 'linear-gradient(180deg, ' + IVORY + ' 0 21%, ' + BALL[n - 8] + ' 21% 79%, ' + IVORY + ' 79% 100%)';
+}
+const at = function (n) { return [RAIL + SPOTS[n][0] * 25.4, RAIL + SPOTS[n][1] * 12.7]; };
+const unit = function (x, y) { const l = Math.hypot(x, y); return [x / l, y / l]; };
+const r1 = function (v) { return Math.round(v * 10) / 10; };
+function aim(n, pocket, pull) {
+  const c = at(0), t = at(n), p = POCKET[pocket];
+  const u = unit(p[0] - t[0], p[1] - t[1]);
+  const g = [t[0] - u[0] * 2 * R, t[1] - u[1] * 2 * R];
+  const d = unit(g[0] - c[0], g[1] - c[1]);
+  const tip = [c[0] - d[0] * (R + 18 + pull), c[1] - d[1] * (R + 18 + pull)];
+  const along = function (len) { return [tip[0] - d[0] * len, tip[1] - d[1] * len]; };
+  const f2 = along(26), s2 = along(900), b2 = along(1450);
+  let deg = Math.atan2(d[1], d[0]) * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  return {
+    tx: r1(t[0]), ty: r1(t[1]),
+    l1x: r1(c[0] + d[0] * R), l1y: r1(c[1] + d[1] * R), l2x: r1(g[0] - d[0] * R), l2y: r1(g[1] - d[1] * R),
+    gx: r1(g[0]), gy: r1(g[1]),
+    p1x: r1(t[0] + u[0] * R), p1y: r1(t[1] + u[1] * R), p2x: r1(t[0] + u[0] * 420), p2y: r1(t[1] + u[1] * 420),
+    f1x: r1(tip[0]), f1y: r1(tip[1]), f2x: r1(f2[0]), f2y: r1(f2[1]),
+    s1x: r1(f2[0]), s1y: r1(f2[1]), s2x: r1(s2[0]), s2y: r1(s2[1]),
+    b1x: r1(s2[0]), b1y: r1(s2[1]), b2x: r1(b2[0]), b2y: r1(b2[1]),
+    angle: deg.toFixed(2) + '°',
+  };
+}
+// the tray of a group: seven slots, the pocketed ones empty
+function tray(from, gone) {
+  return [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+    const n = from + i;
+    return { n: String(n), bg: trayBall(n), cls: gone.includes(n) ? 'tray__slot--empty' : '' };
+  });
+}
+
+class Component extends DCLogic {
+  renderVals() {
+    const state = ['aim', 'pull', 'jump', 'wait'].includes(this.props.state) ? this.props.state : 'aim';
+    const wait = state === 'wait', pull = state === 'pull', jump = state === 'jump';
+    const call = state === 'aim' || pull || jump;
+    const balls = Object.keys(SPOTS).map(Number).map(function (n) {
+      return { x: SPOTS[n][0], y: SPOTS[n][1], bg: feltBall(n), n: n === 0 ? '' : String(n), cls: n === 0 ? 'tbl__ball--plain' : '' };
+    });
+    const shot = wait ? aim(11, 'tr', 0) : aim(6, 'tl', pull ? 170 : 0);
+    const six = at(6);
+    return {
+      theme: this.props.theme ?? 'dark',
+      g: {
+        isCall: call, notCall: !call, isWait: wait,
+        aimA: call, aimB: wait,
+        seatA: call ? 'seat--turn' : '',
+        seatB: wait ? 'seat--theirs' : '',
+        scoreA: '2',
+        glow: call ? 'tbl-rot--glow' : '',
+        pbar: call ? '' : 'pbar--off',
+        status: 'Missed the 6. Bob’s turn.',
+        trayA: tray(1, [1, 3]),
+        trayB: tray(9, [10, 14]),
+        trayOnA: call ? 'tray--on' : '',
+        trayOnB: wait ? 'tray--on' : '',
+        trayLabelA: 'Your solids: 5 to pocket',
+      },
+      p: { on: pull, fill: pull ? 62 : 0, speed: '3.1 m/s' },
+      // the jump (0 to 85°) and where the cue ball is struck, in % of its face
+      j: jump ? { deg: '30', text: '30°', k: '0.353' } : { deg: '0', text: 'level', k: '0' },
+      s: jump ? { x: 50, y: 34, text: 'follow' } : { x: 50, y: 66, text: 'a little draw' },
+      t: {
+        aria: 'The table stood upright: ' + (wait ? 'Bob lines up the 11' : 'your cue lined up on the 6'),
+        rail: 'linear-gradient(165deg, #6A4428, #4C2F1B 52%, #341F10)',
+        cushion: shade(FELT, 0.74),
+        bed: 'radial-gradient(ellipse 72% 78% at 50% 50%, ' + shade(FELT, 1.18) + ' 0%, ' + FELT + ' 58%, ' + shade(FELT, 0.66) + ' 100%)',
+        balls: balls,
+        pockets: [[2.92, 5.44], [97.08, 5.44], [2.92, 94.56], [97.08, 94.56], [50, 4.22], [50, 95.78]].map(function (q, i) {
+          return { x: q[0], y: q[1], w: i < 4 ? '4.20' : '4.00' };
+        }),
+        sights: [1, 2, 3, 5, 6, 7].flatMap(function (i) { const x = ((RAIL + 317.5 * i) / OUT_W * 100).toFixed(2); return [{ x: x, y: '1.87' }, { x: x, y: '98.13' }]; })
+          .concat([1, 2, 3].flatMap(function (j) { const y = ((RAIL + 317.5 * j) / OUT_H * 100).toFixed(2); return [{ x: '1.00', y: y }, { x: '99.00', y: y }]; })),
+      },
+      a: Object.assign({}, shot, {
+        show: true,
+        ring: call ? '.9' : '0',
+        guide: wait ? '#8CBFFF' : '#FFFFFF',
+        cueAlpha: wait ? '.5' : '1',
+      }),
+      // the pointer's label, upright beside the 6: where it sits on the screen
+      ptr: {
+        show: call,
+        left: r1(six[1] / OUT_H * 100),
+        top: r1((OUT_W - six[0]) / OUT_W * 100),
+        bg: BALL[6],
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>
