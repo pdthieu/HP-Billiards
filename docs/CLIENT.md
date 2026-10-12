@@ -466,7 +466,7 @@ landscape phones, icons only on phones) has:
      `placeShotOptions` moves the pieces (the call line into `#status`; on
      a short screen the cue ball, the jump slider and the wheel into
      `#sideTools`; over a dock the trays into the header) and back when the
-     phone turns. Sideways, the side column layout below is unchanged.
+     phone turns. Sideways, see *Landscape phones* below.
 
      A drag on the small cue ball carries the spin's dot with the finger,
      from where it was. A tap opens the spin picker (`#spinPop`): the spin
@@ -495,23 +495,37 @@ landscape phones, icons only on phones) has:
      as they do on a desktop or a tablet (at the bottom they covered the
      dock).
    - **Dialogs** taller than the screen scroll, from their top.
-   - **Landscape phones** show the shot panel as a sidebar, with the status
-     floating over the table (its row keeps the chat button's height, so
-     the button stays on the screen). While a rack is played the sidebar
-     is 144 px and holds the header too: the seats over and under the
-     score, with Settings, the 2D/3D switch and Leave beside it (the room
-     code and full screen are in Settings meanwhile); then the practice
-     tools, then the call, the toggles and the cue-ball button: the table
-     gets the whole height (a band over it would cost about 8 % of the
-     table there). `main.game` steps aside (`display: contents`) and the
-     page is the grid. In Safari with its bars (about 844 × 340)
-     the height is what limits the table, which is 12 % bigger so. In the
-     shot panel what to hit and its toggles come first, then the angle
-     readout beside the cue-ball button, the wheel, the jump slider; on the
-     smallest screens (568 × 320) the panel scrolls rather than hide any of
-     it. In the lobby and at the game over the header is a 44 px row. A
-     dialog is smaller there and the decision's options sit side by side.
-     The spin picker lays the big cue ball beside its words and buttons.
+   - **Landscape phones** (`body.phone-land`, `phoneMode`) play a rack with
+     the table first too (design/README.md, "In game"):
+     - the 16 px power bar at the left edge, under the left thumb (its grip
+       runs to the edge and over the table's wood);
+     - the table lying down, with nothing over it;
+     - one 128 px column on the right, which holds, from the top:
+       - the room's buttons: Leave, chat, replay, 2D/3D and Settings;
+       - a card per side (the initial, the name, the side's score, the
+         shot clock ringing the initial), each over its side's numbered
+         balls;
+       - the game and the race;
+       - the band: the last shot's result, then what to hit with its
+         chips (`statusCall`, as held upright);
+       - at the foot, under the right thumb, the dock: the angle, the cue
+         ball (a drag moves the spin's dot, a tap opens the big pad), the
+         fine aim wheel and the jump. While it is not my shot the dock
+         says whose shot it is.
+
+     On 844 × 390 the table is 678 × 364, and inside an iPhone's safe area
+     (about 750 × 369, from the home screen) 584 × 313. The column tightens
+     at 380 px tall. At 360 px (Safari with its bars) it drops the trays:
+     what to hit names the group.
+
+     `main.game` steps aside (`display: contents`) and the page is the
+     grid. `placeShotOptions` moves the call line into the band, and the
+     trays and the band's chat and replay buttons into the header. Settings
+     takes the column's place as a card, and the cards and the score fold
+     to one line over it. In the lobby and at the game over the header is
+     a 44 px row and the shot panel a sidebar, as before. A dialog is
+     smaller there and the decision's options sit side by side. The spin
+     picker lays the big cue ball beside its words and buttons.
    - **Turning the phone** in the middle of an aim, a pull or a carried
      ball stops it (`cancelGestures`): no shot, no placement, the ball goes
      back. The table turns under the finger, so where it goes next means

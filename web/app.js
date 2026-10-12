@@ -1683,6 +1683,10 @@ const optsHome = document.createComment('');
 $('optionsBtn').before(optsHome);
 const trayHome = document.createComment('');
 $('trayL').before(trayHome);
+const chatHome = document.createComment('');
+$('chatBtn').before(chatHome);
+const replayHome = document.createComment('');
+$('replayBtn').before(replayHome);
 const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 
 // phoneMode is the layout of a phone held upright for a rack, whichever
@@ -1695,6 +1699,10 @@ const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 //   so the scoreboard keeps to one row, and the balls and the tools stand in
 //   a column either side: yours over the power bar, the opponent's over the
 //   cue ball, the jump and the fine aim wheel, upright.
+// - 'land', a phone on its side (design/README.md, "In game"): the 16 px
+//   power bar at the left edge, the table, and one column on the right with
+//   the room's buttons, the score with each side's balls, what to hit, and
+//   at its foot the fine aim wheel, the cue ball and the jump.
 // It is worked out from the screen alone, so neither Settings nor a panel
 // coming and going swaps it. PHONE_DOCK and PHONE_SIDE are what each takes
 // round the table, as style.css lays them out: across, the stage's padding,
@@ -1703,7 +1711,7 @@ const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 const PHONE_DOCK = { w: 4 + 16 + 6 + 4, h: 60 + 28 + 76 + 8 };
 const PHONE_SIDE = { w: 4 + 22 + 4 + 4 + 40 + 4, h: 40 + 28 + 8 };
 function phoneMode() {
-  if (!phoneLayout()) return '';
+  if (!phoneLayout()) return compactLayout.matches ? 'land' : '';
   const cs = getComputedStyle(document.body);
   const w = document.documentElement.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const h = innerHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
@@ -1718,12 +1726,13 @@ function phoneMode() {
 // it first, so the table is measured in the layout it ends up in.
 let phoneSet = null, phoneKey = '';
 function applyPhoneMode() {
-  const key = `${phoneLayout()} ${innerWidth}x${innerHeight} ${W}`;
+  const key = `${phoneLayout()} ${compactLayout.matches} ${innerWidth}x${innerHeight} ${W}`;
   if (key === phoneKey) return;
   phoneKey = key;
   const mode = phoneMode();
   document.body.classList.toggle('phone-dock', mode === 'dock');
   document.body.classList.toggle('phone-side', mode === 'side');
+  document.body.classList.toggle('phone-land', mode === 'land');
   if (mode !== phoneSet) { phoneSet = mode; placeShotOptions(); }
 }
 
@@ -1737,7 +1746,7 @@ function placeShotOptions() {
     spinHome.after(spinBox);
     closeSpinPop();
   }
-  const mode = phoneLayout() ? phoneSet : '';
+  const mode = phoneSet || '';
   if (mode) $('status').append(callBox);
   else callHome.after(callBox);
   if (mode === 'side') {
@@ -1747,8 +1756,10 @@ function placeShotOptions() {
     elevHome.after(elevBox);
     optsHome.after($('optionsBtn'));
   }
-  if (mode === 'dock') $('top').append($('trayL'), $('trayR'));
+  if (mode === 'dock' || mode === 'land') $('top').append($('trayL'), $('trayR'));
   else trayHome.after($('trayL'), $('trayR'));
+  if (mode === 'land') $('top').append($('chatBtn'), $('replayBtn'));
+  else { chatHome.after($('chatBtn')); replayHome.after($('replayBtn')); }
   $('aimJog').classList.toggle('jog--v', mode === 'side');
   // held upright the bar stands on the left: the switch takes it right
   $('leftyToggle').querySelector('.toggle__title').textContent = mode ? 'Power bar on the right' : 'Power bar on the left';
@@ -4358,7 +4369,7 @@ const STATUS_ICONS = {
 
 // setStatus cross-fades the status sentence: the new text goes into the
 // inactive layer, the layers swap, and the old text is cleared once faded.
-// statusCall: on a phone held upright, once a shot's result has been read
+// statusCall: on a phone, once a shot's result has been read
 // (STATUS_HOLD_MS), the band over the table shows what to hit and the
 // shot's toggles while it is my shot.
 const STATUS_HOLD_MS = 2500;
@@ -4368,7 +4379,7 @@ function holdStatus() {
   holdStatus.timer = setTimeout(statusCall, STATUS_HOLD_MS + 20);
 }
 function statusCall() {
-  const on = phoneLayout() && document.body.classList.contains('is-playing') && isMyShot() && !S.replay &&
+  const on = !!phoneSet && document.body.classList.contains('is-playing') && isMyShot() && !S.replay &&
     performance.now() >= (S.statusHoldUntil || 0);
   $('status').classList.toggle('status--call', on);
 }
@@ -4446,6 +4457,7 @@ function showLanding(error) {
   $('landing').hidden = false;
   renderLandingTable();
   document.body.classList.add('is-landing');
+  syncThemeColor();
   setGameInert(true);
   hideConn();
   $('landing').scrollTop = 0;
@@ -4457,7 +4469,6 @@ function showLanding(error) {
   // An invite link opens straight onto "join this room": the name is the
   // only thing to fill in.
   const code = $('code').value.trim().toUpperCase();
-  syncThemeColor();
   const invited = /^[A-Z]{5}$/.test(code) && !!new URLSearchParams(location.search).get('room');
   const form = $('landingForm');
   form.classList.toggle('landing--invited', invited);
@@ -4497,17 +4508,6 @@ function hideLanding() {
   document.body.classList.remove('is-landing');
   setGameInert(false);
   stopRoomsPoll();
-}
-// setGameInert keeps Tab and the screen reader out of the header and the
-// game behind the landing page while it is open.
-function setGameInert(on) {
-  $('top').inert = on;
-  document.querySelector('main.game').inert = on;
-}
-
-// describeInvite names the host in the invited lead, when the room is listed.
-async function describeInvite(code) {
-  try {
   syncThemeColor();
 }
 
@@ -4520,6 +4520,17 @@ for (const m of themeMetas) m.dataset.home = m.content;
 function syncThemeColor() {
   const hall = !document.body.classList.contains('is-landing') && getComputedStyle(document.body).getPropertyValue('--hall').trim();
   for (const m of themeMetas) m.content = hall || m.dataset.home;
+}
+// setGameInert keeps Tab and the screen reader out of the header and the
+// game behind the landing page while it is open.
+function setGameInert(on) {
+  $('top').inert = on;
+  document.querySelector('main.game').inert = on;
+}
+
+// describeInvite names the host in the invited lead, when the room is listed.
+async function describeInvite(code) {
+  try {
     const res = await fetch('/api/rooms');
     if (!res.ok) return;
     const list = await res.json();
@@ -4734,6 +4745,15 @@ function renderSeat(seat) {
     el.append(Object.assign(document.createElement('span'), { className: 'seat__state', textContent: state }));
   }
   if (p.connected && S.clock && S.clock.seat === seat) el.append(clockRing());
+  seatScore(el, seat);
+}
+
+// seatScore gives a seat's card its side's score (racks; 3-cushion's
+// points): a phone on its side stacks the cards, so each carries its own
+// (CSS shows it only there).
+function seatScore(el, side) {
+  const m = S.seat >= 0 && !S.practice ? S.match : null;
+  if (m) el.append(Object.assign(document.createElement('span'), { className: 'seat__score', textContent: String(m.score[side]) }));
 }
 
 // avatar is a player's initial in a disc of their side's colour: the face
@@ -4803,6 +4823,7 @@ function renderTeamSeat(side) {
   if (g) body.append(groupDots(g));
   el.append(body);
   if (S.clock && sideOf(S.clock.seat) === side && S.players[S.clock.seat].connected) el.append(clockRing());
+  seatScore(el, side);
 }
 
 // renderTeamLobby fills the lobby of a 2v2 room: the two teams with a
@@ -5448,7 +5469,7 @@ $('practiceBar').addEventListener('click', (e) => { if (e.target.closest('button
 // B, emptied as they drop; the 8 once a side's group is gone; empty slots
 // before the groups are known. The side on turn is lit.
 function renderTrays() {
-  const show = phoneLayout() && S.mode === '8ball' && !S.practice && S.phase !== 'lobby';
+  const show = !!phoneSet && S.mode === '8ball' && !S.practice && S.phase !== 'lobby';
   for (const side of [0, 1]) {
     const el = $(side ? 'trayR' : 'trayL');
     el.hidden = !show;

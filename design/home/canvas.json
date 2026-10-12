@@ -189,6 +189,38 @@
       "h": 664,
       "title": "Short screen · as built 12/10 · table 312 × 582",
       "page": "game"
+    },
+    "Game-Landscape-Now.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "title": "Phone on its side · before (12/10) · table 622 × 333",
+      "page": "game"
+    },
+    "Game-Landscape-Big.dc.html": {
+      "x": 2804,
+      "y": 0,
+      "w": 844,
+      "h": 390,
+      "title": "Phone on its side · as built 12/10 · table 678 × 364",
+      "page": "game"
+    },
+    "Game-Landscape-Now-Iphone.dc.html": {
+      "x": 1880,
+      "y": 510,
+      "w": 750,
+      "h": 369,
+      "title": "iPhone on its side, inside its safe area (750 × 369) · before · table 528 × 283",
+      "page": "game"
+    },
+    "Game-Landscape-Big-Iphone.dc.html": {
+      "x": 2804,
+      "y": 510,
+      "w": 750,
+      "h": 369,
+      "title": "iPhone on its side · as built 12/10 · table 584 × 313",
+      "page": "game"
     }
   },
   "order": [
@@ -205,6 +237,10 @@
     "Game-Portrait-Big.dc.html",
     "Game-Portrait-Now-Short.dc.html",
     "Game-Portrait-Big-Short.dc.html",
+    "Game-Landscape-Now.dc.html",
+    "Game-Landscape-Big.dc.html",
+    "Game-Landscape-Now-Iphone.dc.html",
+    "Game-Landscape-Big-Iphone.dc.html",
     "Settings-Desktop.dc.html",
     "Settings-Portrait.dc.html",
     "Settings-Landscape.dc.html",
@@ -227,6 +263,14 @@
       "text": "In game · phone upright: the biggest table (built 12/10)",
       "kind": "title1",
       "maxW": 1800,
+      "page": "game"
+    },
+    "game-land": {
+      "x": 1880,
+      "y": -300,
+      "text": "In game · phone on its side: the table first (built 12/10)",
+      "kind": "title1",
+      "maxW": 1768,
       "page": "game"
     },
     "game-title": {

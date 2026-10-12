@@ -1318,3 +1318,187 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
   background: repeating-linear-gradient(0deg, var(--text-muted) 0 1px, transparent 1px 10px) 4px var(--jog-y, 0px) / 8px auto repeat-y,
               repeating-linear-gradient(0deg, var(--text) 0 1.5px, transparent 1.5px 50px) 0 var(--jog-y, 0px) / 100% auto repeat-y; }
 .jog--v .jog__mark { left: 4px; right: 4px; top: 50%; bottom: auto; width: auto; height: 2px; margin: -1px 0 0; }
+
+/* --- a phone on its side, in a rack: the table first -----------------------
+   (design/README.md, "In game"; body.phone-land, phoneMode in app.js.) The
+   16 px power bar at the left edge under the left thumb, the table lying
+   down with nothing over it, and one 128 px column on the right: the room's
+   buttons (Leave, chat, replay, 2D/3D, Settings), a card per side with its
+   score and its balls under it, the game and the race, the band with what
+   to hit and its chips, and at the column's foot, under the right thumb,
+   the angle and the cue ball, the fine aim wheel and the jump. Shorter
+   screens tighten the column (380 px) and drop the trays (360 px: what to
+   hit names the group). Settings → "Power bar on the right" (pbar--left)
+   moves the bar to the other side. */
+.seat__score { display: none; }
+@media (orientation: landscape) and (max-height: 500px) {
+  body.is-playing.phone-land { display: grid; grid-template-columns: minmax(0, 1fr) 128px; grid-template-rows: auto auto auto minmax(0, 1fr);
+    grid-template-areas: "stage hdr" "stage band" "stage practice" "stage slot"; gap: 6px 8px;
+    padding: calc(env(safe-area-inset-top, 0px) + 4px) calc(env(safe-area-inset-right, 0px) + 4px) calc(env(safe-area-inset-bottom, 0px) + 4px) calc(env(safe-area-inset-left, 0px) + 4px); }
+  body.is-playing.phone-land main.game { display: contents; }
+
+  /* the stage: the power bar and the table */
+  body.is-playing.phone-land .stage { grid-area: stage; display: grid; grid-template-columns: 16px minmax(0, 1fr); grid-template-areas: "bar table"; place-items: center; gap: 0 6px; padding: 0; min-height: 0; }
+  body.is-playing.phone-land .stage:has(.pbar--left) { grid-template-columns: minmax(0, 1fr) 16px; grid-template-areas: "table bar"; }
+  body.is-playing.phone-land .stage:has(> .pbar[hidden]) { grid-template-columns: minmax(0, 1fr); grid-template-areas: "table"; } /* a spectator */
+  body.is-playing.phone-land .stage__table { grid-area: table; }
+  body.is-playing.phone-land .pbar { grid-area: bar; order: 0; width: 16px; height: auto; align-self: stretch; gap: 0; }
+  body.is-playing.phone-land .pbar::before { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; right: -14px; }
+  body.is-playing.phone-land .pbar--left::before { left: -14px; right: -4px; }
+  body.is-playing.phone-land .pbar__label { bottom: 8px; gap: 0; }
+  body.is-playing.phone-land .pbar__label span { display: none; }
+  body.is-playing.phone-land .pbar__label svg { width: 10px; height: 16px; }
+  body.is-playing.phone-land .pbar__cancel svg { width: 9px; height: 9px; }
+  body.is-playing.phone-land .pbar__readout { right: auto; left: calc(100% + 16px); font-size: 16px; line-height: 22px; padding: 2px 10px; }
+  body.is-playing.phone-land .pbar--left .pbar__readout { left: auto; right: calc(100% + 16px); }
+  body.is-playing.phone-land .toasts { left: calc((100% - 136px) / 2); max-width: calc(100% - 172px); }
+
+  /* the column's head: the buttons, then a card per side over its balls,
+     then the game and the race */
+  body.is-playing.phone-land .hdr { grid-area: hdr; display: grid; grid-template-columns: repeat(3, 24px) minmax(0, 1fr) 24px 24px; grid-template-rows: 24px;
+    grid-template-areas: "lead chat replay . view end" "s0 s0 s0 s0 s0 s0" "t0 t0 t0 t0 t0 t0" "s1 s1 s1 s1 s1 s1" "t1 t1 t1 t1 t1 t1" "score score score score score score";
+    align-items: center; gap: 0; height: auto; padding: 0; background: transparent; border: 0; }
+  body.is-playing.phone-land .hdr__room, body.is-playing.phone-land #fullBtn { display: none; }
+  body.is-playing.phone-land :is(.hdr__match, .hdr__tools) { display: contents; }
+  body.is-playing.phone-land :is(#leaveBtn, #menuBtn) { grid-area: lead; }
+  body.is-playing.phone-land #chatBtn { grid-area: chat; }
+  body.is-playing.phone-land #replayBtn { grid-area: replay; }
+  body.is-playing.phone-land #viewBtn { grid-area: view; }
+  body.is-playing.phone-land #settingsBtn { grid-area: end; }
+  body.is-playing.phone-land :is(#leaveBtn, #menuBtn, #chatBtn, #replayBtn, #viewBtn, #settingsBtn) { position: relative; inset: auto; transform: none; width: 24px; height: 24px; }
+  body.is-playing.phone-land :is(#chatBtn, #replayBtn) svg { width: 15px; height: 15px; }
+  body.is-playing.phone-land .view-btn__text { font-size: 12px; }
+  body.is-playing.phone-land #seat0 { grid-area: s0; }
+  body.is-playing.phone-land #seat1 { grid-area: s1; }
+  body.is-playing.phone-land #trayL { grid-area: t0; }
+  body.is-playing.phone-land #trayR { grid-area: t1; }
+  body.is-playing.phone-land #score { grid-area: score; }
+  /* a card: the face (an initial; two for a team), the name, the score at
+     its end; the shot clock rings the face, its seconds under the name */
+  body.is-playing.phone-land .seat, body.is-playing.phone-land .seat--team { position: relative; justify-self: stretch; flex-direction: row; height: 30px; min-height: 0; max-width: none; margin-top: 6px;
+    gap: 6px; padding: 0 9px 0 3px; border-radius: var(--r-pill); }
+  body.is-playing.phone-land .seat--right { flex-direction: row; }
+  body.is-playing.phone-land .seat__avatar { display: grid; place-items: center; flex: none; width: 22px; height: 22px; border-radius: 50%;
+    font: 700 12px/1 var(--font-ui); color: #0D1218; background: var(--accent); }
+  body.is-playing.phone-land .seat__avatar--p1 { background: var(--ball-2); color: #fff; }
+  body.is-playing.phone-land .seat__avatar.is-empty { background: transparent; box-shadow: inset 0 0 0 1.5px var(--hall-chip-line); }
+  body.is-playing.phone-land .seat--team .seat__faces { display: flex; flex: none; }
+  body.is-playing.phone-land .seat--team .seat__faces .seat__avatar { width: 20px; height: 20px; font-size: 10px; box-shadow: 0 0 0 1.5px var(--hall); }
+  body.is-playing.phone-land .seat--team .seat__faces .seat__avatar + .seat__avatar { margin-left: -6px; }
+  body.is-playing.phone-land .seat__body, body.is-playing.phone-land .seat--right .seat__body { flex: 1; align-items: flex-start; gap: 0; }
+  body.is-playing.phone-land .seat__line, body.is-playing.phone-land .seat--right .seat__line { flex-direction: row; }
+  body.is-playing.phone-land .seat__name, body.is-playing.phone-land .seat--team .seat__name { font-size: 12px; line-height: 14px; max-width: 100%; }
+  body.is-playing.phone-land .seat .tag, body.is-playing.phone-land .seat__cue, body.is-playing.phone-land .seat__state { display: none; }
+  body.is-playing.phone-land .seat--team .seat__line:not(.is-on) { display: none; }
+  body.is-playing.phone-land .seat--team:not(:has(.is-on)) .seat__line:first-child { display: flex; }
+  body.is-playing.phone-land .seat .seat__dots:not(:has(.ball:only-child)) { display: none; } /* the trays show the groups */
+  body.is-playing.phone-land .seat__body:has(> .seat__dots) { flex-direction: row; align-items: center; gap: 5px; } /* 3-cushion's ball beside the name */
+  body.is-playing.phone-land .seat__score { display: block; flex: none; margin-left: auto; font: 600 18px/20px var(--font-display); font-variant-numeric: tabular-nums; color: var(--hall-text); }
+  body.is-playing.phone-land .seat .hold { position: absolute; top: -.5px; left: 0; width: 28px; height: 28px; }
+  body.is-playing.phone-land .seat .hold svg { width: 28px; height: 28px; }
+  body.is-playing.phone-land .seat .hold__num { inset: auto auto auto 31px; top: 15px; font: 600 10px/12px var(--font-ui); }
+  body.is-playing.phone-land .seat .hold--clock .hold__num::after { content: "s"; }
+  body.is-playing.phone-land .seat:has(> .hold) .seat__body { align-self: flex-start; margin-top: 1px; }
+  body.is-playing.phone-land .seat--team .hold { position: relative; top: auto; left: auto; width: 20px; height: 20px; }
+  body.is-playing.phone-land .seat--team .hold svg { width: 20px; height: 20px; }
+  body.is-playing.phone-land .seat--team .hold__num { inset: 0; font-size: 9px; }
+  body.is-playing.phone-land .seat--team .hold--clock .hold__num::after { content: none; }
+  body.is-playing.phone-land .seat--team:has(> .hold) .seat__body { align-self: center; margin-top: 0; }
+  /* the balls each side still needs, numbered; brass round the side on turn */
+  body.is-playing.phone-land .tray { display: grid; grid-template-columns: repeat(7, minmax(0, 17px)); justify-content: space-between; gap: 0; min-height: 0; margin-top: 3px; }
+  body.is-playing.phone-land .tray[hidden] { display: none; }
+  body.is-playing.phone-land .tray__slot { display: grid; place-items: center; width: 100%; height: auto; aspect-ratio: 1; border-radius: 50%; background: rgba(0, 0, 0, .45); box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6); }
+  body.is-playing.phone-land .tray--on .tray__slot { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6), 0 0 0 1px var(--accent-ring); }
+  body.is-playing.phone-land .tray__slot .ball { width: 94%; height: 94%;
+    box-shadow: inset -2px -2.6px 4.5px rgba(0, 0, 0, .3), inset 1px 1.3px 2.6px rgba(255, 255, 255, .14), 0 0 0 1px rgba(255, 255, 255, .3); }
+  body.is-playing.phone-land .tray__slot .ball__num { inset: 20%; font: 600 8px/1 var(--font-display); letter-spacing: -.02em; }
+  /* the game and the race, the score's own button (it opens the racks) */
+  body.is-playing.phone-land button.score { justify-self: center; display: flex; flex-direction: row; align-items: center; gap: 4px; height: auto; min-width: 0; margin-top: 5px; padding: 0 4px; }
+  body.is-playing.phone-land button.score::before { content: attr(data-mode) " ·"; font: 600 9px/12px var(--font-display); letter-spacing: .12em; text-transform: uppercase; color: var(--led); white-space: nowrap; }
+  body.is-playing.phone-land button.score:has(.score__vs)::before { content: attr(data-mode); }
+  body.is-playing.phone-land :is(.score__nums, .score__vs) { display: none; }
+  body.is-playing.phone-land .score__race { display: inline; font: 600 9px/12px var(--font-display); letter-spacing: .12em; }
+
+  /* the band: the last shot's result, then what to hit and its chips */
+  body.is-playing.phone-land .status { grid-area: band; position: relative; inset: auto; height: 76px; min-height: 0; padding: 0; z-index: auto; pointer-events: auto;
+    display: grid; align-items: center; justify-items: stretch; font-size: 12px; line-height: 16px; }
+  body.is-playing.phone-land .status__layer { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; overflow: hidden;
+    padding: 4px 10px; border-radius: 12px; font-size: 12px; line-height: 16px; text-align: center; background: rgba(255, 255, 255, .06); color: var(--hall-text); }
+  body.is-playing.phone-land .status .call { grid-area: 1 / 1; z-index: 1; display: none; flex-direction: column; align-items: stretch; justify-content: center; gap: 5px; width: 100%; min-width: 0; padding: 0; }
+  body.is-playing.phone-land .status--call .call { display: flex; }
+  body.is-playing.phone-land .status--call .status__layer { opacity: 0 !important; pointer-events: none; }
+  body.is-playing.phone-land .status .call__line { flex: none; margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; white-space: normal; overflow: hidden;
+    font-size: 12px; line-height: 16px; text-align: left; }
+  body.is-playing.phone-land .status .call__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+  body.is-playing.phone-land .status .call__actions :is(.toggle, .btn) { justify-content: center; min-height: 22px; padding: 0 3px; gap: 4px; border: 1px solid var(--hall-chip-line); border-radius: var(--r-pill);
+    background: var(--hall-chip); color: var(--hall-text); font: 600 12px/16px var(--font-ui); }
+  body.is-playing.phone-land .status .call__actions .toggle[aria-pressed="true"] { color: var(--on-accent); border-color: transparent; }
+  body.is-playing.phone-land .status .call__actions .toggle__box { width: 10px; height: 10px; border-radius: 3px; }
+  body.is-playing.phone-land .status .call__actions .btn svg { display: block; width: 12px; height: 12px; }
+  body.is-playing.phone-land .status .hint, body.is-playing.phone-land .status #handTag { display: none; }
+
+  /* the practice tools: a row over the dock */
+  body.is-playing.phone-land .practice { grid-area: practice; }
+
+  /* the dock at the column's foot, under the right thumb: the angle and the
+     cue ball (a drag moves the spin's dot, a tap opens the big pad), the
+     fine aim wheel, the jump; the same card says whose shot it is */
+  body.is-playing.phone-land .slot { grid-area: slot; align-self: end; height: auto; padding: 0; }
+  body.is-playing.phone-land #shotPanel { display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: 46px 28px 28px; grid-template-areas: "read opts" "jog jog" "elev elev";
+    align-items: center; align-content: center; gap: 6px 8px; height: auto; padding: 8px 8px 8px 12px; border-radius: 18px; overflow: visible; }
+  body.is-playing.phone-land #shotPanel :is(.angle, .angle__row) { display: contents; }
+  body.is-playing.phone-land #shotPanel .angle > .field__label, body.is-playing.phone-land #shotPanel .nudge { display: none; }
+  body.is-playing.phone-land #shotPanel .angle__readout { grid-area: read; min-width: 0; width: auto; text-align: left; font-size: 13px; line-height: 16px; }
+  body.is-playing.phone-land #shotPanel .jog { grid-area: jog; height: 28px; }
+  body.is-playing.phone-land #shotPanel .elev { grid-area: elev; min-width: 0; gap: 0; }
+  body.is-playing.phone-land #shotPanel .elev__pic { display: none; }
+  body.is-playing.phone-land #shotPanel .elev__meta { flex: 1; min-width: 0; flex-direction: row; align-items: center; gap: 8px; }
+  body.is-playing.phone-land #shotPanel .elev__head { flex: none; width: 2.6em; flex-direction: column; align-items: flex-start; justify-content: center; gap: 0; }
+  body.is-playing.phone-land #shotPanel .elev__head .field__label { font-size: 9px; line-height: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  body.is-playing.phone-land #shotPanel .elev__readout { min-width: 0; text-align: left; font-size: 12px; line-height: 14px; }
+  body.is-playing.phone-land #shotPanel .elev__range { flex: 1; min-width: 0; width: auto; height: 28px; writing-mode: horizontal-tb; direction: ltr; }
+  body.is-playing.phone-land #shotPanel .opts-btn { grid-area: opts; width: 46px; height: 46px; touch-action: none; }
+  body.is-playing.phone-land #shotPanel .opts-btn::before { content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: linear-gradient(rgba(17, 19, 22, .16), rgba(17, 19, 22, .16)) center / 1px 72% no-repeat,
+                linear-gradient(rgba(17, 19, 22, .16), rgba(17, 19, 22, .16)) center / 72% 1px no-repeat; }
+  body.is-playing.phone-land #shotPanel .opts-btn__dot { width: 11px; height: 11px; margin: -5.5px 0 0 -5.5px; box-shadow: 0 0 0 2px #fff, 0 1px 3px rgba(0, 0, 0, .4); }
+  body.is-playing.phone-land #waitPanel { flex-direction: column; justify-content: center; gap: 2px; height: 132px; padding: 8px 12px; border-radius: 18px; text-align: center; }
+  body.is-playing.phone-land #waitText { font-size: 13px; line-height: 18px; }
+  body.is-playing.phone-land #waitSub { display: block; font-size: 12px; line-height: 16px; }
+
+  /* Settings beside a rack: the column gives way to the sheet, the cards
+     and the score fold to one line over it */
+  body.is-settings.is-playing.phone-land:not(.is-landing) .hdr { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: auto; grid-template-areas: "s0 score s1"; gap: 0 6px; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) :is(#trayL, #trayR, #chatBtn, #replayBtn, #menuBtn, .status) { display: none; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) .seat { margin-top: 0; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) .seat__score { display: none; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) button.score::before { content: none; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) .score__nums { display: flex; font-size: 20px; line-height: 22px; gap: 2px; }
+  body.is-settings.is-playing.phone-land:not(.is-landing) .score__race { display: none; }
+}
+/* the home-screen app on an iPhone (about 370 px tall inside its safe area):
+   the same column, a little tighter */
+@media (orientation: landscape) and (max-height: 380px) {
+  body.is-playing.phone-land .seat, body.is-playing.phone-land .seat--team { height: 28px; margin-top: 5px; }
+  body.is-playing.phone-land .seat__avatar { width: 20px; height: 20px; }
+  body.is-playing.phone-land .seat .hold, body.is-playing.phone-land .seat .hold svg { width: 26px; height: 26px; }
+  body.is-playing.phone-land .seat .hold__num { left: 29px; top: 14px; }
+  body.is-playing.phone-land .tray { grid-template-columns: repeat(7, minmax(0, 16px)); }
+  body.is-playing.phone-land .tray__slot .ball__num { font-size: 7.5px; }
+  body.is-playing.phone-land button.score { margin-top: 4px; }
+  body.is-playing.phone-land .status { height: 72px; }
+  body.is-playing.phone-land #shotPanel { grid-template-rows: 44px 28px 28px; gap: 5px 8px; padding: 6px 6px 6px 10px; }
+  body.is-playing.phone-land #shotPanel .opts-btn { width: 44px; height: 44px; }
+  body.is-playing.phone-land #waitPanel { height: 124px; }
+}
+/* Safari's bars on top (about 340 px): no trays (what to hit names the
+   group), a two-line band and a tighter dock */
+@media (orientation: landscape) and (max-height: 360px) {
+  body.is-playing.phone-land .tray { display: none; }
+  body.is-playing.phone-land .status { height: 60px; }
+  body.is-playing.phone-land :is(.status__layer, .status .call__line) { -webkit-line-clamp: 2; }
+  body.is-playing.phone-land #shotPanel { grid-template-rows: 40px 26px 26px; gap: 4px 8px; }
+  body.is-playing.phone-land #shotPanel .opts-btn { width: 40px; height: 40px; }
+  body.is-playing.phone-land #shotPanel :is(.jog, .elev__range) { height: 26px; }
+  body.is-playing.phone-land #waitPanel { height: 112px; }
+}
