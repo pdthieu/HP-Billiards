@@ -66,9 +66,9 @@ color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--fon
 .call__line{flex:1;min-width:0;font:400 12px/16px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .call__value{color:var(--led);font-weight:600}
 .call__muted{color:var(--hall-muted)}
-.toggle{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 9px;border-radius:999px;border:1px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text);font:600 12px/16px var(--font-ui);white-space:nowrap;cursor:pointer}
+.toggle{position:relative;flex:none;display:inline-flex;align-items:center;gap:5px;min-height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text);font:600 12px/16px var(--font-ui);white-space:nowrap;cursor:pointer}
 .toggle::before{content:"";position:absolute;inset:-8px -2px}
-.toggle__box{width:11px;height:11px;border-radius:3px;border:1.5px solid currentColor}
+.toggle__box{width:10px;height:10px;border-radius:3px;border:1.5px solid currentColor}
 
 /* beside the table: your balls over the 16 px power bar on the left, Bob's
    over the cue ball, the jump and the upright fine aim wheel on the right */
@@ -170,7 +170,7 @@ color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--fon
         <div class="call">
           <p class="call__line">Your group: <span class="call__value">solids</span> <span class="call__muted">· any that drops counts.</span></p>
           <button class="toggle" type="button" aria-pressed="false"><span class="toggle__box"></span>Safety</button>
-          <button class="toggle" type="button" aria-label="40 more seconds">+40s</button>
+          <button class="toggle" type="button" aria-label="40 more seconds"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>+40s</button>
         </div>
       </sc-if>
       <sc-if value="{{g.notCall}}" hint-placeholder-val="{{ false }}"><span class="band__pill">{{g.status}}</span></sc-if>
