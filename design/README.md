@@ -126,8 +126,8 @@ leaves the table bigger (`phoneMode`, docs/CLIENT.md):
 - *A dock* (a tall screen, 390 × 800 and taller): only a 16 px power bar
   beside the table. Under it a 76 px dock holds the wheel over the jump,
   with a 62 px cue ball beside both. The scoreboard is two rows: Leave, your
-  card, the score, the opponent's card, Settings; under the cards each
-  side's balls. On 390 × 844 the table goes from 306 × 570 (the 11/10
+  card, the score, the opponent's card, the 2D/3D switch, Settings; under
+  the cards each side's balls. On 390 × 844 the table goes from 306 × 570 (the 11/10
   build, a column either side) to 360 × 671.
 - *Columns* (a short screen: Safari with its bars, 390 × 664): height runs
   out first, so the scoreboard keeps to one row and the pieces stand

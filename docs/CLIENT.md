@@ -157,9 +157,10 @@ form). Below it is the break rule, *Alternate* or *Winner breaks*. Both are reme
 - **Phones.** Held upright, the scoreboard holds the seats either side of
   the score with Settings and Leave at its end, and in the lobby the room
   code at its start; while a rack is played the code steps aside (Settings
-  → This room has it), Leave starts the row and the 2D/3D switch is in
-  Settings → Table, so the seats have the width (see **Phones** below). On
-  a 320 px phone the seat on turn shows it by its brass alone.
+  → This room has it) and Leave starts the row, so the seats have the
+  width (see **Phones** below). The 2D/3D switch sits by Settings, except
+  on a 340 px phone or narrower, where Settings → Table alone has it. On a
+  320 px phone the seat on turn shows it by its brass alone.
 - **Tablets and narrow windows** (601 to 1099 px wide): one row cannot hold
   what to hit, the aim, the spin and the jump, so the dock takes two rows
   (what to hit and its buttons over the aim, the spin and the jump) in a
@@ -455,8 +456,10 @@ landscape phones, icons only on phones) has:
      - *The header* holds a card per player: the initial in a disc of the
        side's colour (two discs for a 2v2 side) and the name; the shot clock
        rings the disc, its seconds under the name. Leave starts the row,
-       Settings ends it, and the game and the score sit between the cards
-       (on one row the game shares the race's line).
+       the 2D/3D switch and Settings end it, and the game and the score sit
+       between the cards (on one row the game shares the race's line). The
+       balls under the cards give a little on a narrow phone, so a 360 px
+       screen still holds all seven.
      - *Practice*: Undo, Move balls, Rack and Leave open as a list from the
        menu button at the start of the header (`#menuBtn`).
 

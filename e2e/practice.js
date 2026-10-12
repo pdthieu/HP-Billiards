@@ -226,6 +226,7 @@ async function shootAndSettle(page, angle, power) {
     if (await P.isVisible('#spinPad')) fail('spin pad shown beside the table');
     for (const id of ['aimJog', 'optionsBtn', 'elevRange']) if (!(await P.isVisible(`#sideTools #${id}`))) fail(`no #${id} in the right column`);
     if (await P.isVisible('#controls') || await P.isVisible('#practiceBar')) fail('something under the table');
+    if (!(await P.isVisible('#top #viewBtn'))) fail('no 2D/3D switch in the scoreboard');
     const cols = await P.evaluate(() => {
       const r = (id) => document.getElementById(id).getBoundingClientRect();
       return { bar: r('powerBar').right <= r('table').left, wheel: r('aimJog').left >= r('table').right, jump: r('elevRange').left >= r('table').right };
@@ -357,6 +358,17 @@ async function shootAndSettle(page, angle, power) {
     });
     if (!dock.dock || dock.w < 340 || !dock.under || !dock.inDock || !dock.bar || dock.wheel < 160 || dock.jump < 160 || dock.overflow.length) fail(`tall phone ${JSON.stringify(dock)}`);
     await T.screenshot({ path: path.join(shots, 'practice-phone-tall.png') });
+    // the 2D/3D switch sits in the scoreboard beside Settings, not in Settings alone
+    const vb = await T.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const v = r('viewBtn'), g = r('settingsBtn'), h = r('top');
+      return { shown: !!$('viewBtn').offsetParent, inHeader: v.top >= h.top && v.bottom <= h.bottom, beside: v.right <= g.left && g.left - v.right < 8 };
+    });
+    if (!vb.shown || !vb.inHeader || !vb.beside) fail(`the 2D/3D switch ${JSON.stringify(vb)}`);
+    await T.click('#viewBtn');
+    if (await T.evaluate(() => S.view) !== '3d' || (await T.textContent('#viewBtn')).trim() !== '2D') fail('the switch did not turn 3D on');
+    await T.click('#viewBtn');
+    if (await T.evaluate(() => S.view) !== '2d' || (await T.textContent('#viewBtn')).trim() !== '3D') fail('the switch did not turn 3D off');
     await T.close();
     console.log(`tall phone ok: the table ${dock.w} x ${dock.h} over the dock`);
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);

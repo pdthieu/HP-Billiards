@@ -453,7 +453,7 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .hdr__room { flex: none; }
   .hdr__code { font-size: 14px; letter-spacing: .14em; }
   .hdr__tools { flex: none; gap: 0; }
-  #settingsBtn, #leaveBtn { width: 34px; height: 34px; }
+  #viewBtn, #settingsBtn, #leaveBtn { width: 34px; height: 34px; }
   button.score { padding: 0 2px; }
   .hdr__match { flex: 1; gap: 6px; }
   .hdr__match > .seat { justify-self: start; }
@@ -499,13 +499,12 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
   .stage { min-height: 340px; }
 }
 
-/* the scoreboard of a phone held upright: the view switch lives in
-   Settings → Table and the room code steps aside while a rack is played
-   (Settings → This room has it), so the seats and the score get the width;
-   the seats' clock ring and ball dots shrink, and nothing runs off the
-   screen */
+/* the scoreboard of a phone held upright: the 2D/3D switch sits by
+   Settings (on the narrowest phones it is in Settings → Table only) and the
+   room code steps aside while a rack is played (Settings → This room has
+   it), so the seats and the score get the width; the seats' clock ring and
+   ball dots shrink, and nothing runs off the screen */
 @media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
-  #viewBtn { display: none; }
   body.is-playing .hdr__code { display: none; }
   .hdr__match { gap: 4px; }
   .seat--compact { max-width: none; padding: 0 7px; gap: 5px; }
@@ -519,6 +518,7 @@ main.game { flex: 1; min-height: 0; overflow: hidden; }
    wheel and the jump slider a row each; the seat on turn shows it by its
    brass, without the cue */
 @media (max-width: 340px) {
+  #viewBtn { display: none; } /* Settings → Table has it: the seats keep the width */
   .hdr { padding: 0 6px 0 8px; gap: 4px; }
   .seat--compact .seat__cue { display: none; }
   .seat--compact .seat__name { max-width: 7ch; }
@@ -1119,17 +1119,18 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
 .menu-btn[hidden] { display: none; }
 @media (max-width: 600px) and (orientation: portrait), (max-width: 600px) and (min-height: 501px) {
   /* the scoreboard: you, the score, your opponent; Leave (practice: its
-     menu) at the start, Settings at the end */
-  body.is-playing .hdr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto; grid-template-rows: 34px;
-    grid-template-areas: "lead s0 score s1 end"; align-items: center; gap: 0 3px; height: 40px; padding: 0 4px; }
-  body.is-playing.phone-dock .hdr { grid-template-rows: 34px 20px; grid-template-areas: "lead s0 score s1 end" "t0 t0 score t1 t1"; row-gap: 2px; height: 60px; padding: 2px 4px 1px; }
-  body.is-practice.is-playing .hdr { grid-template-areas: "lead s0 s0 s0 end"; } /* one card, no score */
-  body.is-practice.is-playing.phone-dock .hdr { grid-template-areas: "lead s0 s0 s0 end" "t0 t0 score t1 t1"; }
+     menu) at the start, the 2D/3D switch and Settings at the end */
+  body.is-playing .hdr { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto auto; grid-template-rows: 34px;
+    grid-template-areas: "lead s0 score s1 view end"; align-items: center; gap: 0 3px; height: 40px; padding: 0 4px; }
+  body.is-playing.phone-dock .hdr { grid-template-rows: 34px 20px; grid-template-areas: "lead s0 score s1 view end" "t0 t0 score t1 t1 t1"; row-gap: 2px; height: 60px; padding: 2px 4px 1px; }
+  body.is-practice.is-playing .hdr { grid-template-areas: "lead s0 s0 s0 view end"; } /* one card, no score */
+  body.is-practice.is-playing.phone-dock .hdr { grid-template-areas: "lead s0 s0 s0 view end" "t0 t0 score t1 t1 t1"; }
   body.is-playing .hdr__room { display: none; }
   body.is-playing :is(.hdr__match, .hdr__tools) { display: contents; }
   body.is-playing :is(#leaveBtn, #menuBtn) { grid-area: lead; }
+  body.is-playing #viewBtn { grid-area: view; }
   body.is-playing #settingsBtn { grid-area: end; }
-  body.is-playing :is(#leaveBtn, #menuBtn, #settingsBtn) { width: 32px; height: 32px; }
+  body.is-playing :is(#leaveBtn, #menuBtn, #viewBtn, #settingsBtn) { width: 32px; height: 32px; }
   body.is-playing #seat0 { grid-area: s0; justify-self: start; }
   body.is-playing #seat1 { grid-area: s1; justify-self: end; }
   body.is-playing #score { grid-area: score; justify-self: center; }
@@ -1189,7 +1190,10 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
      screen; brass round the side on turn */
   body.is-playing .tray { display: flex; gap: 1px; min-height: 0; }
   body.is-playing .tray[hidden] { display: none; }
-  body.is-playing.phone-dock .tray { grid-area: t0; align-self: center; flex-direction: row; }
+  body.is-playing.phone-dock .tray { grid-area: t0; align-self: center; display: grid; grid-template-columns: repeat(7, minmax(0, 20px)); }
+  body.is-playing.phone-dock .tray[hidden] { display: none; }
+  body.is-playing.phone-dock .tray__slot { width: 100%; height: auto; aspect-ratio: 1; }
+  body.is-playing.phone-dock .tray__slot .ball { width: 90%; height: 90%; }
   body.is-playing.phone-dock #trayR { grid-area: t1; justify-self: end; }
   body.is-playing.phone-dock .tray--on .tray__slot { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .6), 0 0 0 1px var(--accent-ring); }
   body.is-playing.phone-side .tray { grid-area: tl; align-self: start; flex-direction: column; gap: 1.5px; padding: 1px;
