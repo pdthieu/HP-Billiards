@@ -4457,6 +4457,7 @@ function showLanding(error) {
   // An invite link opens straight onto "join this room": the name is the
   // only thing to fill in.
   const code = $('code').value.trim().toUpperCase();
+  syncThemeColor();
   const invited = /^[A-Z]{5}$/.test(code) && !!new URLSearchParams(location.search).get('room');
   const form = $('landingForm');
   form.classList.toggle('landing--invited', invited);
@@ -4507,6 +4508,18 @@ function setGameInert(on) {
 // describeInvite names the host in the invited lead, when the room is listed.
 async function describeInvite(code) {
   try {
+  syncThemeColor();
+}
+
+// The bars round the page take the theme colour: a home-screen app's status
+// bar, Android's, Safari's. On the home page that is the page's own surface
+// (index.html, by the system's theme); in a room it is the hall's, so no
+// lighter band hangs over the dark game.
+const themeMetas = [...document.querySelectorAll('meta[name="theme-color"]')];
+for (const m of themeMetas) m.dataset.home = m.content;
+function syncThemeColor() {
+  const hall = !document.body.classList.contains('is-landing') && getComputedStyle(document.body).getPropertyValue('--hall').trim();
+  for (const m of themeMetas) m.content = hall || m.dataset.home;
     const res = await fetch('/api/rooms');
     if (!res.ok) return;
     const list = await res.json();

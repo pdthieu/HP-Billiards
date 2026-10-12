@@ -53,6 +53,10 @@ async function shootAndSettle(page, angle, power) {
     await A.waitForFunction(() => document.getElementById('landing').hidden && S.practice && S.phase === 'open');
     const code = await A.textContent('#roomCode');
     if ((await A.textContent('#roomEyebrow')) !== 'Practice · 8-ball') fail(`eyebrow ${await A.textContent('#roomEyebrow')}`);
+    // In a room the bars round the page (a home-screen app's status bar,
+    // Android's) take the hall's colour: no lighter band over the game.
+    const tint = () => A.evaluate(() => [...document.querySelectorAll('meta[name="theme-color"]')].map((m) => m.content.toUpperCase()).join(' '));
+    if (await tint() !== '#0B1119 #0B1119') fail(`theme colour in a room: ${await tint()}`);
     // One player, free play: no second seat, no score, no calls.
     if (await A.isVisible('#seat1') || await A.isVisible('#score')) fail('sides or score shown in practice');
     if (!/^Free play/.test(await A.textContent('#callText'))) fail(`call line ${await A.textContent('#callText')}`);
@@ -369,6 +373,12 @@ async function shootAndSettle(page, angle, power) {
     if (await T.evaluate(() => S.view) !== '3d' || (await T.textContent('#viewBtn')).trim() !== '2D') fail('the switch did not turn 3D on');
     await T.click('#viewBtn');
     if (await T.evaluate(() => S.view) !== '2d' || (await T.textContent('#viewBtn')).trim() !== '3D') fail('the switch did not turn 3D off');
+    // leaving gives the bars the home page's colours back
+    await T.click('#menuBtn');
+    await T.click('#practiceLeave');
+    await T.waitForFunction(() => !document.getElementById('landing').hidden);
+    const home = await T.evaluate(() => [...document.querySelectorAll('meta[name="theme-color"]')].map((m) => m.content.toUpperCase()).join(' '));
+    if (home !== '#F9F8F5 #141B23') fail(`theme colour on the home page: ${home}`);
     await T.close();
     console.log(`tall phone ok: the table ${dock.w} x ${dock.h} over the dock`);
     if (errors.length) fail(`page errors: ${errors.join('; ')}`);

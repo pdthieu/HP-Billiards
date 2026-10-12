@@ -538,7 +538,11 @@ landscape phones, icons only on phones) has:
      (`icon.svg`, rendered to 192, 512 and the 180 px apple-touch-icon) let
      a phone add Pool to its home screen. It then opens standalone, without
      browser bars. Settings explains how on touch devices that are not
-     standalone yet; it is the only full screen an iPhone has. The
+     standalone yet; it is the only full screen an iPhone has. The theme
+     colour, which the status bar there takes (and Android's, and
+     Safari's bars), is the home page's own surface on the home page and
+     the hall's in a room (`syncThemeColor`), so no lighter band hangs over
+     the dark game. The
    connection card appears only after 300 ms offline, with the retry backoff
    drawn as steps; a reload inside a room shows a splash after 150 ms.
 
