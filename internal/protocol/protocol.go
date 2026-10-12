@@ -89,7 +89,7 @@ const (
 	ErrBadSpectator = "bad_spectators" // set_audience (or room creation) with a number outside 0 to the server's limit
 	ErrBadTable     = "bad_table"      // set_table (or room creation) with an unknown table or cloth
 	ErrSeatTaken    = "seat_taken"     // sit on a seat someone has
-	ErrBadPlayers   = "bad_players"    // room creation with players other than 2 or 4, 4 outside 8-ball, or set_mode away from 8-ball in a 2v2 room
+	ErrBadPlayers   = "bad_players"    // room creation with players other than 2 or 4, or 4 in 3-cushion; set_mode to 3-cushion in a 2v2 room
 )
 
 // ClientMessage is any client → server message; only the fields of its Type

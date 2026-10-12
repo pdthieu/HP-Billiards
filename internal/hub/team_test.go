@@ -68,7 +68,9 @@ func startTeamGame(t *testing.T, srv *httptest.Server) ([4]*testClient, string, 
 }
 
 func TestCreateTeamRoom(t *testing.T) {
-	_, srv := newServer(t, fastOptions())
+	opts := fastOptions()
+	opts.MaxRooms = 10
+	_, srv := newServer(t, opts)
 	code := createWith(t, srv, `{"players":4}`)
 	res, err := http.Get(srv.URL + "/api/rooms")
 	if err != nil {
@@ -80,11 +82,12 @@ func TestCreateTeamRoom(t *testing.T) {
 	if len(list.Rooms) != 1 || list.Rooms[0].RoomCode != code || list.Rooms[0].Size != 4 || len(list.Rooms[0].Players) != 4 {
 		t.Fatalf("room list %+v", list)
 	}
-	for _, body := range []string{`{"players":3}`, `{"players":4,"mode":"9ball"}`, `{"players":4,"mode":"3cushion"}`} {
+	for _, body := range []string{`{"players":3}`, `{"players":4,"mode":"3cushion"}`} {
 		if status, out := postRoom(t, srv, body); status != http.StatusBadRequest || out["error"] != "bad_players" {
 			t.Errorf("%s: %d %v", body, status, out)
 		}
 	}
+	createWith(t, srv, `{"players":4,"mode":"9ball"}`) // scotch doubles
 	// practice is one player, whatever is asked
 	practice := createWith(t, srv, `{"practice":true,"players":4}`)
 	c := dial(t, srv)
@@ -407,8 +410,122 @@ func TestTeamSetModeIsLocked(t *testing.T) {
 	code := createWith(t, srv, `{"players":4}`)
 	c := dial(t, srv)
 	c.join(code, "Ann")
-	c.send(msg{"type": "set_mode", "mode": "9ball"})
+	c.send(msg{"type": "set_mode", "mode": "3cushion"})
 	c.expectError("bad_players")
+	c.send(msg{"type": "set_mode", "mode": "9ball"})
+	if st := c.expect("room_state"); st["mode"] != "9ball" {
+		t.Fatalf("set_mode 9ball: %v", st)
+	}
+}
+
+// TestScotchRotation drives 9-ball doubles directly: teammates alternate
+// every shot, pocketing or not; a side keeps its place while the other
+// plays; teammates take turns to break; an empty seat is skipped.
+func TestScotchRotation(t *testing.T) {
+	h := New(fastOptions())
+	settings := RoomSettings{Players: 4, Mode: game.ModeNine}
+	settings.fill(10)
+	r := newRoom(h, "NINE", settings)
+	for i, name := range teamNames {
+		r.seats[i] = seat{name: name}
+	}
+	r.startRack(0)
+	if r.shooter != 0 {
+		t.Fatalf("breaker %d", r.shooter)
+	}
+	// shot by the shooter; then the turn is side's
+	shot := func(side, want int) {
+		t.Helper()
+		r.shotBy = r.shooter
+		r.shotDone(r.shotBy)
+		r.game.Rules.Turn = side
+		r.syncShooter()
+		if r.shooter != want || r.actor() != want {
+			t.Fatalf("after a shot, side %d: shooter %d, want %d", side, r.shooter, want)
+		}
+	}
+	shot(0, 2) // Ann pocketed on the break: Cat shoots
+	shot(0, 0) // Cat pocketed: Ann
+	shot(1, 1) // Ann missed: Bob
+	shot(1, 3) // Bob pocketed: Dan
+	shot(0, 2) // Dan missed: A's next is Cat
+	shot(1, 1) // Cat missed: B's next is Bob again
+
+	// a push out by Bob: A's next (Ann) decides; a pass back leaves the
+	// shot to Bob's partner
+	shot(1, 3)
+	r.game.Rules.Turn = 1
+	r.game.Rules.Decision = &game.Decision{Seat: 0, Options: []game.Option{game.OptTakeShot, game.OptPassBack}}
+	if a := r.actor(); a != 0 {
+		t.Fatalf("decides after the push out: %d", a)
+	}
+	r.game.Rules.Decision = nil
+	r.syncShooter()
+	if r.shooter != 3 {
+		t.Fatalf("after a pass back: %d", r.shooter)
+	}
+
+	// breaks: B first, then A's second player, then B's
+	r.game.Rules.Phase = game.PhaseGameOver
+	for _, c := range []struct{ side, want int }{{1, 1}, {0, 2}, {1, 3}, {0, 0}} {
+		r.startRack(c.side)
+		if r.shooter != c.want {
+			t.Fatalf("side %d breaks with %d, want %d", c.side, r.shooter, c.want)
+		}
+	}
+
+	r.seats[2] = seat{} // Cat is gone: Ann plays every shot of A
+	r.startRack(0)
+	shot(0, 0)
+	shot(0, 0)
+
+	// 8-ball keeps shooting on after a pot
+	r.mode = game.ModeEight
+	r.seats[2] = seat{name: "Cat"}
+	r.newMatch()
+	r.startRack(0)
+	shot(0, 0)
+}
+
+// TestNineTeamPushOutPassBack: after the break the next player of the side
+// may push out; the other side's next player decides, and a pass back gives
+// the shot to the pusher's partner.
+func TestNineTeamPushOutPassBack(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createWith(t, srv, `{"players":4,"mode":"9ball"}`)
+	cs, _ := seatFour(t, srv, code)
+	for _, c := range cs {
+		c.send(msg{"type": "ready"})
+	}
+	for _, c := range cs {
+		c.waitFor("room_state")
+	}
+	cs[0].send(msg{"type": "shoot", "angle": 0, "power": 1})
+	_, m := cs[1].waitFor("settled")
+	if m["phase"] == "game_over" {
+		t.Skip("the 9 dropped on the break")
+	}
+	pusher := int(m["turn"].(float64))
+	if pusher != 1 && pusher != 2 || m["pushOut"] != true {
+		t.Fatalf("after Ann's break: turn %d pushOut %v (want Cat or Bob, a push out allowed)", pusher, m["pushOut"])
+	}
+	decider := 3 - pusher // Bob decides Cat's push out, Cat decides Bob's
+	cs[pusher^2].send(msg{"type": "shoot", "angle": 1, "power": 0.02, "call": msg{"pushOut": true}})
+	if _, e := cs[pusher^2].waitFor("error"); e["code"] != "not_your_turn" {
+		t.Fatalf("the pusher's partner shot: %v", e)
+	}
+	cs[pusher].send(msg{"type": "shoot", "angle": 1, "power": 0.02, "call": msg{"pushOut": true}})
+	_, m = cs[1].waitFor("settled")
+	d, _ := m["decision"].(msg)
+	if m["pushedOut"] != true || d == nil || d["seat"] != float64(decider) {
+		t.Fatalf("after the push out: %v", m)
+	}
+	cs[decider].send(msg{"type": "choose", "option": "pass_back"})
+	_, st := cs[1].waitFor("room_state")
+	cl, _ := st["clock"].(msg)
+	if st["turn"] != float64(pusher^2) || cl == nil || cl["seat"] != float64(pusher^2) {
+		t.Fatalf("after the pass back: turn %v clock %v, want the pusher's partner %d", st["turn"], cl, pusher^2)
+	}
 }
 
 // TestSyncShooterRotation drives the rotation directly: the turn's side

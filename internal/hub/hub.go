@@ -156,8 +156,9 @@ type RoomSettings struct {
 	// same cloth.
 	Table game.TableID `json:"table"`
 	Cloth string       `json:"cloth"`
-	// Players is 2, or 4 for 2v2 (8-ball only): seats 0 and 2 against 1
-	// and 3, teammates shooting in turn. 0 is 2; practice is always 2.
+	// Players is 2, or 4 for 2v2 (8-ball, or 9-ball as scotch doubles):
+	// seats 0 and 2 against 1 and 3, teammates shooting in turn. 0 is 2;
+	// practice is always 2.
 	Players int `json:"players"`
 }
 
@@ -212,9 +213,9 @@ func (s *RoomSettings) fill(limit int) {
 	}
 }
 
-// validPlayers: 2 players, or 4 for 2v2 8-ball.
+// validPlayers: 2 players, or 4 for 2v2 in 8-ball or 9-ball.
 func (s *RoomSettings) validPlayers() bool {
-	return s.Players == 2 || s.Players == 4 && s.Mode == game.ModeEight
+	return s.Players == 2 || s.Players == 4 && (s.Mode == game.ModeEight || s.Mode == game.ModeNine)
 }
 
 // CreateRoom starts a new empty room and returns its code. It fails with

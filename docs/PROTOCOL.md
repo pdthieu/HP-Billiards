@@ -4,7 +4,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 ## Transport
 
-- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "table": "predator", "cloth": "electric-blue", "players": 2, "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), the table and its cloth (see Tables; default `diamond` and `tournament-blue`), how many play (`2`, the default, or `4` for 2v2 in 8-ball; see Teams), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`, an unknown table or cloth `400 {"error": "bad_table", ...}`, `players` other than 2 or 4, or 4 outside 8-ball, `400 {"error": "bad_players", ...}` (practice is always one player). Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
+- `POST /api/rooms` creates a room and answers `{"roomCode": "ABCDE"}`. An optional JSON body `{"mode": "9ball", "race": 5, "breaks": "winner", "spectators": 3, "table": "predator", "cloth": "electric-blue", "players": 2, "practice": false}` picks the game (`8ball`, the default, `9ball` or `3cushion`), the race of its matches (1–25, default 1; in 3-cushion the points of the game, 1–50, default 15), who breaks after the first rack (`alternate`, the default, or `winner`; see Matches), how many spectators may watch (0 to the server's `-max-spectators`, 10 by default; default 3; see Spectators and chat), the table and its cloth (see Tables; default `diamond` and `tournament-blue`), how many play (`2`, the default, or `4` for 2v2 in 8-ball or 9-ball; see Teams), or, with `practice`, makes a practice room (see Practice). An unknown mode answers `400 {"error": "bad_mode", ...}`, a bad race or break rule `400 {"error": "bad_race", ...}`, a bad number of spectators `400 {"error": "bad_spectators", ...}`, an unknown table or cloth `400 {"error": "bad_table", ...}`, `players` other than 2 or 4, or 4 in 3-cushion, `400 {"error": "bad_players", ...}` (practice is always one player). Codes are 5 uppercase letters without `I` and `O`. At most 3 rooms exist at once (`-max-rooms`); beyond that the answer is `409 {"error": "room_limit", "message": "..."}`.
 - `GET /api/rooms` lists the live rooms: `{"rooms": [{"roomCode": "ABCDE", "mode": "8ball", "table": "diamond", "cloth": "tournament-blue", "players": ["Ann", ""], "size": 2, "phase": "lobby", "score": [0, 0], "seated": 1}], "used": 1, "max": 3}`. Practice rooms are not listed but count in `used`, the number of live rooms. `players` are the seat names (`""` for an empty seat), `size` how many seats (2, or 4 in 2v2), `score` the match in play by side (racks won; in 3-cushion the game's points), `[0, 0]` until a match starts. `seated` counts taken seats including ones held for a reconnect; a room with `seated` < `size` can be joined (a 2v2 room only in the `lobby`). `spectators` counts who watches and `maxSpectators` how many may; one more can watch while `spectators` < `maxSpectators`. Sorted by code.
 - `GET /ws` upgrades to a WebSocket. Every message is a JSON text frame holding an object with a `type` field. Inbound messages are limited to 4096 bytes.
 - The first message on a socket must be `join`. Until a join succeeds, anything else is answered with `error` `not_joined`.
@@ -160,15 +160,16 @@ In practice (`rerack` with `3cushion`) the player always strikes the white; shot
 
 ## Teams (2v2)
 
-A room created with `players: 4` (8-ball only) has four seats: seats 0 and 2 are one side, 1 and 3 the other (the side is `seat % 2`). The rules are those of 8-ball between the two sides; teammates take turns in a fixed rotation, 0 → 1 → 2 → 3 → 0:
+A room created with `players: 4` (8-ball or 9-ball) has four seats: seats 0 and 2 are one side, 1 and 3 the other (the side is `seat % 2`). The rules are those of the game between the two sides; teammates take turns in a fixed rotation, 0 → 1 → 2 → 3 → 0:
 
-- Whoever pockets shoots on. When the turn crosses to the other side, that side's next player shoots: each side keeps its own place in the rotation, from rack to rack, and starts again from its first seat with each match.
-- A decision after the break (see Decisions) is made by the deciding side's next player, and moves nobody's place: after `rerack_opponent_breaks` the same player breaks again.
+- 8-ball: whoever pockets shoots on. When the turn crosses to the other side, that side's next player shoots: each side keeps its own place in the rotation, from rack to rack, and starts again from its first seat with each match.
+- 9-ball is played as scotch doubles (WPA): teammates alternate **every shot**, whether it pocketed or not; a time foul and a push out count as the player's shot. When the turn crosses, the other side's next player shoots. Teammates also take turns to break (the sides break as the room's break rule says). Three fouls in a row are counted per side.
+- A decision after the break (see Decisions) is made by the deciding side's next player, and moves nobody's place: after `rerack_opponent_breaks` the same player breaks again. After a 9-ball push out the other side's next player chooses; `take_shot` is theirs to shoot, and after `pass_back` the pusher's partner shoots.
 - Who must act is always a **seat**: `turn`, `decision.seat`, `clock.seat`, `timeout.seat`, `settled.shooter` (who shot), `aim.seat`, `chat.seat`. What belongs to a team is by **side**: `groups`, `fouls`, `winner`, `match.score`, `racks[].winner` and `.breaker`, and `clock.extensions` (one extension per team per game). In a room of two the seat is the side, so nothing changes there.
 - `shoot`, `place_cue` and `choose` from the teammate of the player who must act fail with `not_your_turn`.
 - The rack starts when all four are seated and ready. Teams are picked in the lobby with `sit`. While a game is on, nobody can join a 2v2 room (`room_full`); spectators can.
 - A player who drops out has their seat held for `-hold` (60 s) as in a room of two; their clock waits. If they do not come back (or `leave`), the seat empties and the match goes on: the teammate plays every turn of the side and takes over the clock. Only when a side has nobody left does it forfeit the match. After a match won with a seat empty, `rematch` goes back to the lobby so the seat can be filled.
-- `set_mode` away from 8-ball fails with `bad_players`.
+- `set_mode` switches between 8-ball and 9-ball as in a room of two; to `3cushion` it fails with `bad_players`.
 
 ## Spectators and chat
 
@@ -338,7 +339,7 @@ Ends a shot. Positions are exact; clients snap to them.
 | `bad_spectators` | `set_audience` (or room creation) with a number outside 0 to the server's limit, or in a practice room. |
 | `bad_table` | `set_table` (or room creation) with a table or cloth not listed under Tables. |
 | `seat_taken` | `sit` on a seat someone has. |
-| `bad_players` | Room creation with `players` other than 2 or 4, or 4 outside 8-ball; `set_mode` away from 8-ball in a 2v2 room. |
+| `bad_players` | Room creation with `players` other than 2 or 4, or 4 in 3-cushion; `set_mode` to 3-cushion in a 2v2 room. |
 
 ## Shot clock
 

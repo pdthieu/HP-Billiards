@@ -94,7 +94,7 @@ var (
 	errBadRace       = errors.New("the race must be 1 to 25 (3-cushion: 1 to 50 points) and the breaks alternate or winner")
 	errBadSpectators = errors.New("that many spectators are not allowed here")
 	errBadTable      = errors.New("unknown table or cloth")
-	errBadPlayers    = errors.New("a room has 2 players, or 4 (2v2) for 8-ball")
+	errBadPlayers    = errors.New("a room has 2 players, or 4 (2v2) for 8-ball and 9-ball")
 	errSeatTaken     = errors.New("that seat is taken")
 	errGameOn        = errors.New("a 2v2 game is on; join when it is back in the lobby")
 )
@@ -143,6 +143,7 @@ type room struct {
 	// shoots now and shotBy the seat that took the shot in progress. See
 	// syncShooter.
 	next     [2]int
+	brk      [2]int // 9-ball scotch doubles: each side's next breaker
 	turnSide int
 	shooter  int
 	shotBy   int
@@ -199,10 +200,28 @@ func (r *room) resetGame() {
 // A seat left empty mid-match (its player did not come back) is skipped:
 // the teammate shoots every turn of the side. In a room of two, a seat is
 // its side and all of this is the identity.
+//
+// 9-ball is played as scotch doubles (WPA): teammates alternate every
+// shot, pocketing or not, a time foul and a push out included, and take
+// turns to break. So the rotation moves on after each shot (shotDone)
+// rather than when the turn crosses; after a pass back the pusher's partner
+// shoots.
 
 func side(s int) int { return s % 2 }
 
 func (r *room) teamRoom() bool { return len(r.seats) > 2 }
+
+// scotch: teammates alternate every shot (9-ball doubles).
+func (r *room) scotch() bool { return r.teamRoom() && r.mode == game.ModeNine }
+
+// shotDone moves the shooter's side on in its rotation after each shot in
+// scotch doubles; elsewhere the rotation moves when the turn crosses.
+func (r *room) shotDone(seat int) {
+	if r.scotch() {
+		sd := side(seat)
+		r.next[sd] = (r.next[sd] + 1) % (len(r.seats) / 2)
+	}
+}
 
 // seatAt is the i-th seat of side sd.
 func (r *room) seatAt(sd, i int) int { return sd + 2*(i%(len(r.seats)/2)) }
@@ -224,7 +243,7 @@ func (r *room) pickShooter(sd int) int {
 func (r *room) syncShooter() {
 	sd := r.game.Rules.Turn
 	if sd != r.turnSide {
-		if r.turnSide >= 0 {
+		if r.turnSide >= 0 && !r.scotch() { // scotch: moved on after the shot
 			r.next[r.turnSide] = (r.next[r.turnSide] + 1) % (len(r.seats) / 2)
 		}
 		r.turnSide = sd
@@ -754,7 +773,7 @@ func (r *room) handleRematch() error {
 // in 2v2 each side starts again from its first player.
 func (r *room) newMatch() {
 	r.match = game.NewMatch(r.race, r.breaks)
-	r.next, r.turnSide = [2]int{}, -1
+	r.next, r.brk, r.turnSide = [2]int{}, [2]int{}, -1
 }
 
 // matchLive reports whether a match is being played: a rack is on, or one
@@ -886,7 +905,7 @@ func (r *room) handleSetMode(mode game.Mode) error {
 		return game.ErrWrongPhase
 	case mode == r.mode:
 		return nil
-	case r.teamRoom() && mode != game.ModeEight:
+	case r.teamRoom() && mode == game.ModeCarom:
 		return errBadPlayers
 	}
 	if (mode == game.ModeCarom) != (r.mode == game.ModeCarom) {
@@ -948,7 +967,12 @@ func (r *room) startRack(breaker int) {
 		target = 0
 	}
 	r.game.SetTarget(target)
-	if r.turnSide >= 0 {
+	switch {
+	case r.scotch():
+		// teammates take turns to break; the other side stays where it is
+		r.next[breaker] = r.brk[breaker]
+		r.brk[breaker] = (r.brk[breaker] + 1) % (len(r.seats) / 2)
+	case r.turnSide >= 0:
 		// the last turn of the rack before is over: its side moves on
 		r.next[r.turnSide] = (r.next[r.turnSide] + 1) % (len(r.seats) / 2)
 	}
@@ -1046,6 +1070,7 @@ func (r *room) tick() {
 		return
 	}
 	r.stopTicker()
+	r.shotDone(r.shotBy)
 	r.syncShooter()
 	limit := r.hub.opts.ShotClock
 	if r.breakShot && r.game.Rules.Phase == game.PhaseOpen {
@@ -1208,6 +1233,7 @@ func (r *room) handleClockExpired(gen int) {
 		if r.game.TimeFoul(side(s)) != nil {
 			return
 		}
+		r.shotDone(s) // running out of time is the shooter's shot
 		r.syncShooter()
 		r.endRack(game.FoulNone) // a third foul in a row loses a 9-ball rack
 		r.startClock(r.hub.opts.ShotClock)
