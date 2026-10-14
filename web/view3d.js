@@ -552,14 +552,14 @@ export function createView3D(canvas, k) {
         for (let v = 0; v < 4; v++) col.set([tmp.r, tmp.g, tmp.b, alpha], n * 16 + v * 4);
         n++;
       },
-      line(a, b, w, color, alpha, dash) {
-        if (!dash) { this.quad(a.x, a.y, b.x, b.y, w, color, alpha); return; }
+      line(a, b, w, color, alpha, dash, h) {
+        if (!dash) { this.quad(a.x, a.y, b.x, b.y, w, color, alpha, h); return; }
         const dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy);
         if (l < 1e-6) return;
         const ux = dx / l, uy = dy / l;
         for (let s = 0; s < l; s += dash[0] + dash[1]) {
           const e = Math.min(l, s + dash[0]);
-          this.quad(a.x + ux * s, a.y + uy * s, a.x + ux * e, a.y + uy * e, w, color, alpha);
+          this.quad(a.x + ux * s, a.y + uy * s, a.x + ux * e, a.y + uy * e, w, color, alpha, h);
         }
       },
       circle(x, y, r, w, color, alpha, h) {
@@ -577,6 +577,7 @@ export function createView3D(canvas, k) {
     };
   }
   const marks = strips(1600);
+  const lookDir = new THREE.Vector3();
   const ghost = new THREE.Mesh(ballGeo, keep(new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.1, depthWrite: false })));
   ghost.renderOrder = 3;
   scene.add(ghost);
@@ -735,17 +736,24 @@ export function createView3D(canvas, k) {
     marks.begin();
     ghost.visible = false;
     if (frame.guide) {
+      // The guide runs through the balls' centres, a ball's radius over the
+      // cloth: drawn on the cloth it would slide off them under a camera
+      // looking down from above (parallax), most near the edges of the view.
       const g = frame.guide, a = g.alpha;
-      for (const l of g.lines) marks.line(l.a, l.b, l.w * 1.4, l.color, l.alpha * a, l.dash);
-      for (const m of g.marks || []) marks.circle(m.x, m.y, m.r, 0.003, m.color, 0.8 * a);
+      for (const l of g.lines) marks.line(l.a, l.b, l.w * 1.4, l.color, l.alpha * a, l.dash, R);
+      for (const m of g.marks || []) marks.circle(m.x, m.y, m.r, 0.003, m.color, 0.8 * a, R);
       if (g.ghost) {
-        marks.circle(g.ghost.x, g.ghost.y, R, 0.002, g.ghost.color, 0.7 * a);
+        marks.circle(g.ghost.x, g.ghost.y, R, 0.002, g.ghost.color, 0.7 * a, R);
         ghost.visible = true;
         ghost.position.set(g.ghost.x, R, g.ghost.y);
         ghost.material.opacity = 0.12 * a;
       }
     }
-    for (const r of frame.rings) marks.circle(r.x, r.y, r.r, r.w, r.color, r.alpha, 0.0009);
+    // A ring round a ball lies on the cloth, as its shadow would; seen from
+    // well above (top view, following the balls) it rises to the ball's
+    // middle, or the parallax would slide it off the ball near the edges.
+    const steep = camera.getWorldDirection(lookDir).y < -0.8;
+    for (const r of frame.rings) marks.circle(r.x, r.y, r.r, r.w, r.color, r.alpha, r.ball && steep ? R : 0.0009);
     if (frame.kitchenLine) marks.line({ x: k.HEAD, y: 0 }, { x: k.HEAD, y: H }, 0.003, k.colors.ok, 0.75, [0.016, 0.010]);
     marks.end();
     kitchen.visible = !!frame.kitchenLine;

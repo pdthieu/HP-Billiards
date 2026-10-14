@@ -2816,7 +2816,7 @@ function draw3d(now, balls, st) {
       f.last = at;
       drops.push({ id: f.id, x: at.x, y: at.y, sink: -at.z, alpha: p < 1 ? 1 : 0, off: true, o: f.o });
     }
-    else if (f.type === 'ring') rings.push({ x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
+    else if (f.type === 'ring') rings.push({ ball: true, x: f.at.x, y: f.at.y, r: R + 0.04 * e, w: 0.003 - 0.002 * e, color: '#FFFFFF', alpha: 0.6 * (1 - e) });
     else if (f.type === 'rim') { const h = pocketHole(f.pk); rings.push({ x: h.x, y: h.y, r: h.r, w: 0.006, color: PAL.flash, alpha: 0.5 * (1 - e) }); }
     else if (f.type === 'drop') {
       // the ball runs into the hole and sinks
@@ -2828,11 +2828,11 @@ function draw3d(now, balls, st) {
   if (myShot && canCall()) {
     for (const id of legalTargets()) {
       const p = balls.get(id);
-      if (p) rings.push({ x: p.x, y: p.y, r: R + 0.010, w: 0.003, color: '#FFFFFF', alpha: 0.55 });
+      if (p) rings.push({ ball: true, x: p.x, y: p.y, r: R + 0.010, w: 0.003, color: '#FFFFFF', alpha: 0.55 });
     }
   }
   const next = pointerBall(balls);
-  if (next !== null && balls.has(next)) { const p = balls.get(next); rings.push({ x: p.x, y: p.y, r: R + 0.016, w: 0.004, color: PAL.brass, alpha: 1 }); }
+  if (next !== null && balls.has(next)) { const p = balls.get(next); rings.push({ ball: true, x: p.x, y: p.y, r: R + 0.016, w: 0.004, color: PAL.brass, alpha: 1 }); }
   if (myShot && needsPocket()) {
     for (let n = 0; n < POCKETS.length; n++) {
       const h = pocketHole(POCKETS[n]);
@@ -2841,8 +2841,8 @@ function draw3d(now, balls, st) {
       rings.push({ x: h.x, y: h.y, r: h.r, w: called ? 0.006 : 0.003, color: called ? PAL.brass : '#FFFFFF', alpha: called ? 1 : 0.45 });
     }
   }
-  if (S.drag && balls.has(S.drag.id)) { const p = balls.get(S.drag.id); rings.push({ x: p.x, y: p.y, r: 1.05 * R + 0.014, w: 0.005, color: '#FFFFFF', alpha: 1 }); }
-  else if (myShot && S.ballInHand && cue) rings.push({ x: cue.x, y: cue.y, r: R + 0.014, w: 0.004, color: PAL.ok, alpha: 1 });
+  if (S.drag && balls.has(S.drag.id)) { const p = balls.get(S.drag.id); rings.push({ ball: true, x: p.x, y: p.y, r: 1.05 * R + 0.014, w: 0.005, color: '#FFFFFF', alpha: 1 }); }
+  else if (myShot && S.ballInHand && cue) rings.push({ ball: true, x: cue.x, y: cue.y, r: R + 0.014, w: 0.004, color: PAL.ok, alpha: 1 });
   v3.render({
     balls, orient: orientationOf, lifted: lifted >= 0 ? { id: lifted, lift } : null, drops, cue: stick, guide, rings,
     kitchenLine: placingInKitchen, cam: cameraFor(balls, aim),
