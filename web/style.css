@@ -1502,3 +1502,7 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
   body.is-playing.phone-land #shotPanel :is(.jog, .elev__range) { height: 26px; }
   body.is-playing.phone-land #waitPanel { height: 112px; }
 }
+
+/* the language switch in the home page's bar: EN · VI */
+.lang-pick { flex: none; height: 30px; padding: 2px; }
+.lang-pick .seg__btn { min-height: 0; height: 24px; padding: 0 9px; font-size: 12px; letter-spacing: .04em; }

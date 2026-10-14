@@ -9,6 +9,13 @@
 //   6. panels (lobby, shot controls, decision, game over)
 'use strict';
 
+// The language (i18n.js): the page's own words are read in English first,
+// before anything here writes to it, then shown in the language picked.
+LANG = detectLang();
+document.documentElement.lang = LANG;
+collectStatic();
+applyStatic();
+
 // ---------------------------------------------------------------------------
 // 1. constants and state
 
@@ -91,7 +98,8 @@ const BALL_COLORS = { // design tokens --ball-1 … --ball-8
 // the colour of the dots that show them turning.
 const CAROM_COLORS = { 0: '#F4EFE2', 1: '#F2C12E', 2: '#CC3326' };
 const CAROM_DOTS = { 0: '#B4322A', 1: '#B4322A', 2: '#F4EFE2' };
-const CAROM_NAMES = { 0: 'white', 1: 'yellow', 2: 'red' };
+const CAROM_NAMES = { 0: N('white'), 1: N('yellow'), 2: N('red') };
+const caromName = (id) => tr(CAROM_NAMES[id]);
 const RENDER_DELAY_MS = 100;  // how far behind the newest snapshot we draw
 const AIM_SEND_MS = 100;      // at most 10 aim messages per second
 const STRIKE_MS = 280;        // the cue's strike: forward to the ball, then fading
@@ -195,30 +203,32 @@ function setCloth(c) {
 // the other player's name.
 function optionText(opt, opp) {
   switch (opt) {
-    case 'accept_table': return ['Play from here', 'Accept the balls where they lie. You shoot next.'];
-    case 'rerack_break': return ['Re-rack, I break', 'Start the rack again with your break.'];
-    case 'rerack_opponent_breaks': return [`Re-rack, ${opp} breaks again`, 'They get another try at a legal break.'];
-    case 'spot_eight': return ['Spot the 8-ball', 'Put the 8 back on the foot spot and play on.'];
-    case 'rebreak': return ['Re-rack, I break', 'Start the rack again with your break.'];
-    case 'take_shot': return ['Take the shot', 'Play from where the balls lie.'];
-    case 'pass_back': return ['Pass it back', `${opp} shoots again from here.`];
+    case 'accept_table': return [T`Play from here`, T`Accept the balls where they lie. You shoot next.`];
+    case 'rerack_break': return [T`Re-rack, I break`, T`Start the rack again with your break.`];
+    case 'rerack_opponent_breaks': return [T`Re-rack, ${opp} breaks again`, T`They get another try at a legal break.`];
+    case 'spot_eight': return [T`Spot the 8-ball`, T`Put the 8 back on the foot spot and play on.`];
+    case 'rebreak': return [T`Re-rack, I break`, T`Start the rack again with your break.`];
+    case 'take_shot': return [T`Take the shot`, T`Play from where the balls lie.`];
+    case 'pass_back': return [T`Pass it back`, T`${opp} shoots again from here.`];
     default: return [opt, ''];
   }
 }
 const CAROM_FOUL_TEXT = {
-  no_contact: 'the break touched no ball',
-  wrong_ball: 'the break must hit the red first',
-  off_table: 'a ball left the table',
+  no_contact: N('the break touched no ball'),
+  wrong_ball: N('the break must hit the red first'),
+  off_table: N('a ball left the table'),
 };
 const FOUL_TEXT = {
-  scratch: 'scratch',
-  no_contact: 'no ball contacted',
-  wrong_ball: 'wrong ball hit first',
-  kitchen: 'illegal shot from the kitchen',
-  no_rail: 'no rail after contact',
-  bad_break: 'fewer than four balls reached a rail',
-  off_table: 'a ball left the table',
+  scratch: N('scratch'),
+  no_contact: N('no ball contacted'),
+  wrong_ball: N('wrong ball hit first'),
+  kitchen: N('illegal shot from the kitchen'),
+  no_rail: N('no rail after contact'),
+  bad_break: N('fewer than four balls reached a rail'),
+  off_table: N('a ball left the table'),
 };
+// foulText names a foul in the language shown.
+const foulText = (f, carom) => tr((carom && CAROM_FOUL_TEXT[f]) || FOUL_TEXT[f]) || f;
 const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball', '3cushion': '3-cushion' };
 
 // Graphics (Settings): 'auto' starts sharp and steps down when frames come
@@ -227,10 +237,10 @@ const MODE_NAME = { '8ball': '8-ball', '9ball': '9-ball', '3cushion': '3-cushion
 // side (LEVELS). Low also draws at most 30 frames a second (LOW_FRAME_MS).
 const QUALITY_DPR = { high: 3, medium: 2, low: 1 };
 const QUALITY_NOTES = {
-  auto: 'Sharp, and lowered by itself when the frames judder.',
-  high: 'The sharpest picture and the softest shadows, at every frame. Needs a strong device.',
-  medium: 'A little less sharp. Runs cooler on most phones.',
-  low: 'Plain and 30 frames a second: saves the battery on an old or slow phone.',
+  auto: N('Sharp, and lowered by itself when the frames judder.'),
+  high: N('The sharpest picture and the softest shadows, at every frame. Needs a strong device.'),
+  medium: N('A little less sharp. Runs cooler on most phones.'),
+  low: N('Plain and 30 frames a second: saves the battery on an old or slow phone.'),
 };
 
 const $ = (id) => document.getElementById(id);
@@ -417,12 +427,12 @@ function connectAndJoin(roomCode, name, token, watch) {
     stopHeartbeat();
     if (S.intentionalClose) return;
     if (!inRoom()) {
-      showLanding(`Could not join: ${e.reason || 'connection closed'}`);
+      showLanding(T`Could not join: ${closeReason(e.reason) || T`connection closed`}`);
       return;
     }
     if (S.spectator && /room closed/.test(e.reason)) {
       clearSession(S.roomCode);
-      resetToLanding('The room closed.');
+      resetToLanding(T`The room closed.`);
       return;
     }
     if (/replaced/.test(e.reason)) {
@@ -463,14 +473,14 @@ function showConn(kind) {
   const taken = kind === 'taken';
   $('connIconLost').hidden = taken;
   $('connIconTaken').hidden = !taken;
-  $('connTitle').textContent = taken ? 'Playing somewhere else?' : 'Connection lost';
+  $('connTitle').textContent = taken ? T`Playing somewhere else?` : T`Connection lost`;
   $('disconnectedText').textContent = taken
-    ? 'This seat was taken over by another connection, probably another tab or device. Only one can hold a seat.'
-    : S.spectator ? 'Reconnecting…' : `Reconnecting… Your seat is held for ${SEAT_HOLD_S} seconds.`;
+    ? T`This seat was taken over by another connection, probably another tab or device. Only one can hold a seat.`
+    : S.spectator ? T`Reconnecting…` : T`Reconnecting… Your seat is held for ${SEAT_HOLD_S} seconds.`;
   $('retry').hidden = taken;
   $('connNote').hidden = !taken;
   $('rejoin').className = taken ? 'btn btn--primary' : 'btn btn--secondary';
-  $('rejoin').lastElementChild.textContent = taken ? 'Play here' : 'Retry now';
+  $('rejoin').lastElementChild.textContent = taken ? T`Play here` : T`Retry now`;
   $('disconnected').hidden = false;
   if (!taken) startRetryTicker(); else stopRetryTicker();
 }
@@ -504,9 +514,9 @@ function renderRetry() {
     if (i === idx) el.style.setProperty('--p', String(p));
   });
   const next = Math.max(0, (S.reconnectDue - now) / 1000);
-  $('retryTry').textContent = S.ws ? `Try ${attempt} · connecting…` : `Try ${attempt} · next in ${next.toFixed(1)} s`;
+  $('retryTry').textContent = S.ws ? T`Try ${attempt} · connecting…` : T`Try ${attempt} · next in ${next.toFixed(1)} s`;
   const held = Math.max(0, SEAT_HOLD_S - (now - S.discSince) / 1000);
-  $('retryHold').textContent = S.spectator ? '' : `Seat held ${Math.ceil(held)} s`;
+  $('retryHold').textContent = S.spectator ? '' : T`Seat held ${Math.ceil(held)} s`;
 }
 
 // The splash covers a reload inside a room: shown only after 150 ms so an
@@ -597,7 +607,7 @@ function onWelcome(msg) {
   hideSplash();
   saveSession();
   keepAwake(true);
-  if (reconnected) toast('Reconnected');
+  if (reconnected) toast(T`Reconnected`);
 }
 
 function applyRules(msg) {
@@ -663,24 +673,28 @@ function onRoomState(msg) {
   } else if (prevPhase !== 'game_over' && prevPhase !== 'lobby' && msg.phase === 'game_over' && S.winner !== null) {
     // Not by a shot (that comes as settled): a third foul on the clock.
     const loser = 1 - S.winner;
-    S.resultReason = `${teamName(loser)} fouled three times in a row`;
+    S.resultReason = T`${teamName(loser)} fouled three times in a row`;
     setStatus(`${S.resultReason}. ${winLine(S.winner)}`, 'foul');
   } else if (prevPhase !== 'lobby' && msg.phase === 'lobby') {
     const m = S.match;
     const last = m && m.racks.length ? m.racks[m.racks.length - 1] : null;
-    const who = isTeams() ? 'The other team' : S.lastOppName || 'Your opponent';
+    const who = isTeams() ? T`The other team` : S.lastOppName || T`Your opponent`;
     if (last && last.end === 'forfeit' && isMySide(m.winner)) {
-      setStatus(`${who} ${S.oppLeft ? 'left' : 'didn’t come back'}. ${isTeams() ? 'Your team wins' : 'You win'} the match ${m.score[mySide()]}–${m.score[1 - mySide()]}.`);
-      S.lobbyNote = S.oppLeft ? `${who} left the room.` : `${who} didn’t come back in time.`;
+      const [a, b] = [m.score[mySide()], m.score[1 - mySide()]];
+      setStatus(S.oppLeft
+        ? (isTeams() ? T`${who} left. Your team wins the match ${a}–${b}.` : T`${who} left. You win the match ${a}–${b}.`)
+        : (isTeams() ? T`${who} didn’t come back. Your team wins the match ${a}–${b}.` : T`${who} didn’t come back. You win the match ${a}–${b}.`));
+      S.lobbyNote = S.oppLeft ? T`${who} left the room.` : T`${who} didn’t come back in time.`;
     } else {
-      setStatus('The game was abandoned.', 'foul');
+      setStatus(T`The game was abandoned.`, 'foul');
       const gone = !isTeams() && S.players[1 - S.seat];
-      if (gone && !gone.name && S.lastOppName) S.lobbyNote = `${S.lastOppName} didn’t come back in time.`;
+      if (gone && !gone.name && S.lastOppName) S.lobbyNote = T`${S.lastOppName} didn’t come back in time.`;
     }
   } else if (msg.phase === 'breaking' && prevPhase !== 'breaking') {
+    const who = nameOf(msg.turn);
     setStatus(isCarom()
-      ? `${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'} with the white: the red first.`
-      : `${nameOf(msg.turn)} ${isMe(msg.turn) ? 'break' : 'breaks'}. Place the cue ball in the kitchen and shoot.`);
+      ? (isMe(msg.turn) ? T`You break with the white: the red first.` : T`${who} breaks with the white: the red first.`)
+      : (isMe(msg.turn) ? T`You break. Place the cue ball in the kitchen and shoot.` : T`${who} breaks. Place the cue ball in the kitchen and shoot.`));
   } else if (msg.phase === 'lobby') {
     setStatus('');
   }
@@ -785,17 +799,57 @@ function onPlayer(msg) {
         // The server clears the score for a new opponent.
         S.match = { race: S.race, breaks: S.breaks, score: [0, 0], racks: [], winner: null };
       }
-      toast(was.name ? `${msg.name} is back` : `${msg.name} joined`);
+      toast(was.name ? T`${msg.name} is back` : T`${msg.name} joined`);
     } else if (!msg.connected && was.connected && msg.name) {
-      toast(`${msg.name} lost connection`);
-      setStatus(`${msg.name} lost connection. Their seat is held for ${SEAT_HOLD_S} seconds.`, 'foul');
+      toast(T`${msg.name} lost connection`);
+      setStatus(T`${msg.name} lost connection. Their seat is held for ${SEAT_HOLD_S} seconds.`, 'foul');
     } else if (!msg.connected && !msg.name && was.name) {
       S.oppLeft = was.connected; // still connected: they pressed Leave
-      toast(`${was.name} left`);
+      toast(T`${was.name} left`);
     }
   }
   refreshPanels();
 }
+
+// The server's errors and close reasons are English; another language says
+// them from the code (PROTOCOL.md, "error").
+const ERR_TEXT = {
+  bad_message: N('The server did not understand that.'),
+  not_joined: N('Join a room first.'),
+  room_not_found: N('There is no such room.'),
+  room_full: N('The room is full.'),
+  wrong_phase: N('Not now.'),
+  balls_moving: N('The balls are still rolling.'),
+  not_your_turn: N('It is not your turn.'),
+  no_ball_in_hand: N('You do not have ball in hand.'),
+  bad_placement: N('The cue ball cannot go there.'),
+  bad_input: N('That shot is not valid.'),
+  bad_call: N('Call a pocket for the 8-ball first.'),
+  no_decision: N('There is nothing to decide.'),
+  bad_option: N('That option is not offered.'),
+  no_extension: N('You have already used your extension this game.'),
+  bad_mode: N('Unknown game.'),
+  no_undo: N('There is no shot to take back.'),
+  not_practice: N('Only in practice.'),
+  bad_race: N('The race must be 1 to 25 racks (3-cushion: 1 to 50 points).'),
+  audience_full: N('No more spectators can watch this room.'),
+  spectator: N('Spectators can only chat.'),
+  bad_spectators: N('That many spectators are not allowed here.'),
+  bad_table: N('Unknown table or cloth.'),
+  seat_taken: N('That seat is taken.'),
+  bad_players: N('2 v 2 is for 8-ball and 9-ball.'),
+  room_limit: N('All rooms are in use. Join one of them, or try again in a moment.'),
+};
+const errText = (code, message) => (LANG !== 'en' && ERR_TEXT[code] ? tr(ERR_TEXT[code]) : message || code);
+const CLOSE_TEXT = {
+  'left the room': N('left the room'),
+  'room closed': N('room closed'),
+  'replaced by a new connection': N('replaced by a new connection'),
+  'ping timeout': N('ping timeout'),
+  'write failed': N('write failed'),
+  'outbound buffer full': N('outbound buffer full'),
+};
+const closeReason = (r) => (r && CLOSE_TEXT[r] ? tr(CLOSE_TEXT[r]) : r);
 
 function onError(msg) {
   if (msg.code === 'chat_cooldown') {
@@ -804,7 +858,7 @@ function onError(msg) {
     return;
   }
   dropHeldStrike(); // a refused shot does not start
-  toast(msg.message || msg.code, true);
+  toast(errText(msg.code, msg.message), true);
   if (msg.code === 'bad_placement' || msg.code === 'no_ball_in_hand' || msg.code === 'balls_moving') {
     S.drag = null;
     S.placedAt = null;
@@ -817,7 +871,7 @@ function onError(msg) {
     S.ws = null;
     stopHeartbeat();
     clearSession(S.roomCode);
-    resetToLanding(msg.message);
+    resetToLanding(errText(msg.code, msg.message));
   }
 }
 
@@ -841,18 +895,18 @@ function onTimeout(msg) {
   const who = nameOf(msg.seat);
   const oSide = 1 - sideOf(msg.seat);
   const other = teamName(oSide);
-  let text = `${isMe(msg.seat) ? 'You' : who} ran out of time`;
+  let text = isMe(msg.seat) ? T`You ran out of time` : T`${who} ran out of time`;
   if (msg.option) {
-    text += `; “${optionText(msg.option, other)[0]}” was chosen.`;
+    text += T`; “${optionText(msg.option, other)[0]}” was chosen.`;
   } else if (isCarom() && S.phase !== 'breaking') {
-    text += S.carom && S.carom.equalizing && msg.seat !== S.carom.breaker ? ': the equalizing inning is over.' : `. ${isMySide(oSide) ? 'Your' : `${other}’s`} turn.`;
+    text += S.carom && S.carom.equalizing && msg.seat !== S.carom.breaker ? T`: the equalizing inning is over.` : isMySide(oSide) ? T`. Your turn.` : T`. ${other}’s turn.`;
   } else if (S.phase === 'breaking') {
-    text += `. ${sideDoes(oSide, 'break')} instead.`;
+    text += T`. ${sideDoes(oSide, 'break')} instead.`;
   } else if (isNine() && S.fouls[sideOf(msg.seat)] + 1 >= 3) {
-    text += ': a third foul in a row.'; // the room_state that follows ends the rack
+    text += T`: a third foul in a row.`; // the room_state that follows ends the rack
   } else {
-    text += `. ${sideDoes(oSide, 'have')} ball in hand.`;
-    if (isNine() && S.fouls[sideOf(msg.seat)] + 1 === 2) text += ` ${isMe(msg.seat) ? 'You are' : `${who} is`} on two fouls.`;
+    text += T`. ${sideDoes(oSide, 'have')} ball in hand.`;
+    if (isNine() && S.fouls[sideOf(msg.seat)] + 1 === 2) text += isMe(msg.seat) ? T` You are on two fouls.` : T` ${who} is on two fouls.`;
   }
   S.clock = null;
   toast(text, isMe(msg.seat));
@@ -948,33 +1002,33 @@ function describeShot(msg) {
   const off = msg.offTable || [];
   const over = msg.winner !== undefined && msg.winner !== null;
   const nine = isNine();
-  if (msg.illegalBreak && !nine) parts.push(me ? 'You broke illegally.' : `Illegal break by ${who}.`);
-  if (msg.pushedOut) parts.push(me ? 'You pushed out.' : `${who} pushed out.`);
-  if (msg.foul) parts.push(`${me ? 'Your foul' : `Foul by ${who}`}: ${FOUL_TEXT[msg.foul] || msg.foul}.`);
-  if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
-  if (off.length) parts.push(`Off the table: ${off.map(offName).join(', ')}.`);
-  if (nine && !over && (made.includes(9) || off.includes(9))) parts.push('The 9 goes back on the foot spot.');
-  if (!nine && !over && off.includes(8)) parts.push('The 8 goes back on the foot spot.');
+  if (msg.illegalBreak && !nine) parts.push(me ? T`You broke illegally.` : T`Illegal break by ${who}.`);
+  if (msg.pushedOut) parts.push(me ? T`You pushed out.` : T`${who} pushed out.`);
+  if (msg.foul) parts.push(me ? T`Your foul: ${foulText(msg.foul)}.` : T`Foul by ${who}: ${foulText(msg.foul)}.`);
+  if (made.length) parts.push(T`Pocketed ${made.map(ballName).join(', ')}.`);
+  if (off.length) parts.push(T`Off the table: ${off.map(offName).join(', ')}.`);
+  if (nine && !over && (made.includes(9) || off.includes(9))) parts.push(T`The 9 goes back on the foot spot.`);
+  if (!nine && !over && off.includes(8)) parts.push(T`The 8 goes back on the foot spot.`);
   if (nine && !over && msg.foul && msg.fouls && msg.fouls[sideOf(msg.shooter)] === 2) {
-    parts.push(`${me ? 'You are' : `${who} is`} on two fouls: a third loses the rack.`);
+    parts.push(me ? T`You are on two fouls: a third loses the rack.` : T`${who} is on two fouls: a third loses the rack.`);
   }
   if (over) {
     parts.push(winLine(msg.winner));
     S.resultReason = nine ? nineResultReason(msg, who) : eightResultReason(msg, who, made);
   } else if (msg.decision) {
-    parts.push(`${nameOf(msg.decision.seat)} ${isMe(msg.decision.seat) ? 'choose' : 'chooses'} how to continue.`);
+    parts.push(isMe(msg.decision.seat) ? T`You choose how to continue.` : T`${nameOf(msg.decision.seat)} chooses how to continue.`);
   } else {
-    let t = isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn${isTeams() && isMySide(sideOf(msg.turn)) ? ' (your team)' : ''}`;
-    if (msg.ballInHand) t += msg.kitchen ? ', ball in hand in the kitchen' : ', ball in hand';
-    if (msg.pushOut) t += isMe(msg.turn) ? '; you may push out' : '; they may push out';
+    let t = turnName(msg.turn);
+    if (msg.ballInHand) t += msg.kitchen ? T`, ball in hand in the kitchen` : T`, ball in hand`;
+    if (msg.pushOut) t += isMe(msg.turn) ? T`; you may push out` : T`; they may push out`;
     parts.push(t + '.');
   }
   if (msg.pushedOut && msg.decision) {
-    S.lastDecisionReason = `${me ? 'You' : who} pushed out. Take the shot from here, or pass it back.`;
+    S.lastDecisionReason = me ? T`You pushed out. Take the shot from here, or pass it back.` : T`${who} pushed out. Take the shot from here, or pass it back.`;
   } else if (msg.illegalBreak) {
-    S.lastDecisionReason = `${me ? 'You' : who} broke illegally: nothing pocketed and fewer than four balls reached a rail.`;
+    S.lastDecisionReason = me ? T`You broke illegally: nothing pocketed and fewer than four balls reached a rail.` : T`${who} broke illegally: nothing pocketed and fewer than four balls reached a rail.`;
   } else if (msg.decision) {
-    S.lastDecisionReason = `${me ? 'You' : who} pocketed the 8-ball on the break.`;
+    S.lastDecisionReason = me ? T`You pocketed the 8-ball on the break.` : T`${who} pocketed the 8-ball on the break.`;
   }
   setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
 }
@@ -984,17 +1038,19 @@ function describeFreeShot(msg) {
   const made = msg.pocketed.filter((id) => id !== 0);
   const off = (msg.offTable || []).filter((id) => id !== 0);
   const parts = [];
-  if (made.length) parts.push(`Pocketed ${made.map(ballName).join(', ')}.`);
-  if (off.length) parts.push(`Off the table: ${off.map(ballName).join(', ')}.`);
-  if (msg.pocketed.includes(0)) parts.push('The cue ball dropped; it is back on the head spot.');
-  else if ((msg.offTable || []).includes(0)) parts.push('The cue ball left the table; it is back on the head spot.');
-  if (![...S.balls.keys()].some((id) => id > 0)) parts.push('Table cleared! Rack again for more.');
-  setStatus(parts.join(' ') || 'Nothing dropped.', made.length ? 'good' : '');
+  if (made.length) parts.push(T`Pocketed ${made.map(ballName).join(', ')}.`);
+  if (off.length) parts.push(T`Off the table: ${off.map(ballName).join(', ')}.`);
+  if (msg.pocketed.includes(0)) parts.push(T`The cue ball dropped; it is back on the head spot.`);
+  else if ((msg.offTable || []).includes(0)) parts.push(T`The cue ball left the table; it is back on the head spot.`);
+  if (![...S.balls.keys()].some((id) => id > 0)) parts.push(T`Table cleared! Rack again for more.`);
+  setStatus(parts.join(' ') || T`Nothing dropped.`, made.length ? 'good' : '');
 }
 
 // cushions says "3 cushions", points "15 points".
-const cushions = (n) => `${n} ${n === 1 ? 'cushion' : 'cushions'}`;
-const points = (n) => `${n} ${n === 1 ? 'point' : 'points'}`;
+const cushions = (n) => (n === 1 ? T`${n} cushion` : T`${n} cushions`);
+const points = (n) => (n === 1 ? T`${n} point` : T`${n} points`);
+// capFirst starts a sentence with a capital: "The red goes back…"
+const capFirst = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
 // describeCaromShot says what a 3-cushion shot did: a point and how many
 // cushions, or why not; balls put back on their spots; then whose turn, or
@@ -1006,17 +1062,19 @@ function describeCaromShot(msg) {
   const c = msg.carom || S.carom;
   const n = msg.cushions || 0;
   if (msg.foul) {
-    parts.push(`${S.practice ? 'Foul' : me ? 'Your foul' : `Foul by ${who}`}: ${CAROM_FOUL_TEXT[msg.foul] || FOUL_TEXT[msg.foul] || msg.foul}.`);
+    const f = foulText(msg.foul, true);
+    parts.push(S.practice ? T`Foul: ${f}.` : me ? T`Your foul: ${f}.` : T`Foul by ${who}: ${f}.`);
   } else if (msg.made) {
-    parts.push(`Point! ${cushions(n)}${!S.practice && c && c.run > 1 ? `, a run of ${c.run}` : ''}.`);
+    parts.push(!S.practice && c && c.run > 1 ? T`Point! ${cushions(n)}, a run of ${c.run}.` : T`Point! ${cushions(n)}.`);
   } else {
     const touched = msg.touched || 0;
-    const why = touched === 0 ? 'both balls missed' : touched === 1 ? 'the second ball missed' : `only ${cushions(n)} before the second ball`;
-    parts.push(`No point: ${why}.`);
+    const why = touched === 0 ? T`both balls missed` : touched === 1 ? T`the second ball missed` : T`only ${cushions(n)} before the second ball`;
+    parts.push(T`No point: ${why}.`);
   }
   const spotted = msg.spotted || [];
-  if (msg.frozen) parts.push('The balls were touching: back on their spots.');
-  else if (spotted.length) parts.push(`${spotted.map(ballName).join(' and ').replace(/^the/, 'The')} ${spotted.length > 1 ? 'go' : 'goes'} back on ${spotted.length > 1 ? 'their spots' : 'its spot'}.`);
+  if (msg.frozen) parts.push(T`The balls were touching: back on their spots.`);
+  else if (spotted.length > 1) parts.push(capFirst(T`${spotted.map(ballName).join(T` and `)} go back on their spots.`));
+  else if (spotted.length) parts.push(capFirst(T`${ballName(spotted[0])} goes back on its spot.`));
   if (S.practice) {
     setStatus(parts.join(' '), msg.made ? 'good' : '');
     return;
@@ -1025,10 +1083,11 @@ function describeCaromShot(msg) {
     S.resultReason = caromReason();
     parts.push(winnerTitle() + (isMe(msg.winner) ? '!' : '.'));
   } else if (c && c.equalizing && msg.turn !== c.breaker) {
-    const last = nameOf(msg.turn);
-    parts.push(`${nameOf(c.breaker)} ${isMe(c.breaker) ? 'have' : 'has'} ${points(S.target)}: ${isMe(msg.turn) ? 'you have' : `${last} has`} one inning to draw level.`);
+    const pts = points(S.target);
+    const reached = isMe(c.breaker) ? T`You have ${pts}` : T`${nameOf(c.breaker)} has ${pts}`;
+    parts.push(isMe(msg.turn) ? T`${reached}: you have one inning to draw level.` : T`${reached}: ${nameOf(msg.turn)} has one inning to draw level.`);
   } else {
-    parts.push(`${isMe(msg.turn) ? 'Your turn' : `${nameOf(msg.turn)}'s turn`}.`);
+    parts.push(`${turnName(msg.turn)}.`);
   }
   setStatus(parts.join(' '), msg.foul ? 'foul' : (msg.made ? 'good' : ''));
 }
@@ -1038,34 +1097,39 @@ function caromReason() {
   const c = S.carom;
   if (!c) return '';
   const inn = Math.max(c.innings[0], c.innings[1]);
-  return `${c.points[0]}–${c.points[1]} in ${inn} ${inn === 1 ? 'inning' : 'innings'}`;
+  return inn === 1 ? T`${c.points[0]}–${c.points[1]} in ${inn} inning` : T`${c.points[0]}–${c.points[1]} in ${inn} innings`;
 }
 
 // offName names a ball that left the table.
-const offName = (id) => (id === 0 && !isCarom() ? 'the cue ball' : ballName(id));
+const offName = (id) => (id === 0 && !isCarom() ? T`the cue ball` : ballName(id));
 
 // nineResultReason says why a 9-ball rack ended with this shot.
 function nineResultReason(msg, who) {
-  if (msg.winner !== msg.shooter) return `${who} fouled three times in a row`;
-  return S.shotWasBreak ? '9-ball pocketed on the break' : '9-ball pocketed';
+  if (msg.winner !== sideOf(msg.shooter)) return T`${who} fouled three times in a row`;
+  return S.shotWasBreak ? T`9-ball pocketed on the break` : T`9-ball pocketed`;
 }
 
 // eightResultReason says why an 8-ball rack ended with this shot.
 function eightResultReason(msg, who, made) {
   const g = S.groups[sideOf(msg.shooter)];
   const early = !g || remaining(g) > 0 || made.some((id) => groupOf(id) === g);
-  if (msg.winner === sideOf(msg.shooter)) return '8-ball pocketed in the called pocket';
-  if ((msg.offTable || []).includes(8)) return `${who} jumped the 8-ball off the table`;
-  if (msg.foul) return `${who} fouled on the 8-ball: ${FOUL_TEXT[msg.foul] || msg.foul}`;
-  return early ? `${who} pocketed the 8-ball early` : `${who} pocketed the 8-ball in the wrong pocket`;
+  if (msg.winner === sideOf(msg.shooter)) return T`8-ball pocketed in the called pocket`;
+  if ((msg.offTable || []).includes(8)) return T`${who} jumped the 8-ball off the table`;
+  if (msg.foul) return T`${who} fouled on the 8-ball: ${foulText(msg.foul)}`;
+  return early ? T`${who} pocketed the 8-ball early` : T`${who} pocketed the 8-ball in the wrong pocket`;
 }
 
 // ---------------------------------------------------------------------------
 // 3. shot logic
 
 const isMe = (seat) => seat === S.seat;
-const sideName = (seat) => (seat ? 'Side B' : 'Side A');
-const nameOf = (seat) => (isMe(seat) ? 'You' : S.practice ? sideName(seat) : (S.players[seat].name || `Player ${seat + 1}`));
+const sideName = (seat) => (seat ? T`Side B` : T`Side A`);
+const nameOf = (seat) => (isMe(seat) ? T`You` : S.practice ? sideName(seat) : (S.players[seat].name || T`Player ${seat + 1}`));
+// turnName: "Your turn", "Bob's turn", "Cat's turn (your team)".
+function turnName(seat) {
+  if (isMe(seat)) return T`Your turn`;
+  return isTeams() && isMySide(sideOf(seat)) ? T`${nameOf(seat)}'s turn (your team)` : T`${nameOf(seat)}'s turn`;
+}
 
 // Teams (2v2, PROTOCOL.md "Teams"): seats 0 and 2 against 1 and 3. Who
 // acts is a seat (S.turn, decision.seat, clock.seat, settled.shooter);
@@ -1082,25 +1146,33 @@ const teamNames = (side) => S.players.filter((p) => p.seat % 2 === side && p.nam
 // team in 2v2 ("Your team", "Bob & Dan").
 function teamName(side) {
   if (!isTeams()) return nameOf(side);
-  if (isMySide(side)) return 'Your team';
-  return teamNames(side).join(' & ') || `Team ${side ? 'B' : 'A'}`;
+  if (isMySide(side)) return T`Your team`;
+  return teamNames(side).join(' & ') || (side ? T`Team B` : T`Team A`);
 }
 // sideDoes puts a verb after teamName: "You win", "Bob wins", "Your team
-// wins", "Bob & Dan win".
+// wins", "Bob & Dan win" (break and have likewise).
 function sideDoes(side, verb) {
   const plural = isTeams() ? !isMySide(side) && teamNames(side).length !== 1 : isMySide(side);
-  return `${teamName(side)} ${plural ? verb : verb === 'have' ? 'has' : `${verb}s`}`;
+  const n = teamName(side);
+  switch (verb) {
+    case 'win': return plural ? T`${n} win` : T`${n} wins`;
+    case 'break': return plural ? T`${n} break` : T`${n} breaks`;
+    case 'have': return plural ? T`${n} have` : T`${n} has`;
+  }
+  return n;
 }
 const winLine = (side) => `${sideDoes(side, 'win')}${isMySide(side) ? '!' : '.'}`;
 // oppName names the other side for the decision texts.
 const oppName = () => (isTeams() ? teamName(1 - mySide()) : S.players[1 - S.seat].name || 'your opponent');
 const groupOf = (id) => (id >= 1 && id <= 7 ? 'solids' : id >= 9 && id <= 15 ? 'stripes' : '');
+// groupName shows a group ('solids', 'stripes') in the language shown.
+const groupName = (g) => (g === 'solids' ? T`solids` : g === 'stripes' ? T`stripes` : g);
 const isNine = () => S.mode === '9ball';
 const isCarom = () => S.mode === '3cushion';
 // cueId is the ball the player on turn strikes: their own in 3-cushion,
 // the cue ball otherwise.
 const cueId = () => (isCarom() && S.carom ? S.carom.cue[S.turn] : 0);
-const ballName = (id) => (isCarom() ? `the ${CAROM_NAMES[id]}` : id === 8 && !isNine() ? 'the 8-ball' : id === 9 && isNine() ? 'the 9-ball' : `the ${id}`);
+const ballName = (id) => (isCarom() ? T`the ${caromName(id)}` : id === 8 && !isNine() ? T`the 8-ball` : id === 9 && isNine() ? T`the 9-ball` : T`the ${id}`);
 const inPlay = () => !S.decision && (S.phase === 'breaking' || S.phase === 'open' || S.phase === 'assigned');
 const isMyShot = () => S.seat >= 0 && inPlay() && !S.moving && S.turn === S.seat;
 const canCall = () => !S.practice && S.mode === '8ball' && S.phase !== 'breaking'; // a safety may be declared (8-ball)
@@ -1437,7 +1509,7 @@ function renderPower() {
   powerBar.classList.toggle('pbar--cancel', cancel);
   readout.hidden = !S.powerDrag;
   if (S.powerDrag) {
-    readout.textContent = cancel ? 'Cancel' : `${(S.power * MAX_CUE_SPEED).toFixed(1)} m/s`;
+    readout.textContent = cancel ? T`Cancel` : `${(S.power * MAX_CUE_SPEED).toFixed(1)} m/s`;
     readout.style.top = `${Math.max(4, pct)}%`;
   }
 }
@@ -1535,7 +1607,7 @@ function needsCallTip(e) {
   const tip = document.createElement('div');
   tip.className = 'tip' + (S.lefty ? ' tip--right' : '');
   tip.setAttribute('role', 'status');
-  tip.textContent = needsPocket() && !S.call ? 'Call a pocket for the 8-ball: tap it.' : 'Cannot shoot now.';
+  tip.textContent = needsPocket() && !S.call ? T`Call a pocket for the 8-ball: tap it.` : T`Cannot shoot now.`;
   const wrap = $('tableWrap').getBoundingClientRect();
   tip.style.top = `${Math.max(8, (e ? e.clientY : wrap.top + wrap.height / 2) - wrap.top - 20)}px`;
   $('tableWrap').append(tip);
@@ -1560,9 +1632,9 @@ const SPIN_RANGE = 36;   // the dot travels ±36% of the pad for a full offset
 
 function spinWords() {
   const parts = [];
-  if (S.spin.y > 0.15) parts.push('top'); else if (S.spin.y < -0.15) parts.push('draw');
-  if (S.spin.x > 0.15) parts.push('right'); else if (S.spin.x < -0.15) parts.push('left');
-  return parts.length ? parts.join(' + ') : 'centre';
+  if (S.spin.y > 0.15) parts.push(T`top`); else if (S.spin.y < -0.15) parts.push(T`draw`);
+  if (S.spin.x > 0.15) parts.push(T`right`); else if (S.spin.x < -0.15) parts.push(T`left`);
+  return parts.length ? parts.join(' + ') : T`centre`;
 }
 
 function renderSpin(spring) {
@@ -1575,7 +1647,7 @@ function renderSpin(spring) {
   const words = spinWords();
   $('spinText').textContent = words;
   $('spinNote').classList.toggle('is-on', atLimit);
-  spinPad.setAttribute('aria-valuetext', atLimit ? `${words}, at the limit` : words);
+  spinPad.setAttribute('aria-valuetext', atLimit ? T`${words}, at the limit` : words);
   $('spinReset').disabled = !S.spin.x && !S.spin.y;
   // the phone's options button is a small cue ball showing the same spin
   const mini = $('optsDot');
@@ -1588,7 +1660,7 @@ function renderSpin(spring) {
 // ring round it says the cue is raised.
 function renderOptsBtn() {
   const btn = $('optionsBtn');
-  btn.setAttribute('aria-label', `Spin: ${spinWords()}`);
+  btn.setAttribute('aria-label', T`Spin: ${spinWords()}`);
   btn.classList.toggle('opts-btn--jump', S.elev > 0);
 }
 
@@ -1643,9 +1715,9 @@ function setElev(deg) {
   const changed = v !== S.elev;
   S.elev = v;
   elevRange.value = String(v);
-  elevRange.setAttribute('aria-valuetext', v ? `${v} degrees` : 'level');
-  $('elevText').textContent = v ? `${v}°` : 'level';
-  $('elevLabel').textContent = v > Math.round(PIN_ELEV / DEG) ? 'Massé' : 'Jump';
+  elevRange.setAttribute('aria-valuetext', v ? T`${v} degrees` : T`level`);
+  $('elevText').textContent = v ? `${v}°` : T`level`;
+  $('elevLabel').textContent = v > Math.round(PIN_ELEV / DEG) ? T`Massé` : T`Jump`;
   $('elevCue').style.transform = `rotate(${v}deg)`;
   elevBox.classList.toggle('elev--on', v > 0);
   renderOptsBtn();
@@ -1762,7 +1834,7 @@ function placeShotOptions() {
   else { chatHome.after($('chatBtn')); replayHome.after($('replayBtn')); }
   $('aimJog').classList.toggle('jog--v', mode === 'side');
   // held upright the bar stands on the left: the switch takes it right
-  $('leftyToggle').querySelector('.toggle__title').textContent = mode ? 'Power bar on the right' : 'Power bar on the left';
+  $('leftyToggle').querySelector('.toggle__title').textContent = mode ? T`Power bar on the right` : T`Power bar on the left`;
 }
 
 function openSpinPop() {
@@ -2193,7 +2265,7 @@ function letGo(gl) {
 
 function no3d() {
   S.view = '2d';
-  toast('3D is not available here. Showing the table from above.');
+  toast(T`3D is not available here. Showing the table from above.`);
   renderViewControls();
 }
 
@@ -2264,6 +2336,12 @@ function arenaInfo() {
     mode: S.mode, practice: S.practice, room: S.roomCode, table: isCarom() ? '' : SPEC.name,
     names: isTeams() ? [0, 1].map((sd) => teamNames(sd).join(' & ')) : S.players.map((p) => p.name || ''),
     score: m ? m.score : null, race: m ? m.race : 0,
+    // the boards' words, in the language shown (arena3d.js upper-cases them)
+    words: {
+      practice: T`PRACTICE`, room: T`ROOM`,
+      goal: !m || !m.race ? '' : isCarom() ? T`${m.race} POINTS` : T`RACE TO ${m.race}`,
+      slogan: isCarom() ? T`THREE CUSHIONS` : isNine() ? T`LOWEST BALL FIRST` : T`CALL YOUR SHOT`,
+    },
   };
 }
 
@@ -2294,8 +2372,8 @@ function renderViewControls() {
   const three = S.view === '3d';
   const vb = $('viewBtn');
   vb.querySelector('.view-btn__text').textContent = three ? '2D' : '3D';
-  vb.setAttribute('aria-label', three ? 'Show the table from above' : 'Show the table in 3D');
-  vb.title = `${three ? 'Show the table from above' : 'Show the table in 3D'} (V)`;
+  vb.setAttribute('aria-label', three ? T`Show the table from above` : T`Show the table in 3D`);
+  vb.title = `${three ? T`Show the table from above` : T`Show the table in 3D`} (V)`;
   $('camTopBtn').hidden = !v3;
   $('camTopBtn').setAttribute('aria-pressed', String(S.camTop));
   for (const b of $('viewSeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.view === S.view));
@@ -3281,7 +3359,7 @@ function drawBall(id, p, opts) {
 function drawBallLabel(id, p, aim) {
   const quiet = !!aim;
   const carom = isCarom();
-  const text = carom ? CAROM_NAMES[id] + (S.carom && S.seat >= 0 && !S.practice && S.carom.cue[S.seat] === id ? ' · yours' : '') : id === 0 ? 'cue ball' : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupOf(id)}`;
+  const text = carom ? (S.carom && S.seat >= 0 && !S.practice && S.carom.cue[S.seat] === id ? T`${caromName(id)} · yours` : caromName(id)) : id === 0 ? T`cue ball` : isNine() ? (id === 9 ? '9-ball' : String(id)) : id === 8 ? '8-ball' : `${id} · ${groupName(groupOf(id))}`;
   const sp = toScreen(p);
   ctx.save();
   ctx.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
@@ -4212,8 +4290,8 @@ function pocketName(n) {
   const pk = POCKETS[n];
   const sp = toScreen(pocketHole(pk));
   const left = sp.x < view.cssW / 2, top = sp.y < view.cssH / 2;
-  if (pk.side) return view.rotated ? `${left ? 'left' : 'right'} side pocket` : `${top ? 'top' : 'bottom'} side pocket`;
-  return `${top ? 'top' : 'bottom'} ${left ? 'left' : 'right'} pocket`;
+  if (pk.side) return view.rotated ? (left ? T`left side pocket` : T`right side pocket`) : (top ? T`top side pocket` : T`bottom side pocket`);
+  return top ? (left ? T`top left pocket` : T`top right pocket`) : (left ? T`bottom left pocket` : T`bottom right pocket`);
 }
 
 canvas.addEventListener('pointermove', (e) => {
@@ -4427,7 +4505,7 @@ function toast(text, isError) {
     const close = document.createElement('button');
     close.className = 'icon-btn toast__close';
     close.type = 'button';
-    close.setAttribute('aria-label', 'Dismiss');
+    close.setAttribute('aria-label', T`Dismiss`);
     close.innerHTML = TOAST_ICONS.close;
     close.onclick = dismiss;
     el.append(close);
@@ -4478,7 +4556,7 @@ function showLanding(error) {
   if (!invited && hallReady) renderHall();
   $('landingInvite').hidden = !invited;
   $('landingCode').textContent = code;
-  $('landingLead').textContent = 'Enter your name to take the free seat.';
+  $('landingLead').textContent = T`Enter your name to take the free seat.`;
   $('createRow').hidden = invited;
   $('roomsBox').hidden = invited;
   $('code').hidden = invited;
@@ -4536,17 +4614,19 @@ async function describeInvite(code) {
     const list = await res.json();
     const room = list.rooms.find((r) => r.roomCode === code);
     if (!room || $('landingCode').textContent !== code) return;
-    renderHall({ eyebrow: `Room ${code}`, mode: room.mode, table: room.table, cloth: room.cloth, race: room.race, audience: room.maxSpectators });
+    renderHall({ eyebrow: T`Room ${code}`, mode: room.mode, table: room.table, cloth: room.cloth, race: room.race, audience: room.maxSpectators });
     $('hall').hidden = false;
     const host = room.players.find(Boolean);
     const size = room.size || 2;
     if (room.seated >= size || (size > 2 && room.phase !== 'lobby')) {
       const canWatch = room.spectators < room.maxSpectators;
-      $('landingLead').textContent = canWatch ? `${size > 2 ? 'The game is on' : 'Both seats are taken'}. You can watch the game.` : 'This room is full right now.';
+      $('landingLead').textContent = !canWatch ? T`This room is full right now.` : size > 2 ? T`The game is on. You can watch the game.` : T`Both seats are taken. You can watch the game.`;
       $('watchInvite').hidden = !canWatch;
     }
-    else if (host && size > 2) $('landingLead').textContent = `${host} is gathering a 2v2 game: ${size - room.seated} ${size - room.seated === 1 ? 'seat is' : 'seats are'} free.`;
-    else if (host) $('landingLead').textContent = `${host} is at the table and waiting for an opponent.`;
+    else if (host && size > 2) {
+      const free = size - room.seated;
+      $('landingLead').textContent = free === 1 ? T`${host} is gathering a 2v2 game: ${free} seat is free.` : T`${host} is gathering a 2v2 game: ${free} seats are free.`;
+    } else if (host) $('landingLead').textContent = T`${host} is at the table and waiting for an opponent.`;
   } catch { /* keep the generic lead */ }
 }
 
@@ -4588,7 +4668,7 @@ function renderRooms(list) {
     empty = document.createElement('li');
     empty.className = 'rooms__empty';
     empty.innerHTML = '<svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true"><circle cx="20" cy="20" r="15" stroke="currentColor" stroke-opacity=".35" stroke-width="2" stroke-dasharray="4 5"></circle><circle cx="20" cy="20" r="5" fill="currentColor" fill-opacity=".35"></circle></svg>' +
-      '<p class="rooms__empty-title">No rooms yet.</p><p class="caption">Create one and send the link to a friend.</p>';
+      `<p class="rooms__empty-title">${T`No rooms yet.`}</p><p class="caption">${T`Create one and send the link to a friend.`}</p>`;
     ul.append(empty);
   } else if (list.rooms.length && empty) {
     empty.remove();
@@ -4622,12 +4702,12 @@ function renderRooms(list) {
     const phase = room.phase === 'lobby' ? 'lobby' : room.phase === 'game_over' ? 'finished' : 'playing';
     li.querySelector('.mini').style.background = railGradient(carom ? LOOKS.carom : LOOKS[room.table] || LOOKS[DEFAULT_TABLE]);
     li.querySelector('.mini__bed').style.background = miniBed(room.cloth, !carom);
-    const goal = carom ? ` · to ${room.race}` : room.race > 1 ? ` · race ${room.race}` : '';
-    const table = carom ? ' · carom table' : TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
+    const goal = carom ? T` · to ${room.race}` : room.race > 1 ? T` · race ${room.race}` : '';
+    const table = carom ? T` · carom table` : TABLES[room.table] ? ` · ${TABLES[room.table].name}` : '';
     const size = room.size || 2;
     li.querySelector('.room-row__meta').textContent = `${MODE_NAME[room.mode] || '8-ball'}${size > 2 ? ' · 2v2' : ''}${goal}${table}`;
     li.querySelector('.chip').className = `chip chip--${phase}`;
-    li.querySelector('.chip__text').textContent = phase;
+    li.querySelector('.chip__text').textContent = phase === 'lobby' ? T`lobby` : phase === 'finished' ? T`finished` : T`playing`;
     // who: both names with the score between them once a match is on, the
     // one who waits for an opponent, or nobody
     const names = room.players.filter(Boolean);
@@ -4639,22 +4719,24 @@ function renderRooms(list) {
       const scored = phase !== 'lobby' || score[0] || score[1];
       who.replaceChildren(part('room-row__name', side(0) || '—'),
         scored ? part('room-row__score', `${score[0]} – ${score[1]}`) : part('room-row__vs', 'vs'), part('room-row__name', side(1) || '—'));
-      if (room.seated < size) who.append(part('room-row__muted', `${size - room.seated} free`));
+      if (room.seated < size) who.append(part('room-row__muted', T`${size - room.seated} free`));
     } else if (names.length === 2) {
       const scored = phase !== 'lobby' || score[0] || score[1];
       who.replaceChildren(part('room-row__name', room.players[0]),
         scored ? part('room-row__score', `${score[0]} – ${score[1]}`) : part('room-row__vs', 'vs'), part('room-row__name', room.players[1]));
-    } else if (names.length) who.replaceChildren(part('room-row__name', names[0]), part('room-row__muted', 'waiting for an opponent'));
-    else who.replaceChildren(part('room-row__muted', 'empty'));
+    } else if (names.length) who.replaceChildren(part('room-row__name', names[0]), part('room-row__muted', T`waiting for an opponent`));
+    else who.replaceChildren(part('room-row__muted', T`empty`));
     const max = room.maxSpectators || 0;
-    li.querySelector('.room-row__watching-text').textContent = !max ? 'No spectators'
-      : room.spectators ? `${room.spectators} of ${max} watching` : `Up to ${max} may watch`;
+    li.querySelector('.room-row__watching-text').textContent = !max ? T`No spectators`
+      : room.spectators ? T`${room.spectators} of ${max} watching` : T`Up to ${max} may watch`;
     const watch = li.querySelector('.room-row__watch');
     watch.hidden = !(room.spectators < room.maxSpectators);
-    watch.setAttribute('aria-label', `Watch room ${room.roomCode}`);
+    watch.setAttribute('aria-label', T`Watch room ${room.roomCode}`);
+    watch.title = T`Watch`;
+    watch.querySelector('.room-row__watch-text').textContent = T`Watch`;
     const btn = li.querySelector('.room-row__join');
     const open = room.seated < size && (size === 2 || room.phase === 'lobby');
-    btn.textContent = open ? 'Join' : 'Full';
+    btn.textContent = open ? T`Join` : T`Full`;
     btn.disabled = !open;
   }
   for (const [code, li] of rows) {
@@ -4663,13 +4745,13 @@ function renderRooms(list) {
     setTimeout(() => li.remove(), 160);
   }
   const used = list.used ?? list.rooms.length; // practice rooms are not listed but count
-  $('roomsCount').textContent = `${used} of ${list.max} in use`;
+  $('roomsCount').textContent = T`${used} of ${list.max} in use`;
   $('roomsPillN').textContent = $('tabRoomsN').textContent = String(list.rooms.length);
   const full = used >= list.max;
   $('create').disabled = full;
   $('practice').disabled = full;
   $('createNote').hidden = !full;
-  $('createNote').lastElementChild.textContent = full ? `All ${list.max} rooms are in use. Join one of them, or try again in a moment.` : '';
+  $('createNote').lastElementChild.textContent = full ? T`All ${list.max} rooms are in use. Join one of them, or try again in a moment.` : '';
 }
 
 const EYE_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>';
@@ -4688,7 +4770,7 @@ function renderSeat(seat) {
   el.replaceChildren();
   if (!p.connected && !p.name) {
     el.classList.add('seat--empty');
-    el.append(Object.assign(document.createElement('span'), { className: 'seat__name', textContent: 'Open seat' }));
+    el.append(Object.assign(document.createElement('span'), { className: 'seat__name', textContent: T`Open seat` }));
     return;
   }
   const onTurn = (inPlay() || S.moving) && S.turn === seat;
@@ -4697,10 +4779,10 @@ function renderSeat(seat) {
     el.classList.add('seat--turn');
     if (S.moving) el.classList.add('is-moving');
     el.insertAdjacentHTML('beforeend', CUE_SVG);
-    state = S.moving ? 'rolling…' : 'your turn';
+    state = S.moving ? T`rolling…` : T`your turn`;
   } else if (onTurn) {
     el.classList.add('seat--theirs');
-    state = S.moving ? 'rolling…' : 'their turn';
+    state = S.moving ? T`rolling…` : T`their turn`;
   }
   if (!p.connected) el.classList.add('seat--offline');
 
@@ -4713,15 +4795,15 @@ function renderSeat(seat) {
   name.className = 'seat__name';
   // On a phone the header is tight: my seat just says "You".
   const meShort = compact && isMe(seat) && !S.practice;
-  name.textContent = meShort ? 'You' : p.name;
+  name.textContent = meShort ? T`You` : p.name;
   name.title = p.name;
   line.append(name);
-  if (isMe(seat) && !meShort && !(compactLayout.matches && S.practice)) line.append(tag('you', 'you')); // practice: the only player
-  if (!p.connected) line.append(tag('offline', 'offline'));
-  if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
+  if (isMe(seat) && !meShort && !(compactLayout.matches && S.practice)) line.append(tag(T`you`, 'you')); // practice: the only player
+  if (!p.connected) line.append(tag(T`offline`, 'offline'));
+  if (S.phase === 'lobby' && p.ready) line.append(tag(T`ready`, 'ready'));
   if (isNine() && S.fouls[seat] === 2 && S.phase !== 'game_over') {
-    const t = tag('2 fouls', 'foul');
-    t.title = 'A third foul in a row loses the rack';
+    const t = tag(T`2 fouls`, 'foul');
+    t.title = T`A third foul in a row loses the rack`;
     line.append(t);
   }
   body.append(line);
@@ -4733,8 +4815,8 @@ function renderSeat(seat) {
     dot.className = 'ball';
     dot.style.setProperty('--c', CAROM_COLORS[id]);
     dots.append(dot);
-    dots.setAttribute('aria-label', `plays the ${CAROM_NAMES[id]}`);
-    dots.title = `Plays the ${CAROM_NAMES[id]}`;
+    dots.setAttribute('aria-label', T`plays the ${caromName(id)}`);
+    dots.title = T`Plays the ${caromName(id)}`;
     body.append(dots);
   }
   const g = S.groups[seat];
@@ -4811,12 +4893,12 @@ function renderTeamSeat(side) {
     if (live && S.turn === s) line.insertAdjacentHTML('beforeend', CUE_SVG);
     const name = document.createElement('span');
     name.className = 'seat__name' + (p.name ? '' : ' seat__name--open');
-    name.textContent = !p.name ? 'Open seat' : compact && isMe(s) ? 'You' : p.name;
-    name.title = p.name || 'Open seat';
+    name.textContent = !p.name ? T`Open seat` : compact && isMe(s) ? T`You` : p.name;
+    name.title = p.name || T`Open seat`;
     line.append(name);
-    if (p.name && isMe(s) && !compact) line.append(tag('you', 'you'));
-    if (p.name && !p.connected) line.append(tag('offline', 'offline'));
-    if (S.phase === 'lobby' && p.ready) line.append(tag('ready', 'ready'));
+    if (p.name && isMe(s) && !compact) line.append(tag(T`you`, 'you'));
+    if (p.name && !p.connected) line.append(tag(T`offline`, 'offline'));
+    if (S.phase === 'lobby' && p.ready) line.append(tag(T`ready`, 'ready'));
     body.append(line);
   }
   const g = S.groups[side];
@@ -4833,17 +4915,17 @@ function renderTeamLobby(me) {
   box.replaceChildren(...[0, 1].map((sd) => {
     const col = document.createElement('div');
     col.className = 'team-pick__side';
-    col.append(Object.assign(document.createElement('span'), { className: 'team-pick__label', textContent: sd ? 'Team B' : 'Team A' }));
+    col.append(Object.assign(document.createElement('span'), { className: 'team-pick__label', textContent: sd ? T`Team B` : T`Team A` }));
     for (const s of [sd, sd + 2]) {
       const p = S.players[s];
       if (p && p.name) {
-        const chip = Object.assign(document.createElement('span'), { className: 'team-pick__seat' + (isMe(s) ? ' is-me' : '') + (p.ready ? ' is-ready' : ''), textContent: isMe(s) ? 'You' : p.name });
-        chip.title = p.ready ? `${p.name} is ready` : p.name;
+        const chip = Object.assign(document.createElement('span'), { className: 'team-pick__seat' + (isMe(s) ? ' is-me' : '') + (p.ready ? ' is-ready' : ''), textContent: isMe(s) ? T`You` : p.name });
+        chip.title = p.ready ? T`${p.name} is ready` : p.name;
         col.append(chip);
       } else {
-        const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn--secondary btn--small team-pick__sit', textContent: 'Sit here' });
+        const b = Object.assign(document.createElement('button'), { type: 'button', className: 'btn btn--secondary btn--small team-pick__sit', textContent: T`Sit here` });
         b.dataset.seat = String(s);
-        b.setAttribute('aria-label', `Sit in Team ${sd ? 'B' : 'A'}`);
+        b.setAttribute('aria-label', sd ? T`Sit in Team B` : T`Sit in Team A`);
         b.onclick = () => send({ type: 'sit', seat: s });
         col.append(b);
       }
@@ -4853,10 +4935,10 @@ function renderTeamLobby(me) {
   const missing = S.size - S.players.filter((p) => p.name).length;
   $('ready').hidden = missing > 0 || me.ready;
   $('lobbyCopy').hidden = missing === 0;
-  if (missing) setPanelMsg('lobbyText', `Waiting for <strong>${missing}</strong> more ${missing === 1 ? 'player' : 'players'}.`);
-  else if (me.ready) setPanelMsg('lobbyText', '<strong>You’re ready.</strong> Waiting for the others…');
-  else setPanelMsg('lobbyText', '<strong>All four are here.</strong> Ready when you are.');
-  $('lobbySub').textContent = 'Seats across the table play together: tap a free seat to switch teams.';
+  if (missing) setPanelMsg('lobbyText', missing === 1 ? T`Waiting for <strong>${missing}</strong> more player.` : T`Waiting for <strong>${missing}</strong> more players.`);
+  else if (me.ready) setPanelMsg('lobbyText', T`<strong>You’re ready.</strong> Waiting for the others…`);
+  else setPanelMsg('lobbyText', T`<strong>All four are here.</strong> Ready when you are.`);
+  $('lobbySub').textContent = T`Seats across the table play together: tap a free seat to switch teams.`;
 }
 
 // awaySeat is the seat the game waits for while its player is offline, or
@@ -4886,7 +4968,7 @@ function updateClock(wrap) {
   wrap.querySelector('.hold__arc').style.strokeDashoffset = String(69.1 * (1 - left / (S.clock.limit / 1000)));
   wrap.querySelector('.hold__num').textContent = String(Math.ceil(left));
   wrap.classList.toggle('hold--low', low);
-  wrap.setAttribute('aria-label', `${Math.ceil(left)} seconds left${S.clock.paused ? ', paused' : ''}`);
+  wrap.setAttribute('aria-label', S.clock.paused ? T`${Math.ceil(left)} seconds left, paused` : T`${Math.ceil(left)} seconds left`);
 }
 
 function tickClock() {
@@ -4897,7 +4979,7 @@ function tickClock() {
   const mine = isMe(S.clock.seat) && !S.clock.paused && left > 0;
   if (mine && left <= CLOCK_LOW_S && !S.clockWarned) {
     S.clockWarned = true;
-    toast(`${CLOCK_LOW_S} seconds left` + (canExtend() ? ' · X extends' : ''), true);
+    toast(canExtend() ? T`${CLOCK_LOW_S} seconds left · X extends` : T`${CLOCK_LOW_S} seconds left`, true);
   }
   hurry(mine ? left : null);
 }
@@ -4930,7 +5012,8 @@ function turnCue() {
   void wrap.offsetWidth; // restart the flash
   wrap.classList.add('is-turn-start');
   const banner = $('turnBanner');
-  banner.querySelector('.turn-banner__sub').textContent = S.decision ? 'choose how to continue' : S.ballInHand ? 'ball in hand' : '';
+  banner.querySelector('.turn-banner__title').textContent = T`Your turn`;
+  banner.querySelector('.turn-banner__sub').textContent = S.decision ? T`choose how to continue` : S.ballInHand ? T`ball in hand` : '';
   banner.hidden = false;
   banner.classList.remove('is-on');
   void banner.offsetWidth;
@@ -4939,7 +5022,7 @@ function turnCue() {
   turnCue.timer = setTimeout(() => { banner.hidden = true; wrap.classList.remove('is-turn-start'); }, 1600);
   chime();
   nudge([40, 60, 40]);
-  if (document.hidden) setTitle('● Your turn');
+  if (document.hidden) setTitle(T`● Your turn`);
 }
 
 // hurry follows my shot clock's last seconds (left: seconds, or null when
@@ -4948,7 +5031,7 @@ function hurry(left) {
   if (left === null || left > CLOCK_LOW_S) { setHurry(0); return; }
   const sec = Math.ceil(left);
   setHurry(sec <= CLOCK_HURRY_S ? 2 : 1, sec);
-  if (document.hidden) setTitle(`⏰ ${sec}s · Your turn`);
+  if (document.hidden) setTitle(T`⏰ ${sec}s · Your turn`);
   if (sec === S.clockTick) return;
   S.clockTick = sec;
   clockTick(sec <= CLOCK_HURRY_S);
@@ -5035,7 +5118,7 @@ function tickHolds() {
   // the waiting panel's sentence counts down too
   const left = S.seat >= 0 && $('waitHold').dataset.seat ? holdRemaining(Number($('waitHold').dataset.seat)) : null;
   if (left !== null && !$('waitPanel').hidden && !$('waitHold').hidden) {
-    $('waitSub').textContent = `Their seat is held for ${Math.ceil(left)} more seconds.`;
+    $('waitSub').textContent = T`Their seat is held for ${Math.ceil(left)} more seconds.`;
   }
 }
 
@@ -5097,19 +5180,19 @@ function refreshPanels() {
     $('ready').hidden = alone || me.ready;
     $('lobbyCopy').hidden = !alone;
     if (alone) {
-      setPanelMsg('lobbyText', S.lobbyNote ? esc(S.lobbyNote) : 'Waiting for an opponent.');
-      $('lobbySub').textContent = S.lobbyNote ? 'The room stays open. Send the link to someone else.' : 'Send the link; this room stays open while you are here.';
+      setPanelMsg('lobbyText', S.lobbyNote ? esc(S.lobbyNote) : T`Waiting for an opponent.`);
+      $('lobbySub').textContent = S.lobbyNote ? T`The room stays open. Send the link to someone else.` : T`Send the link; this room stays open while you are here.`;
     } else if (!opp.connected) {
-      setPanelMsg('lobbyText', `<strong>${esc(opp.name)}</strong> is offline.`);
-      $('lobbySub').textContent = 'Their seat is held for a moment.';
+      setPanelMsg('lobbyText', T`<strong>${esc(opp.name)}</strong> is offline.`);
+      $('lobbySub').textContent = T`Their seat is held for a moment.`;
     } else if (me.ready) {
-      setPanelMsg('lobbyText', `<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
-      $('lobbySub').textContent = 'The match starts when both players are ready.';
+      setPanelMsg('lobbyText', T`<strong>You’re ready.</strong> Waiting for ${esc(opp.name)}…`);
+      $('lobbySub').textContent = T`The match starts when both players are ready.`;
     } else {
-      setPanelMsg('lobbyText', `<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
+      setPanelMsg('lobbyText', T`<strong>${esc(opp.name)} is here.</strong> Ready when you are.`);
       $('lobbySub').textContent = isCarom()
-        ? `3-cushion to ${points(S.race)}.`
-        : `${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} ${S.race === 1 ? 'rack' : 'racks'}. ${BREAKS_TEXT[S.breaks]}`;
+        ? T`3-cushion to ${points(S.race)}.`
+        : (S.race === 1 ? T`${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} rack.` : T`${MODE_NAME[S.mode]} on a ${SPEC.name}, first to ${S.race} racks.`) + ` ${tr(BREAKS_TEXT[S.breaks])}`;
     }
   }
   if (panel === 'shotPanel') refreshShotPanel();
@@ -5119,29 +5202,33 @@ function refreshPanels() {
     let msg, sub = '';
     if (S.spectator && S.phase === 'lobby') {
       const seated = S.players.filter((p) => p.name).map((p) => `<strong>${esc(p.name)}</strong>`);
-      msg = seated.length === S.size ? `${seated.join(isTeams() ? ', ' : ' and ')} are getting ready.` : seated.length ? `${seated.join(', ')} ${seated.length === 1 ? 'is' : 'are'} waiting for ${isTeams() ? `${S.size - seated.length} more` : 'an opponent'}.` : 'Nobody is at the table yet.';
-      sub = 'You are watching. Say something in the chat.';
+      const more = S.size - seated.length;
+      if (!seated.length) msg = T`Nobody is at the table yet.`;
+      else if (!more) msg = T`${seated.join(isTeams() ? ', ' : T` and `)} are getting ready.`;
+      else if (!isTeams()) msg = T`${seated[0]} is waiting for an opponent.`;
+      else msg = seated.length === 1 ? T`${seated[0]} is waiting for ${more} more.` : T`${seated.join(', ')} are waiting for ${more} more.`;
+      sub = T`You are watching. Say something in the chat.`;
     } else if (S.spectator && S.phase === 'game_over') {
       msg = `<strong>${esc(winnerTitle())}</strong>`;
-      sub = 'You are watching.';
-    } else if (S.moving) { msg = '<span class="muted">Balls are rolling…</span>'; }
-    else if (S.practice) { msg = '<span class="muted">Setting up the table…</span>'; }
+      sub = T`You are watching.`;
+    } else if (S.moving) { msg = `<span class="muted">${T`Balls are rolling…`}</span>`; }
+    else if (S.practice) { msg = `<span class="muted">${T`Setting up the table…`}</span>`; }
     else if (awaySeat() >= 0) {
       const away = awaySeat();
-      msg = `Waiting for <strong>${esc(S.players[away].name)}</strong> to reconnect…`;
+      msg = T`Waiting for <strong>${esc(S.players[away].name)}</strong> to reconnect…`;
       const left = holdRemaining(away);
-      sub = left === null ? 'Their seat is held for a moment.' : `Their seat is held for ${Math.ceil(left)} more seconds.`;
+      sub = left === null ? T`Their seat is held for a moment.` : T`Their seat is held for ${Math.ceil(left)} more seconds.`;
       hold.hidden = false;
       hold.replaceChildren(...holdRing(away).childNodes);
       hold.dataset.seat = String(away);
       if (!S.holdTimer) S.holdTimer = setInterval(tickHolds, 1000);
     } else if (S.decision) {
-      msg = isMe(S.decision.seat) ? 'Your decision.' : `Waiting for <strong>${esc(nameOf(S.decision.seat))}</strong> to decide.`;
+      msg = isMe(S.decision.seat) ? T`Your decision.` : T`Waiting for <strong>${esc(nameOf(S.decision.seat))}</strong> to decide.`;
       sub = S.lastDecisionReason;
     } else {
-      const mate = isTeams() && isMySide(sideOf(S.turn)) ? ' <span class="muted">(your team)</span>' : '';
-      msg = `<strong>${esc(nameOf(S.turn))}’s turn.</strong>${mate}${S.ballInHand ? ' Ball in hand.' : ''}`;
-      sub = 'You see their aim as they line up.';
+      const mate = isTeams() && isMySide(sideOf(S.turn)) ? ` <span class="muted">${T`(your team)`}</span>` : '';
+      msg = `${T`<strong>${esc(nameOf(S.turn))}’s turn.</strong>`}${mate}${S.ballInHand ? T` Ball in hand.` : ''}`;
+      sub = T`You see their aim as they line up.`;
     }
     setPanelMsg('waitText', msg);
     $('waitSub').textContent = sub;
@@ -5152,7 +5239,7 @@ function refreshPanels() {
 
 // renderModes shows the room's game on the scoreboard.
 function renderModes() {
-  $('roomEyebrow').textContent = S.spectator ? `Watching · ${MODE_NAME[S.mode]}` : S.seat < 0 ? 'Room' : S.practice ? `Practice · ${MODE_NAME[S.mode]}` : `${MODE_NAME[S.mode]} room`;
+  $('roomEyebrow').textContent = S.spectator ? T`Watching · ${MODE_NAME[S.mode]}` : S.seat < 0 ? T`Room` : S.practice ? T`Practice · ${MODE_NAME[S.mode]}` : T`${MODE_NAME[S.mode]} room`;
   $('leaveBtn').hidden = !inRoom() || S.practice;
   $('chatBtn').hidden = !inRoom() || S.practice;
   document.body.classList.toggle('is-watching', S.spectator);
@@ -5194,7 +5281,7 @@ function fillTablePick(el) {
     finish.style.boxShadow = LOOKS[id].trim ? `inset 0 0 0 1.5px ${LOOKS[id].trim}` : `inset 0 0 0 1px ${LOOKS[id].rim || 'rgba(0, 0, 0, .35)'}`;
     finish.setAttribute('aria-hidden', 'true');
     name.append(finish, t.name);
-    b.append(name, Object.assign(document.createElement('span'), { className: 'table-pick__pockets', textContent: `corners ${inches(t.corner)} · sides ${inches(t.side)}` }));
+    b.append(name, Object.assign(document.createElement('span'), { className: 'table-pick__pockets', textContent: T`corners ${inches(t.corner)} · sides ${inches(t.side)}` }));
     return b;
   }));
 }
@@ -5260,52 +5347,54 @@ function refreshShotPanel() {
   let html, called = false;
   const opp = oppName();
   if (S.practice && isCarom()) {
-    html = 'Free play: <span class="muted">both balls, three cushions before the second' + (compactLayout.matches ? '.' : '. Drag the white anywhere; Move sets up the others.') + '</span>';
+    html = compactLayout.matches ? T`Free play: <span class="muted">both balls, three cushions before the second.</span>`
+      : T`Free play: <span class="muted">both balls, three cushions before the second. Drag the white anywhere; Move sets up the others.</span>`;
     called = true;
   } else if (S.practice) {
-    html = 'Free play: <span class="muted">any ball, any pocket' + (compactLayout.matches ? '.' : ', no fouls. Drag the cue ball anywhere; Move sets up the others.') + '</span>';
+    html = compactLayout.matches ? T`Free play: <span class="muted">any ball, any pocket.</span>`
+      : T`Free play: <span class="muted">any ball, any pocket, no fouls. Drag the cue ball anywhere; Move sets up the others.</span>`;
     called = true;
   } else if (isCarom()) {
-    const mine = CAROM_NAMES[cueId()];
+    const mine = caromName(cueId());
     called = true;
     if (S.phase === 'breaking') {
-      html = `Break with the ${mine}: <span class="muted">the red first` + (compactLayout.matches ? '.' : ', then three cushions and the yellow.') + '</span>';
+      html = compactLayout.matches ? T`Break with the ${mine}: <span class="muted">the red first.</span>` : T`Break with the ${mine}: <span class="muted">the red first, then three cushions and the yellow.</span>`;
     } else if (S.carom && S.carom.equalizing) {
-      html = `Last inning: <span class="muted">reach ${S.target} to draw the game.</span>`;
+      html = T`Last inning: <span class="muted">reach ${S.target} to draw the game.</span>`;
     } else {
-      html = `Your ball: <span class="call__value">${mine}</span> <span class="muted">· both balls, three cushions before the second.</span>`;
+      html = T`Your ball: <span class="call__value">${mine}</span> <span class="muted">· both balls, three cushions before the second.</span>`;
     }
   } else if (isNine()) {
     const low = lowestBall();
     called = true;
     if (S.phase === 'breaking') {
-      html = 'Break: <span class="muted">hit the 1 first' + (S.ballInHand && !compactLayout.matches ? ', cue ball anywhere in the kitchen.' : '.') + '</span>';
+      html = S.ballInHand && !compactLayout.matches ? T`Break: <span class="muted">hit the 1 first, cue ball anywhere in the kitchen.</span>` : T`Break: <span class="muted">hit the 1 first.</span>`;
     } else if (S.call && S.call.pushOut) {
-      html = `Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
+      html = T`Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
     } else {
       // scotch doubles: say so where there is room
-      const scotch = isTeams() && !compactLayout.matches ? ' Partners alternate every shot.' : '';
-      html = `Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.${scotch}</span>`;
+      const scotch = isTeams() && !compactLayout.matches ? T` Partners alternate every shot.` : '';
+      html = T`Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.${scotch}</span>`;
     }
   } else if (!canCall()) {
     // On a phone the "ball in hand · kitchen" tag beside it says the rest.
-    html = 'Break: <span class="muted">no call needed' + (S.ballInHand && !compactLayout.matches ? ', drag the cue ball anywhere in the kitchen.' : '.') + '</span>';
+    html = S.ballInHand && !compactLayout.matches ? T`Break: <span class="muted">no call needed, drag the cue ball anywhere in the kitchen.</span>` : T`Break: <span class="muted">no call needed.</span>`;
     called = true;
   } else if (S.call && S.call.safety) {
-    html = 'Safety: <span class="muted">the turn passes after the shot.</span>';
+    html = T`Safety: <span class="muted">the turn passes after the shot.</span>`;
     called = true;
   } else if (eightOn()) {
     if (S.call) {
-      html = `Called: <span class="call__value">${esc(pocketName(S.call.pocket))}</span>`;
+      html = T`Called: <span class="call__value">${esc(pocketName(S.call.pocket))}</span>`;
       called = true;
     } else {
-      html = S.ballInHand ? 'Ball in hand: place the cue ball, then tap a pocket for the 8.' : 'On the 8-ball: tap the pocket you are going for.';
+      html = S.ballInHand ? T`Ball in hand: place the cue ball, then tap a pocket for the 8.` : T`On the 8-ball: tap the pocket you are going for.`;
     }
   } else if (S.phase === 'open') {
-    html = 'Open table: <span class="muted">any ball but the 8 counts.</span>';
+    html = T`Open table: <span class="muted">any ball but the 8 counts.</span>`;
     called = true;
   } else {
-    html = `Your group: <span class="call__value">${esc(S.groups[mySide()])}</span> <span class="muted">· any that drops counts.</span>`;
+    html = T`Your group: <span class="call__value">${esc(groupName(S.groups[mySide()]))}</span> <span class="muted">· any that drops counts.</span>`;
     called = true;
   }
   if (callEl.dataset.html !== html) {
@@ -5323,7 +5412,7 @@ function refreshShotPanel() {
   if (!ext.hidden) {
     const secs = Math.round(S.clock.extension / 1000);
     ext.innerHTML = `${CLOCK_SVG}+${secs}s`;
-    ext.title = `Extension: reset your clock to ${secs} seconds, once per game (X)`;
+    ext.title = T`Extension: reset your clock to ${secs} seconds, once per game (X)`;
     ext.setAttribute('aria-label', ext.title);
   }
   $('safety').hidden = !canCall();
@@ -5337,10 +5426,10 @@ function refreshShotPanel() {
     b.textContent = compactMedia.matches ? `${sign}${mag < 1 ? String(mag).slice(1) : mag}` : `${sign}${mag}°`;
   }
   $('handTag').hidden = !S.ballInHand;
-  $('handTag').textContent = S.kitchen ? 'ball in hand · kitchen' : 'ball in hand';
+  $('handTag').textContent = S.kitchen ? T`ball in hand · kitchen` : T`ball in hand`;
   if (S.ballInHand && readSetting('pool:hint:hand') !== 'off') {
     writeSetting('pool:hint:hand', 'off');
-    toast(S.kitchen ? 'Drag the cue ball anywhere in the kitchen, then pull the bar to shoot' : 'Drag the cue ball anywhere on the table');
+    toast(S.kitchen ? T`Drag the cue ball anywhere in the kitchen, then pull the bar to shoot` : T`Drag the cue ball anywhere on the table`);
   }
   setAngle(S.angle);
   renderPower();
@@ -5366,14 +5455,14 @@ function refreshDecision() {
   const dlg = $('decision');
   const wasShown = !dlg.hidden;
   dlg.hidden = !show;
-  renderBanner(d && !isMe(d.seat) && !S.moving ? `Waiting for ${nameOf(d.seat)} to decide` : '');
+  renderBanner(d && !isMe(d.seat) && !S.moving ? T`Waiting for ${nameOf(d.seat)} to decide` : '');
   renderResult();
   if (!show) return;
   renderDecisionClock();
-  if (wasShown && dlg.dataset.key === JSON.stringify(d)) return; // already built
-  dlg.dataset.key = JSON.stringify(d);
+  if (wasShown && dlg.dataset.key === JSON.stringify(d) + LANG) return; // already built
+  dlg.dataset.key = JSON.stringify(d) + LANG;
   const eight = d.options.includes('spot_eight');
-  $('decisionTitle').textContent = d.options.includes('take_shot') ? 'Push out' : eight ? '8-ball on the break' : 'Illegal break';
+  $('decisionTitle').textContent = d.options.includes('take_shot') ? T`Push out` : eight ? T`8-ball on the break` : T`Illegal break`;
   $('decisionText').textContent = S.lastDecisionReason || '';
   const box = $('decisionOptions');
   box.replaceChildren();
@@ -5400,7 +5489,7 @@ function renderDecisionClock() {
   el.hidden = left === null || !S.decision || !isMe(S.clock.seat);
   if (el.hidden) return;
   const opp = oppName();
-  const text = `${Math.ceil(left)} s left, then “${optionText(S.decision.options[0], opp)[0]}” is chosen for you.`;
+  const text = T`${Math.ceil(left)} s left, then “${optionText(S.decision.options[0], opp)[0]}” is chosen for you.`;
   if (el.dataset.text === text) return;
   el.dataset.text = text;
   el.innerHTML = `${CLOCK_SVG}<span></span>`;
@@ -5444,7 +5533,7 @@ function renderPracticeBar() {
   $('menuBtn').hidden = !on;
   if (!on) { closePracticeMenu(); return; }
   $('undoBtn').disabled = S.undos === 0 || S.moving;
-  $('undoBtn').title = S.undos ? `Take back the last shot (Z) · ${S.undos} left` : 'Nothing to take back yet';
+  $('undoBtn').title = S.undos ? T`Take back the last shot (Z) · ${S.undos} left` : T`Nothing to take back yet`;
   $('moveBtn').setAttribute('aria-pressed', String(S.moveTool));
   $('rackBtn').disabled = S.moving;
 }
@@ -5502,19 +5591,19 @@ function undo() {
 
 function toggleMoveTool() {
   S.moveTool = !S.moveTool;
-  if (S.moveTool) toast('Move balls: drag any ball. Press M again to aim.');
+  if (S.moveTool) toast(T`Move balls: drag any ball. Press M again to aim.`);
   refreshPanels();
 }
 
 // winnerTitle names the winner of the rack; in practice by side.
 function winnerTitle() {
   if (isCarom() && !S.practice) {
-    if (S.winner === null) return 'A draw';
-    return isMe(S.winner) ? 'You win the game' : `${nameOf(S.winner)} wins the game`;
+    if (S.winner === null) return T`A draw`;
+    return isMe(S.winner) ? T`You win the game` : T`${nameOf(S.winner)} wins the game`;
   }
-  if (S.winner === null) return 'Game over';
-  if (S.practice) return `${sideName(S.winner)} wins the rack`;
-  return `${sideDoes(S.winner, 'win')} the rack`;
+  if (S.winner === null) return T`Game over`;
+  if (S.practice) return T`${sideName(S.winner)} wins the rack`;
+  return T`${sideDoes(S.winner, 'win')} the rack`;
 }
 
 function renderResult() {
@@ -5547,7 +5636,7 @@ const POINTS_MAX = 50; // 3-cushion: the race is in points (game.MaxCaromTarget)
 const RACE_PICKS = [1, 3, 5, 7, 9];
 const POINT_PICKS = [10, 15, 20, 25, 30, 40];
 const raceMax = (mode) => (mode === '3cushion' ? POINTS_MAX : RACE_MAX);
-const BREAKS_TEXT = { alternate: 'The break alternates.', winner: 'The winner of a rack breaks the next.' };
+const BREAKS_TEXT = { alternate: N('The break alternates.'), winner: N('The winner of a rack breaks the next.') };
 
 // setMatch takes the match from the server and notes when it was just won.
 function setMatch(m) {
@@ -5567,28 +5656,28 @@ function matchLive() {
 // matchName names a side in the match history, even after its player left.
 function matchName(seat) {
   if (isTeams()) return teamName(seat);
-  if (isMe(seat)) return 'You';
-  return S.players[seat].name || S.lastOppName || `Player ${seat + 1}`;
+  if (isMe(seat)) return T`You`;
+  return S.players[seat].name || S.lastOppName || T`Player ${seat + 1}`;
 }
 
 function matchTitle(m) {
-  if (m.winner === null) return 'A draw';
-  return isTeams() ? `${sideDoes(m.winner, 'win')} the match` : isMe(m.winner) ? 'You win the match' : `${matchName(m.winner)} wins the match`;
+  if (m.winner === null) return T`A draw`;
+  return isTeams() ? T`${sideDoes(m.winner, 'win')} the match` : isMe(m.winner) ? T`You win the match` : T`${matchName(m.winner)} wins the match`;
 }
 
 // rackWhy says how a rack of the match ended.
 function rackWhy(r) {
   const loser = matchName(1 - r.winner);
   switch (r.end) {
-    case 'points': return `${matchName(r.winner)} reached ${points(S.match ? S.match.race : 0)}`;
-    case 'draw': return 'both reached the target in the same innings';
-    case 'made': return S.mode === '9ball' ? '9-ball pocketed' : '8-ball in the called pocket';
-    case 'eight_foul': return `${loser} fouled on the 8-ball${r.foul ? `: ${FOUL_TEXT[r.foul] || r.foul}` : ''}`;
-    case 'eight_early': return `${loser} pocketed the 8-ball early`;
-    case 'eight_pocket': return `${loser} pocketed the 8-ball in the wrong pocket`;
-    case 'eight_off': return `${loser} jumped the 8-ball off the table`;
-    case 'three_fouls': return `${loser} fouled three times in a row`;
-    case 'forfeit': return `${loser} left the match`;
+    case 'points': return T`${matchName(r.winner)} reached ${points(S.match ? S.match.race : 0)}`;
+    case 'draw': return T`both reached the target in the same innings`;
+    case 'made': return S.mode === '9ball' ? T`9-ball pocketed` : T`8-ball in the called pocket`;
+    case 'eight_foul': return r.foul ? T`${loser} fouled on the 8-ball: ${foulText(r.foul)}` : T`${loser} fouled on the 8-ball`;
+    case 'eight_early': return T`${loser} pocketed the 8-ball early`;
+    case 'eight_pocket': return T`${loser} pocketed the 8-ball in the wrong pocket`;
+    case 'eight_off': return T`${loser} jumped the 8-ball off the table`;
+    case 'three_fouls': return T`${loser} fouled three times in a row`;
+    case 'forfeit': return T`${loser} left the match`;
   }
   return '';
 }
@@ -5610,21 +5699,21 @@ function renderScore() {
   el.disabled = !m;
   if (!m) {
     el.className = 'score score--empty' + compact;
-    if (el.dataset.k !== 'vs') {
-      el.innerHTML = '<span class="score__vs">vs</span>';
-      el.dataset.k = 'vs';
-      el.setAttribute('aria-label', 'No score yet');
+    if (el.dataset.k !== 'vs' + LANG) {
+      el.innerHTML = `<span class="score__vs">${T`vs`}</span>`;
+      el.dataset.k = 'vs' + LANG;
+      el.setAttribute('aria-label', T`No score yet`);
       el.removeAttribute('title');
     }
     S.shownScore = null;
     return;
   }
   const carom = isCarom();
-  const goal = carom ? `to ${m.race}` : `race to ${m.race}`;
+  const goal = carom ? T`to ${m.race}` : T`race to ${m.race}`;
   el.className = 'score' + (m.racks.length || (carom && m.score[0] + m.score[1] > 0) ? '' : ' score--empty') + compact;
-  el.setAttribute('aria-label', `Score ${m.score[0]} to ${m.score[1]}, ${carom ? `${m.race} points to win` : `race to ${m.race}`}. Show the ${carom ? 'game' : 'racks'}.`);
-  el.title = carom ? 'Show the game' : 'Show the racks';
-  const key = `${m.score[0]}-${m.score[1]}-${m.race}`;
+  el.setAttribute('aria-label', carom ? T`Score ${m.score[0]} to ${m.score[1]}, ${m.race} points to win. Show the game.` : T`Score ${m.score[0]} to ${m.score[1]}, race to ${m.race}. Show the racks.`);
+  el.title = carom ? T`Show the game` : T`Show the racks`;
+  const key = `${m.score[0]}-${m.score[1]}-${m.race}-${LANG}`;
   if (el.dataset.k === key) return;
   const old = S.shownScore;
   const tick = old && old.race === m.race && !reduceMotion.matches;
@@ -5652,14 +5741,18 @@ function renderMatchDialog() {
   const over = m.winner !== null || !!m.draw;
   const last = m.racks[m.racks.length - 1];
   const carom = isCarom();
-  $('matchEyebrow').textContent = carom ? `3-cushion · to ${points(m.race)}` : `${MODE_NAME[S.mode]} · race to ${m.race}`;
-  $('matchTitle').textContent = over ? matchTitle(m) : carom ? 'Game' : 'Match';
+  $('matchEyebrow').textContent = carom ? T`3-cushion · to ${points(m.race)}` : T`${MODE_NAME[S.mode]} · race to ${m.race}`;
+  $('matchTitle').textContent = over ? matchTitle(m) : carom ? T`Game|match` : T`Match`;
   let text;
   if (carom && over && last.end !== 'forfeit') text = `${caromReason() || `${m.score[0]}–${m.score[1]}`}.`;
-  else if (carom && !over) text = `First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
-  else if (over && last.end === 'forfeit') text = `${matchName(1 - m.winner)} left the room, so the match goes to ${isMySide(m.winner) ? (isTeams() ? 'your team' : 'you') : matchName(m.winner)}.`;
-  else if (over) text = `${m.score[m.winner]}–${m.score[1 - m.winner]} after ${m.racks.length} ${m.racks.length === 1 ? 'rack' : 'racks'}.`;
-  else text = `First to ${m.race} ${m.race === 1 ? 'rack' : 'racks'} wins. ${BREAKS_TEXT[m.breaks]}`;
+  else if (carom && !over) text = T`First to ${points(m.race)}. If the breaker gets there first, the other player has one more inning to draw level.`;
+  else if (over && last.end === 'forfeit') {
+    const to = isMySide(m.winner) ? (isTeams() ? T`your team` : T`you`) : matchName(m.winner);
+    text = T`${matchName(1 - m.winner)} left the room, so the match goes to ${to}.`;
+  } else if (over) {
+    const [a, b, n] = [m.score[m.winner], m.score[1 - m.winner], m.racks.length];
+    text = n === 1 ? T`${a}–${b} after ${n} rack.` : T`${a}–${b} after ${n} racks.`;
+  } else text = (m.race === 1 ? T`First to ${m.race} rack wins.` : T`First to ${m.race} racks wins.`) + ` ${tr(BREAKS_TEXT[m.breaks])}`;
   $('matchText').textContent = text;
   $('matchName0').textContent = matchName(0);
   $('matchName1').textContent = matchName(1);
@@ -5668,7 +5761,7 @@ function renderMatchDialog() {
   const list = $('matchRacks');
   list.replaceChildren();
   if (!m.racks.length) {
-    list.append(Object.assign(document.createElement('li'), { className: 'racks__empty', textContent: 'No rack finished yet.' }));
+    list.append(Object.assign(document.createElement('li'), { className: 'racks__empty', textContent: T`No rack finished yet.` }));
     return;
   }
   const run = [0, 0];
@@ -5677,9 +5770,9 @@ function renderMatchDialog() {
     const li = document.createElement('li');
     li.className = 'rack';
     const n = Object.assign(document.createElement('span'), { className: 'rack__n', textContent: `#${i + 1}` });
-    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMySide(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? 'Draw' : matchName(r.winner) });
+    const who = Object.assign(document.createElement('span'), { className: 'rack__who' + (isMySide(r.winner) ? ' rack__who--me' : ''), textContent: r.winner < 0 ? T`Draw` : matchName(r.winner) });
     const sc = Object.assign(document.createElement('span'), { className: 'rack__score', textContent: carom ? `${m.score[0]}–${m.score[1]}` : `${run[0]}–${run[1]}` });
-    const broke = isMySide(r.breaker) ? (isTeams() ? 'your team broke' : 'you broke') : `${matchName(r.breaker)} broke`;
+    const broke = isMySide(r.breaker) ? (isTeams() ? T`your team broke` : T`you broke`) : T`${matchName(r.breaker)} broke`;
     const why = Object.assign(document.createElement('span'), { className: 'rack__why', textContent: `${rackWhy(r)} · ${broke}` });
     li.append(n, who, sc, why);
     list.append(li);
@@ -5697,11 +5790,11 @@ function renderCaromLines(carom) {
   box.replaceChildren(...[0, 1].map((seat) => {
     const inn = c.innings[seat];
     const avg = inn ? (c.points[seat] / inn).toFixed(3) : '0.000';
-    const run = S.turn === seat && c.run > 0 && S.phase !== 'game_over' ? ` · run ${c.run}` : '';
+    const run = S.turn === seat && c.run > 0 && S.phase !== 'game_over' ? T` · run ${c.run}` : '';
     const row = Object.assign(document.createElement('div'), { className: 'match-stats__row' });
-    row.title = `${matchName(seat)}: ${c.points[seat]} of ${S.target} points, ${inn} innings, average ${avg}, high run ${c.highRun[seat]}`;
+    row.title = T`${matchName(seat)}: ${c.points[seat]} of ${S.target} points, ${inn} innings, average ${avg}, high run ${c.highRun[seat]}`;
     row.append(Object.assign(document.createElement('dt'), { textContent: matchName(seat) }),
-      Object.assign(document.createElement('dd'), { textContent: `${c.points[seat]}/${S.target} · ${inn} inn · avg ${avg} · HR ${c.highRun[seat]}${run}` }));
+      Object.assign(document.createElement('dd'), { textContent: T`${c.points[seat]}/${S.target} · ${inn} inn · avg ${avg} · HR ${c.highRun[seat]}` + run }));
     return row;
   }));
 }
@@ -5709,11 +5802,11 @@ function renderCaromLines(carom) {
 function openLeaveConfirm() {
   const m = S.match;
   const opp = matchName(1 - mySide());
-  const score = m.racks.length || isCarom() ? `The score is ${m.score[mySide()]}–${m.score[1 - mySide()]} (you first). ` : '';
+  const score = m.racks.length || isCarom() ? T`The score is ${m.score[mySide()]}–${m.score[1 - mySide()]} (you first). ` : '';
   const mate = isTeams() && S.players.find((p) => p.seat !== S.seat && p.seat % 2 === mySide() && p.name);
-  $('leaveText').textContent = mate ? `${score}${mate.name} plays on alone for your team.` : `${score}Leaving now gives ${opp} the match.`;
-  $('leaveTitle').textContent = mate ? 'Leave the match?' : 'Leave and forfeit the match?';
-  $('leaveForfeit').textContent = mate ? 'Leave' : 'Leave and forfeit';
+  $('leaveText').textContent = score + (mate ? T`${mate.name} plays on alone for your team.` : T`Leaving now gives ${opp} the match.`);
+  $('leaveTitle').textContent = mate ? T`Leave the match?` : T`Leave and forfeit the match?`;
+  $('leaveForfeit').textContent = mate ? T`Leave` : T`Leave and forfeit`;
   $('leaveConfirm').hidden = false;
   $('leaveStay').focus();
 }
@@ -5725,16 +5818,16 @@ function renderOverPanel() {
   const live = matchLive();
   if (S.practice) {
     $('overText').textContent = winnerTitle();
-    $('rematch').textContent = 'Rack again';
-    $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.`;
+    $('rematch').textContent = T`Rack again`;
+    $('rematchNote').textContent = T`Next: ${MODE_NAME[S.mode]}. Undo takes the last shot back.`;
     return;
   }
   const breaks = (side) => sideDoes(side, 'break');
   if (live) {
     const next = m.breaks === 'winner' ? S.winner : 1 - S.lastBreaker;
     $('overText').textContent = winnerTitle();
-    $('rematch').textContent = 'Next rack';
-    $('rematchNote').textContent = `${m.score[0]}–${m.score[1]}, race to ${m.race}. ${breaks(next)} the next rack.`;
+    $('rematch').textContent = T`Next rack`;
+    $('rematchNote').textContent = T`${m.score[0]}–${m.score[1]}, race to ${m.race}. ${breaks(next)} the next rack.`;
     return;
   }
   const opener = m && m.racks.length ? 1 - m.racks[0].breaker : -1;
@@ -5743,9 +5836,9 @@ function renderOverPanel() {
     const score = Object.assign(document.createElement('span'), { className: 'nowrap', textContent: `${m.score[m.winner]}–${m.score[1 - m.winner]}` });
     $('overText').replaceChildren(`${matchTitle(m)} `, score);
   } else $('overText').textContent = winnerTitle();
-  $('rematch').textContent = long ? 'New match' : 'Rematch';
-  const goal = isCarom() ? `to ${points(S.race)}` : `race to ${S.race}`;
-  $('rematchNote').textContent = `Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : ` ${breaks(opener)} first.`);
+  $('rematch').textContent = long ? T`New match` : T`Rematch`;
+  const goal = isCarom() ? T`to ${points(S.race)}` : T`race to ${S.race}`;
+  $('rematchNote').textContent = T`Next: ${MODE_NAME[S.mode]}, ${goal}.` + (opener < 0 ? '' : T` ${breaks(opener)} first.`);
 }
 
 // Match pickers: race (quick picks or a number) and who breaks. In
@@ -5754,18 +5847,18 @@ function renderOverPanel() {
 function setMatchPick(root, race, breaks, mode) {
   const carom = mode === '3cushion';
   const seg = root.querySelector('.js-race');
-  const kind = carom ? 'points' : 'racks';
+  const kind = (carom ? 'points' : 'racks') + LANG; // labels are rebuilt in another language
   if (seg.dataset.kind !== kind) {
     seg.dataset.kind = kind;
     seg.replaceChildren(...(carom ? POINT_PICKS : RACE_PICKS).map((n) => Object.assign(document.createElement('button'), {
       type: 'button', className: 'seg__btn', textContent: String(n),
     })));
     for (const b of seg.children) b.dataset.race = b.textContent;
-    seg.setAttribute('aria-label', carom ? 'Points to win' : 'Race to');
-    root.querySelector('.js-race-label').textContent = carom ? 'Points' : 'Race to';
+    seg.setAttribute('aria-label', carom ? T`Points to win` : T`Race to`);
+    root.querySelector('.js-race-label').textContent = carom ? T`Points` : T`Race to`;
     const input = root.querySelector('.js-race-input');
     input.max = String(raceMax(mode));
-    input.setAttribute('aria-label', carom ? `Points to win, 1 to ${POINTS_MAX}` : `Race to, 1 to ${RACE_MAX}`);
+    input.setAttribute('aria-label', carom ? T`Points to win, 1 to ${POINTS_MAX}` : T`Race to, 1 to ${RACE_MAX}`);
     root.querySelector('.js-breaks').closest('.match-pick__row').hidden = carom;
   }
   for (const b of root.querySelectorAll('.js-race .seg__btn')) b.setAttribute('aria-pressed', String(Number(b.dataset.race) === race));
@@ -5785,7 +5878,7 @@ function wireMatchPick(root, current, onChange) {
     const { race, mode } = current();
     if (Number.isInteger(n) && n >= 1 && n <= raceMax(mode)) onChange({ race: n });
     else {
-      toast(mode === '3cushion' ? `A game is 1 to ${POINTS_MAX} points` : `The race is 1 to ${RACE_MAX} racks`, true);
+      toast(mode === '3cushion' ? T`A game is 1 to ${POINTS_MAX} points` : T`The race is 1 to ${RACE_MAX} racks`, true);
       input.value = String(race);
     }
   });
@@ -5832,9 +5925,9 @@ $('landingPlayers').addEventListener('click', (e) => {
 // On a phone the match rules fold away under a line that sums them up
 // (CLIENT.md, "Landing"); a tap opens them.
 function renderLandingRules() {
-  const goal = landingMode === '3cushion' ? `${landingPoints} points` : `Race to ${landingRace}`;
-  const breaks = landingMode === '3cushion' ? '' : landingBreaks === 'winner' ? ' · winner breaks' : ' · alternate breaks';
-  const watch = landingAudience ? `${landingAudience} may watch` : 'no spectators';
+  const goal = landingMode === '3cushion' ? T`${landingPoints} points` : T`Race to ${landingRace}`;
+  const breaks = landingMode === '3cushion' ? '' : landingBreaks === 'winner' ? T` · winner breaks` : T` · alternate breaks`;
+  const watch = landingAudience ? T`${landingAudience} may watch` : T`no spectators`;
   $('landingOptsSum').textContent = `${landingSize() > 2 ? '2v2 · ' : ''}${goal}${breaks} · ${watch}`;
   if (hallReady && !$('landingForm').classList.contains('landing--invited')) renderHall();
 }
@@ -5873,7 +5966,7 @@ $('rackBtn').onclick = () => {
   if (S.moving) return;
   resetOrientations();
   send({ type: 'rerack' });
-  setStatus(`New ${MODE_NAME[S.mode]} rack. Free play.`);
+  setStatus(T`New ${MODE_NAME[S.mode]} rack. Free play.`);
 };
 $('practiceLeave').onclick = () => leaveRoom();
 $('rematch').onclick = () => send({ type: 'rematch' });
@@ -5938,11 +6031,11 @@ aimJog.addEventListener('wheel', (e) => {
 async function copyInvite() {
   const url = `${location.origin}/?room=${S.roomCode}`;
   if (navigator.share && compactMedia.matches) {
-    try { await navigator.share({ title: 'Pool', text: `Join my pool room ${S.roomCode}`, url }); return; } catch { /* cancelled or unsupported: fall back to copying */ }
+    try { await navigator.share({ title: 'Pool', text: T`Join my pool room ${S.roomCode}`, url }); return; } catch { /* cancelled or unsupported: fall back to copying */ }
   }
   try {
     await navigator.clipboard.writeText(url);
-    toast('Invite link copied');
+    toast(T`Invite link copied`);
   } catch {
     toast(url);
   }
@@ -6006,13 +6099,13 @@ async function createRoom(practice) {
         : { mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), breaks: landingBreaks, spectators: landingAudience, players: landingSize() }),
     });
     const body = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(body.message || `HTTP ${res.status}`);
+    if (!res.ok) throw new Error(errText(body.error, body.message || `HTTP ${res.status}`));
     const { roomCode } = body;
     $('code').value = roomCode;
     S.rackMode = landingMode;
     connectAndJoin(roomCode, name);
   } catch (err) {
-    showLanding(`Could not create a room: ${err.message}`);
+    showLanding(T`Could not create a room: ${err.message}`);
   }
 }
 $('watchInvite').onclick = () => {
@@ -6039,7 +6132,7 @@ $('landingForm').onsubmit = (e) => {
 };
 $('rejoin').onclick = () => {
   S.reconnectAttempt = 0; // "Retry now" restarts the backoff
-  $('retryTry').textContent = 'Connecting…';
+  $('retryTry').textContent = T`Connecting…`;
   connectAndJoin(S.roomCode, S.name, S.token);
 };
 // --- chat ----------------------------------------------------------------------
@@ -6091,20 +6184,20 @@ function appendChat(m) {
 function scrollChat() { const l = $('chatList'); l.scrollTop = l.scrollHeight; }
 function renderChatHead() {
   const n = S.audience.names.length;
-  $('chatWho').textContent = !inRoom() || S.practice ? '' : n ? `${n} watching: ${S.audience.names.join(', ')}` : 'Nobody watching';
+  $('chatWho').textContent = !inRoom() || S.practice ? '' : n ? T`${n} watching: ${S.audience.names.join(', ')}` : T`Nobody watching`;
 }
 function renderChatBadge() {
   const b = $('chatBadge');
   b.hidden = !S.chatUnread;
   b.textContent = S.chatUnread > 9 ? '9+' : String(S.chatUnread);
-  $('chatBtn').setAttribute('aria-label', S.chatUnread ? `Chat, ${S.chatUnread} new` : 'Chat');
+  $('chatBtn').setAttribute('aria-label', S.chatUnread ? T`Chat, ${S.chatUnread} new` : T`Chat`);
 }
 // renderChatSend counts down the wait before the next comment.
 function renderChatSend() {
   const left = S.chatReadyAt - performance.now();
   const btn = $('chatSend');
   btn.disabled = left > 0;
-  btn.textContent = left > 0 ? `${Math.ceil(left / 1000)}s` : 'Send';
+  btn.textContent = left > 0 ? `${Math.ceil(left / 1000)}s` : T`Send`;
   if (left > 0 && !chatTicker) chatTicker = setInterval(renderChatSend, 200);
   if (left <= 0 && chatTicker) { clearInterval(chatTicker); chatTicker = 0; }
 }
@@ -6173,7 +6266,7 @@ $('landingAudience').addEventListener('click', (e) => {
 function renderAudienceSetting() {
   setAudiencePick($('roomAudience'), S.audience.max);
   const max = S.audience.max, n = S.audience.names.length;
-  $('roomWatching').textContent = !max ? 'No spectators' : n ? `${n} of ${max} watching` : `Up to ${max} may watch`;
+  $('roomWatching').textContent = !max ? T`No spectators` : n ? T`${n} of ${max} watching` : T`Up to ${max} may watch`;
 }
 $('roomAudience').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
@@ -6264,31 +6357,31 @@ function drawTablePreview(el, mode, tableId, clothId) {
 }
 // renderHall writes the hall: which table, what is played on it, the
 // table itself. spec is a new room's picks, or an invite's room.
-function renderHall(spec = { eyebrow: 'Your table', mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), audience: landingAudience }) {
+function renderHall(spec = { eyebrow: T`Your table`, mode: landingMode, table: landingTable, cloth: landingCloth, race: landingGoal(), audience: landingAudience }) {
   hallSpec = spec;
   const carom = spec.mode === '3cushion';
   const t = TABLES[spec.table] || TABLES[DEFAULT_TABLE];
   const cloth = CLOTHS[spec.cloth] || CLOTHS[DEFAULT_CLOTH];
-  const title = carom ? 'Carom table' : t.name;
+  const title = carom ? T`Carom table` : t.name;
   const game = MODE_NAME[spec.mode] || '8-ball';
   $('hallEyebrow').textContent = spec.eyebrow;
   $('hallTitle').textContent = title;
-  $('hallCloth').textContent = `${cloth.name} cloth`;
-  $('hallPockets').textContent = carom ? ' · 2.84 × 1.42 m, no pockets' : ` · corners ${inches(t.corner)} · sides ${inches(t.side)}`;
+  $('hallCloth').textContent = T`${cloth.name} cloth`;
+  $('hallPockets').textContent = carom ? T` · 2.84 × 1.42 m, no pockets` : T` · corners ${inches(t.corner)} · sides ${inches(t.side)}`;
   const sep = Object.assign(document.createElement('span'), { className: 'led__sep' });
   sep.setAttribute('aria-hidden', 'true');
-  $('hallLed').replaceChildren(game, sep, carom ? `to ${spec.race} points` : `race to ${spec.race}`);
+  $('hallLed').replaceChildren(game, sep, carom ? T`to ${spec.race} points` : T`race to ${spec.race}`);
   const specs = carom
-    ? [['Rules', 'UMB'], ['Playing area', '2.84 × 1.42 m'], ['Pockets', 'None']]
-    : [['Rules', 'WPA'], ['Corner pockets', inches(t.corner)], ['Side pockets', inches(t.side)]];
-  specs.push(['Spectators', spec.audience ? `Up to ${spec.audience}` : 'None']);
+    ? [[T`Rules`, 'UMB'], [T`Playing area`, '2.84 × 1.42 m'], [T`Pockets`, T`None`]]
+    : [[T`Rules`, 'WPA'], [T`Corner pockets`, inches(t.corner)], [T`Side pockets`, inches(t.side)]];
+  specs.push([T`Spectators`, spec.audience ? T`Up to ${spec.audience}` : T`None`]);
   $('hallSpecs').replaceChildren(...specs.map(([k, v]) => {
     const row = Object.assign(document.createElement('div'), { className: 'spec' });
     row.append(Object.assign(document.createElement('dt'), { className: 'spec__k', textContent: k }),
       Object.assign(document.createElement('dd'), { className: 'spec__v', textContent: v }));
     return row;
   }));
-  $('hallTable').setAttribute('aria-label', `${title} with ${cloth.name} cloth, racked for ${game}`);
+  $('hallTable').setAttribute('aria-label', T`${title} with ${cloth.name} cloth, racked for ${game}`);
   drawTablePreview($('hallTable'), spec.mode, spec.table, spec.cloth);
 }
 // On a phone the home page shows New room or Rooms, one at a time; a
@@ -6360,8 +6453,8 @@ function renderFullscreen() {
   const b = $('fullBtn');
   b.hidden = !canFullscreen;
   b.setAttribute('aria-pressed', String(on));
-  b.setAttribute('aria-label', on ? 'Leave full screen' : 'Full screen');
-  b.title = `${on ? 'Leave full screen' : 'Full screen'} (F)`;
+  b.setAttribute('aria-label', on ? T`Leave full screen` : T`Full screen`);
+  b.title = `${on ? T`Leave full screen` : T`Full screen`} (F)`;
   $('fullToggle').setAttribute('aria-pressed', String(on));
 }
 document.addEventListener('fullscreenchange', renderFullscreen);
@@ -6382,16 +6475,17 @@ function renderRoomSettings() {
   $('roomSettings').querySelector('.mini').style.background = railGradient(carom ? LOOKS.carom : LOOKS[S.table] || LOOKS[DEFAULT_TABLE]);
   $('roomMiniBed').style.background = miniBed(S.cloth, !carom);
   $('inviteCode').textContent = S.roomCode;
-  const goal = carom ? ` · to ${S.race}` : S.race > 1 ? ` · race ${S.race}` : '';
-  const table = carom ? ' · carom table' : TABLES[S.table] ? ` · ${TABLES[S.table].name}` : '';
+  const goal = carom ? T` · to ${S.race}` : S.race > 1 ? T` · race ${S.race}` : '';
+  const table = carom ? T` · carom table` : TABLES[S.table] ? ` · ${TABLES[S.table].name}` : '';
   $('roomMeta').textContent = `${MODE_NAME[S.mode]}${isTeams() ? ' · 2v2' : ''}${goal}${table}`;
-  $('inviteCopyText').textContent = navigator.share && compactMedia.matches ? 'Share invite link' : 'Copy invite link';
+  $('inviteCopyText').textContent = navigator.share && compactMedia.matches ? T`Share invite link` : T`Copy invite link`;
   $('settingsAudienceRow').hidden = S.seat < 0;
   renderAudienceSetting();
 }
 
 function renderSettings() {
   renderRoomSettings();
+  for (const b of document.querySelectorAll('#langSeg .seg__btn, #langPick .seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.lang === LANG));
   // Full screen: a switch where the page may ask for it, and on a phone the
   // home screen, which is the only way on an iPhone.
   const touchScreen = matchMedia('(pointer: coarse)').matches;
@@ -6409,7 +6503,7 @@ function renderSettings() {
   $('bubblesToggle').setAttribute('aria-pressed', String(readSetting('pool:bubbles') !== 'off'));
   renderViewControls();
   for (const b of $('qualitySeg').querySelectorAll('.seg__btn')) b.setAttribute('aria-pressed', String(b.dataset.quality === S.quality));
-  $('qualityNote').textContent = QUALITY_NOTES[S.quality];
+  $('qualityNote').textContent = tr(QUALITY_NOTES[S.quality]);
   $('voiceToggle').setAttribute('aria-pressed', String(SND.voice));
   $('strongToggle').setAttribute('aria-pressed', String(SND.strong));
   $('strongToggle').disabled = !SND.voice;
@@ -6462,6 +6556,42 @@ $('landingSettings').onclick = openSettings;
 $('settingsClose').onclick = closeSettings;
 $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
 $('settings').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+// setLang shows the page in lang at once: its own words, then everything
+// the code wrote, drawn again (CLIENT.md, "Languages"). The status band
+// keeps what it said until the next event.
+function setLang(lang) {
+  if (lang !== 'en' && lang !== 'vi') return;
+  LANG = lang;
+  writeSetting('pool:lang', lang);
+  document.documentElement.lang = lang;
+  applyStatic();
+  fillTablePick($('landingTable'));
+  renderLandingTable();
+  renderLandingMatch();
+  renderLandingRules();
+  if (!$('landing').hidden) {
+    if ($('landingForm').classList.contains('landing--invited')) describeInvite($('landingCode').textContent);
+    else if (hallReady) renderHall();
+    refreshRooms();
+  }
+  renderViewControls();
+  renderFullscreen();
+  renderSpin();
+  setElev(S.elev);
+  renderChatHead();
+  renderChatBadge();
+  renderChatSend();
+  if (inRoom()) refreshPanels();
+  renderSettings();
+}
+for (const id of ['langSeg', 'langPick']) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('.seg__btn');
+    if (b) setLang(b.dataset.lang);
+  });
+}
+renderSettings();
+
 $('themeSeg').addEventListener('click', (e) => {
   const b = e.target.closest('.seg__btn');
   if (!b) return;
@@ -6525,7 +6655,7 @@ $('hintsReset').onclick = () => {
   writeSetting('pool:hint', null);
   writeSetting('pool:hint:hand', null);
   $('powerHint').hidden = false;
-  toast('Hints will show again');
+  toast(T`Hints will show again`);
 };
 
 function leaveRoom() {

@@ -182,9 +182,10 @@
   <form id="landingForm" class="home" data-tab="new" novalidate>
     <header class="home__bar">
       <div id="landingBrand" class="home__brand">
-        <span class="wordmark">POOL</span>
+        <span class="wordmark" translate="no">POOL</span>
         <span class="caption home__tagline">8-ball &amp; 9-ball (WPA) · 3-cushion (UMB)</span>
       </div>
+      <div id="langPick" class="seg lang-pick" role="group" aria-label="Language" translate="no"><button type="button" class="seg__btn" data-lang="en" aria-pressed="true" lang="en">EN</button><button type="button" class="seg__btn" data-lang="vi" aria-pressed="false" lang="vi">VI</button></div>
       <button id="roomsPill" class="pill home__pill" type="button"><span class="pill__dot" aria-hidden="true"></span>Rooms<span id="roomsPillN" class="pill__n">0</span></button>
       <button id="landingSettings" class="icon-btn home__gear" type="button" aria-label="Settings" title="Settings"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
     </header>
@@ -377,6 +378,10 @@
           <p id="qualityNote" class="caption"></p>
         </div>
         <div class="setting">
+          <span class="field__label" id="langLabel">Language</span>
+          <div id="langSeg" class="seg seg--block" role="group" aria-labelledby="langLabel" translate="no"><button type="button" class="seg__btn" data-lang="en" aria-pressed="true" lang="en">English</button><button type="button" class="seg__btn" data-lang="vi" aria-pressed="false" lang="vi">Tiếng Việt</button></div>
+        </div>
+        <div class="setting">
           <span class="field__label" id="themeLabel">Theme</span>
           <div id="themeSeg" class="seg seg--block" role="group" aria-labelledby="themeLabel"><button type="button" class="seg__btn" data-theme="system" aria-pressed="true">System</button><button type="button" class="seg__btn" data-theme="dark" aria-pressed="false">Dark</button><button type="button" class="seg__btn" data-theme="light" aria-pressed="false">Light</button></div>
           <p class="caption">The table and the scoreboard stay dark in every theme, as the arena does.</p>
@@ -453,7 +458,7 @@
 </div>
 
 <div id="splash" class="splash" role="status" aria-live="polite" hidden>
-  <span class="wordmark wordmark--small">POOL</span>
+  <span class="wordmark wordmark--small" translate="no">POOL</span>
   <span id="splashCode" class="splash__code"></span>
   <div class="splash__bar" aria-hidden="true"><span></span></div>
 </div>
@@ -472,6 +477,7 @@
 </section>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

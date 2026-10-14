@@ -24,7 +24,6 @@ const LED_PX = 256;                  // the boards' pixels per metre
 const FONT = '"Barlow Semi Condensed", "Arial Narrow", sans-serif';
 const CARPET = '#1e2631', ZONE = '#232d3a', LINE = '#a8844a';
 const INK = '#f2efe6', BRASS = '#e3b450', GREEN = '#63c393';
-const SLOGAN = { '8ball': 'CALL YOUR SHOT', '9ball': 'LOWEST BALL FIRST', '3cushion': 'THREE CUSHIONS' };
 const GAME = { '8ball': '8-BALL', '9ball': '9-BALL', '3cushion': '3-CUSHION' };
 
 // createArena builds the arena and returns it. k:
@@ -458,8 +457,9 @@ function paintBoard(c, len, info, kind) {
   g.clearRect(0, 0, pw, c.height);
   const game = GAME[info.mode] || '8-BALL';
   const names = info.names.map((n) => (n || '').toUpperCase());
-  const goal = info.race ? (info.mode === '3cushion' ? `${info.race} POINTS` : `RACE TO ${info.race}`) : '';
-  const print = [info.practice ? 'PRACTICE' : '', game, goal, info.room ? `ROOM ${info.room}` : '', (info.table || '').toUpperCase()].filter(Boolean).join('     \u2022     ');
+  // the words come from the page, in its language (app.js arenaInfo)
+  const w = info.words || { practice: 'PRACTICE', room: 'ROOM', goal: '', slogan: 'CALL YOUR SHOT' };
+  const print = [info.practice ? w.practice : '', game, w.goal, info.room ? `${w.room} ${info.room}` : '', (info.table || '').toUpperCase()].filter(Boolean).join('     \u2022     ');
   const glow = (color, blur = 0.07) => { g.fillStyle = color; g.shadowColor = color; g.shadowBlur = u * blur; };
   // tiles: n copies of a picture along the board, each drawn by f at its middle x
   const tiles = (width, f) => {
@@ -488,7 +488,7 @@ function paintBoard(c, len, info, kind) {
     if (p === 0) {
       if (info.practice || !names[0] || !names[1]) {
         // practice, or one player waiting: who is there, the game either side
-        const who = info.practice ? 'PRACTICE' : names[0] || names[1] || 'POOL';
+        const who = info.practice ? w.practice : names[0] || names[1] || 'POOL';
         glow(INK);
         fitText(g, who, pw / 2, mid, pw * 0.5, u * 0.42);
         const half = g.measureText(who).width / 2;
@@ -530,7 +530,7 @@ function paintBoard(c, len, info, kind) {
       tiles(u * 4.8, (x) => {
         glow(GREEN);
         g.textAlign = 'right';
-        fitText(g, 'ROOM', x - u * 0.1, mid, u * 1.2, u * 0.26);
+        fitText(g, w.room, x - u * 0.1, mid, u * 1.2, u * 0.26);
         glow(INK);
         g.textAlign = 'left';
         fitText(g, info.room || '\u2014', x + u * 0.06, mid, u * 2.1, u * 0.44);
@@ -539,7 +539,7 @@ function paintBoard(c, len, info, kind) {
       tiles(u * 6.4, (x) => {
         glow(BRASS);
         g.textAlign = 'center';
-        fitText(g, SLOGAN[info.mode] || SLOGAN['8ball'], x, mid, u * 4.6, u * 0.34);
+        fitText(g, w.slogan, x, mid, u * 4.6, u * 0.34);
         g.shadowBlur = 0;
         drawBall(g, x + u * 3.2, mid, u * 0.1, info.mode);
       });
