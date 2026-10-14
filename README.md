@@ -82,6 +82,8 @@ home page fitting six screen sizes without sideways scroll), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
+`i18n` (English and Vietnamese: the table of sentences, the switch, two
+languages in one room),
 `team` (a 2v2 room: teams picked in the lobby, the rotation, a player
 leaving while the match goes on),
 `tables` (picking a table and its cloth, which the room keeps),

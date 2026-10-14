@@ -656,6 +656,39 @@ play there.
   script keeps existing files unless run with `--force`. A new line is one
   more entry in `lines.json` (`id`, `kind`, `text`, `strong`) and its file.
 
+## Languages
+
+The page speaks English or Vietnamese (`web/i18n.js`). The first visit
+follows the browser (a `vi` language → Vietnamese, anything else English);
+*EN · VI* in the home page's bar and Settings → Table → *Language* switch at
+once, without a reload, and the choice is kept (`pool:lang`). Each player
+reads their own language: two players in one room may differ.
+
+- **The English text is the key.** A sentence in `app.js` is a tagged
+  template, `` T`${who} breaks` ``, whose key is `"{0} breaks"`; `VI` maps it
+  to `"{0} phá bi"` (values may move). English shows the code's own words,
+  so the English page is unchanged by the translation. A sentence is whole:
+  where English agrees a verb with its subject (`You break` / `Bob breaks`)
+  both are keys, and Vietnamese says them alike. A string kept in a table is
+  marked `N('...')` and shown with `tr()`. One English word with two
+  meanings takes a context, `T`Game|match``, which English drops.
+- **The page's own words** (index.html: text, `aria-label`, `title`,
+  `placeholder`, `aria-valuetext`) are read in English once at start and set
+  in the language shown (`collectStatic`, `applyStatic`); `translate="no"`
+  keeps the wordmark. `setLang` sets them again and redraws what the code
+  wrote (panels, header, room list, the hall, Settings, the 3D boards via
+  `arenaInfo().words`). The status band keeps its line until the next event.
+- **The server's words**: errors and close reasons are English on the wire;
+  in Vietnamese the client says them from the code (`ERR_TEXT`,
+  `CLOSE_TEXT`). Player names, table and cloth names (brands) and the game
+  names (8-ball, 9-ball, 3-cushion) are not translated. Pool terms the
+  players use stay as they are: Safety, Push out, Massé.
+- **Adding a sentence**: write it with `` T`...` `` (or `N('...')`) and add
+  its line to `VI`. `node e2e/i18n-keys.js` lists the keys `VI` lacks; the
+  `i18n` scenario fails on any, on a line whose `{n}` values or tags differ
+  from its key, and on a sentence shown without a line
+  (`window.__i18nMissing`).
+
 ## Teams (2v2)
 
 8-ball and 9-ball can be played two against two (PROTOCOL.md, "Teams"):

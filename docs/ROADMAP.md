@@ -76,10 +76,10 @@ Xong khi: test hub cho đếm tỉ số qua 3 ván và reset khi rời; e2e th�
 
 Mục tiêu: người chưa biết luật đánh được cú đầu trong 1 phút.
 
-1. **Tiếng Việt**: tách toàn bộ chuỗi trong `app.js` ra `web/i18n.js` với
-   `vi` và `en`, chọn theo `navigator.language`, có nút đổi trong header.
-   Các thông báo từ server (`error.message`) giữ tiếng Anh, client dịch theo
-   `error.code`.
+1. ~~**Tiếng Việt**~~ Đã làm (10/2026): `web/i18n.js`, câu tiếng Anh làm
+   khóa (`` T`...` ``), bảng `VI`; chọn theo trình duyệt, nút EN · VI ở trang
+   chủ và mục Language trong Settings; lỗi server dịch theo `error.code`.
+   Xem CLIENT.md, mục *Languages*.
 2. **Hướng dẫn lần đầu**: overlay 3 bước (đặt bi, ngắm, kéo lực) hiện ở
    lượt đầu tiên của người mới, nhớ đã xem trong `localStorage`. Nút "?" mở
    lại và mở trang luật rút gọn (break lỗi, ball in hand, bi 8 phải chỉ lỗ).
