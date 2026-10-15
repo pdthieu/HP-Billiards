@@ -3631,7 +3631,7 @@ const SND = {
   last: {},      // the take each kind played last, not to repeat it
   voice: readSetting('pool:voice') !== 'off',          // the commentator speaks
   strong: readSetting('pool:voice:strong') !== 'off',  // ...strong language too
-  lines: [],     // web/voice/lines.json: {id, kind, text, strong?, clip?, buf?}
+  lines: [],     // web/voice/lines.json: {id, kind, text, strong?, clip?, by?, buf?}
   lastLine: '',  // the id spoken last
   spokeAt: -Infinity, // performance.now() of the last line
   quietUntil: -Infinity, // performance.now() when the line being said ends

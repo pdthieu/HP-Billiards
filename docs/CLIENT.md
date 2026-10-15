@@ -613,7 +613,7 @@ loudness within its kind:
 ### Commentary
 
 A commentator says a short line in Vietnamese after some shots, picked from
-`web/voice/lines.json` (28 lines in 10 kinds), at most one every 3 s and
+`web/voice/lines.json` (59 lines in 10 kinds), at most one every 3 s and
 never over a line still being said. It is
 only heard: nothing is written over the table. Replays stay quiet.
 
@@ -641,19 +641,20 @@ Practice has no fouls, wins or losses, so only the shot lines and `scratch`
 play there.
 
 - **The lines** are clips of the streamers Độ Mixi (11, `"clip": "mixi"`)
-  and PewPew (17, `"clip": "pewpew"`). A kind with no line stays silent, and
-  so do the `hurry` lines for someone who leaves strong language out (both
-  are strong). Those marked `strong` use strong language. Settings → Sound → *Strong
+  and PewPew (17, `"clip": "pewpew"`), and 31 short comedy clips of other
+  Vietnamese personalities (`"clip": "tiengdong"`, who says it in `by`). A
+  kind with no line stays silent. Those marked `strong` use strong language. Settings → Sound → *Strong
   language* leaves them out; *Commentator* turns the voice off
   (`pool:voice:strong`, `pool:voice`).
 - **The recordings.** Each line is `web/voice/<id>.m4a`, fetched and decoded
   once audio starts. The clips were downloaded from tiengdong.com (tag "Độ
-  Mixi sound effects", "PewPew sound effects"), trimmed to the speech, faded in 10 ms and out 80 ms,
-  evened out to about −17 LUFS, and saved as mono AAC 22.05 kHz, 40 kbit/s
-  (about 650 KB in all). They are their voices, used here for fun: ask
-  their permission before using them in anything public or paid. A new line is
-  one more entry in `lines.json` (`id`, `kind`, `text`, `strong`, `clip`)
-  and its file.
+  Mixi sound effects", "PewPew sound effects", "Câu nói Viral Việt Nam"),
+  trimmed to the speech, faded in 10 ms and out 80 ms, evened out to about
+  −17 LUFS, and saved as mono AAC 22.05 kHz, 40 kbit/s (about 1.2 MB in all;
+  a clip longer than about 5 s keeps its first 5 s). They are their voices,
+  used here for fun: ask their permission before using them in anything
+  public or paid. A new line is one more entry in `lines.json` (`id`,
+  `kind`, `text`, `strong`, `clip`) and its file.
 - **Spoken lines.** A line without `clip` is spoken by macOS's Vietnamese
   voice "Linh" (`node scripts/make-voices.js`, personal non-commercial use
   under Apple's licence), in a style per kind (`STYLES`, `KIND_STYLE`; a
@@ -692,6 +693,40 @@ play there.
   | `timeout-05` | timeout | Hi chào cậu |
   | `hurry-10` | hurry, strong | Nói nghiêm túc Đéo đùa đâu |
   | `hurry-11` | hurry, strong | Pewpew bố mày nhờn với mày đấy à |
+
+  | id | kind | who | clip |
+  |---|---|---|---|
+  | `break-06` | break | Bà Tân Vlog | Chạy đi các cháu ơi, nổ rồi! (the first 5 s of 25 s) |
+  | `break-07` | break | Tiến Bịp | Trông khét đấy nhể! |
+  | `nice-16` | nice | Tiến Bịp | Cũng ra gì đấy! |
+  | `nice-17` | nice | Tiến Bịp | Nghe có vẻ sành sỏi quá nhỉ! |
+  | `nice-18` | nice | Phú Lê | Được, hảo hán, hảo hán! |
+  | `nice-19` | nice | Linda | Thả tim! |
+  | `great-21` | great | Linda | Phong độ chỉ là nhất thời, đẳng cấp mãi mãi, cưng à! |
+  | `great-22` | great | Huấn Hoa Hồng | Ối dồi ôi! |
+  | `great-23` | great, strong | JVevermind | Đéo tin! |
+  | `great-24` | great, strong | Bomman | Ui dời ơi, dễ vl! |
+  | `miss-16` | miss | Linda | Rồi các bạn thấy quê không? |
+  | `miss-17` | miss | Mimosa Chu | Thôi toang! |
+  | `miss-18` | miss | Tiến Bịp | Còn cái nịt! |
+  | `miss-19` | miss | Tiến Bịp | Không có đâu! |
+  | `foul-09` | foul | Bác Gấu Vlog | Cái gì vậy trời! |
+  | `foul-10` | foul | Tiến Bịp | Tham lam! |
+  | `foul-11` | foul | meme | Đó là biểu hiện của sự lươn lẹo! |
+  | `foul-12` | foul | Thy Thanh Phạm | Xảo trá! |
+  | `scratch-08` | scratch | Linda | Áaaa… chết chị rồi em ơi! |
+  | `scratch-09` | scratch | Linda | Cái gì vậy bà nội! |
+  | `win-12` | win, strong | Bomman | Tao là bố chúng mày! |
+  | `win-13` | win | Linda | Không có đủ level nói chuyện với chị đâu ha! |
+  | `win-14` | win | Huấn Hoa Hồng | Có làm mới có ăn! (the first 5 s of 7 s) |
+  | `lose-10` | lose | Rambo | Nói thế thì chịu rồi! |
+  | `lose-11` | lose | Tiến Bịp | Xách ba lô và đi! (the first 5 s of 8.5 s) |
+  | `lose-12` | lose | Linda | Em tha lỗi cho chị nha! |
+  | `timeout-06` | timeout | Linda | Trời đất ơi, chị chờ cưng nãy giờ nè! |
+  | `timeout-07` | timeout | Bác Gấu Vlog | Hello thằng em! |
+  | `timeout-08` | timeout | Kenny Sang | Hello mấy cưng! |
+  | `hurry-12` | hurry | meme | Rén rồi thì nói đi cưng! |
+  | `hurry-13` | hurry | Zeros | Mày dậy mày múa nữa đi! (the first 5 s of 8.3 s) |
 
 ## Languages
 

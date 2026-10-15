@@ -652,7 +652,7 @@ const VI = {
   'Sound effects': 'Hiệu ứng âm thanh',
   'Volume': 'Âm lượng',
   'Commentator': 'Bình luận viên',
-  'Độ Mixi and PewPew on great shots, misses and wins': 'Độ Mixi và PewPew bình luận khi đánh hay, đánh hụt và thắng',
+  'Độ Mixi, PewPew and viral Vietnamese clips on great shots, misses and wins': 'Độ Mixi, PewPew và các câu nói viral bình luận khi đánh hay, đánh hụt và thắng',
   'Strong language': 'Lời lẽ mạnh',
   'Off keeps the commentator\'s lines clean': 'Tắt để bình luận viên nói sạch sẽ',
   'Chat and hints': 'Chat và gợi ý',
