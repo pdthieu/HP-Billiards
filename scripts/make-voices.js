@@ -8,7 +8,9 @@
 // or slower, which moves pitch and pace together) and the speaking rate
 // before it; a line may name its own "style". A file that is already there
 // is kept, so recordings of your own (same name, any m4a) survive; --force
-// records every line again. Needs macOS (`say`, `afconvert`).
+// records every line again. Lines with a "clip" are real recordings (the Độ
+// Mixi and PewPew clips, CLIENT.md "Commentary") and are never recorded
+// over, not even with --force. Needs macOS (`say`, `afconvert`).
 //
 // The system voice is fine for personal, non-commercial use (Apple's
 // licence); replace the files with your own recordings for anything else.
@@ -52,8 +54,10 @@ function pitched(wav, factor) {
 
 const lines = JSON.parse(fs.readFileSync(path.join(dir, 'lines.json'), 'utf8'));
 let made = 0;
+let clips = 0;
 for (const line of lines) {
   const out = path.join(dir, `${line.id}.m4a`);
+  if (line.clip) { clips++; continue; }
   if (!force && fs.existsSync(out)) continue;
   const style = STYLES[line.style || KIND_STYLE[line.kind]] || { pitch: 1, rate: 185 };
   const raw = path.join(os.tmpdir(), `voice-${line.id}.wav`);
@@ -71,4 +75,4 @@ for (const line of lines) {
   fs.rmSync(raw);
   made++;
 }
-console.log(`${made} recorded, ${lines.length - made} kept`);
+console.log(`${made} recorded, ${lines.length - made - clips} kept, ${clips} clips left alone`);

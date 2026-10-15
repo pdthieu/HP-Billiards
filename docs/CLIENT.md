@@ -613,7 +613,8 @@ loudness within its kind:
 ### Commentary
 
 A commentator says a short line in Vietnamese after some shots, picked from
-`web/voice/lines.json` (78 lines in 10 kinds), at most one every 3 s. It is
+`web/voice/lines.json` (28 lines in 10 kinds), at most one every 3 s and
+never over a line still being said. It is
 only heard: nothing is written over the table. Replays stay quiet.
 
 Everyone in the room, players and spectators, hears the same line. There is
@@ -639,22 +640,58 @@ same kind instead of a strong one.
 Practice has no fouls, wins or losses, so only the shot lines and `scratch`
 play there.
 
-- **The lines** are trending phrases ("Đỉnh nóc, kịch trần, bay phấp phới!",
-  "Ảo ma Canada!", "Ét o ét!", "Gét gô!"…). Those marked `strong` use strong
-  language ("Cái đéo má…"). Settings → Sound → *Strong language* leaves them
-  out; *Commentator* turns the voice off (`pool:voice:strong`, `pool:voice`).
-- **The voices.** To be funnier each kind has a style, set in
-  `scripts/make-voices.js`: good news (`break`, `nice`, `great`, `win`)
-  high and quick like a cartoon (played back 1.3× faster), bad news
-  (`miss`, `foul`, `scratch`, `lose`) deep and slow (0.78×), the shot clock
-  sleepy (0.7×), the hurry lines breathless (1.15×, said fast). A line in `lines.json` may name its own `style`.
-- **The recordings.** Each line is `web/voice/<id>.m4a` (AAC, 32 kbit/s, about
-  630 KB in all), fetched and decoded once audio starts. They are spoken by
-  macOS's Vietnamese voice "Linh" (`node scripts/make-voices.js`), which
-  Apple's licence allows for personal, non-commercial use. To use your own
-  voice, record a line and save it over the file with the same name; the
-  script keeps existing files unless run with `--force`. A new line is one
-  more entry in `lines.json` (`id`, `kind`, `text`, `strong`) and its file.
+- **The lines** are clips of the streamers Độ Mixi (11, `"clip": "mixi"`)
+  and PewPew (17, `"clip": "pewpew"`). A kind with no line stays silent, and
+  so do the `hurry` lines for someone who leaves strong language out (both
+  are strong). Those marked `strong` use strong language. Settings → Sound → *Strong
+  language* leaves them out; *Commentator* turns the voice off
+  (`pool:voice:strong`, `pool:voice`).
+- **The recordings.** Each line is `web/voice/<id>.m4a`, fetched and decoded
+  once audio starts. The clips were downloaded from tiengdong.com (tag "Độ
+  Mixi sound effects", "PewPew sound effects"), trimmed to the speech, faded in 10 ms and out 80 ms,
+  evened out to about −17 LUFS, and saved as mono AAC 22.05 kHz, 40 kbit/s
+  (about 650 KB in all). They are their voices, used here for fun: ask
+  their permission before using them in anything public or paid. A new line is
+  one more entry in `lines.json` (`id`, `kind`, `text`, `strong`, `clip`)
+  and its file.
+- **Spoken lines.** A line without `clip` is spoken by macOS's Vietnamese
+  voice "Linh" (`node scripts/make-voices.js`, personal non-commercial use
+  under Apple's licence), in a style per kind (`STYLES`, `KIND_STYLE`; a
+  line may name its own `style`). The script never records over a clip.
+
+  | id | kind | clip (tiengdong.com title) |
+  |---|---|---|
+  | `great-15` | great | Ui Sợ quá sợ quá Phải band nó thôi |
+  | `great-16` | great | Hoang đường Ảo tưởng Hư cấu Vô lý |
+  | `great-17` | great | WOW, Amazing… (the first two words only) |
+  | `nice-12` | nice | Bạn thì Kinh rồi |
+  | `nice-13` | nice | Đúng này, Tất cả đều đúng, Hợp lý |
+  | `nice-14` | nice | Ui Kinh thế, Hiểu biết thế |
+  | `miss-14` | miss, strong | Meme Quê VL |
+  | `foul-06` | foul | Tao lạy mày |
+  | `scratch-05` | scratch | Tiếng Cười |
+  | `lose-07` | lose | Cay ê Lêu lêu Cay |
+  | `lose-08` | lose, strong | Dm Cay thế nhờ |
+
+  | id | kind | PewPew clip (tiengdong.com title) |
+  |---|---|---|
+  | `break-05` | break | Ghê ghê ghê… (the first 4 s) |
+  | `nice-15` | nice | Quá chuẩn luôn |
+  | `great-18` | great | Nó ở cái tầm chất |
+  | `great-19` | great | Xạo chó PewPew nói |
+  | `great-20` | great, strong | Tin chứ, Tin thế đéo nào được |
+  | `win-10` | win | Vỗ tay PewPew (the first 4 s) |
+  | `win-11` | win | Quá tuyệt vời (the first 4 s) |
+  | `lose-09` | lose | Lộn cái bàn, Ok |
+  | `miss-15` | miss | Tiếng PewPew cười Hahaha (the first 3.6 s) |
+  | `foul-07` | foul | Tao lạy mày – PewPew |
+  | `foul-08` | foul | Mày bị điên à |
+  | `scratch-06` | scratch | Tao là ai Đâu là đây |
+  | `scratch-07` | scratch, strong | Thề luôn, Nhiều khi mình đéo thể hiểu được |
+  | `timeout-04` | timeout | Hello bạn nhỏ, Lâu rồi mình không gặp nhau |
+  | `timeout-05` | timeout | Hi chào cậu |
+  | `hurry-10` | hurry, strong | Nói nghiêm túc Đéo đùa đâu |
+  | `hurry-11` | hurry, strong | Pewpew bố mày nhờn với mày đấy à |
 
 ## Languages
 

@@ -3631,9 +3631,10 @@ const SND = {
   last: {},      // the take each kind played last, not to repeat it
   voice: readSetting('pool:voice') !== 'off',          // the commentator speaks
   strong: readSetting('pool:voice:strong') !== 'off',  // ...strong language too
-  lines: [],     // web/voice/lines.json: {id, kind, text, strong?, buf?}
+  lines: [],     // web/voice/lines.json: {id, kind, text, strong?, clip?, buf?}
   lastLine: '',  // the id spoken last
   spokeAt: -Infinity, // performance.now() of the last line
+  quietUntil: -Infinity, // performance.now() when the line being said ends
   voices: 0,     // lines spoken so far, for tests
   chimes: 0,     // your-turn chimes so far, for tests
   ticks: 0,      // shot clock ticks so far, for tests
@@ -4003,7 +4004,8 @@ function setVolume(v) {
 // strong language; Settings → Sound can leave them out. Everyone in the
 // room hears the same line: each machine draws it from a generator seeded
 // by what it got from the server about the shot, which is the same for all.
-// At most one line every 3 s, heard only: nothing is written on the table.
+// At most one line every 3 s, and never over one still being said (a few
+// clips last up to 8 s), heard only: nothing is written on the table.
 
 const VOICE_GAP_MS = 3000;
 const VOICE_DELAY_MS = 250; // after the balls have had their say
@@ -4056,7 +4058,7 @@ function pickLine(kind, rnd) {
 function speak(kind, rnd) {
   if (!SND.voice || S.replay) return;
   const now = performance.now();
-  if (now - SND.spokeAt < VOICE_GAP_MS) return;
+  if (now - SND.spokeAt < VOICE_GAP_MS || now < SND.quietUntil) return;
   const line = pickLine(kind, rnd);
   if (!line) return;
   SND.spokeAt = now;
@@ -4070,6 +4072,8 @@ function speak(kind, rnd) {
     g.gain.value = 1.1;
     src.connect(g).connect(SND.master);
     src.start(ctx.currentTime + VOICE_DELAY_MS / 1000);
+    // some clips run longer than VOICE_GAP_MS: the next line waits for the end
+    SND.quietUntil = now + VOICE_DELAY_MS + line.buf.duration * 1000;
   }
 }
 

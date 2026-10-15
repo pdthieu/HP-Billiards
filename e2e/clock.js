@@ -78,10 +78,10 @@ async function ring(page, seat) {
     await shooter.waitForFunction(() => $('tableWrap').classList.contains('is-hurry') && SND.ticks >= 1, null, { timeout: 3000 });
     if (await waiter.evaluate(() => $('tableWrap').classList.contains('is-hurry') || SND.ticks > 0)) fail('the waiting player is hurried');
     await shooter.waitForFunction(() => $('tableWrap').classList.contains('is-hurry-last') && !$('clockBig').hidden, null, { timeout: 7000 });
-    const last = await shooter.evaluate(() => ({ n: Number($('clockBig').textContent), ticks: SND.ticks, line: SND.lastLine }));
+    const last = await shooter.evaluate(() => ({ n: Number($('clockBig').textContent), ticks: SND.ticks, line: SND.lastLine, hurry: SND.lines.some((l) => l.kind === 'hurry') }));
     if (!(last.n >= 1 && last.n <= 5)) fail(`countdown ${last.n}`);
     if (last.ticks < 4) fail(`only ${last.ticks} ticks by ${last.n}s`);
-    if (!last.line.startsWith('hurry-')) fail(`no hurry line, last line ${last.line}`);
+    if (last.hurry && !last.line.startsWith('hurry-')) fail(`no hurry line, last line ${last.line}`);
     await shooter.screenshot({ path: path.join(shots, 'clock-hurry.png') });
     console.log('hurry ok:', JSON.stringify(last));
 
