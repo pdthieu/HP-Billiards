@@ -513,7 +513,7 @@ function paintBoard(c, len, info, kind) {
         if (kind === 'long') {
           glow(BRASS);
           g.textAlign = 'center';
-          for (const side of [-1, 1]) fitText(g, side < 0 ? game : goal || game, pw / 2 + side * pw * 0.39, mid, pw * 0.16, u * 0.26);
+          for (const side of [-1, 1]) fitText(g, side < 0 ? game : w.goal || game, pw / 2 + side * pw * 0.39, mid, pw * 0.16, u * 0.26);
         }
       }
     } else if (p === 1) {

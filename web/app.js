@@ -2254,7 +2254,14 @@ function start3d() {
     document.body.classList.add('is-3d');
     resize();
     renderViewControls();
-  }).catch(() => { v3Loading = false; letGo(gl); no3d(); });
+  }).catch((err) => {
+    // a fault of ours, not of the device: say so in the console (the e2e
+    // scenarios fail on it), then fall back to the flat table
+    if (err && !/import|fetch|module/i.test(String(err.message))) console.error('3D failed:', err);
+    v3Loading = false;
+    letGo(gl);
+    no3d();
+  });
 }
 // letGo hands a WebGL context back at once: a page holds only so many
 // (16 in Chrome), and past that the browser takes the oldest away.
@@ -2265,7 +2272,8 @@ function letGo(gl) {
 
 function no3d() {
   S.view = '2d';
-  toast(T`3D is not available here. Showing the table from above.`);
+  if (!no3d.said) toast(T`3D is not available here. Showing the table from above.`); // once a visit
+  no3d.said = true;
   renderViewControls();
 }
 
