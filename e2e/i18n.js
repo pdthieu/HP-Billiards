@@ -16,6 +16,13 @@ require('fs').mkdirSync(shots, { recursive: true });
 
 function fail(msg) { console.error('FAIL:', msg); process.exitCode = 1; throw new Error(msg); }
 const text = async (page, sel) => (await page.textContent(sel)).replace(/\s+/g, ' ').trim();
+// tabLines: each Settings tab shown, its name, how many lines it takes and
+// the row it sits in.
+const tabLines = (page) => page.evaluate(() => [...document.querySelectorAll('#settingsTabs .seg__btn')].filter((b) => b.offsetParent).map((b) => {
+  const r = document.createRange();
+  r.selectNodeContents(b);
+  return { name: b.textContent.trim(), lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size, row: Math.round(b.getBoundingClientRect().top) };
+}));
 
 // The table: every key of the code has a line, with the same placeholders
 // and the same tags.
@@ -96,26 +103,23 @@ function checkTable() {
     if (await V.evaluate(() => document.documentElement.lang) !== 'en' || !/Language/.test(await text(V, '#settings'))) fail('Language in Settings');
     await V.click('#langSeg [data-lang="vi"]');
     if (!/Ngôn ngữ/.test(await text(V, '#settings'))) fail('back to Vietnamese in Settings');
+    const deskTabs = await tabLines(V);
+    if (deskTabs.length !== 4 || deskTabs.some((t) => t.lines !== 1 || t.row !== deskTabs[0].row)) fail(`Settings tabs on a desktop: ${JSON.stringify(deskTabs)}`);
     await V.click('#settingsClose');
     const shooter = await V.evaluate(() => S.turn === S.seat) ? V : E;
     const panel = await text(V, shooter === V ? '#callText' : '#waitText');
     if (!/[ạ-ỹ]|Phá|Lượt/.test(panel)) fail(`Vietnamese panel: ${panel}`);
     console.log('Language in Settings ok:', panel);
 
-    // On a phone the Vietnamese Settings tabs go two by two, each name on
-    // one line (four to a row they broke: "Phòng / này", "Điều / khiển").
+    // On a phone too the Vietnamese Settings tabs sit in one row, each name
+    // on one line (longer names broke: "Phòng / này", "Điều / khiển").
     const VP = await mk({ viewport: { width: 375, height: 667 }, locale: 'vi-VN', hasTouch: true, isMobile: true });
     await VP.goto(base + '/');
     await VP.click('#landingSettings');
-    const tabs = await VP.evaluate(() => [...document.querySelectorAll('#settingsTabs .seg__btn')].filter((b) => b.offsetParent).map((b) => {
-      const r = document.createRange();
-      r.selectNodeContents(b);
-      return { name: b.textContent.trim(), lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size };
-    }));
-    const broken = tabs.filter((t) => t.lines !== 1);
-    if (!tabs.length || broken.length) fail(`Settings tabs on a phone: ${JSON.stringify(tabs)}`);
+    const tabs = await tabLines(VP);
+    if (!tabs.length || tabs.some((t) => t.lines !== 1 || t.row !== tabs[0].row)) fail(`Settings tabs on a phone: ${JSON.stringify(tabs)}`);
     await VP.close();
-    console.log('Settings tabs on a phone ok:', tabs.map((t) => t.name).join(' · '));
+    console.log('Settings tabs ok:', deskTabs.map((t) => t.name).join(' · '));
 
     // A server error: the room is full.
     const Z = await mk({ viewport: { width: 1100, height: 700 }, locale: 'vi-VN' });

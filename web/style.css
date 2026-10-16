@@ -1080,13 +1080,6 @@ body.is-settings:not(.is-landing) :is(#controls, #practiceBar, #powerBar) { disp
   body.is-settings.is-playing:not(.is-landing) .status { right: calc(env(safe-area-inset-right, 0px) + 20px + var(--sheet-w)); }
 }
 
-/* on a phone the Vietnamese tab names (Phòng này, Điều khiển, Âm thanh &
-   chat) do not fit four to a row: two by two, each on one line */
-@media (max-width: 600px), (orientation: landscape) and (max-height: 500px) {
-  html[lang="vi"] .settings__tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-radius: 20px; }
-  html[lang="vi"] .settings__tabs .seg__btn { white-space: nowrap; }
-}
-
 /* 2v2: a side's cell holds both players, a line each; the cue marks the
    one on turn */
 .seat--team { height: auto; min-height: 46px; padding-top: 4px; padding-bottom: 4px; }
