@@ -9,3 +9,5 @@
 # browser tests
 /e2e/node_modules/
 /e2e/shots/
+# pictures of the 3D players prototype
+/design/players/out/
