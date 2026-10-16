@@ -293,21 +293,29 @@ async function shootAndSettle(page, angle, power) {
     console.log('phone spin picker ok');
 
     // A finger on the felt turns the cue by as much as it turns about the cue
-    // ball, from wherever it lands: the aim never jumps to it.
+    // ball, from wherever it lands: the aim never jumps to it. It turns
+    // nothing until it has moved 6 px (a thumb settling on the felt, or a
+    // tap), and the turn then starts from there.
     const cdp = await P.context().newCDPSession(P);
-    const onArc = (deg) => P.evaluate((deg) => {
+    const onArc = (deg, m = 0.4) => P.evaluate(([deg, m]) => {
       const r = document.getElementById('table').getBoundingClientRect();
       const c = S.balls.get(0), a = deg * DEG;
-      const sp = toScreen({ x: c.x + 0.4 * Math.cos(a), y: c.y + 0.4 * Math.sin(a) });
+      const sp = toScreen({ x: c.x + m * Math.cos(a), y: c.y + m * Math.sin(a) });
       return { x: r.left + sp.x, y: r.top + sp.y };
-    }, deg);
+    }, [deg, m]);
     const touch = async (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: at ? [at] : [] });
     const l0 = await P.evaluate(() => { setAngle(1.234); return S.angle; });
     await touch('touchStart', await onArc(10));
     await touch('touchEnd');
     if (await P.evaluate(() => S.angle) !== l0) fail('a touch on the felt turned the cue');
+    const settle = await onArc(10);
+    await touch('touchStart', settle);
+    await touch('touchMove', { x: settle.x + 3, y: settle.y - 4 }); // 5 px across the arc
+    await touch('touchEnd');
+    if (await P.evaluate(() => S.angle) !== l0) fail('a finger settling on the felt turned the cue');
     await touch('touchStart', await onArc(10));
-    for (let d = 12; d <= 30; d += 2) await touch('touchMove', await onArc(d));
+    await touch('touchMove', await onArc(10, 0.5)); // out along the cue: past the 6 px, no turn
+    for (let d = 12; d <= 30; d += 2) await touch('touchMove', await onArc(d, 0.5));
     await touch('touchEnd');
     const lturn = (await P.evaluate(() => S.angle) - l0) * 180 / Math.PI;
     if (Math.abs(lturn - 20) > 0.5) fail(`a finger turning 20° about the cue ball turned the cue ${lturn}°`);

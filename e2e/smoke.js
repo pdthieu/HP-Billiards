@@ -260,7 +260,7 @@ async function waitFor(page, pred, what, ms = 15000) {
     refreshShotPanel();
   });
   st = await state(shooter);
-  if (!st.callText.startsWith('On the 8-ball')) fail(`on the 8 text: ${st.callText}`);
+  if (!/^(On the 8-ball: tap the pocket|8-ball: tap the pocket)/.test(st.callText)) fail(`on the 8 text: ${st.callText}`); // a phone (B) says it in fewer words
   if ((await shooter.evaluate(() => pointerBall())) !== 8) fail('no pointer at the 8');
   // releasing the power bar without a pocket is refused
   const bar2 = await shooter.locator('#powerBar').boundingBox();

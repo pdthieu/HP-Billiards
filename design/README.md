@@ -27,7 +27,7 @@ New screens follow **Rules for every screen** at the end of this file.
 | `screens/` | Static HTML of every mock-up. Open any file in a browser; they share `tokens.css` and `components.css` |
 | `canvas-source/` | The `.dc.html` sources and `canvas.json` of the design canvas, including the four sheets that only render there: token sheet (`Main`), style tile (`StyleTile`), table spec (`T-Spec`) and motion sheet (`M-Sheet`) |
 | `home/` | The `.dc.html` sources and `canvas.json` of the home page canvas: `Main` (desktop, a fluid page), `Phone-Portrait` (390 × 844) and `Phone-Landscape` (844 × 390). Like `canvas-source/`, they render only on a canvas (they load its `support.js`) |
-| `game/`, `settings/` | The same canvas's In game and Settings pages as built (`Game-*-Proposal` and `Settings-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390; a phone held upright in a rack since 12/10: `Game-Portrait-Big` 390 × 844 and `Game-Portrait-Big-Short` 390 × 664; a phone on its side: `Game-Landscape-Big` 844 × 390 and `Game-Landscape-Big-Iphone` 750 × 369). The canvas keeps the screens as they were before under them; `home/canvas.json` lays out all three pages |
+| `game/`, `settings/` | The same canvas's In game and Settings pages as built (`Game-*-Proposal` and `Settings-*-Proposal`, named as on the canvas: `Desktop` 1440 × 900, `Portrait` 390 × 844, `Landscape` 844 × 390; a phone held upright in a rack since 12/10: `Game-Portrait-Big` 390 × 844 and `Game-Portrait-Big-Short` 390 × 664; a phone on its side: `Game-Landscape-Big` 844 × 390 and `Game-Landscape-Big-Iphone` 750 × 369; the phones' v3 of 16/10, a board of several states each: `Game-Portrait-V3`, `Game-Portrait-V3-Short` and `Game-Landscape-V3` for 8-ball, `Game-Nine-Portrait-V3`, `Game-Nine-Short-V3` and `Game-Nine-Landscape-V3` for 9-ball). The canvas keeps the screens as they were before under them; `home/canvas.json` lays out all three pages |
 
 ## Screens
 
@@ -49,7 +49,7 @@ New screens follow **Rules for every screen** at the end of this file.
 
 - Fonts: Source Sans 3 (UI) and Barlow Semi Condensed (room codes, score). Both have Vietnamese subsets.
 - `--accent-text` now means brass used as text; the old meaning (text on the brass button) is `--on-accent`.
-- On a 390 × 844 phone the table stands 360 px wide beside the power bar, so balls draw at ~14 px. Under 24 px a ball is drawn to be read (canvas-spec.md, "Small balls"): a bigger number disc with the number upright in the condensed face, a lighter shade at the edge so the colours stay apart, a rim of light so a dark ball stands off the cloth. The stripe band is ±0.58 R so solids and stripes stay distinct.
+- On a 390 × 844 phone the table stands 346 px wide beside the power bar, so balls draw at ~13 px. Under 24 px a ball is drawn to be read (canvas-spec.md, "Small balls"): a bigger number disc with the number upright in the condensed face, a lighter shade at the edge so the colours stay apart, a rim of light so a dark ball stands off the cloth. The stripe band is ±0.58 R so solids and stripes stay distinct.
 - The panel slot and the status line have fixed heights, so the table never jumps when panels swap or a status sentence wraps.
 - One 240 ms step covers card/dialog entry and the score tick (the prompts mentioned both 220 and 240 ms).
 
@@ -92,7 +92,7 @@ the table is big, and nothing lies on the felt that can sit beside it.
   in LED brass under it, and the room's buttons on the right (2D/3D,
   Settings, full screen, Leave). Seats are hall chips (`--hall-chip`,
   `--hall-chip-line`); your seat on turn is brass.
-- **The band** (`#status`, 46 px; 28 px in a rack on a phone held upright) over the
+- **The band** (`#status`, 46 px; 40 px in a rack on a phone held upright) over the
   table: the status pill, the chat button at its start, the replay at its
   end. A phone on its side holds it in its column beside the table
   (below).
@@ -102,7 +102,7 @@ the table is big, and nothing lies on the felt that can sit beside it.
   dialog. A phone shows each side's balls, numbered (below).
 - **The dock** (`#controls`, one `.panel` card with `--r-xl`, the same
   height for every panel: 100 px on a desktop, two rows in 188 px on a
-  tablet, 76 px in a rack on a tall phone held upright): what to hit and
+  tablet, 78 px in a rack on a tall phone held upright): what to hit and
   its toggles (and the keyboard hint beside them from 1400 px), the aim,
   the spin, the jump.
 - **Colour**: the hall, the scoreboard, the band, the stage and the practice
@@ -114,50 +114,67 @@ What it gives the table while a rack is played: at 1440 × 900 it goes from
 shorter); on a 390 × 844 phone from 312 × 582 to 330 × 614 (no trays, a
 40 px band, a 32 px power bar).
 
-**A phone held upright, in a rack (12/10).** The table comes first, and the
-four things a shot needs are always out, in reach of a thumb: the power
-bar, the fine aim wheel, the jump and the cue ball for spin. None of them
-waits behind a popover; a drag on the small cue ball moves the spin's dot
-and a tap opens the big pad. What to hit and the shot's toggles ride in
-the 28 px band over the felt. The phone takes whichever of two layouts
-leaves the table bigger (`phoneMode`, docs/CLIENT.md):
+**A phone held upright, in a rack (12/10, v3 16/10).** The table comes
+first, and the four things a shot needs are always out, in reach of a
+thumb: the power bar, the fine aim wheel, the jump and the cue ball for
+spin. None of them waits behind a popover; a drag on the small cue ball
+moves the spin's dot and a tap opens the big pad. What to hit and the
+shot's toggles ride in the 40 px band over the felt. The phone takes
+whichever of two layouts leaves the table bigger (`phoneMode`,
+docs/CLIENT.md):
 
-- *A dock* (a tall screen, 390 × 800 and taller): only a 16 px power bar
-  beside the table. Under it a 76 px dock holds the wheel over the jump,
-  with a 62 px cue ball beside both. The scoreboard is two rows: Leave, your
-  card, the score, the opponent's card, the 2D/3D switch, Settings; under
-  the cards each side's balls. On 390 × 844 the table goes from 306 × 570 (the 11/10
-  build, a column either side) to 360 × 671.
+- *A dock* (a tall screen, 390 × 800 and taller): only the power bar beside
+  the table. Under it a 78 px dock holds the wheel over the jump (32 px
+  each), with a 64 px cue ball beside both. The scoreboard is two rows:
+  Leave, your card, the game over the score, the opponent's card, the 2D/3D
+  switch, Settings; under them each side's balls either side of the race
+  (9-ball: the rack of nine, then the race). On 390 × 844 the table is
+  346 × 646.
 - *Columns* (a short screen: Safari with its bars, 390 × 664): height runs
-  out first, so the scoreboard keeps to one row and the pieces stand
-  beside the table. Your balls go over the power bar on the left; the
-  opponent's go on the right, over the cue ball, the jump and the wheel,
-  both upright. The table goes from 303 × 566 to 312 × 582.
+  out first, so the scoreboard keeps to one row (the race under the score)
+  and the pieces stand beside the table. Your balls (9-ball: the rack) go
+  over the power bar on the left; the opponent's go on the right, over the
+  44 px cue ball, the jump and the wheel, both upright and 36 px wide. The
+  table is 296 × 551.
+
+**v3 (16/10): a bigger, forgiving power bar.** The 12/10 bar was 16 px, 6 px
+from the table: a thumb that missed it landed on the felt, and its pull
+turned the aim; and a touch on the bar shot at once, from wherever it
+landed. Now:
+- the bar is 28 px with a grip in its middle, and a touch from the
+  screen's edge to the felt, the table's wood included, takes it (about
+  60 px; 70 on its side);
+- a pull starts where the finger lands (55 % of the bar's height to full
+  power, or the bar's end), with a ring there; a touch that does not pull
+  shoots nothing, and a pull back to the ring cancels;
+- on the felt a finger turns nothing until it has moved 6 px.
+The room's buttons are 40 px, the cards 40 px with the given name (the
+last word of a Vietnamese name, the first of others), the band's chips
+30 px, the trays' balls 21 px with 10 px numbers, and what to hit takes two
+lines when it needs them, in fewer words.
 
 The cards carry an initial in the side's colour; the shot clock rings it,
-its seconds under the name. The canvas's In game page keeps both layouts
-on its top row, beside screenshots of the 11/10 build.
+its seconds under the name. In 9-ball two fouls in a row ring the card red
+with a *2 fouls* tag on its corner, and the band says a third loses the
+rack. The canvas's In game page keeps the v3 boards (8-ball and 9-ball) to
+the right of the 12/10 rows, the audit's findings beside them.
 
-**A phone on its side, in a rack (12/10).** The same idea, laid on its side:
-- the 16 px power bar at the left edge, under the left thumb;
+**A phone on its side, in a rack (12/10, v3 16/10).** The same idea, laid
+on its side:
+- at the left edge, under the left thumb, the chat and the replay over the
+  28 px power bar;
 - the table lying down, with nothing over it;
-- one 128 px column on the right, which holds, from the top:
-  - the room's buttons: Leave, chat, replay, 2D/3D and Settings;
+- one 136 px column on the right, which holds, from the top:
+  - the room's buttons, 40 px: Leave, 2D/3D and Settings;
   - a card per side, with its score at the end and its numbered balls under
-    it;
+    it (9-ball: the rack under both cards, five over four);
   - the game and the race;
   - the band, with the result and then what to hit with its chips;
   - at the foot, under the right thumb, the dock: the angle, the cue ball
     (a drag moves the spin's dot), the fine aim wheel and the jump.
 
-The table goes from 622 × 333 to 678 × 364 on 844 × 390, and inside an
-iPhone's safe area (750 × 369) from 528 × 283 to 584 × 313. A shorter screen
-tightens the column, and Safari's 340 px drops the trays. The canvas keeps
-both sizes beside screenshots of the build before it.
-
-The band's buttons (Safety, Push out, +40s, Clear) are one chip size on a
-phone either way: 22 px, set in the call's own 12 px, with a 10 px box and a
-12 px clock.
+On 844 × 390 the table is 652 × 349. A shorter screen tightens the column,
+and Safari's 340 px drops the trays and the rack.
 
 ## Settings (10/2026)
 

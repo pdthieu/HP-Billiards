@@ -39,6 +39,7 @@
     <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="Practice tools" title="Practice tools" aria-expanded="false" aria-controls="practiceBar" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
     <button id="leaveBtn" class="icon-btn" type="button" aria-label="Leave the room" title="Leave the room" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg></button>
   </div>
+  <div id="trayRow" class="hdr__row"><span id="raceTag" class="hdr__race"></span></div>
 </header>
 
 <main class="game">
@@ -56,6 +57,7 @@
     <div id="chatBubbles" class="chat-bubbles" aria-hidden="true"></div>
     <div id="trayL" class="tray" aria-hidden="true"></div>
     <div id="trayR" class="tray" aria-hidden="true"></div>
+    <div id="rack" class="tray tray--rack" aria-hidden="true" hidden></div>
     <div id="sideTools" class="side-tools"></div>
     <div id="turnGlow" class="turn-glow" aria-hidden="true"></div>
     <div id="turnBanner" class="turn-banner" role="status" hidden><span class="turn-banner__title">Your turn</span><span class="turn-banner__sub"></span></div>
@@ -66,7 +68,9 @@
         <div id="powerFill" class="pbar__fill"></div>
         <div class="pbar__cancel" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></div>
         <div class="pbar__label" aria-hidden="true"><svg width="14" height="22" viewBox="0 0 14 22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3l5 5 5-5"></path><path d="M2 12l5 5 5-5"></path></svg><span>Pull</span></div>
+        <span class="pbar__grip" aria-hidden="true"><i></i><i></i><i></i></span>
       </div>
+      <span class="pbar__start" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></span>
       <span id="powerReadout" class="pbar__readout" hidden></span>
     </div>
   </div>

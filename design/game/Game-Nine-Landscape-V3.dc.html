@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>9-ball, phone on its side · the v3 proposal</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&amp;family=Source+Sans+3:wght@400;600;700&amp;display=swap">
+<style>
+body{margin:0;background:#0B1119;overflow-x:hidden}
+sc-for,sc-if{display:contents}
+.sheet{display:flex;flex-direction:column;gap:30px;background:#05080C}
+.cap{display:flex;align-items:center;gap:8px;height:40px;margin:0;padding:0 4px;color:#E8ECF1;font:600 15px/20px "Source Sans 3",system-ui,sans-serif}
+.cap__n{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#D9A441;color:#1A1206;font-size:13px}
+.pool{
+--surface-1:#141B23;--surface-2:#1B242F;--surface-3:#243040;
+--hairline:rgba(170,190,215,.14);--hairline-strong:rgba(170,190,215,.26);
+--text:#E8ECF1;--text-muted:#9BA8B7;
+--accent:#D9A441;--on-accent:#1A1206;--focus:#8CBFFF;--ball-disc:#FAF7EF;--ball-3:#CC3326;
+--hall:#0B1119;--hall-text:#E8ECF1;--hall-muted:#9BA8B7;--hall-line:rgba(170,190,215,.12);--hall-chip:rgba(170,190,215,.06);--hall-chip-line:rgba(170,190,215,.22);--hall-lamp:rgba(255,224,170,.08);--led:#E3B25C;
+--font-ui:"Source Sans 3","Segoe UI",system-ui,sans-serif;--font-display:"Barlow Semi Condensed","Arial Narrow",sans-serif;
+position:relative;isolation:isolate;width:844px;height:390px;display:flex;align-items:center;gap:6px;padding:4px;overflow:hidden;color-scheme:dark;background:var(--hall);color:var(--text);font-family:var(--font-ui);font-size:16px;line-height:24px;-webkit-font-smoothing:antialiased;
+}
+.pool::before{content:"";position:absolute;inset:0;z-index:-1;background:radial-gradient(ellipse 60% 70% at 45% 50%,var(--hall-lamp),transparent 72%)}
+.pool,.pool *,.pool *::before,.pool *::after{box-sizing:border-box}
+.pool p{margin:0}
+.pool button{font:inherit;color:inherit}
+.muted{color:var(--text-muted)}
+.icon-btn{position:relative;flex:none;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;padding:0;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--hall-text);cursor:pointer}
+.icon-btn--sm{width:36px;height:36px}
+.icon-btn:focus-visible,.toggle:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.view-btn__text{font:700 14px/1 var(--font-ui);letter-spacing:.02em}
+
+/* the left edge, under the left thumb: the chat and the replay over the
+   28 px power bar */
+.lcol{flex:none;align-self:stretch;width:36px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.pbar{position:relative;flex:1;min-height:0;width:28px;margin-top:8px}
+.pbar--off{opacity:.35}
+.pbar__track{position:absolute;inset:0;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.06);border:1.5px solid rgba(170,190,215,.34)}
+.pbar__tick{position:absolute;left:7px;right:7px;height:1px;background:rgba(170,190,215,.28)}
+.pbar__last{position:absolute;left:4px;right:4px;height:3px;margin-top:-1.5px;border-radius:2px;background:#9BA8B7;opacity:.55}
+.pbar__grip{position:absolute;left:50%;top:50%;display:flex;flex-direction:column;gap:3px;transform:translate(-50%,-50%)}
+.pbar__grip i{display:block;width:12px;height:2px;border-radius:1px;background:rgba(232,236,241,.5)}
+.pbar__pull{position:absolute;left:0;right:0;bottom:10px;display:flex;justify-content:center;color:var(--hall-muted)}
+.pbar__seg{position:absolute;left:0;right:0;background:linear-gradient(180deg,rgba(217,164,65,.3),#D9A441);border-radius:0 0 12px 12px}
+.pbar__start{position:absolute;left:50%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;display:grid;place-items:center;background:var(--hall);border:1.5px solid rgba(232,236,241,.6);color:var(--hall-text)}
+.pbar__readout{position:absolute;left:calc(100% + 30px);z-index:3;transform:translateY(-50%);padding:3px 12px;border-radius:999px;background:rgba(11,17,25,.92);border:1px solid rgba(217,164,65,.55);color:#E3B25C;font:600 17px/22px var(--font-display);white-space:nowrap;font-variant-numeric:tabular-nums}
+.finger{position:absolute;z-index:4;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;background:rgba(232,236,241,.18);border:2px solid rgba(232,236,241,.7);pointer-events:none}
+
+/* the table lying down, the head and kitchen on the left */
+.tbl{position:relative;flex:none;width:650px;aspect-ratio:2740/1470;container-type:inline-size}
+.tbl--glow::after{content:"";position:absolute;inset:0;border-radius:10px;box-shadow:0 0 0 2px var(--accent),0 0 20px 4px rgba(217,164,65,.45);opacity:.85;pointer-events:none}
+.tbl__body{position:absolute;inset:0;border-radius:10px;box-shadow:0 18px 30px -16px rgba(0,0,0,.85),0 0 0 1px rgba(0,0,0,.5)}
+.tbl__grain{position:absolute;inset:0;border-radius:10px;background:repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 5px)}
+.tbl__gloss{position:absolute;inset:0;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.14),transparent 30%,transparent 72%,rgba(0,0,0,.2))}
+.tbl__cushion{position:absolute;inset:3.741% 2.007%;border-radius:2px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.3)}
+.tbl__bed{position:absolute;inset:3.309% 1.711%;container-type:inline-size;box-shadow:inset 0 0 14px rgba(0,0,0,.38),inset 0 0 2px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.07)}
+.tbl__head{position:absolute;left:25%;top:0;bottom:0;width:0;border-left:1px dashed rgba(255,255,255,.14)}
+.tbl__spot{position:absolute;width:.35%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.35)}
+.tbl__mouth{position:absolute;left:50%;width:4.64%;height:3.06%;transform:translateX(-50%);background:#020304}
+.tbl__mouth--top{clip-path:polygon(16% 0,84% 0,100% 100%,0 100%)}
+.tbl__mouth--bottom{clip-path:polygon(0 0,100% 0,84% 100%,16% 100%)}
+.tbl__pocket{position:absolute;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);background:radial-gradient(circle at 50% 44%,#000 0 58%,#0C0F12);box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+.tbl__sight{position:absolute;width:.55%;aspect-ratio:1;border-radius:1px;transform:translate(-50%,-50%) rotate(45deg);background:#E6D7B4;opacity:.92}
+.tbl__ball{position:absolute;width:2.25%;aspect-ratio:1;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 1px 1px rgba(0,0,0,.55),.5px 2px 3px rgba(0,0,0,.32),0 0 0 .5px rgba(255,255,255,.3)}
+.tbl__num{position:absolute;inset:19%;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--ball-disc);color:#111316;font:600 1.1cqw/1 var(--font-display);letter-spacing:-.03em}
+.tbl__ball--plain .tbl__num{display:none}
+.tbl__aim{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+
+/* where a touch goes (the zones picture) */
+.zone{position:absolute;z-index:5;pointer-events:none}
+.zone--power{background:repeating-linear-gradient(135deg,rgba(217,164,65,.55) 0 8px,rgba(217,164,65,.38) 8px 16px);border:2px solid #D9A441;border-radius:10px}
+.zone--aim{background:rgba(140,191,255,.22);border:2px dashed #8CBFFF;border-radius:4px}
+.zone__tag{position:absolute;z-index:6;padding:4px 10px;border-radius:999px;background:rgba(11,17,25,.92);border:1px solid currentColor;font:600 13px/18px var(--font-ui);white-space:nowrap}
+
+/* the column on the right, under the right thumb: three 40 px buttons, a
+   card per side (the given name, its score, its balls), the band (two
+   lines, never cut, the chips 30 px), then the aim, the spin and the jump */
+.panel{flex:none;width:136px;height:382px;display:flex;flex-direction:column;gap:5px;color:var(--hall-text)}
+.p-top{display:flex;align-items:center;justify-content:space-between;height:40px}
+.seat{position:relative;display:flex;align-items:center;gap:6px;height:34px;padding:0 10px 0 4px;border-radius:999px;border:1.5px solid var(--hall-chip-line);background:var(--hall-chip)}
+.seat--turn{border-color:var(--accent);background:rgba(217,164,65,.14)}
+.seat--theirs{border-color:rgba(217,164,65,.55)}
+.face{position:relative;flex:none;display:grid;place-items:center;width:26px;height:26px;border-radius:50%;font:700 13px/1 var(--font-ui)}
+.face--a{background:#D9A441;color:#0D1218}
+.face--b{background:#1F4FB4;color:#FFFFFF}
+.face__ring{position:absolute;left:-4px;top:-4px;transform:rotate(-90deg)}
+.seat__body{flex:1;min-width:0;display:flex;flex-direction:column}
+.seat__name{font:600 13px/15px var(--font-ui);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seat__clock{font:600 11px/12px var(--font-ui);color:var(--led);font-variant-numeric:tabular-nums}
+.seat__score{flex:none;font:600 22px/22px var(--font-display);font-variant-numeric:tabular-nums}
+.tray{display:flex;gap:1.5px;margin-top:2px}
+.tray__slot{flex:none;display:grid;place-items:center;width:18px;height:18px;border-radius:50%;background:rgba(0,0,0,.45);box-shadow:inset 0 1px 3px rgba(0,0,0,.6)}
+.tray--on .tray__slot{box-shadow:inset 0 1px 3px rgba(0,0,0,.6),0 0 0 1px rgba(217,164,65,.45)}
+.tray__slot--empty .tball{display:none}
+.tball{position:relative;width:17px;height:17px;border-radius:50%;box-shadow:inset -2px -2.6px 4.5px rgba(0,0,0,.3),inset 1px 1.3px 2.6px rgba(255,255,255,.14),0 0 0 1px rgba(255,255,255,.3)}
+.rack{display:grid;grid-template-columns:repeat(5,20px);justify-content:center;gap:3px 4px;padding:2px 0}
+.rack .tray__slot{width:20px;height:20px}
+.rack .tball{width:18px;height:18px}
+.rack .tray__slot--on{box-shadow:inset 0 1px 3px rgba(0,0,0,.6),0 0 0 2px #D9A441}
+.rack .tray__slot--gone .tball{display:none}
+.seat--foul{border-color:#E0644F;background:rgba(224,100,79,.16)}
+.foul-pill{position:absolute;top:-7px;right:34px;z-index:2;padding:0 7px;border-radius:999px;background:#E0644F;color:#fff;font:700 11px/16px var(--font-ui);white-space:nowrap}
+.band__warn{color:#F08A78;font-weight:600}
+.toggle--on{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+.toggle--on .toggle__box{background:var(--on-accent);border-color:var(--on-accent)}
+.scrim{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(5,8,12,.62);backdrop-filter:blur(3px)}
+.dialog{width:560px;display:flex;flex-direction:column;gap:10px;padding:18px 18px 14px;border-radius:22px;background:#F9F8F5;color:#16202B;box-shadow:0 30px 60px -20px rgba(0,0,0,.7)}
+.dialog__eyebrow{margin:0;font:700 12px/16px var(--font-ui);letter-spacing:.1em;text-transform:uppercase;color:#B5432F}
+.dialog__title{margin:0;font:700 22px/26px var(--font-display)}
+.dialog__text{margin:0;font:400 14px/20px var(--font-ui);color:#566270}
+.dialog__options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.option{display:flex;align-items:center;gap:8px;min-height:60px;padding:10px 12px;border-radius:14px;border:1px solid rgba(22,32,43,.16);background:#fff;text-align:left;cursor:pointer}
+.option--primary{border-color:rgba(176,122,30,.55);background:rgba(217,164,65,.16)}
+.option__text{flex:1;display:flex;flex-direction:column}
+.option__title{font:600 16px/20px var(--font-ui);color:#16202B}
+.option__sub{font:400 13px/18px var(--font-ui);color:#566270}
+.dialog__clock{margin:0;font:600 13px/18px var(--font-ui);color:#566270;text-align:center}
+.tball__num{position:absolute;inset:16%;display:flex;align-items:center;justify-content:center;border-radius:50%;background:var(--ball-disc);color:#111316;font:700 9.5px/1 var(--font-display);letter-spacing:-.02em}
+.race{font:600 10px/12px var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--led);text-align:center;white-space:nowrap}
+.band{display:flex;flex-direction:column;gap:4px}
+.band__text{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;font:400 13px/16px var(--font-ui);color:var(--hall-text)}
+.band__text .v{color:var(--led);font-weight:600}
+.band__status{padding:4px 10px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid var(--hall-line);text-align:center}
+.band__toggles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+.toggle{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:30px;padding:0 4px;border-radius:999px;border:1px solid var(--hall-chip-line);background:var(--hall-chip);color:var(--hall-text);font:600 13px/16px var(--font-ui);white-space:nowrap;cursor:pointer}
+.toggle__box{width:11px;height:11px;border-radius:3px;border:1.5px solid currentColor}
+.tools{margin-top:auto;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:44px 30px 30px;grid-template-areas:"angle opts" "jog jog" "elev elev";align-items:center;gap:5px 8px;padding:6px 6px 6px 12px;border-radius:18px;background:var(--surface-1);color:var(--text);border:1px solid var(--hairline);box-shadow:0 14px 30px -20px rgba(0,0,0,.7)}
+.tools__angle{grid-area:angle;font:600 14px/16px var(--font-ui);font-variant-numeric:tabular-nums}
+.spin{grid-area:opts;position:relative;width:44px;height:44px;padding:0;border:0;border-radius:50%;cursor:pointer;background:radial-gradient(circle at 36% 30%,#FFFFFF 0%,#F4EFE2 34%,#D9D2C1 78%,#B9B09D 100%);box-shadow:0 0 0 1px rgba(0,0,0,.35),0 4px 10px -4px rgba(0,0,0,.5)}
+.spin__cross{position:absolute;inset:0;border-radius:50%;background:linear-gradient(rgba(17,19,22,.16),rgba(17,19,22,.16)) 50% 50% / 1px 72% no-repeat,linear-gradient(rgba(17,19,22,.16),rgba(17,19,22,.16)) 50% 50% / 72% 1px no-repeat}
+.spin__dot{position:absolute;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:var(--ball-3);box-shadow:0 0 0 2px #fff,0 1px 3px rgba(0,0,0,.4)}
+.jog{grid-area:jog;position:relative;height:30px;border-radius:999px;border:1px solid var(--hairline-strong);background:var(--surface-2);overflow:hidden;cursor:ew-resize}
+.jog__ticks{position:absolute;inset:6px 0;opacity:.55;background:repeating-linear-gradient(90deg,var(--text-muted) 0 1px,transparent 1px 10px) 0 4px / auto 8px repeat-x,repeating-linear-gradient(90deg,var(--text) 0 1.5px,transparent 1.5px 50px) 0 0 / auto 100% repeat-x}
+.jog__mark{position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--accent)}
+.elev{grid-area:elev;display:flex;align-items:center;gap:8px;min-width:0}
+.elev__head{flex:none;width:3em;display:flex;flex-direction:column}
+.elev__label{font:600 10px/11px var(--font-ui);letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);white-space:nowrap}
+.elev__value{font:600 12px/14px var(--font-ui);font-variant-numeric:tabular-nums}
+.elev__rail{position:relative;flex:1;min-width:0;height:30px;cursor:ew-resize}
+.elev__track{position:absolute;left:0;right:0;top:50%;height:6px;margin-top:-3px;border-radius:999px;background:var(--surface-3);box-shadow:inset 0 0 0 1px var(--hairline)}
+.elev__fill{position:absolute;left:0;top:50%;height:6px;margin-top:-3px;border-radius:999px;background:var(--accent)}
+.elev__thumb{position:absolute;top:50%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;background:var(--surface-2);border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.tools--msg{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;height:128px;padding:8px 10px;text-align:center;font:400 13px/18px var(--font-ui)}
+.tools--msg strong{font-weight:600}
+</style>
+</helmet>
+<div class="sheet" style="width: 844px; height: 1810px">
+<sc-for list="{{phones}}" as="ph" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column">
+<p class="cap"><span class="cap__n">{{ph.n}}</span>{{ph.caption}}</p>
+<div class="pool">
+
+  <div class="lcol">
+    <button class="icon-btn icon-btn--sm" type="button" aria-label="Chat" title="Chat"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"></path></svg></button>
+    <button class="icon-btn icon-btn--sm" type="button" aria-label="{{L.replay}}" title="{{L.replay}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path><path d="M10 9l5 3-5 3z"></path></svg></button>
+    <div class="pbar {{ph.pbar}}" aria-hidden="true">
+      <div class="pbar__track">
+        <span class="pbar__tick" style="top: 25%"></span>
+        <span class="pbar__tick" style="top: 50%"></span>
+        <span class="pbar__tick" style="top: 75%"></span>
+        <sc-if value="{{ph.pull}}" hint-placeholder-val="{{ false }}"><span class="pbar__last" style="top: 58%"></span></sc-if>
+        <sc-if value="{{ph.idle}}" hint-placeholder-val="{{ true }}"><span class="pbar__grip"><i></i><i></i><i></i></span></sc-if>
+        <sc-if value="{{ph.pull}}" hint-placeholder-val="{{ false }}"><span class="pbar__seg" style="top: 14%; height: 52%"></span></sc-if>
+        <span class="pbar__pull"><svg width="12" height="18" viewBox="0 0 10 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 2.5 5 6l3.5-3.5"></path><path d="M1.5 9.5 5 13l3.5-3.5"></path></svg></span>
+      </div>
+      <sc-if value="{{ph.pull}}" hint-placeholder-val="{{ false }}">
+        <span class="pbar__start" style="top: 14%"><svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"></path></svg></span>
+        <span class="pbar__readout" style="top: 66%">3.1 m/s</span>
+        <span class="finger" style="left: 14px; top: 66%"></span>
+      </sc-if>
+    </div>
+  </div>
+
+  <div class="tbl {{ph.glow}}" role="img" aria-label="{{ph.aria}}">
+    <div class="tbl__body" style="background: linear-gradient(165deg, #6A4428, #4C2F1B 52%, #341F10)"></div>
+    <span class="tbl__grain" aria-hidden="true"></span>
+    <span class="tbl__gloss" aria-hidden="true"></span>
+    <div class="tbl__cushion" style="background: {{t.cushion}}">
+      <div class="tbl__bed" style="background: {{t.bed}}">
+        <span class="tbl__head" aria-hidden="true"></span>
+        <span class="tbl__spot" style="left: 75%; top: 50%" aria-hidden="true"></span>
+        <sc-for list="{{t.balls}}" as="b" hint-placeholder-count="12">
+          <span class="tbl__ball {{b.cls}}" style="left: {{b.x}}%; top: {{b.y}}%; background: {{b.bg}}"><span class="tbl__num">{{b.n}}</span></span>
+        </sc-for>
+      </div>
+    </div>
+    <span class="tbl__mouth tbl__mouth--top" style="top: 3.74%" aria-hidden="true"></span>
+    <span class="tbl__mouth tbl__mouth--bottom" style="top: 93.2%" aria-hidden="true"></span>
+    <sc-for list="{{t.pockets}}" as="p" hint-placeholder-count="6">
+      <span class="tbl__pocket" style="left: {{p.x}}%; top: {{p.y}}%; width: {{p.w}}%"></span>
+    </sc-for>
+    <sc-for list="{{t.sights}}" as="s" hint-placeholder-count="18">
+      <span class="tbl__sight" style="left: {{s.x}}%; top: {{s.y}}%"></span>
+    </sc-for>
+    <sc-if value="{{ph.showAim}}" hint-placeholder-val="{{ true }}">
+      <svg class="tbl__aim" viewBox="0 0 2740 1470" preserveAspectRatio="none" aria-hidden="true">
+        <circle cx="{{ph.a.tx}}" cy="{{ph.a.ty}}" r="46" fill="none" stroke="#D9A441" stroke-opacity="{{ph.a.ring}}" stroke-width="6"></circle>
+        <line x1="{{ph.a.p1x}}" y1="{{ph.a.p1y}}" x2="{{ph.a.p2x}}" y2="{{ph.a.p2y}}" stroke="{{ph.a.guide}}" stroke-opacity=".45" stroke-width="6" stroke-dasharray="18 18"></line>
+        <line x1="{{ph.a.l1x}}" y1="{{ph.a.l1y}}" x2="{{ph.a.l2x}}" y2="{{ph.a.l2y}}" stroke="{{ph.a.guide}}" stroke-opacity=".8" stroke-width="7" stroke-dasharray="26 20"></line>
+        <circle cx="{{ph.a.gx}}" cy="{{ph.a.gy}}" r="28.6" fill="none" stroke="{{ph.a.guide}}" stroke-opacity=".85" stroke-width="6"></circle>
+        <line x1="{{ph.a.b1x}}" y1="{{ph.a.b1y}}" x2="{{ph.a.b2x}}" y2="{{ph.a.b2y}}" stroke="#2B1A10" stroke-opacity="{{ph.a.cueAlpha}}" stroke-width="26" stroke-linecap="round"></line>
+        <line x1="{{ph.a.s1x}}" y1="{{ph.a.s1y}}" x2="{{ph.a.s2x}}" y2="{{ph.a.s2y}}" stroke="#D8BE8A" stroke-opacity="{{ph.a.cueAlpha}}" stroke-width="17" stroke-linecap="round"></line>
+        <line x1="{{ph.a.f1x}}" y1="{{ph.a.f1y}}" x2="{{ph.a.f2x}}" y2="{{ph.a.f2y}}" stroke="#F4F1E8" stroke-opacity="{{ph.a.cueAlpha}}" stroke-width="16" stroke-linecap="round"></line>
+      </svg>
+    </sc-if>
+  </div>
+
+  <aside class="panel" aria-label="{{L.panelAria}}">
+    <div class="p-top">
+      <button class="icon-btn" type="button" aria-label="{{L.leave}}" title="{{L.leave}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 21h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4"></path><path d="M8 17l-5-5 5-5"></path><path d="M3 12h12"></path></svg></button>
+      <button class="icon-btn" type="button" aria-label="{{L.view3d}}" title="{{L.view3d}}"><span class="view-btn__text">3D</span></button>
+      <button class="icon-btn" type="button" aria-label="{{L.settings}}" title="{{L.settings}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></button>
+    </div>
+
+    <div>
+      <div class="seat {{ph.seatA}}"><sc-if value="{{ph.fouls}}" hint-placeholder-val="{{ false }}"><span class="foul-pill">{{L.twoFouls}}</span></sc-if>
+        <span class="face face--a">{{L.initA}}<sc-if value="{{ph.mine}}" hint-placeholder-val="{{ true }}"><svg class="face__ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.4"></circle><circle cx="17" cy="17" r="15.5" fill="none" stroke="#D9A441" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="19.5"></circle></svg></sc-if></span>
+        <span class="seat__body"><span class="seat__name">{{L.me}}</span><sc-if value="{{ph.mine}}" hint-placeholder-val="{{ true }}"><span class="seat__clock">24s</span></sc-if></span>
+        <span class="seat__score">2</span>
+      </div>
+    </div>
+    <div>
+      <div class="seat {{ph.seatB}}">
+        <span class="face face--b">{{L.initB}}<sc-if value="{{ph.theirs}}" hint-placeholder-val="{{ false }}"><svg class="face__ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="15.5" fill="none" stroke="rgba(170,190,215,.22)" stroke-width="2.4"></circle><circle cx="17" cy="17" r="15.5" fill="none" stroke="#D9A441" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="97.4" stroke-dashoffset="39"></circle></svg></sc-if></span>
+        <span class="seat__body"><span class="seat__name">{{L.them}}</span><sc-if value="{{ph.theirs}}" hint-placeholder-val="{{ false }}"><span class="seat__clock">18s</span></sc-if></span>
+        <span class="seat__score">1</span>
+      </div>
+    </div>
+    <div class="rack" role="img" aria-label="{{L.rackAria}}">
+      <sc-for list="{{ph.rack}}" as="b" hint-placeholder-count="9"><span class="tray__slot {{b.cls}}"><span class="tball" style="background: {{b.bg}}"><span class="tball__num">{{b.n}}</span></span></span></sc-for>
+    </div>
+    <p class="race">9-ball · {{L.race}}</p>
+
+    <div class="band" aria-live="polite">
+      <sc-if value="{{ph.isCall}}" hint-placeholder-val="{{ true }}">
+        <p class="band__text">{{ph.callA}} <span class="v">{{ph.callB}}</span> {{ph.callC}}<sc-if value="{{ph.fouls}}" hint-placeholder-val="{{ false }}"> <span class="band__warn">{{L.foulLine}}</span></sc-if></p>
+        <div class="band__toggles">
+          <button class="toggle {{ph.pushCls}}" type="button" aria-pressed="{{ph.pushPressed}}"><span class="toggle__box"></span>Push out</button>
+          <button class="toggle" type="button" aria-label="{{L.extendAria}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>+40s</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ph.isWait}}" hint-placeholder-val="{{ false }}"><p class="band__text band__status">{{L.missed}}</p></sc-if>
+    </div>
+
+    <sc-if value="{{ph.isCall}}" hint-placeholder-val="{{ true }}">
+      <section class="tools" aria-label="{{L.toolsAria}}">
+        <output class="tools__angle">{{ph.a.angle}}</output>
+        <button class="spin" type="button" aria-label="{{L.spinAria}}" title="Spin"><span class="spin__cross"></span><span class="spin__dot" style="left: 50%; top: 66%"></span></button>
+        <div class="jog" role="slider" tabindex="0" aria-label="{{L.jogAria}}" aria-valuetext="{{ph.a.angle}}"><span class="jog__ticks"></span><span class="jog__mark"></span></div>
+        <div class="elev">
+          <span class="elev__head"><span class="elev__label">{{L.jump}}</span><output class="elev__value">{{L.level}}</output></span>
+          <div class="elev__rail" role="slider" tabindex="0" aria-label="{{L.jump}}" aria-valuemin="0" aria-valuemax="85" aria-valuenow="0">
+            <span class="elev__track"></span>
+            <span class="elev__fill" style="width: 12px"></span>
+            <span class="elev__thumb" style="left: 12px"></span>
+          </div>
+        </div>
+      </section>
+    </sc-if>
+    <sc-if value="{{ph.isWait}}" hint-placeholder-val="{{ false }}">
+      <section class="tools tools--msg" aria-label="{{L.waiting}}"><p><strong>{{L.theirTurn}}</strong> <span class="muted">{{L.theySee}}</span></p></section>
+    </sc-if>
+  </aside>
+
+  <sc-if value="{{ph.decide}}" hint-placeholder-val="{{ false }}">
+    <div class="scrim" role="presentation">
+      <section class="dialog" role="dialog" aria-modal="true" aria-label="{{L.dTitle}}">
+        <p class="dialog__eyebrow">{{L.dEyebrow}}</p>
+        <h2 class="dialog__title">{{L.dTitle}}</h2>
+        <p class="dialog__text">{{L.dText}}</p>
+        <div class="dialog__options">
+          <button class="option option--primary" type="button"><span class="option__text"><span class="option__title">{{L.dTake}}</span><span class="option__sub">{{L.dTakeSub}}</span></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+          <button class="option" type="button"><span class="option__text"><span class="option__title">{{L.dPass}}</span><span class="option__sub">{{L.dPassSub}}</span></span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button>
+        </div>
+        <p class="dialog__clock">{{L.dClock}}</p>
+      </section>
+    </div>
+  </sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"lang":{"editor":"enum","options":["vi","en"],"default":"vi"},"$preview":{"width":844,"height":1810}}'>
+// 9-ball on a phone on its side (844 x 390), the v3 column, four pictures:
+// the nine balls in two rows under the cards, Push out among the band's
+// chips, the choice side by side. As on the tall 9-ball board: the ball on, the push out offered, the push out
+// called, two fouls, and the choice after the opponent's push out. What
+// 9-ball changes: under the players one row, the nine balls with the ball on
+// ringed (there are no groups); the band asks for the ball on in a few words
+// and offers Push out (the 8-ball's Safety); two fouls in a row show on the
+// card and in the band (on a phone they did not show at all); the choice is
+// a dialog with two 60 px options.
+const BALL = { 1: '#F2C12E', 2: '#1F4FB4', 3: '#CC3326', 4: '#5B3592', 5: '#EC7623', 6: '#128A4C', 7: '#7E2232', 8: '#111316' };
+const IVORY = '#F4EFE2', FELT = '#1F5C9E';
+const HI = 'radial-gradient(circle at 34% 28%, rgba(255,255,255,.55) 0, rgba(255,255,255,0) 40%)';
+const EDGE = 'radial-gradient(circle at 50% 46%, rgba(0,0,0,0) 54%, rgba(0,0,0,.3) 100%)';
+const OUT_W = 2740, OUT_H = 1470, RAIL = 100, R = 28.575;
+// the 1 and the 2 are down; the 3 is on
+const SPOTS = { 0: [40, 58], 3: [62, 35], 4: [76, 70], 5: [84, 30], 6: [55, 80], 7: [90, 52], 8: [30, 24], 9: [70, 52] };
+const POCKET = { tl: [2660, 80], tr: [2660, 1390] };
+const WORDS = {
+  vi: {
+    leave: 'Rời phòng', view3d: 'Xem bàn 3D', settings: 'Cài đặt', replay: 'Xem lại cú vừa đánh', initA: 'K', initB: 'N',
+    me: 'Bạn', them: 'Ngọc', race: 'chạm 5', scoreAria: 'Tỉ số 2–1, chạm 5', rackAria: 'Còn trên bàn: 3 tới 9, đang đánh bi 3',
+    onA: 'Chạm bi', onB: '3', onC: 'trước.', pushA: 'Push out:', pushB: '', pushC: 'không cần chạm bi; rồi Ngọc chọn ai đánh.',
+    twoFouls: '2 lỗi', foulLine: 'Thêm lỗi nữa là thua ván.',
+    missed: 'Trượt bi 3. Lượt của Ngọc.', extendAria: 'Thêm 40 giây',
+    toolsAria: 'Ngắm tinh, nhảy bi và xoáy', jogAria: 'Ngắm tinh: kéo ngang', jump: 'Nhảy bi', level: 'ngang', spinAria: 'Xoáy: kéo chấm đỏ, hoặc chạm để mở bảng lớn',
+    waiting: 'Đang chờ', theirTurn: 'Lượt của Ngọc.', theySee: 'Bạn thấy đường ngắm của họ khi họ căn cơ.',
+    dEyebrow: 'Bạn quyết định', dTitle: 'Ngọc vừa push out', dText: 'Bi đang nằm như hình. Bạn đánh từ đây, hay trả lượt cho Ngọc?',
+    dTake: 'Đánh cú này', dTakeSub: 'Đánh từ vị trí bi hiện tại.', dPass: 'Trả lượt', dPassSub: 'Ngọc đánh lại từ đây.', dClock: 'Còn 25 giây để chọn',
+    c1: '9 bi, điện thoại ngang: bi mục tiêu', c2: 'Đã chọn push out', c3: 'Đang có 2 lỗi', c4: 'Đối thủ push out: bạn chọn', panelAria: 'Trận đấu và cú đánh của bạn',
+  },
+  en: {
+    leave: 'Leave the room', view3d: 'Show the table in 3D', settings: 'Settings', replay: 'Replay the last shot', initA: 'A', initB: 'B',
+    me: 'You', them: 'Bob', race: 'race to 5', scoreAria: 'Score 2 to 1, race to 5', rackAria: 'On the table: 3 to 9, the 3 is on',
+    onA: 'Hit the', onB: '3', onC: 'first.', pushA: 'Push out:', pushB: '', pushC: 'no contact needed; then Bob chooses who shoots.',
+    twoFouls: '2 fouls', foulLine: 'A third foul loses the rack.',
+    missed: 'Missed the 3. Bob’s turn.', extendAria: '40 more seconds',
+    toolsAria: 'Fine aim, jump and spin', jogAria: 'Fine aim: drag sideways', jump: 'Jump', level: 'level', spinAria: 'Spin: drag the dot, or tap for the large pad',
+    waiting: 'Waiting', theirTurn: 'Bob’s turn.', theySee: 'You see their aim as they line up.',
+    dEyebrow: 'Your decision', dTitle: 'Bob pushed out', dText: 'The balls lie as they are. Shoot from here, or give Bob the shot back?',
+    dTake: 'Take the shot', dTakeSub: 'Play from where the balls lie.', dPass: 'Pass it back', dPassSub: 'Bob shoots again from here.', dClock: '25 seconds to choose',
+    c1: '9-ball on its side: the ball on', c2: 'Push out called', c3: 'On two fouls', c4: 'Bob pushed out: your choice', panelAria: 'The match and your shot',
+  },
+};
+
+function shade(hex, k) {
+  return '#' + [1, 3, 5].map(function (i) { return Math.min(255, Math.round(parseInt(hex.slice(i, i + 2), 16) * k)).toString(16).padStart(2, '0'); }).join('');
+}
+function stripe(n, deg) { return 'linear-gradient(' + deg + 'deg, ' + IVORY + ' 0 24%, ' + BALL[n - 8] + ' 24% 76%, ' + IVORY + ' 76%)'; }
+function feltBall(n) {
+  if (n === 0) return HI + ', ' + EDGE + ', ' + IVORY;
+  if (n <= 8) return HI + ', ' + EDGE + ', ' + BALL[n];
+  return HI + ', ' + EDGE + ', ' + stripe(n, 90 + (n * 37) % 100 - 50);
+}
+function trayBall(n) {
+  if (n <= 8) return BALL[n];
+  return 'linear-gradient(180deg, ' + IVORY + ' 0 21%, ' + BALL[n - 8] + ' 21% 79%, ' + IVORY + ' 79% 100%)';
+}
+const at = function (n) { return [RAIL + SPOTS[n][0] * 25.4, RAIL + SPOTS[n][1] * 12.7]; };
+const unit = function (x, y) { const l = Math.hypot(x, y); return [x / l, y / l]; };
+const r1 = function (v) { return Math.round(v * 10) / 10; };
+function aim(n, pocket, pull) {
+  const c = at(0), t = at(n), p = POCKET[pocket];
+  const u = unit(p[0] - t[0], p[1] - t[1]);
+  const g = [t[0] - u[0] * 2 * R, t[1] - u[1] * 2 * R];
+  const d = unit(g[0] - c[0], g[1] - c[1]);
+  const tip = [c[0] - d[0] * (R + 18 + pull), c[1] - d[1] * (R + 18 + pull)];
+  const along = function (len) { return [tip[0] - d[0] * len, tip[1] - d[1] * len]; };
+  const f2 = along(26), s2 = along(900), b2 = along(1450);
+  let deg = Math.atan2(d[1], d[0]) * 180 / Math.PI;
+  if (deg < 0) deg += 360;
+  return {
+    tx: r1(t[0]), ty: r1(t[1]),
+    l1x: r1(c[0] + d[0] * R), l1y: r1(c[1] + d[1] * R), l2x: r1(g[0] - d[0] * R), l2y: r1(g[1] - d[1] * R),
+    gx: r1(g[0]), gy: r1(g[1]),
+    p1x: r1(t[0] + u[0] * R), p1y: r1(t[1] + u[1] * R), p2x: r1(t[0] + u[0] * 420), p2y: r1(t[1] + u[1] * 420),
+    f1x: r1(tip[0]), f1y: r1(tip[1]), f2x: r1(f2[0]), f2y: r1(f2[1]),
+    s1x: r1(f2[0]), s1y: r1(f2[1]), s2x: r1(s2[0]), s2y: r1(s2[1]),
+    b1x: r1(s2[0]), b1y: r1(s2[1]), b2x: r1(b2[0]), b2y: r1(b2[1]),
+    angle: deg.toFixed(2) + '°',
+  };
+}
+function rack(on, gone) {
+  return [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (n) {
+    return { n: String(n), bg: trayBall(n), cls: gone.includes(n) ? 'tray__slot--gone' : n === on ? 'tray__slot--on' : '' };
+  });
+}
+function tray(from, gone) {
+  return [0, 1, 2, 3, 4, 5, 6].map(function (i) {
+    const n = from + i;
+    return { n: String(n), bg: trayBall(n), cls: gone.includes(n) ? 'tray__slot--empty' : '' };
+  });
+}
+
+class Component extends DCLogic {
+  renderVals() {
+    const L = WORDS[this.props.lang === 'en' ? 'en' : 'vi'];
+    const phone = function (n, kind) {
+      const decide = kind === 'decide', pushon = kind === 'pushon', fouls = kind === 'fouls';
+      const mine = !decide;
+      const shot = aim(3, 'tl', 0);
+      return {
+        n: String(n), caption: L['c' + n],
+        mine: mine, theirs: decide, isCall: true, isWait: false, pull: false, idle: true, zones: false, showAim: !decide, decide: decide, fouls: fouls,
+        seatA: fouls ? 'seat--turn seat--foul' : mine ? 'seat--turn' : '', seatB: decide ? 'seat--theirs' : '',
+        rack: rack(3, [1, 2]),
+        callA: pushon ? L.pushA : L.onA, callB: pushon ? L.pushB : L.onB, callC: pushon ? L.pushC : L.onC,
+        pushCls: pushon ? 'toggle--on' : '', pushPressed: pushon ? 'true' : 'false',
+        glow: mine ? 'tbl--glow' : '', pbar: decide ? 'pbar--off' : '',
+        aria: 'the cue lined up on the 3',
+        a: Object.assign({}, shot, { ring: '.9', guide: '#FFFFFF', cueAlpha: '1' }),
+      };
+    };
+    return {
+      L: L,
+      phones: [phone(1, 'on'), phone(2, 'pushon'), phone(3, 'fouls'), phone(4, 'decide')],
+      t: {
+        cushion: shade(FELT, 0.74),
+        bed: 'radial-gradient(ellipse 72% 78% at 50% 50%, ' + shade(FELT, 1.18) + ' 0%, ' + FELT + ' 58%, ' + shade(FELT, 0.66) + ' 100%)',
+        balls: Object.keys(SPOTS).map(Number).map(function (k) {
+          return { x: SPOTS[k][0], y: SPOTS[k][1], bg: feltBall(k), n: k === 0 ? '' : String(k), cls: k === 0 ? 'tbl__ball--plain' : '' };
+        }),
+        pockets: [[2.92, 5.44], [97.08, 5.44], [2.92, 94.56], [97.08, 94.56], [50, 4.22], [50, 95.78]].map(function (q, i) { return { x: q[0], y: q[1], w: i < 4 ? '4.20' : '4.00' }; }),
+        sights: [1, 2, 3, 5, 6, 7].flatMap(function (i) { const x = ((RAIL + 317.5 * i) / OUT_W * 100).toFixed(2); return [{ x: x, y: '1.87' }, { x: x, y: '98.13' }]; })
+          .concat([1, 2, 3].flatMap(function (j) { const y = ((RAIL + 317.5 * j) / OUT_H * 100).toFixed(2); return [{ x: '1.00', y: y }, { x: '99.00', y: y }]; })),
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

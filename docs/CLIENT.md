@@ -308,7 +308,10 @@ landscape phones, icons only on phones) has:
      cue ball, but never jumps to it. So a new touch keeps the aim set so
      far, even one from the fine aim wheel, and the farther from the cue
      ball the finger is, the finer it turns (300 px away, 0.2° per px).
-     Within 24 px of the cue ball the aim holds still.
+     Within 24 px of the cue ball the aim holds still. A finger turns
+     nothing until it has moved 6 px (`AIM_SLOP_PX`, in 3D behind the cue
+     too): a thumb that lands, settles or lifts keeps the aim, and the turn
+     starts from where it is then.
      Settings → *Aiming* switches to pointing (`pool:aim` = `front`): the
      shot goes toward the pointer, from the press on. In 3D, behind the cue,
      a sideways drag turns the aim instead (see *3D view*). The guide shows the ghost ball at first contact and, as far
@@ -341,9 +344,18 @@ landscape phones, icons only on phones) has:
      70 % about 4 m/s (a power shot) and the bottom is the 8 m/s break; the
      readout shows the speed. Arrow up/down move the bar by 5 % and Enter or
      Space shoots with it. A shot at the 8-ball without a called pocket is
-     refused with a hint. On a phone that vibrates the pull ticks (8 ms) at
-     each quarter of the bar, longer entering the cancel zone and on the
-     shot; Settings → *Vibration* turns it off (`pool:haptics` = `off`).
+     refused with a hint. On a phone a finger pulls from wherever it lands
+     on the bar (or on the strip of wood beside it): full power lies 55 %
+     of the bar's height below that point, or at the bar's end if that is
+     further, but never past the screen's foot (`PULL_REACH`; a finger low
+     on the bar pulls shorter), the fill runs from the point to the finger
+     with the last shot's pull marked, and a ring where it began cancels:
+     a touch that does not pull past the first 8 % shoots nothing. A touch
+     on the wood that pulled nothing calls the pocket under it when the
+     8-ball needs one. A mouse pulls from the top as above. On a phone that
+     vibrates the pull ticks (8 ms) at each quarter of the pull, longer
+     entering the cancel zone and on the shot; Settings → *Vibration* turns
+     it off (`pool:haptics` = `off`).
    - *Spin*: the small cue ball in the shot panel. Tap or drag where the tip
      should strike (limited to the dashed circle, the no-miscue zone); above
      centre is top spin, below is draw, left and right are english. Reset
@@ -429,44 +441,63 @@ landscape phones, icons only on phones) has:
      from the screen alone, so neither Settings nor a panel coming and
      going swaps it:
      - *A dock* (`body.phone-dock`, a tall screen: 390×800 and taller):
-       only the 16 px power bar stands beside the table (360×671 px on
-       390×844). Under it a 76 px dock holds the fine aim wheel over the
-       jump slider, the angle and the jump's words before them, and a 62 px
-       cue ball beside both; while it is not my shot it says whose shot it
-       is. The scoreboard takes a second row: each side's seven balls
-       (`#trayL`, `#trayR`, 18 px and numbered) under its player.
+       only the 28 px power bar stands beside the table (346×646 px on
+       390×844). Under it a 78 px dock holds the fine aim wheel over the
+       jump slider (32 px each), the angle and the jump's words before
+       them, and a 64 px cue ball beside both; while it is not my shot it
+       says whose shot it is. The scoreboard (72 px) takes a second row:
+       each side's seven balls (`#trayL`, `#trayR`, 21 px with 10 px
+       numbers) either side of the race (`#raceTag`), in `#trayRow`.
      - *Columns* (`body.phone-side`, a short screen such as Safari with its
        bars: 393×670): height runs out first. The scoreboard keeps to one
-       row, and the stage is a grid with a column either side of the table
-       (312×582 px on 390×664): side A's balls over the 16 px power bar on
-       the left; side B's balls, the cue ball, the jump slider and the fine
-       aim wheel, both upright, on the right (`jog--v`: dragging down turns
-       clockwise, as right does lying down). The tools hide while it is
-       not my shot.
+       46 px row, and the stage is a grid with a column either side of the
+       table (296×551 px on 390×664): side A's balls over the power bar on
+       the left (30 px); side B's balls, the 44 px cue ball, the jump
+       slider and the fine aim wheel, both upright and 36 px wide, on the
+       right (48 px; `jog--v`: dragging down turns clockwise, as right does
+       lying down; under 600 px tall the jump and the wheel are shorter).
+       The tools dim while it is not my shot.
+     - *9-ball* has no groups: one rack of the nine (`#rack`) instead of the
+       trays, each ball in its slot until it drops, the ball on ringed in
+       brass: under the players beside the race over a dock, over the power
+       bar on a short screen (the tools then take the right column's whole
+       height). Two fouls in a row ring that player's card red with a *2
+       fouls* tag pinned to its corner (`seat--foul`), and the band adds "A
+       third foul loses the rack."
      - The power bar's grip runs on to the screen's edge and over the
-       table's wood. The balls drop out of their tray as they are pocketed,
-       the 8 shows once the group is gone, and the tray of the side on turn
-       is lit; trays show in 8-ball only.
+       table's wood: about 60 px wide, a touch there pulls the bar. The bar
+       stands over the table's canvas (`z-index`), in 3D too, and takes no
+       touch on the other side's turn or while the chat is open. The balls
+       drop out of their tray as they are pocketed, the 8 shows once the
+       group is gone, and the tray of the side on turn is lit; trays show in
+       8-ball only.
      - Settings → *Power bar on the right* (lefty; it reads so held
        upright) moves the bar to the other side, and on a short screen the
        tools' column with it.
-     - *The band over the table* shows the last shot's result for 2.5 s
-       (`holdStatus`), then, while it is my shot, what to hit with the
-       toggles (Safety, Push out, +40s, Clear; `statusCall`).
-     - *The header* holds a card per player: the initial in a disc of the
-       side's colour (two discs for a 2v2 side) and the name; the shot clock
-       rings the disc, its seconds under the name. Leave starts the row,
-       the 2D/3D switch and Settings end it, and the game and the score sit
-       between the cards (on one row the game shares the race's line). The
-       balls under the cards give a little on a narrow phone, so a 360 px
-       screen still holds all seven.
+     - *The band over the table* (40 px) shows the last shot's result for
+       2.5 s (`holdStatus`), then, while it is my shot, what to hit in a few
+       words (up to two lines, never cut) with the toggles, 30 px chips
+       (Safety, Push out, +40s, Clear; `statusCall`). The chat and the
+       replay are 36 px at its ends.
+     - *The header* holds a card per player (40 px): the initial in a disc
+       of the side's colour (two discs for a 2v2 side) and the given name
+       (`shortName`: the last word of a Vietnamese name, which starts with
+       the family name, the first of others; the whole name when both
+       would read the same, and in the card's title); my card says *You*.
+       The shot clock rings the disc, its seconds under the name (on a
+       360 px phone the disc is 26 px and the name 13 px). Leave
+       starts the row, the 2D/3D switch and Settings end it (40 px each),
+       and the game over the score sits between the cards (on one row the
+       race under the score instead). Below 400 px the lobby and the game
+       over leave the room code out (Settings → This room has it).
      - *Practice*: Undo, Move balls, Rack and Leave open as a list from the
        menu button at the start of the header (`#menuBtn`).
 
      `placeShotOptions` moves the pieces (the call line into `#status`; on
      a short screen the cue ball, the jump slider and the wheel into
-     `#sideTools`; over a dock the trays into the header) and back when the
-     phone turns. Sideways, see *Landscape phones* below.
+     `#sideTools`; over a dock the trays and the rack into the header's
+     `#trayRow`) and back when the phone turns. Sideways, see *Landscape
+     phones* below.
 
      A drag on the small cue ball carries the spin's dot with the finger,
      from where it was. A tap opens the spin picker (`#spinPop`): the spin
@@ -497,35 +528,39 @@ landscape phones, icons only on phones) has:
    - **Dialogs** taller than the screen scroll, from their top.
    - **Landscape phones** (`body.phone-land`, `phoneMode`) play a rack with
      the table first too (design/README.md, "In game"):
-     - the 16 px power bar at the left edge, under the left thumb (its grip
-       runs to the edge and over the table's wood);
+     - at the left edge, under the left thumb, the chat and the replay
+       (36 px) over the 28 px power bar (its grip runs to the edge and over
+       the table's wood, about 70 px in all);
      - the table lying down, with nothing over it;
-     - one 128 px column on the right, which holds, from the top:
-       - the room's buttons: Leave, chat, replay, 2D/3D and Settings;
-       - a card per side (the initial, the name, the side's score, the
-         shot clock ringing the initial), each over its side's numbered
-         balls;
+     - one 136 px column on the right, which holds, from the top:
+       - the room's buttons, 40 px: Leave, 2D/3D and Settings;
+       - a card per side (the initial, the given name, the side's score,
+         the shot clock ringing the initial), each over its side's
+         numbered balls (18 px); in 9-ball the rack under both cards, five
+         over four;
        - the game and the race;
-       - the band: the last shot's result, then what to hit with its
-         chips (`statusCall`, as held upright);
-       - at the foot, under the right thumb, the dock: the angle, the cue
-         ball (a drag moves the spin's dot, a tap opens the big pad), the
-         fine aim wheel and the jump. While it is not my shot the dock
+       - the band: the last shot's result, then what to hit (up to three
+         lines) with its 30 px chips (`statusCall`, as held upright); it
+         takes what the column has left;
+       - at the foot, under the right thumb, the dock: the angle, the 44 px
+         cue ball (a drag moves the spin's dot, a tap opens the big pad),
+         the fine aim wheel and the jump. While it is not my shot the dock
          says whose shot it is.
 
-     On 844 × 390 the table is 678 × 364, and inside an iPhone's safe area
-     (about 750 × 369, from the home screen) 584 × 313. The column tightens
-     at 380 px tall. At 360 px (Safari with its bars) it drops the trays:
-     what to hit names the group.
+     On 844 × 390 the table is 652 × 349. The column tightens at 380 px
+     tall. At 360 px (Safari with its bars) it drops the trays and the
+     rack: what to hit names the group, or the ball on.
 
      `main.game` steps aside (`display: contents`) and the page is the
-     grid. `placeShotOptions` moves the call line into the band, and the
-     trays and the band's chat and replay buttons into the header. Settings
-     takes the column's place as a card, and the cards and the score fold
-     to one line over it. In the lobby and at the game over the header is
-     a 44 px row and the shot panel a sidebar, as before. A dialog is
-     smaller there and the decision's options sit side by side. The spin
-     picker lays the big cue ball beside its words and buttons.
+     grid. `placeShotOptions` moves the call line into the band and the
+     trays and the rack into the header; `placeRoomButtons` moves the chat
+     and the replay over the power bar while a rack is played, and back to
+     the band's ends for the lobby and the game over. Settings takes the
+     column's place as a card, and the cards and the score fold to one
+     line over it. In the lobby and at the game over the header is a 44 px
+     row and the shot panel a sidebar, as before. A dialog is smaller
+     there and the decision's options sit side by side. The spin picker
+     lays the big cue ball beside its words and buttons.
    - **Turning the phone** in the middle of an aim, a pull or a carried
      ball stops it (`cancelGestures`): no shot, no placement, the ball goes
      back. The table turns under the finger, so where it goes next means

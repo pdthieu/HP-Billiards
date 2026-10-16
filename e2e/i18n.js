@@ -102,6 +102,21 @@ function checkTable() {
     if (!/[ạ-ỹ]|Phá|Lượt/.test(panel)) fail(`Vietnamese panel: ${panel}`);
     console.log('Language in Settings ok:', panel);
 
+    // On a phone the Vietnamese Settings tabs go two by two, each name on
+    // one line (four to a row they broke: "Phòng / này", "Điều / khiển").
+    const VP = await mk({ viewport: { width: 375, height: 667 }, locale: 'vi-VN', hasTouch: true, isMobile: true });
+    await VP.goto(base + '/');
+    await VP.click('#landingSettings');
+    const tabs = await VP.evaluate(() => [...document.querySelectorAll('#settingsTabs .seg__btn')].filter((b) => b.offsetParent).map((b) => {
+      const r = document.createRange();
+      r.selectNodeContents(b);
+      return { name: b.textContent.trim(), lines: new Set([...r.getClientRects()].map((q) => Math.round(q.top))).size };
+    }));
+    const broken = tabs.filter((t) => t.lines !== 1);
+    if (!tabs.length || broken.length) fail(`Settings tabs on a phone: ${JSON.stringify(tabs)}`);
+    await VP.close();
+    console.log('Settings tabs on a phone ok:', tabs.map((t) => t.name).join(' · '));
+
     // A server error: the room is full.
     const Z = await mk({ viewport: { width: 1100, height: 700 }, locale: 'vi-VN' });
     await Z.goto(base + '/');

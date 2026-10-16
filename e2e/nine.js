@@ -60,6 +60,14 @@ const st = (page) => page.evaluate(() => ({
     await A.waitForFunction(() => S.mode === '9ball' && S.balls.size === 10);
     await B.waitForFunction(() => S.balls.size === 10);
     await B.screenshot({ path: path.join(shots, 'nine-lobby-B.png') });
+    // a narrow phone's lobby: the room code steps aside and the cards keep
+    // clear of the score
+    const lobbyRow = await B.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const s = r('score'), a = r('seat0'), b = r('seat1');
+      return { code: !!document.getElementById('roomCode').offsetParent, clear: a.right <= s.left + 1 && b.left >= s.right - 1 };
+    });
+    if (lobbyRow.code || !lobbyRow.clear) fail(`the lobby's header on a phone ${JSON.stringify(lobbyRow)}`);
     console.log('lobby room ok');
 
     await A.click('#ready');
@@ -81,6 +89,35 @@ const st = (page) => page.evaluate(() => ({
     const other = shooter === A ? B : A;
     const shooterSeat = after.turn;
     console.log('break ok:', (await A.textContent('#status')).trim().split('\n').pop().trim());
+
+    // On a phone (B) the nine ride under the players in one rack, each ball
+    // in its slot until it drops, the ball on ringed; my card says You, and
+    // others the given name.
+    const rack = await B.evaluate(() => {
+      const el = document.getElementById('rack'), slots = [...el.querySelectorAll('.tray__slot')];
+      return {
+        shown: !!el.offsetParent, under: el.parentElement.id, slots: slots.length,
+        balls: slots.map((s) => s.textContent).filter(Boolean).join(), onTable: [...S.balls.keys()].filter((k) => k > 0).sort((a, b) => a - b).join(),
+        on: slots.filter((s) => s.classList.contains('tray__slot--on')).map((s) => s.textContent).join(), low: String(lowestBall()),
+        me: document.querySelector(`#seat${S.seat} .seat__name`).textContent,
+        names: ['Nguyễn Thị Minh Khai', 'Tran Bao Ngoc', 'Bob Smith', 'Ann'].map(shortName).join(),
+      };
+    });
+    if (!rack.shown || rack.under !== 'trayRow' || rack.slots !== 9 || rack.balls !== rack.onTable || rack.on !== rack.low) fail(`the rack on a phone ${JSON.stringify(rack)}`);
+    if (rack.me !== 'You' || rack.names !== 'Khai,Ngoc,Bob,Ann') fail(`names on a phone ${JSON.stringify(rack)}`);
+    // two fouls in a row ring the card red, its tag pinned over its edge
+    const fouls = await B.evaluate(() => {
+      S.fouls = [2, 2];
+      refreshPanels();
+      const seat = document.getElementById('seat0'), t = seat.querySelector('.tag--foul');
+      const r = t && t.getBoundingClientRect(), c = seat.getBoundingClientRect();
+      const out = { ring: seat.classList.contains('seat--foul'), tag: !!t && getComputedStyle(t).display !== 'none', edge: !!r && r.top < c.top && r.bottom > c.top };
+      S.fouls = [0, 0];
+      refreshPanels();
+      return out;
+    });
+    if (!fouls.ring || !fouls.tag || !fouls.edge) fail(`two fouls on a phone ${JSON.stringify(fouls)}`);
+    console.log('phone rack ok:', rack.balls, 'on', rack.on);
 
     // The pointer: over the lowest ball, for the shooter alone.
     const ptr = await shooter.evaluate(() => ({ next: pointerBall(), low: lowestBall() }));

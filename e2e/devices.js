@@ -92,16 +92,18 @@ function stubs() {
     }, [a, r, id]);
 
     // A second finger neither aims nor takes the table over: the first
-    // keeps turning the cue as before.
+    // keeps turning the cue as before. (The first move goes out along the
+    // cue, past the 6 px a finger may settle by without turning anything.)
     const a0 = await P.evaluate(() => { setAngle(1.234); return S.angle; });
     await touch('touchStart', [await at(10)]);
-    for (let d = 12; d <= 20; d += 2) await touch('touchMove', [await at(d)]);
+    await touch('touchMove', [await at(10, 0.5)]);
+    for (let d = 12; d <= 20; d += 2) await touch('touchMove', [await at(d, 0.5)]);
     const thumb = await at(200, 0.6, 1);
-    await touch('touchStart', [await at(20), thumb]);
-    for (let d = 200; d <= 260; d += 15) await touch('touchMove', [await at(20), await at(d, 0.6, 1)]);
+    await touch('touchStart', [await at(20, 0.5), thumb]);
+    for (let d = 200; d <= 260; d += 15) await touch('touchMove', [await at(20, 0.5), await at(d, 0.6, 1)]);
     const mid = await P.evaluate(() => S.angle);
     if (Math.abs(deg(mid - a0) - 10) > 0.5) fail(`the second finger turned the cue: ${deg(mid - a0)}° instead of 10°`);
-    for (let d = 22; d <= 30; d += 2) await touch('touchMove', [await at(d), await at(260, 0.6, 1)]);
+    for (let d = 22; d <= 30; d += 2) await touch('touchMove', [await at(d, 0.5), await at(260, 0.6, 1)]);
     await touch('touchEnd', []);
     const turned = deg(await P.evaluate(() => S.angle) - a0);
     if (Math.abs(turned - 20) > 0.5) fail(`two fingers: the cue turned ${turned}° instead of 20°`);
@@ -152,6 +154,48 @@ function stubs() {
     const want = { '.hdr': 'pan-x pan-y/none', 'main.game': 'pan-x pan-y/none', '#ready': 'manipulation/none', '#table': 'none/none', '#powerBar': 'none/none' };
     for (const [s, v] of Object.entries(want)) if (gestures[s] !== v) fail(`${s} gestures ${gestures[s]}, want ${v}`);
     console.log('touch gestures ok');
+
+    // The power bar is a wide target: from the screen's edge over the
+    // table's wood. A finger pulls from where it lands; a tap shoots
+    // nothing, and a pull back to where it began cancels.
+    const tb = await box(P, '#powerTrack');
+    const hit = await P.evaluate(({ t, b }) => {
+      const y = (t + b) / 2, bar = document.getElementById('powerBar'), xs = [];
+      for (let x = 0; x < innerWidth; x++) if (bar.contains(document.elementFromPoint(x, y))) xs.push(x);
+      return xs.length ? { from: xs[0], width: xs[xs.length - 1] - xs[0] + 1 } : null;
+    }, tb);
+    if (!hit || hit.from > 0 || hit.width < 56) fail(`power bar target ${JSON.stringify(hit)}`);
+    const onBar = (f, x = (tb.l + tb.r) / 2) => ({ x, y: tb.t + f * (tb.b - tb.t), id: 0 });
+    const pw0 = await P.evaluate(() => S.power);
+    const still = () => P.evaluate(() => ({ moving: S.moving, drag: S.powerDrag, power: S.power }));
+    await touch('touchStart', [onBar(0.5)]);
+    await touch('touchEnd', []);
+    await P.waitForTimeout(200);
+    const tapped = await still();
+    if (tapped.moving || tapped.drag || tapped.power !== pw0) fail(`a tap on the bar ${JSON.stringify(tapped)}`);
+    // from the middle full power lies up to 55 % of the bar below, never
+    // past the screen's foot; half that pull is a quarter of full power
+    // (the bar is quadratic)
+    await touch('touchStart', [onBar(0.5)]);
+    const reach = await P.evaluate(() => S.powerReach);
+    const foot = (670 - tb.t) / (tb.b - tb.t); // the screen's foot, in parts of the bar
+    if (!(reach > 0.3 && reach <= 0.55 + 1e-6 && 0.5 + reach <= foot + 1e-6)) fail(`the pull's reach ${reach} (the screen ends at ${foot})`);
+    await touch('touchMove', [onBar(0.5 + reach * 0.25)]);
+    await touch('touchMove', [onBar(0.5 + reach * 0.5)]);
+    await P.waitForTimeout(100); // a finger's moves come with the next frame
+    const half = await P.evaluate(() => ({ power: S.power, from: S.powerFrom }));
+    if (Math.abs(half.power - 0.25) > 0.02 || Math.abs(half.from - 0.5) > 0.01) fail(`a pull from the middle ${JSON.stringify(half)}`);
+    await touch('touchMove', [onBar(0.51)]);
+    await touch('touchEnd', []);
+    await P.waitForTimeout(200);
+    const back = await still();
+    if (back.moving || back.drag || back.power !== pw0) fail(`a pull back to its start ${JSON.stringify(back)}`);
+    // the strip of the table's wood beside the bar takes the touch too
+    await touch('touchStart', [onBar(0.5, tb.r + 18)]);
+    const wood = await P.evaluate(() => S.powerDrag);
+    await touch('touchEnd', []);
+    if (!wood) fail('a touch on the wood beside the bar did not take it');
+    console.log(`power bar ok: ${hit.width} px from the screen's edge`);
 
     // Turning the phone stops an aim: where the finger goes next means
     // nothing on the turned table.
@@ -251,6 +295,10 @@ function stubs() {
     }
     const ov = (await overflow(L1)).filter((c) => !/seat__name/.test(c)); // long names may be cut
     if (ov.length) fail(`two-player landscape overflow ${ov}`);
+    // the chat (and the replay, once there is a shot) over the power bar,
+    // under the left thumb, left of the table
+    const chat1 = await box(L1, '#chatBtn'), bar1 = await box(L1, '#powerBar');
+    if (!(await L1.isVisible('#chatBtn')) || chat1.r > t1.l + 0.5 || chat1.b > bar1.t + 0.5) fail(`the chat beside the table ${JSON.stringify(chat1)}, the bar ${JSON.stringify(bar1)}`);
     await L1.screenshot({ path: path.join(shots, 'devices-landscape-match.png') });
     // with Settings open the scoreboard folds to one line over the sheet
     const l1Fit = await settingsFit(L1);
@@ -262,6 +310,17 @@ function stubs() {
     }
     await L1.screenshot({ path: path.join(shots, 'devices-settings-landscape-match.png') });
     await L1.click('#settingsClose');
+    // at the end of the rack the chat and the replay go back to the band,
+    // clear of the header's buttons and the room code
+    await L1.evaluate(() => { S.phase = 'game_over'; S.winner = S.seat; refreshPanels(); });
+    await L1.waitForTimeout(300);
+    const endRow = await L1.evaluate(() => {
+      const r = (id) => document.getElementById(id).getBoundingClientRect();
+      const hit = (a, b) => { const x = r(a), y = r(b); return x.width > 0 && y.width > 0 && Math.min(x.right, y.right) - Math.max(x.left, y.left) > 1 && Math.min(x.bottom, y.bottom) - Math.max(x.top, y.top) > 1; };
+      const pairs = [['chatBtn', 'roomCode'], ['chatBtn', 'leaveBtn'], ['chatBtn', 'settingsBtn'], ['replayBtn', 'leaveBtn'], ['replayBtn', 'roomCode']];
+      return { home: document.getElementById('chatBtn').parentElement.id, clash: pairs.filter(([a, b]) => hit(a, b)).map((p) => p.join(' × ')) };
+    });
+    if (endRow.home !== 'status' || endRow.clash.length) fail(`the end of a rack on its side ${JSON.stringify(endRow)}`);
     await L1.close();
     await D.close();
     console.log('landscape column ok');

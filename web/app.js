@@ -305,6 +305,7 @@ const S = {
   quality: QUALITY_NOTES[readSetting('pool:quality')] ? readSetting('pool:quality') : 'auto', // Settings → Graphics; see QUALITY_DPR
   camTop: false,         // 3D: look straight down instead of from behind the cue
   aimDrag: null,         // the pointer turning the aim: {x} in 3D behind the cue, {a} for a finger in 2D (see leverAim)
+  aimSlop: null,         // {x, y}: where a finger landed on the table, until it has moved AIM_SLOP_PX
 
   // my shot
   angle: 0,
@@ -329,6 +330,9 @@ const S = {
   powerType: '',         // and its kind
   powerStep: 0,          // the quarter of the bar the pull is in (powerStep), for the haptic ticks
   powerY: 0,             // clientY of that pull, for the loupe to keep clear of the hand
+  powerFrom: null,       // a phone's pull: where it began, as a part of the bar's height (PULL_REACH); null from the bar's top
+  powerReach: 0,         // and how far below that full power lies, the same way
+  powerPress: null,      // {x, y}: where that pull's finger landed (clientX, clientY)
   haptics: readSetting('pool:haptics') !== 'off', // vibrate on the power bar's steps and the shot (Android)
   drag: null,            // {id, x, y} while a ball is carried: the cue ball in hand, any ball in practice; in 3D also at and raw (see carry)
   tap: null,             // press on a ball or pocket awaiting release: {id, pocket, x, y, t, type}
@@ -1497,12 +1501,33 @@ const CANCEL_ZONE = 0.08;
 const MAX_CUE_SPEED = 8; // m/s at power 1; mirrors game.DefaultConfig
 const barToPower = (f) => f * f;
 const powerToBar = (p) => Math.sqrt(p);
+// On a phone a finger pulls from wherever it lands on the bar (or on the
+// strip of wood beside it, style.css): full power lies PULL_REACH of the
+// bar's height below it, or at the bar's end if that is further, but never
+// past the screen's foot, and a touch that does not pull past the cancel
+// zone shoots nothing. S.powerFrom is
+// where the pull began and S.powerReach how far it reaches, both as parts of
+// the bar's height; S.powerFrom is null for a pull from the bar's top (a
+// mouse, and any pointer off a phone). See CLIENT.md.
+const PULL_REACH = 0.55;
 
 function renderPower() {
   const frac = powerToBar(S.power);
   const pct = Math.round(frac * 100);
-  $('powerFill').style.setProperty('--fill', `${pct}%`);
-  $('powerLast').style.height = `${Math.round(powerToBar(S.lastPower) * 100)}%`;
+  const fill = $('powerFill');
+  const from = S.powerDrag && S.powerFrom !== null;
+  // where the finger is, in % of the bar: the fill's end and the readout's place
+  const at = from ? Math.min(100, (S.powerFrom + frac * S.powerReach) * 100) : pct;
+  fill.style.setProperty('--fill', `${pct}%`);
+  const last = powerToBar(S.lastPower);
+  $('powerLast').style.setProperty('--last', `${Math.round(last * 100)}%`);
+  if (from) {
+    fill.style.setProperty('--from', `${S.powerFrom * 100}%`);
+    fill.style.setProperty('--reach', `${S.powerReach * 100}%`);
+    // the last shot's pull, measured from where this one began
+    $('powerLast').style.setProperty('--last-at', `${Math.min(100, (S.powerFrom + last * S.powerReach) * 100)}%`);
+    powerBar.style.setProperty('--from', `${S.powerFrom * 100}%`);
+  }
   powerTrack.setAttribute('aria-valuenow', String(pct));
   const readout = $('powerReadout');
   const cancel = S.powerDrag && frac <= CANCEL_ZONE;
@@ -1510,12 +1535,13 @@ function renderPower() {
   readout.hidden = !S.powerDrag;
   if (S.powerDrag) {
     readout.textContent = cancel ? T`Cancel` : `${(S.power * MAX_CUE_SPEED).toFixed(1)} m/s`;
-    readout.style.top = `${Math.max(4, pct)}%`;
+    readout.style.top = `${Math.max(4, at)}%`;
   }
 }
 
 function barPower(e) {
   const rect = powerTrack.getBoundingClientRect();
+  if (S.powerFrom !== null) return clamp01((e.clientY - rect.top - S.powerFrom * rect.height) / (S.powerReach * rect.height));
   return Math.max(0, Math.min(1, (e.clientY - rect.top) / (rect.height - 8))); // 100 % sits 8 px above the end
 }
 
@@ -1544,6 +1570,19 @@ powerBar.addEventListener('pointerdown', (e) => {
   S.powerPointer = e.pointerId;
   S.powerType = e.pointerType;
   S.powerBefore = S.power;
+  S.powerFrom = null;
+  if (phoneSet && e.pointerType !== 'mouse') {
+    const rect = powerTrack.getBoundingClientRect();
+    const y = Math.max(rect.top, Math.min(rect.bottom, e.clientY));
+    // full power where PULL_REACH says, but never past the screen's foot
+    // (a finger low on the bar pulls shorter), and a quarter of the bar at
+    // least
+    const reach = Math.max(rect.bottom - 8 - y, PULL_REACH * rect.height);
+    S.powerFrom = (y - rect.top) / rect.height;
+    S.powerReach = Math.max(Math.min(reach, innerHeight - 4 - y), rect.height / 4) / rect.height;
+    S.powerPress = { x: e.clientX, y: e.clientY };
+  }
+  powerBar.classList.toggle('pbar--from', S.powerFrom !== null);
   powerClasses('pbar--drag');
   const f = barPower(e);
   S.powerStep = powerStep(f);
@@ -1560,12 +1599,24 @@ powerBar.addEventListener('pointermove', (e) => {
   setPower(barToPower(f), true);
 });
 // endPowerDrag finishes a pull: a release below the cancel zone shoots (if a
-// call has been made), anything else restores the previous power.
+// call has been made), anything else restores the previous power. On a
+// phone a touch that pulled nothing, on the wood beside the bar, may have
+// meant a pocket there: it calls it, as a tap on the table would.
 function endPowerDrag(e, fire) {
   if (!S.powerDrag || (e && e.pointerId !== S.powerPointer)) return;
   S.powerDrag = false;
   S.powerPointer = null;
   const f = e ? barPower(e) : 0;
+  const press = S.powerFrom !== null ? S.powerPress : null;
+  S.powerFrom = null;
+  powerBar.classList.remove('pbar--from');
+  if (fire && f <= CANCEL_ZONE && press && needsPocket()) {
+    const track = powerTrack.getBoundingClientRect();
+    if (press.x < track.left || press.x > track.right) {
+      const n = hitPocket(pointerPos({ clientX: press.x, clientY: press.y }));
+      if (n !== null) callPocket(n);
+    }
+  }
   if (fire && f > CANCEL_ZONE) {
     setPower(barToPower(f));
     if (canShoot()) {
@@ -1593,6 +1644,8 @@ function cancelPowerDrag() {
   if (!S.powerDrag) return;
   S.powerDrag = false;
   S.powerPointer = null;
+  S.powerFrom = null;
+  powerBar.classList.remove('pbar--from');
   S.power = S.powerBefore;
   powerClasses('pbar--spring');
   setTimeout(() => powerClasses(), 260);
@@ -1763,25 +1816,26 @@ const phoneLayout = () => compactLayout.matches && portraitPhone.matches;
 
 // phoneMode is the layout of a phone held upright for a rack, whichever
 // leaves the table bigger (design/README.md, "In game"):
-// - 'dock', a tall screen: only the 16 px power bar stands beside the
+// - 'dock', a tall screen: only the 28 px power bar stands beside the
 //   table. The fine aim wheel, the jump and the cue ball sit in a dock
-//   under it; the balls each side still needs ride in the scoreboard, a
-//   second row under the players.
+//   under it; the balls each side still needs (9-ball: the rack) ride in
+//   the scoreboard, a second row under the players.
 // - 'side', a short screen (Safari with its bars): height runs out first,
 //   so the scoreboard keeps to one row, and the balls and the tools stand in
-//   a column either side: yours over the power bar, the opponent's over the
-//   cue ball, the jump and the fine aim wheel, upright.
-// - 'land', a phone on its side (design/README.md, "In game"): the 16 px
-//   power bar at the left edge, the table, and one column on the right with
-//   the room's buttons, the score with each side's balls, what to hit, and
-//   at its foot the fine aim wheel, the cue ball and the jump.
+//   a column either side: yours (9-ball: the rack) over the power bar, the
+//   opponent's over the cue ball, the jump and the fine aim wheel, upright.
+// - 'land', a phone on its side (design/README.md, "In game"): the chat and
+//   the replay over the 28 px power bar at the left edge, the table, and one
+//   column on the right with the room's buttons, a card per side with its
+//   score and its balls, what to hit, and at its foot the fine aim wheel,
+//   the cue ball and the jump.
 // It is worked out from the screen alone, so neither Settings nor a panel
 // coming and going swaps it. PHONE_DOCK and PHONE_SIDE are what each takes
 // round the table, as style.css lays them out: across, the stage's padding,
 // the columns and their gaps; down, the scoreboard, the band, the dock and
 // the stage's padding.
-const PHONE_DOCK = { w: 4 + 16 + 6 + 4, h: 60 + 28 + 76 + 8 };
-const PHONE_SIDE = { w: 4 + 22 + 4 + 4 + 40 + 4, h: 40 + 28 + 8 };
+const PHONE_DOCK = { w: 4 + 28 + 4 + 4, h: 72 + 40 + 78 + 8 };
+const PHONE_SIDE = { w: 4 + 30 + 4 + 4 + 48 + 4, h: 46 + 40 + 8 };
 function phoneMode() {
   if (!phoneLayout()) return compactLayout.matches ? 'land' : '';
   const cs = getComputedStyle(document.body);
@@ -1828,13 +1882,25 @@ function placeShotOptions() {
     elevHome.after(elevBox);
     optsHome.after($('optionsBtn'));
   }
-  if (mode === 'dock' || mode === 'land') $('top').append($('trayL'), $('trayR'));
-  else trayHome.after($('trayL'), $('trayR'));
-  if (mode === 'land') $('top').append($('chatBtn'), $('replayBtn'));
-  else { chatHome.after($('chatBtn')); replayHome.after($('replayBtn')); }
+  // the balls each side still needs, or 9-ball's rack: either side of the
+  // race under the players over a dock, under the cards on a phone on its
+  // side, beside the table on a short screen
+  const race = $('raceTag');
+  if (mode === 'dock') { race.before($('trayL'), $('rack')); race.after($('trayR')); }
+  else if (mode === 'land') $('top').append($('trayL'), $('trayR'), $('rack'));
+  else trayHome.after($('trayL'), $('trayR'), $('rack'));
+  placeRoomButtons();
   $('aimJog').classList.toggle('jog--v', mode === 'side');
   // held upright the bar stands on the left: the switch takes it right
   $('leftyToggle').querySelector('.toggle__title').textContent = mode ? T`Power bar on the right` : T`Power bar on the left`;
+}
+
+// placeRoomButtons puts the chat and the replay over the power bar, under
+// the left thumb, while a rack is played on a phone on its side; at the
+// band's ends anywhere else.
+function placeRoomButtons() {
+  if (phoneSet === 'land' && document.body.classList.contains('is-playing')) powerBar.before($('chatBtn'), $('replayBtn'));
+  else { chatHome.after($('chatBtn')); replayHome.after($('replayBtn')); }
 }
 
 function openSpinPop() {
@@ -2397,9 +2463,11 @@ function resize() {
   const gap = parseFloat(cs.columnGap || cs.gap || '12') || 0;
   const barW = bar.hidden ? 0 : bar.getBoundingClientRect().width + gap || 0;
   const room = wrap.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-  // a phone held upright in a rack: the table's column of the grid
-  const cols = cs.display === 'grid' ? cs.gridTemplateColumns.split(' ').map(parseFloat) : null;
-  const availW = cols && cols.length === 3 ? Math.max(100, cols[1]) : Math.max(100, room - barW);
+  // a phone in a rack: the table's column of the stage's grid, the widest
+  // (beside it the power bar, a phone on its side's chat over it, a short
+  // screen's columns of balls and tools)
+  const cols = cs.display === 'grid' ? cs.gridTemplateColumns.split(' ').map(parseFloat).filter((n) => n > 0) : null;
+  const availW = cols && cols.length ? Math.max(100, ...cols) : Math.max(100, room - barW);
   const availH = Math.max(100, wrap.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom));
   const dpr = Math.min(S.quality === 'auto' ? pace.cap : QUALITY_DPR[S.quality], window.devicePixelRatio || 1);
   pace.times = [];
@@ -2438,7 +2506,7 @@ function resize() {
   // The way round is chosen as if the power bar were there: it comes and
   // goes with the rack, and the table must not turn with it (a tablet held
   // upright turned it sideways for the lobby and the game over).
-  const turnW = cols && cols.length === 3 ? availW : Math.max(100, room - (bar.hidden ? (parseFloat(getComputedStyle(bar).width) || 40) + gap : barW));
+  const turnW = cols && cols.length ? availW : Math.max(100, room - (bar.hidden ? (parseFloat(getComputedStyle(bar).width) || 40) + gap : barW));
   const tLand = Math.min(turnW / fullW, availH / fullH), tPort = Math.min(turnW / fullH, availH / fullW);
   const portrait = window.innerHeight > window.innerWidth;
   view.rotated = portrait ? tPort >= tLand * 0.95 : tPort > tLand * 1.15;
@@ -4210,18 +4278,25 @@ canvas.addEventListener('pointerdown', (e) => {
   const pocket = needsPocket() ? hitPocket(p) : null;
   const id = pocket === null && e.pointerType !== 'mouse' ? hitBall(p, balls, true, fingerReach(p)) : null;
   S.tap = { id, pocket, x: e.clientX, y: e.clientY, t: performance.now(), type: e.pointerType };
+  S.aimSlop = null;
   if (cue) {
     followPointer(e);
     if (id === null && pocket === null) {
       S.aiming = true;
       // Pointing aims at once; holding the butt waits for a move, so a
-      // tap does not swing the cue around.
-      if (behindCue()) S.aimDrag = { x: e.clientX };
+      // tap does not swing the cue around. A finger holding the butt turns
+      // nothing until it has moved AIM_SLOP_PX: a thumb that lands, settles
+      // or lifts keeps the aim.
+      if (e.pointerType !== 'mouse' && (behindCue() || !S.aimFront)) S.aimSlop = { x: e.clientX, y: e.clientY };
+      else if (behindCue()) S.aimDrag = { x: e.clientX };
       else if (S.aimFront) aimFrom(p, cue);
-      else if (e.pointerType !== 'mouse') leverAim(p, cue);
     }
   }
 });
+
+// AIM_SLOP_PX: how far a finger on the table moves before it turns the cue;
+// the turn then starts from where it is (see aimSlop).
+const AIM_SLOP_PX = 6;
 
 // aimFrom aims the shot from a pointer at p. By default the pointer holds
 // the butt of the cue: the cue lies between it and the cue ball and the
@@ -4324,6 +4399,11 @@ canvas.addEventListener('pointermove', (e) => {
       else aimMove(e, p, displayBalls().get(cueId()));
     }
   } else if (S.aiming) {
+    if (S.aimSlop) {
+      if (Math.hypot(e.clientX - S.aimSlop.x, e.clientY - S.aimSlop.y) <= AIM_SLOP_PX) return;
+      S.aimSlop = null;
+      S.aimDrag = null; // the lever (or the 3D turn) takes hold here
+    }
     aimMove(e, p, displayBalls().get(cueId()));
   }
 });
@@ -4368,6 +4448,7 @@ function endPointer(e) {
   }
   S.aiming = false;
   S.aimDrag = null;
+  S.aimSlop = null;
   if (canvas.hasPointerCapture && canvas.hasPointerCapture(e.pointerId)) {
     canvas.releasePointerCapture(e.pointerId);
   }
@@ -4390,6 +4471,7 @@ function cancelGestures() {
   S.tap = null;
   S.aiming = false;
   S.aimDrag = null;
+  S.aimSlop = null;
   if (id !== null && canvas.hasPointerCapture(id)) canvas.releasePointerCapture(id);
 }
 matchMedia('(orientation: portrait)').addEventListener('change', cancelGestures);
@@ -4805,9 +4887,12 @@ function renderSeat(seat) {
   line.className = 'seat__line';
   const name = document.createElement('span');
   name.className = 'seat__name';
-  // On a phone the header is tight: my seat just says "You".
-  const meShort = compact && isMe(seat) && !S.practice;
-  name.textContent = meShort ? T`You` : p.name;
+  // On a phone the header is tight: my seat just says "You", another the
+  // given name (the whole name is its title). Practice has one card, with
+  // room for the name.
+  const phone = compactLayout.matches && !S.practice;
+  const meShort = phone && isMe(seat);
+  name.textContent = meShort ? T`You` : phone ? cardName(seat) : p.name;
   name.title = p.name;
   line.append(name);
   if (isMe(seat) && !meShort && !(compactLayout.matches && S.practice)) line.append(tag(T`you`, 'you')); // practice: the only player
@@ -4817,6 +4902,7 @@ function renderSeat(seat) {
     const t = tag(T`2 fouls`, 'foul');
     t.title = T`A third foul in a row loses the rack`;
     line.append(t);
+    el.classList.add('seat--foul'); // a phone rings the card and pins the tag to its corner
   }
   body.append(line);
   if (isCarom() && S.carom && !S.practice && S.phase !== 'lobby') {
@@ -4840,6 +4926,24 @@ function renderSeat(seat) {
   }
   if (p.connected && S.clock && S.clock.seat === seat) el.append(clockRing());
   seatScore(el, seat);
+}
+
+// shortName is the given name, which a phone's card has room for: the last
+// word of a Vietnamese name, which starts with the family name (Nguyễn Thị
+// Ngọc: Ngọc), the first word of others (Bob Smith: Bob).
+const FAMILY_NAMES = new Set(('nguyễn trần lê phạm hoàng huỳnh phan vũ võ đặng bùi đỗ hồ ngô dương lý đào đoàn vương trịnh đinh lâm phùng trương lương lưu tạ châu quách cao ' +
+  'nguyen tran le pham hoang huynh phan vu vo dang bui do ho ngo duong ly dao doan vuong trinh dinh lam phung truong luong luu ta chau quach').split(' '));
+function shortName(name) {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2) return name;
+  return FAMILY_NAMES.has(words[0].toLocaleLowerCase('vi')) ? words[words.length - 1] : words[0];
+}
+// cardName is seat's name on a phone's card: the given name, or the whole
+// name when the other side's would read the same.
+function cardName(seat) {
+  const name = S.players[seat].name;
+  const other = S.players[1 - seat] && S.players[1 - seat].name;
+  return other && shortName(other) === shortName(name) ? name : shortName(name);
 }
 
 // seatScore gives a seat's card its side's score (racks; 3-cushion's
@@ -4905,7 +5009,7 @@ function renderTeamSeat(side) {
     if (live && S.turn === s) line.insertAdjacentHTML('beforeend', CUE_SVG);
     const name = document.createElement('span');
     name.className = 'seat__name' + (p.name ? '' : ' seat__name--open');
-    name.textContent = !p.name ? T`Open seat` : compact && isMe(s) ? T`You` : p.name;
+    name.textContent = !p.name ? T`Open seat` : compact && isMe(s) ? T`You` : compactLayout.matches ? shortName(p.name) : p.name;
     name.title = p.name || T`Open seat`;
     line.append(name);
     if (p.name && isMe(s) && !compact) line.append(tag(T`you`, 'you'));
@@ -5168,7 +5272,7 @@ function refreshPanels() {
   if (powerBar.hidden !== barHidden) { powerBar.hidden = barHidden; resize(); }
   powerBar.classList.toggle('pbar--disabled', !myShot);
   powerTrack.tabIndex = myShot ? 0 : -1;
-  if (!myShot && S.powerDrag) { S.powerDrag = false; powerClasses(); }
+  if (!myShot && S.powerDrag) { S.powerDrag = false; S.powerFrom = null; powerBar.classList.remove('pbar--from'); powerClasses(); }
   if (!barHidden) renderPower();
   const panel = S.spectator ? 'waitPanel' : S.phase === 'lobby' && !S.practice ? 'lobbyPanel' : S.phase === 'game_over' ? 'overPanel' : myShot ? 'shotPanel' : 'waitPanel';
   renderPracticeBar();
@@ -5178,6 +5282,7 @@ function refreshPanels() {
   const playing = panel === 'shotPanel' || panel === 'waitPanel';
   if (document.body.classList.contains('is-playing') !== playing) {
     document.body.classList.toggle('is-playing', playing);
+    placeRoomButtons();
     resize();
   }
   if (!myShot) closeSpinPop();
@@ -5378,16 +5483,21 @@ function refreshShotPanel() {
     }
   } else if (isNine()) {
     const low = lowestBall();
+    const phone = compactLayout.matches; // the band over a phone's table: a few words
     called = true;
     if (S.phase === 'breaking') {
-      html = S.ballInHand && !compactLayout.matches ? T`Break: <span class="muted">hit the 1 first, cue ball anywhere in the kitchen.</span>` : T`Break: <span class="muted">hit the 1 first.</span>`;
+      html = S.ballInHand && !phone ? T`Break: <span class="muted">hit the 1 first, cue ball anywhere in the kitchen.</span>` : T`Break: <span class="muted">hit the 1 first.</span>`;
     } else if (S.call && S.call.pushOut) {
-      html = T`Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
+      html = phone ? T`Push out: <span class="muted">no contact needed.</span>` : T`Push out: <span class="muted">no contact needed; then ${esc(opp)} chooses who shoots.</span>`;
+    } else if (phone) {
+      html = T`Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first.`;
     } else {
       // scotch doubles: say so where there is room
-      const scotch = isTeams() && !compactLayout.matches ? T` Partners alternate every shot.` : '';
+      const scotch = isTeams() ? T` Partners alternate every shot.` : '';
       html = T`Hit the <span class="call__value">${low === 9 ? '9-ball' : low}</span> first <span class="muted">· any ball that drops counts; the 9 wins.${scotch}</span>`;
     }
+    // on two fouls the band says what a third costs (the card's tag names it)
+    if (phone && S.fouls[mySide()] === 2) html += ` <span class="call__warn">${T`A third foul loses the rack.`}</span>`;
   } else if (!canCall()) {
     // On a phone the "ball in hand · kitchen" tag beside it says the rest.
     html = S.ballInHand && !compactLayout.matches ? T`Break: <span class="muted">no call needed, drag the cue ball anywhere in the kitchen.</span>` : T`Break: <span class="muted">no call needed.</span>`;
@@ -5399,11 +5509,16 @@ function refreshShotPanel() {
     if (S.call) {
       html = T`Called: <span class="call__value">${esc(pocketName(S.call.pocket))}</span>`;
       called = true;
+    } else if (compactLayout.matches) {
+      html = S.ballInHand ? T`Ball in hand: place it, then tap a pocket for the 8.` : T`8-ball: <span class="call__value">tap the pocket you call</span>`;
     } else {
       html = S.ballInHand ? T`Ball in hand: place the cue ball, then tap a pocket for the 8.` : T`On the 8-ball: tap the pocket you are going for.`;
     }
   } else if (S.phase === 'open') {
     html = T`Open table: <span class="muted">any ball but the 8 counts.</span>`;
+    called = true;
+  } else if (compactLayout.matches) {
+    html = T`Your group: <span class="call__value">${esc(groupName(S.groups[mySide()]))}</span>`;
     called = true;
   } else {
     html = T`Your group: <span class="call__value">${esc(groupName(S.groups[mySide()]))}</span> <span class="muted">· any that drops counts.</span>`;
@@ -5570,7 +5685,8 @@ $('practiceBar').addEventListener('click', (e) => { if (e.target.closest('button
 // B, emptied as they drop; the 8 once a side's group is gone; empty slots
 // before the groups are known. The side on turn is lit.
 function renderTrays() {
-  const show = !!phoneSet && S.mode === '8ball' && !S.practice && S.phase !== 'lobby';
+  const playing = !!phoneSet && !S.practice && S.phase !== 'lobby';
+  const show = playing && S.mode === '8ball';
   for (const side of [0, 1]) {
     const el = $(side ? 'trayR' : 'trayL');
     el.hidden = !show;
@@ -5581,20 +5697,34 @@ function renderTrays() {
     el.classList.toggle('tray--on', (inPlay() || S.moving) && sideOf(S.turn) === side);
     if (el.dataset.key === key) continue;
     el.dataset.key = key;
-    el.replaceChildren(...[...Array(7)].map((_, i) => {
-      const slot = document.createElement('span');
-      slot.className = 'tray__slot';
-      const id = ids[i];
-      if (id !== undefined && S.balls.has(id)) {
-        const ball = document.createElement('span');
-        ball.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
-        ball.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
-        ball.append(Object.assign(document.createElement('span'), { className: 'ball__num', textContent: String(id) }));
-        slot.append(ball);
-      }
-      return slot;
-    }));
+    el.replaceChildren(...[...Array(7)].map((_, i) => traySlot(S.balls.has(ids[i]) ? ids[i] : undefined)));
   }
+  // 9-ball has no groups: the nine balls in one rack, each still on the
+  // table in its slot, the ball on ringed
+  const rack = $('rack');
+  rack.hidden = !(playing && isNine());
+  if (rack.hidden) return;
+  const low = lowestBall();
+  const ids = [...Array(9)].map((_, i) => (S.balls.has(i + 1) ? i + 1 : undefined));
+  const key = `${ids.join()}|${low}`;
+  if (rack.dataset.key === key) return;
+  rack.dataset.key = key;
+  rack.replaceChildren(...ids.map((id) => traySlot(id, id !== undefined && id === low)));
+}
+
+// traySlot is a tray's slot, with ball id in it (none: undefined); on, the
+// ball to hit first.
+function traySlot(id, on) {
+  const slot = document.createElement('span');
+  slot.className = 'tray__slot' + (on ? ' tray__slot--on' : '');
+  if (id !== undefined) {
+    const ball = document.createElement('span');
+    ball.className = 'ball' + (id > 8 ? ' ball--stripe' : '');
+    ball.style.setProperty('--c', `var(--ball-${id > 8 ? id - 8 : id})`);
+    ball.append(Object.assign(document.createElement('span'), { className: 'ball__num', textContent: String(id) }));
+    slot.append(ball);
+  }
+  return slot;
 }
 
 function undo() {
@@ -5710,6 +5840,7 @@ function renderScore() {
   const compact = compactLayout.matches ? ' score--compact' : '';
   el.disabled = !m;
   if (!m) {
+    $('raceTag').textContent = '';
     el.className = 'score score--empty' + compact;
     if (el.dataset.k !== 'vs' + LANG) {
       el.innerHTML = `<span class="score__vs">${T`vs`}</span>`;
@@ -5735,6 +5866,7 @@ function renderScore() {
     return `<span class="score__slot"><span>${n}</span></span>`;
   };
   el.innerHTML = `<span class="score__nums">${slot(0)}<span class="score__sep">–</span>${slot(1)}</span><span class="score__race">${goal}</span>`;
+  $('raceTag').textContent = goal; // over a phone's dock the race sits between the trays
   el.dataset.k = key;
   S.shownScore = { score: [...m.score], race: m.race };
 }
