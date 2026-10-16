@@ -993,7 +993,10 @@ The face before the name on the landing (`#playerFace`) opens a sheet for
 how one looks in 3D: a dialog on a desktop, the whole screen on a phone
 held upright, two columns on one on its side. The face is a picture of the
 player's head taken by the last *Done* (`pool:lookFace`, kept with the look
-it shows), else a drawing in the look's colours.
+it shows), else a drawing in the look's colours. The first time, a word
+under the face points at it ("Tap the face to make your player, even from
+a photo"), until the sheet has been opened or a room entered
+(`pool:faceTip`); it takes no clicks from what lies under it.
 
 - **Stage** (`players3d.js`, `createStage`): the player standing alone on a
   clear canvas over the hall, close on the face or whole (*Face*, *Whole*),

@@ -713,6 +713,7 @@ const VI = {
   'The photo used': 'Ảnh đã dùng',
   'The player cannot be shown in 3D here; the choices still count.': 'Máy này không vẽ được 3D; các lựa chọn vẫn được lưu.',
   'Make from a photo': 'Tạo từ ảnh',
+  'Tap the face to make your player, even from a photo.': 'Chạm vào mặt để tạo nhân vật của bạn, kể cả từ một tấm ảnh.',
   'Take or pick a portrait. The photo is only read on this device.': 'Chụp hoặc chọn một ảnh chân dung. Ảnh chỉ được đọc trên máy này.',
   'Taken from the photo': 'Đã lấy từ ảnh',
   'The body and hairstyle are yours to choose.': 'Dáng người và kiểu tóc do bạn chọn.',

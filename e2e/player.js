@@ -1,5 +1,6 @@
-// Your player (CLIENT.md, "Your player"): the face before the name opens
-// the sheet with the player on its stage; made by hand (the body and its
+// Your player (CLIENT.md, "Your player"): the face before the name, a tip
+// pointing at it the first time, opens the sheet with the player on its
+// stage; made by hand (the body and its
 // hairstyles, a colour shown at once without meshing again, a measure of
 // the face meshed again a moment after), the stage drawing nothing while
 // nothing changes; Done keeps the look and a picture of the face, × keeps
@@ -57,8 +58,10 @@ async function picture(page, name, draw) {
     await A.goto(base + '/');
     await A.fill('#name', 'Ann');
     if (!/^data:image\/svg/.test(await A.getAttribute('#playerFaceImg', 'src'))) fail('no drawn face before the name');
+    if (await A.isHidden('#faceTip')) fail('no tip under the face the first time');
     await A.click('#playerFace');
     if (await A.isHidden('#player')) fail('the sheet did not open');
+    if (await A.isVisible('#faceTip') || await A.evaluate(() => localStorage.getItem('pool:faceTip')) !== '1') fail('the tip stays once the sheet is open');
     await stageReady(A);
     if ((await draft(A)).body !== 'man') fail('the first player is not the man');
     if (await A.locator('#playerHair [data-hair]').count() !== 3 || await A.isHidden('#playerBeardField')) fail('his hairstyles or beard are missing');
@@ -192,10 +195,22 @@ async function picture(page, name, draw) {
     console.log('the look goes to the room ok');
     await A.context().close();
 
+    // entering a room puts the tip away too
+    const R = await mk({ viewport: { width: 1280, height: 800 } });
+    await R.goto(base + '/');
+    await R.fill('#name', 'Cy');
+    if (await R.isHidden('#faceTip')) fail('no tip under the face');
+    await R.click('#create');
+    await R.waitForFunction(() => document.getElementById('landing').hidden && S.players[0] && S.players[0].name, null, { timeout: 20000 });
+    if (await R.evaluate(() => localStorage.getItem('pool:faceTip')) !== '1') fail('the tip is kept after entering a room');
+    await R.context().close();
+    console.log('the tip under the face ok');
+
     // a phone: the sheet fills the screen, its buttons in reach
     const P = await mk({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
     await P.goto(base + '/');
     await P.fill('#name', 'Bo');
+    if (await P.isHidden('#faceTip')) fail('no tip under the face on the phone');
     await P.tap('#playerFace');
     await stageReady(P);
     const fit = await P.evaluate(() => {

@@ -398,6 +398,7 @@ function clearSession(roomCode) {
 }
 
 function connectAndJoin(roomCode, name, token, watch) {
+  faceTipSeen();
   if (S.ws) { S.intentionalClose = true; S.ws.close(); }
   S.intentionalClose = false;
   clearTimeout(S.reconnectTimer);
@@ -6645,7 +6646,18 @@ function faceIcon(o) {
   return 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
+// renderFaceTip: the first time, a word under the face points at it; gone
+// once the sheet has been opened or a room entered (faceTipSeen)
+function renderFaceTip() {
+  $('faceTip').hidden = !!readSetting('pool:faceTip') || !!readSetting('pool:look');
+}
+function faceTipSeen() {
+  if (!readSetting('pool:faceTip')) writeSetting('pool:faceTip', '1');
+  $('faceTip').hidden = true;
+}
+
 async function openPlayer(e) {
+  faceTipSeen();
   ME.opener = e && e.currentTarget;
   ME.draft = JSON.parse(JSON.stringify(myLook() || { body: 'man' }));
   ME.before = null;
@@ -6998,6 +7010,7 @@ function faceThumb(work, b) {
   return c.toDataURL('image/jpeg', 0.82);
 }
 renderFace();
+renderFaceTip();
 
 // setLang shows the page in lang at once: its own words, then everything
 // the code wrote, drawn again (CLIENT.md, "Languages"). The status band
