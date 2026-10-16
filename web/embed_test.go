@@ -13,7 +13,8 @@ func TestEmbeddedClient(t *testing.T) {
 		"fonts/SourceSans3-400-latin.woff2", "fonts/BarlowSemiCondensed-600-latin.woff2",
 		"debug.html", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/icon-512.png",
 		"icons/apple-touch-icon.png", "sounds/clack-1.wav", "sounds/cue-1.wav", "sounds/pocket-1.wav",
-		"view3d.js", "arena3d.js", "vendor/three-r186/three.min.js", "vendor/three-r186/LICENSE",
+		"view3d.js", "arena3d.js", "players3d.js", "body3d.js", "sdf3d.js", "mesh3d-worker.js",
+		"vendor/three-r186/three.min.js", "vendor/three-r186/LICENSE",
 		"voice/lines.json", "voice/great-15.m4a",
 	} {
 		data, err := fs.ReadFile(Files, name)

@@ -3,7 +3,9 @@
 // following a shot, carrying the cue ball and looking from above to place
 // it, the replay in 3D and 2D, switching back and forth without running out
 // of WebGL contexts, a lost context, naming a ball through the 3D camera,
-// the fall back to 2D without WebGL, and the Graphics levels.
+// the fall back to 2D without WebGL, the Graphics levels, and the players
+// (players3d.js): standing in the lobby, down on the shot through their own
+// eyes in practice, the other one waiting in the chair in a game.
 // Usage: node view3d.js <base>
 const { chromium } = require('playwright');
 const path = require('path');
@@ -53,15 +55,22 @@ async function practice(page) {
     await A.click('#create');
     await A.waitForFunction(() => S.phase === 'lobby' && !!v3, null, { timeout: 45000 });
     await cameraIs(A, 'arena', false);
+    // the host stands by the chair while the room waits
+    await A.waitForFunction(() => v3.players.built === 1, null, { timeout: 60000 }).catch(async () => fail(`players in the lobby: ${JSON.stringify(await A.evaluate(() => v3.players))}`));
+    await A.waitForFunction(() => JSON.stringify(v3.players.shown) === JSON.stringify([{ id: 'seat0', pose: 'stand' }]), null, { timeout: 5000 })
+      .catch(async () => fail(`the lobby shows ${JSON.stringify(await A.evaluate(() => v3.players.shown))}`));
     await A.screenshot({ path: path.join(shots, 'view3d-arena.png') });
-    console.log('arena in the lobby ok');
+    console.log('arena in the lobby, the host standing ok');
 
     // In practice, behind the cue.
     await practice(A);
     await A.waitForFunction(() => S.view === '3d' && !!v3, null, { timeout: 45000 });
     await cameraIs(A, 'aim');
+    // behind the cue: the player down on the shot, seen through their eyes
+    await A.waitForFunction(() => { const p = v3.players; return p.firstPerson && p.shown.length === 1 && p.shown[0].pose === 'shot'; }, null, { timeout: 60000 })
+      .catch(async () => fail(`practice shows ${JSON.stringify(await A.evaluate(() => v3.players))}`));
     await A.screenshot({ path: path.join(shots, 'view3d-aim.png') });
-    console.log('desktop opens in 3D ok');
+    console.log('desktop opens in 3D, the player down on the shot ok');
 
     // The mouse over a ball names it: the pointer goes through the camera.
     const five = await A.evaluate(() => { const p = S.balls.get(5); return { x: p.x, y: p.y }; });
@@ -213,6 +222,34 @@ async function practice(page) {
     if (!auto.soft || auto.shadow !== 1024 || auto.fixed) fail(`3D auto ${JSON.stringify(auto)}`);
     await P.click('#settingsClose');
     console.log('3D graphics levels ok');
+
+    // A game of two: the one to break down on the shot, the other waiting
+    // in the chair, for the host and then for the guest. One page draws 3D
+    // at a time: in software WebGL a second one starves.
+    for (const pg of [A, P]) await pg.context().close();
+    const H2 = await mk({ viewport: { width: 1100, height: 700 } });
+    await H2.goto(base + '/');
+    await H2.fill('#name', 'Ann');
+    await H2.click('#create');
+    await H2.waitForFunction(() => S.phase === 'lobby' && !!S.roomCode && !!v3);
+    const room = await H2.evaluate(() => S.roomCode);
+    const G2 = await mk({ viewport: { width: 1100, height: 700 } }, () => localStorage.setItem('pool:view', '2d'));
+    await G2.goto(base + '/?room=' + room);
+    await G2.fill('#name', 'Bob');
+    await G2.click('#join');
+    await G2.waitForFunction(() => S.seat === 1);
+    await H2.click('#ready');
+    await G2.click('#ready');
+    const waiting = JSON.stringify([{ id: 'seat0', pose: 'shot' }, { id: 'seat1', pose: 'sit' }]);
+    const sees = (who, pg) => pg.waitForFunction((w) => S.phase === 'breaking' && v3 && v3.players.built === 2 && JSON.stringify(v3.players.shown) === w, waiting, { timeout: 90000 })
+      .catch(async () => fail(`the ${who} sees ${JSON.stringify(await pg.evaluate(() => [S.phase, v3 && v3.players]))}`));
+    await sees('host', H2);
+    await H2.screenshot({ path: path.join(shots, 'view3d-players.png') });
+    await H2.evaluate(() => setView('2d'));
+    await G2.evaluate(() => setView('3d'));
+    await sees('guest', G2);
+    console.log('a game of two: one down on the shot, one in the chair ok');
+    for (const pg of [H2, G2]) await pg.context().close();
 
     // No WebGL: the table stays flat, with a word why.
     const N = await mk({ viewport: { width: 1100, height: 700 } }, () => {

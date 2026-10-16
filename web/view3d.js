@@ -7,6 +7,7 @@
 // and "into the slate" is world −y, so up is +y and the bed is at y = 0.
 import * as THREE from '/vendor/three-r186/three.min.js';
 import { createArena, merge } from '/arena3d.js';
+import { createPlayers } from '/players3d.js';
 
 const CUSHION_H = 0.040; // cushion top above the bed
 const RAIL_H = 0.044;    // rail top above the bed
@@ -43,7 +44,8 @@ const STEP = 0.25;  // how far checkSpeed lowers the pixel ratio at a time
 //   dots} by id for plain dotted balls, else null), cueSegments, cueLength,
 //   look (the table's finish and legs: app.js LOOKS), boards (where the
 //   arena's LED boards stand: arena3d.js), info (what they show: setInfo),
-//   reduceMotion(), level (a LEVELS key) and onLost().
+//   reduceMotion(), level (a LEVELS key), playerDetail (the players' mesh
+//   step: players3d.js) and onLost().
 // It throws when WebGL is not available.
 export function createView3D(canvas, k) {
   const { W, H, R, RAIL } = k;
@@ -594,6 +596,13 @@ export function createView3D(canvas, k) {
     W, H, RAIL, floor: FLOOR, boards: k.boards, legs, lamps: lamps.map((l) => l.position.x), carom: !!k.carom,
     info: k.info, level: k.level || 'auto', env, anisotropy: felt.anisotropy, reduceMotion: k.reduceMotion,
   });
+  // --- players ----------------------------------------------------------
+  // players3d.js: the room's players by the table, the one to play down on
+  // the game's cue (see render)
+  const players = createPlayers({
+    scene, R, floor: FLOOR, chairs: arena.chairs, cueSegments: k.cueSegments, cueLength: k.cueLength,
+    coarse: k.playerDetail || 2.2, shadows: (k.level || 'auto') !== 'low',
+  });
   const blob = keep(new THREE.CanvasTexture((() => {
     const c = document.createElement('canvas');
     c.width = c.height = 64;
@@ -758,6 +767,7 @@ export function createView3D(canvas, k) {
     marks.end();
     kitchen.visible = !!frame.kitchenLine;
     moveCamera(frame.cam, now);
+    players.update(frame.players, frame.cue, camera);
     draw(now);
     checkSpeed(now);
   }
@@ -806,6 +816,7 @@ export function createView3D(canvas, k) {
     timing.gaps.length = 0;
     renderer.shadowMap.type = low ? THREE.BasicShadowMap : THREE.PCFShadowMap;
     renderer.shadowMap.needsUpdate = true;
+    players.setShadows(!low);
     applyRatio();
   }
   // setLevel applies a Graphics choice (a LEVELS key) and starts the pace
@@ -886,6 +897,7 @@ export function createView3D(canvas, k) {
   function dispose() {
     canvas.removeEventListener('webglcontextlost', onLost);
     for (const d of disposables) d.dispose();
+    players.dispose();
     arena.dispose();
     renderer.dispose();
     if (!gl.isContextLost()) renderer.forceContextLoss();
@@ -896,6 +908,7 @@ export function createView3D(canvas, k) {
   return {
     render, pick, project, pxPerM, resize, dispose, setQuality, setLevel, setInfo: arena.setInfo, setCloth,
     get mode() { return cam.mode; },
+    get players() { return players.status(); },
     get settled() { return !!cam.settled; },
     get lowQuality() { return timing.low; },
     get quality() {

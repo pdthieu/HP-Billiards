@@ -410,6 +410,8 @@ function connectAndJoin(roomCode, name, token, watch) {
   S.wantWatch = !!watch;
   ws.onopen = () => {
     const join = { type: 'join', roomCode, name };
+    const look = myLook(); // how one looks in 3D (players3d.js), for everyone in the room
+    if (look) join.look = look;
     if (token) join.token = token;
     if (watch) join.watch = true;
     send(join);
@@ -790,7 +792,7 @@ function onSettled(msg) {
 function onPlayer(msg) {
   const was = S.players[msg.seat];
   if (msg.seat !== S.seat && msg.name) S.lastOppName = msg.name;
-  S.players[msg.seat] = { seat: msg.seat, name: msg.name, connected: msg.connected, ready: msg.ready };
+  S.players[msg.seat] = { seat: msg.seat, name: msg.name, connected: msg.connected, ready: msg.ready, look: msg.look || null };
   S.offlineSince[msg.seat] = msg.name && !msg.connected ? performance.now() : 0;
   if (msg.seat !== S.seat) {
     if (msg.connected && !was.connected) {
@@ -2332,8 +2334,28 @@ function view3dKit(onLost) {
     info: arenaInfo(),
     reduceMotion: () => reduceMotion.matches,
     level: S.quality,
+    // the players' mesh step (players3d.js): finer on High, coarser on Low
+    // and on a phone
+    playerDetail: S.quality === 'high' ? 1.8 : S.quality === 'low' ? 3.2 : compactLayout.matches ? 2.8 : 2.2,
     onLost,
   };
+}
+
+// playersFrame: who is at the table, for the 3D view's players
+// (players3d.js): each seat taken with its look (null: the side's default),
+// whose turn it is, and whether the room waits in its lobby, plays, or is
+// done. In practice one plays both sides, with one's own look.
+function playersFrame() {
+  const seats = [];
+  for (const p of S.players) if (p.name) seats.push({ seat: p.seat, side: sideOf(p.seat), look: p.look || null });
+  const phase = S.phase === 'lobby' ? 'lobby' : S.phase === 'game_over' ? 'over' : 'play';
+  return { seats, turn: S.turn, phase, practice: S.practice, mine: myLook() };
+}
+// myLook: the player one made (Your player), or null for the default
+function myLook() {
+  const v = readSetting('pool:look');
+  if (!v) return null;
+  try { const o = JSON.parse(v); return o && typeof o === 'object' ? o : null; } catch { return null; }
 }
 
 // arenaInfo is what the arena's LED boards show (arena3d.js): the game, the
@@ -2853,7 +2875,7 @@ function draw3d(now, balls, st) {
   else if (myShot && S.ballInHand && cue) rings.push({ ball: true, x: cue.x, y: cue.y, r: R + 0.014, w: 0.004, color: PAL.ok, alpha: 1 });
   v3.render({
     balls, orient: orientationOf, lifted: lifted >= 0 ? { id: lifted, lift } : null, drops, cue: stick, guide, rings,
-    kitchenLine: placingInKitchen, cam: cameraFor(balls, aim),
+    kitchenLine: placingInKitchen, cam: cameraFor(balls, aim), players: playersFrame(),
   }, now);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);

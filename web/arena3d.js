@@ -311,7 +311,8 @@ export function createArena(k) {
     for (const d of disposables) d.dispose();
   }
 
-  return { scene, update, setInfo, setLevel, dispose };
+  // chairs: where the players' chairs stand ({x, y, face}), for players3d.js
+  return { scene, update, setInfo, setLevel, dispose, chairs: props.chairs };
 
   // layout places the chairs, the side tables and the cameras, one to a
   // corner of the floor of play, clear of the boards' middles: a player's

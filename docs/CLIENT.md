@@ -887,6 +887,32 @@ the battery.
   - A ball off the table that rolls to a board bounces back off it
     (`fallPath`), and casts a soft shadow on the floor, darker and smaller
     as it comes down.
+- **Players** (`players3d.js`, `createPlayers`): the room's players in the
+  table's scene, in tournament dress, the waistcoat in their side's colour
+  (gold for the first, blue for the second).
+  - *Where*: in the lobby and at a game's end each stands by their side's
+    chair; in play the one to play is down on the shot along the game's cue
+    (the bridge hand on the cloth, the grip under the elbow, the stroke
+    following the pull), held through the ball after it, and the other sits
+    in their chair, hidden with it when the camera comes close. In a 2v2
+    room the other side's next player sits; the rest stand by the chairs.
+    In practice one plays with one's own look.
+  - *Through the shooter's eyes* (the camera within 0.75 m of their head)
+    only the bridge arm, its hand and cuff show, the sleeve fading out above
+    the elbow.
+  - *Looks*: each seat's comes with the room's state (PROTOCOL.md, Looks);
+    one's own is `pool:look`, sent on `join`. A seat
+    without one gets its side's default, a man for the first, a woman for
+    the second.
+  - *Built in code* (`body3d.js`): signed distance functions (`sdf3d.js`)
+    meshed with surface nets, skinned to a 20-bone skeleton; the brows, lash
+    lines, lips and blush are painted by the face's shader, the colours are
+    the materials', so one mesh serves any colouring and either seat. The
+    meshing runs in a module worker (`mesh3d-worker.js`, on the page when
+    there is none), at a step of 2.2 (`playerDetail`: 1.8 on High, 3.2 on
+    Low, 2.8 on a phone): about 0.7 s and 160k triangles a player on a
+    desktop. A few looks' meshes are kept for the next game. `v3.players`
+    tells the browser tests who is shown and how.
 - **Balls.** Each ball's markings are painted once on a sphere texture in its
   own frame; the mesh turns by the 2D orientation, so a ball shows the same
   face in both views (axes: table x → world x, table y → world z, into the

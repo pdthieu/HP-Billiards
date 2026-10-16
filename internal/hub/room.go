@@ -56,6 +56,7 @@ type seat struct {
 	id     string
 	token  string
 	name   string
+	look   *protocol.Look // how the player looks in 3D, nil for the default
 	ready  bool
 	// lastChat is when the player last commented (ChatCooldown).
 	lastChat time.Time
@@ -447,6 +448,9 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 			old.Close(websocket.StatusPolicyViolation, "replaced by a new connection")
 		}
 		r.seats[s].client = c
+		if l := protocol.CleanLook(msg.Look); l != nil {
+			r.seats[s].look = l
+		}
 		resumed := r.syncClock()
 		r.welcome(c, s)
 		if resumed {
@@ -481,6 +485,7 @@ func (r *room) handleJoin(c *ws.Client, msg protocol.ClientMessage) bool {
 		id:     randomHex(8),
 		token:  randomHex(16), // 128 bits
 		name:   cleanName(msg.Name, s),
+		look:   protocol.CleanLook(msg.Look),
 	}
 	r.newMatch() // a new opponent: the last match is history
 	r.welcome(c, s)
@@ -1370,7 +1375,7 @@ func (r *room) playerInfo(s int) protocol.PlayerInfo {
 	if r.practice {
 		st = &r.seats[0] // the one player sits on both sides
 	}
-	return protocol.PlayerInfo{Seat: s, Name: st.name, Connected: st.client != nil, Ready: st.ready}
+	return protocol.PlayerInfo{Seat: s, Name: st.name, Connected: st.client != nil, Ready: st.ready, Look: st.look}
 }
 
 // broadcast encodes msg once and queues it for every connected player and

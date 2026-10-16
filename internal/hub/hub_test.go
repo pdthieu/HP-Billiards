@@ -328,6 +328,38 @@ func TestJoinAndLobby(t *testing.T) {
 	c0.expectError("wrong_phase")
 }
 
+// A look sent on join reaches everyone in the room, cleaned, with the
+// seat; a reconnect with another look replaces it.
+func TestLookIsPassedOn(t *testing.T) {
+	_, srv := newServer(t, fastOptions())
+	code := createRoom(t, srv)
+	c0 := dial(t, srv)
+	c0.send(msg{"type": "join", "roomCode": code, "name": "Ann", "look": msg{
+		"body": "woman", "skin": "#EFC7A8", "hair": "pony", "hairColor": "nope", "face": msg{"w": 1.04, "jaw": 9},
+	}})
+	w0 := c0.expect("welcome")
+	c0.expect("room_state")
+	c1 := dial(t, srv)
+	_, st1 := c1.join(code, "Bob")
+	look, _ := players(st1)[0].(msg)["look"].(msg)
+	if look == nil || look["body"] != "woman" || look["skin"] != "#efc7a8" || look["hair"] != "pony" || look["hairColor"] != nil {
+		t.Fatalf("seat 0's look = %v", look)
+	}
+	if f, _ := look["face"].(msg); f == nil || f["w"] != 1.04 || f["jaw"] != 1.3 || f["chin"] != nil {
+		t.Errorf("seat 0's face = %v", look["face"])
+	}
+	if p := c0.expect("player"); p["seat"] != 1.0 || p["look"] != nil {
+		t.Errorf("seat 1 without a look = %v", p)
+	}
+	// back with the token (a new socket takes the seat over) and another look
+	c2 := dial(t, srv)
+	c2.send(msg{"type": "join", "roomCode": code, "name": "Ann", "token": w0["token"], "look": msg{"body": "man", "hair": "buzz"}})
+	c2.expect("welcome")
+	if l, _ := players(c2.expect("room_state"))[0].(msg)["look"].(msg); l == nil || l["body"] != "man" || l["hair"] != "buzz" || l["skin"] != nil {
+		t.Errorf("look after the reconnect = %v", l)
+	}
+}
+
 func TestJoinErrors(t *testing.T) {
 	_, srv := newServer(t, fastOptions())
 	code := createRoom(t, srv)

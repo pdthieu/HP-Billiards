@@ -3,7 +3,13 @@
 // sync with this file.
 package protocol
 
-import "billiards/internal/game"
+import (
+	"math"
+	"slices"
+	"strings"
+
+	"billiards/internal/game"
+)
 
 // Version is carried by the welcome message as "v".
 const Version = 1
@@ -102,6 +108,9 @@ type ClientMessage struct {
 	RoomCode string `json:"roomCode"`
 	Token    string `json:"token"`
 	Name     string `json:"name"`
+	// join: optional, how the player looks in 3D (see Look); a reconnect
+	// with one replaces the seat's
+	Look *Look `json:"look"`
 	// join: watch, without a seat (see Welcome.Spectator)
 	Watch bool `json:"watch"`
 
@@ -265,6 +274,89 @@ type PlayerInfo struct {
 	Name      string `json:"name"`
 	Connected bool   `json:"connected"`
 	Ready     bool   `json:"ready"`
+	// Look is how the player looks in 3D, as they sent it on join (cleaned:
+	// CleanLook); absent, the client shows its side's default
+	Look *Look `json:"look,omitempty"`
+}
+
+// Look is how a player's character looks in the 3D view (web/body3d.js
+// makeLook): a few choices the client sends with the name and the server
+// passes on, checked, to everyone in the room. The client builds the
+// character from it.
+type Look struct {
+	Body      string `json:"body"`                // "man" or "woman"
+	Skin      string `json:"skin,omitempty"`      // "#rrggbb"
+	Hair      string `json:"hair,omitempty"`      // a hairstyle: one of LookHairs
+	HairColor string `json:"hairColor,omitempty"` // "#rrggbb"
+	Eyes      string `json:"eyes,omitempty"`      // "#rrggbb"
+	Face      *Face  `json:"face,omitempty"`
+}
+
+// Face holds a look's measures of the face, each a factor on the body's
+// usual (1), in the ranges of FaceRanges; 0 or absent keeps the usual. Beard
+// is 0 (none) to 1 (short).
+type Face struct {
+	W     float64 `json:"w,omitempty"`
+	Jaw   float64 `json:"jaw,omitempty"`
+	Chin  float64 `json:"chin,omitempty"`
+	Cheek float64 `json:"cheek,omitempty"`
+	Eye   float64 `json:"eye,omitempty"`
+	Gap   float64 `json:"gap,omitempty"`
+	Nose  float64 `json:"nose,omitempty"`
+	Mouth float64 `json:"mouth,omitempty"`
+	Lips  float64 `json:"lips,omitempty"`
+	Beard float64 `json:"beard,omitempty"`
+}
+
+// LookHairs are the hairstyles a Look may name (web/body3d.js).
+var LookHairs = []string{"short", "quiff", "buzz", "pony", "bun"}
+
+// FaceRanges bounds each measure of a Face, as the client's sliders do
+// (web/body3d.js FACE_RANGES).
+var FaceRanges = map[string][2]float64{
+	"w": {0.85, 1.15}, "jaw": {0.4, 1.3}, "chin": {0.7, 1.3}, "cheek": {0.8, 1.25}, "eye": {0.85, 1.2},
+	"gap": {0.9, 1.1}, "nose": {0.65, 1.3}, "mouth": {0.8, 1.2}, "lips": {0.5, 1.3}, "beard": {0, 1},
+}
+
+// CleanLook returns l made safe to pass on: nil unless its body is one of
+// the two, colours other than #rrggbb and unknown hairstyles dropped, each
+// measure brought into its range (NaN and infinities dropped).
+func CleanLook(l *Look) *Look {
+	if l == nil || (l.Body != "man" && l.Body != "woman") {
+		return nil
+	}
+	colour := func(c string) string {
+		if len(c) != 7 || c[0] != '#' {
+			return ""
+		}
+		for _, r := range c[1:] {
+			if !strings.ContainsRune("0123456789abcdefABCDEF", r) {
+				return ""
+			}
+		}
+		return strings.ToLower(c)
+	}
+	out := &Look{Body: l.Body, Skin: colour(l.Skin), HairColor: colour(l.HairColor), Eyes: colour(l.Eyes)}
+	if slices.Contains(LookHairs, l.Hair) {
+		out.Hair = l.Hair
+	}
+	if f := l.Face; f != nil {
+		in := func(k string, v float64) float64 {
+			if v == 0 || math.IsNaN(v) || math.IsInf(v, 0) {
+				return 0
+			}
+			r := FaceRanges[k]
+			return math.Min(r[1], math.Max(r[0], v))
+		}
+		out.Face = &Face{
+			W: in("w", f.W), Jaw: in("jaw", f.Jaw), Chin: in("chin", f.Chin), Cheek: in("cheek", f.Cheek), Eye: in("eye", f.Eye),
+			Gap: in("gap", f.Gap), Nose: in("nose", f.Nose), Mouth: in("mouth", f.Mouth), Lips: in("lips", f.Lips), Beard: in("beard", f.Beard),
+		}
+		if *out.Face == (Face{}) {
+			out.Face = nil
+		}
+	}
+	return out
 }
 
 // Player announces a change to one seat.

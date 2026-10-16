@@ -24,7 +24,7 @@ Source of truth: `internal/protocol/protocol.go`. Keep this file in sync with it
 
 | type | fields | notes |
 |---|---|---|
-| `join` | `roomCode`, `name`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
+| `join` | `roomCode`, `name`, `look?`, `token?`, `watch?` | Takes a free seat. `name` is trimmed to 20 characters; empty becomes `Player N`. `look` is how the player looks in 3D (see Looks); a reconnect with one replaces the seat's. If `token` matches a seat of the room, that seat is reclaimed instead (see Reconnecting); otherwise it is ignored. With `watch` true the client watches instead (see Spectators and chat). |
 | `ready` | – | Lobby only. The rack starts when every seat is taken and every player is ready. |
 | `sit` | `seat` | Lobby only: moves the sender to an empty seat (picks a team in 2v2). The sender gets a new `welcome` with the same token, then everyone a `room_state`; the sender must press ready again. Fails with `seat_taken`, `bad_input` (no such seat) or `wrong_phase`. |
 | `aim` | `angle`, `power`, `elevation?` | Shooter only, at most ~10 Hz. Relayed to the other players and the spectators; silently dropped when it is not the sender's turn. |
@@ -181,6 +181,15 @@ A spectator joins with `{"type": "join", "roomCode", "name", "watch": true}`. It
 - Whenever someone starts or stops watching, or the limit changes, everyone gets `audience` `{names, max}`; `room_state` carries the same as `spectators` and `maxSpectators`.
 - Comments are one thread for the whole room. A comment sooner than 5 seconds (`-chat-cooldown`) after the sender's previous one fails with `chat_cooldown`, whose `retryMs` says how long to wait. The last 30 comments are sent to whoever joins, players included, as `chat_log`.
 
+## Looks
+
+How a player looks in the 3D view: `{"body": "woman", "skin": "#efc7a8", "hair": "pony", "hairColor": "#573823", "eyes": "#4f6f86", "face": {"w": 1.04, "jaw": 0.9, "beard": 0}}`. The client sends it with `join` and builds the character from it (`web/body3d.js` `makeLook`); the server only checks it and passes it on in `players[].look`.
+
+- `body` is `man` or `woman`; any other look is dropped.
+- `skin`, `hairColor` and `eyes` are `#rrggbb` (lowered); other values are dropped and the body's default shows.
+- `hair` is one of `short`, `quiff`, `buzz`, `pony`, `bun`; another is dropped.
+- `face` holds measures, each a factor on the body's usual (1): `w` (the face's width) 0.85–1.15, `jaw` 0.4–1.3, `chin` 0.7–1.3, `cheek` 0.8–1.25, `eye` (size) 0.85–1.2, `gap` (between the eyes) 0.9–1.1, `nose` 0.65–1.3, `mouth` (width) 0.8–1.2, `lips` 0.5–1.3, and `beard` 0 (none) to 1 (short). A value outside is brought to the nearest end; 0, absent or not a number keeps the usual.
+
 ## Server → client
 
 ### `chat`
@@ -232,7 +241,7 @@ Full state. Sent right after `welcome`, and to both players whenever the state c
 }
 ```
 
-- `players` has one entry per seat: `size` of them, 2 or 4 (see Teams). `players[].connected` false with a non-empty `name` is a seat held for a player who dropped out (see Reconnecting); `name` `""` is an empty seat.
+- `players` has one entry per seat: `size` of them, 2 or 4 (see Teams). `players[].connected` false with a non-empty `name` is a seat held for a player who dropped out (see Reconnecting); `name` `""` is an empty seat. `players[].look` is the seat's look as its player sent it, cleaned (see Looks); absent, the client draws the side's default player. `player` carries the same fields for one seat.
 - `turn` is the seat that shoots next; `groups`, `fouls` and `winner` are by side (`seat % 2`), which in a room of two is the seat.
 - `ballInHand`: the player in `turn` may send `place_cue`. `kitchen`: placement is limited to x ≤ 0.635 (break, and after a foul on the break).
 - `decision`: `null`, or `{"seat": 1, "options": ["accept_table", "rerack_break", "rerack_opponent_breaks"]}`. No shot is accepted until that seat sends `choose`.
