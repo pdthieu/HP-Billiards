@@ -1,7 +1,7 @@
-// sheet.js: a stage for looking at the players: ?scene=sheet|stance|hands|heads&view=…
+// sheet.js: a stage for looking at the players: ?scene=sheet|face|heads|stance|hands|variety&view=…
 import * as THREE from '/vendor/three-r186/three.min.js';
 import { createPlayer, stand, sit, stance, makeCue, resetPose, BED } from './rig.js';
-import { MAN, WOMAN, HAND_POSES, handShape, GRIP, BRIDGE } from './body.js';
+import { MAN, WOMAN, HAND_POSES, handShape, GRIP, BRIDGE, makeLook } from './body.js';
 import * as S from './sdf.js';
 
 const q = new URLSearchParams(location.search);
@@ -136,7 +136,8 @@ function ball(x, z, color = '#f4f1e8') {
 
 const t0 = performance.now();
 const looks = { man: MAN, woman: WOMAN };
-const make = (id) => { const pl = createPlayer(looks[id]); scene.add(pl.root); const cue = makeCue(); pl.root.add(cue); return { pl, cue }; };
+const coarse = Number(q.get('coarse') || 1);
+const make = (id) => { const pl = createPlayer(looks[id], { coarse }); scene.add(pl.root); const cue = makeCue(); pl.root.add(cue); return { pl, cue }; };
 
 if (sceneName === 'sheet') {
   showcaseLights(new THREE.Vector3(0, 1, 0), 2.2);
@@ -213,7 +214,7 @@ if (sceneName === 'sheet') {
   showcaseLights(new THREE.Vector3(0, 0, 0), 0.4);
   const pl = createPlayer(q.get('who') === 'woman' ? WOMAN : MAN);
   // show the canonical hands: build their meshes straight from body.js
-  const mat = pl.materials.skin;
+  const mat = pl.materials.plainSkin;
   let i = 0;
   for (const pose of Object.keys(HAND_POSES)) {
     const part = handShape(pl.look, pose);
@@ -255,6 +256,26 @@ if (sceneName === 'sheet') {
   a.cue.visible = b.cue.visible = false;
   const yaw = { front: 0, three: 0.6, side: 1.5, back: Math.PI }[view] ?? 0;
   lookFrom(new THREE.Vector3(Math.sin(yaw) * 1.5, 1.66, Math.cos(yaw) * 1.5), new THREE.Vector3(0, 1.64, 0));
+}
+// ?scene=variety: six looks a photo could set, heads and shoulders
+if (sceneName === 'variety') {
+  showcaseLights(new THREE.Vector3(0, 1.5, 0), 2.4);
+  const looks = [
+    { body: 'man', skin: '#f1c9a8', hair: 'quiff', hairColor: '#6b4a2b', eyes: '#3d6f9e', face: { w: 1.02, jaw: 1.1 } },
+    { body: 'woman', skin: '#c98d64', hair: 'bun', hairColor: '#2a1a12', eyes: '#5a3a20', face: { cheek: 1.15, eye: 1.1 } },
+    { body: 'man', skin: '#8d5a3c', hair: 'buzz', hairColor: '#141010', eyes: '#3a2414', face: { w: 1.05, jaw: 1.15, nose: 1.1, lips: 1.0, beard: 0.55 } },
+    { body: 'woman', skin: '#f6d3bc', hair: 'pony', hairColor: '#c9a063', eyes: '#4e7a52', face: { w: 0.94, chin: 0.85, eye: 1.12 } },
+    { body: 'man', skin: '#e0b08e', hair: 'short', hairColor: '#9a4a26', eyes: '#6b4f2a', face: { w: 0.96, jaw: 0.9, gap: 1.05 } },
+    { body: 'woman', skin: '#6e4630', hair: 'pony', hairColor: '#100c0a', eyes: '#2e1c12', face: { lips: 1.2, nose: 0.85 } },
+  ];
+  looks.forEach((o, i) => {
+    const pl = createPlayer(makeLook({ ...o, id: 'v' + i, side: i % 2 }), { coarse });
+    scene.add(pl.root);
+    pl.root.position.set((i - 2.5) * 0.54, 0, 0);
+    stand(pl, null);
+    pl.setRoomLight(1);
+  });
+  lookFrom(new THREE.Vector3(0, 1.45, 3.9), new THREE.Vector3(0, 1.32, 0));
 }
 let multi = null;
 if (sceneName === 'face') {

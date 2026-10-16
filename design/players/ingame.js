@@ -15,7 +15,9 @@ async function open(browser, viewport, opts = {}) {
     if (!fs.existsSync(file)) return route.fulfill({ status: 404, body: 'nope' });
     route.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(file) });
   });
-  await ctx.addInitScript((o) => { Object.assign(window, o); import('/chars/inject.js'); }, opts.init || {});
+  // COARSE=2.2: the players meshed as the game would (see rig.js)
+  const init = { ...(process.env.COARSE ? { __charsCoarse: Number(process.env.COARSE) } : {}), ...(opts.init || {}) };
+  await ctx.addInitScript((o) => { Object.assign(window, o); import('/chars/inject.js'); }, init);
   const page = await ctx.newPage();
   page.errors = [];
   page.on('pageerror', (e) => page.errors.push(e.message));

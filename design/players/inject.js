@@ -26,7 +26,7 @@ function setup(scene, cueMesh) {
   st.scene = scene;
   st.cueMesh = cueMesh;
   const t0 = performance.now();
-  const mk = (look) => { const p = createPlayer(look); p.setRoomLight(Number(window.__charsLight || 2.2)); scene.add(p.root); const cue = makeCue(); p.root.add(cue); return { p, cue }; };
+  const mk = (look) => { const p = createPlayer(look, { coarse: Number(window.__charsCoarse || 1) }); p.setRoomLight(Number(window.__charsLight || 2.2)); scene.add(p.root); const cue = makeCue(); p.root.add(cue); return { p, cue }; };
   st.shooter = mk(window.__charsShooter === 'woman' ? WOMAN : MAN);
   st.waiter = mk(window.__charsShooter === 'woman' ? MAN : WOMAN);
   st.built = Math.round(performance.now() - t0);
