@@ -78,7 +78,8 @@ make e2e    # browser scenarios against a freshly built server
 
 The browser scenarios live in `e2e/` (plain Node scripts on Playwright, no
 test framework): `landing` (invite mode, name validation, room limit, the
-home page fitting six screen sizes without sideways scroll), `smoke`
+home page and Your player's sheet fitting six screen sizes without sideways
+scroll), `smoke`
 (a full game between a desktop and a phone-sized client), `decision` (illegal
 break dialog), `reconnect` (seat hold, mid-shot rejoin, takeover) and
 `spectate` (watching a room, the chat and its cooldown, the commentator),
@@ -89,7 +90,9 @@ leaving while the match goes on),
 `tables` (picking a table and its cloth, which the room keeps),
 `view3d` (the 3D view under software WebGL: the arena, camera, aiming,
 carrying the cue ball, replay, switching and a lost context, the fall back
-to 2D); the others pin the 2D view (`e2e/flat.js`).
+to 2D, the players), `player` (Your player: made by hand, from a photo read
+on the device, the look sent to a room); the others pin the 2D view
+(`e2e/flat.js`).
 `e2e/run.js` builds the server, starts three instances on free ports (one with
 `-max-rooms 1`, one with a short shot clock) and runs every scenario, or only
 the ones named:

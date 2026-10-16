@@ -6590,6 +6590,415 @@ $('landingSettings').onclick = openSettings;
 $('settingsClose').onclick = closeSettings;
 $('settings').addEventListener('click', (e) => { if (e.target === $('settings')) closeSettings(); });
 $('settings').addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSettings(); });
+// --- Your player ------------------------------------------------------------
+// How one looks in 3D (CLIENT.md, "Your player"). The face before the name
+// on the home page opens a sheet: the player on a stage (players3d.js
+// createStage), made from a photo read on the device (face3d.js) or by
+// hand. Done keeps the look (pool:look) and a picture of its face for the
+// home page (pool:lookFace); the look goes with the name to every room.
+const LOOK_SKINS = ['#f6d3bc', '#efc4a4', '#e0b08e', '#d6a27f', '#c98d64', '#8d5a3c', '#6e4630'];
+const LOOK_HAIRS = ['#17110d', '#2a1a12', '#5a3a22', '#9a4a26', '#c9a063', '#e2c890', '#9a9a9a'];
+const LOOK_EYES = ['#2e1c12', '#5a3a20', '#7a5a30', '#4e7a52', '#3d6f9e'];
+const SKIN_NAMES = [N('Very fair'), N('Fair'), N('Light|skin'), N('Medium|skin'), N('Tan'), N('Dark brown|skin'), N('Deep|skin')];
+const HAIR_NAMES = [N('Black|hair'), N('Dark brown|hair'), N('Brown|hair'), N('Auburn'), N('Blonde'), N('Light blonde'), N('Grey|hair')];
+const EYE_NAMES = [N('Dark brown|eyes'), N('Brown|eyes'), N('Hazel'), N('Green|eyes'), N('Blue|eyes')];
+const HAIRSTYLES = {
+  man: [['short', N('Short, parted')], ['quiff', N('Quiff')], ['buzz', N('Buzz cut')]],
+  woman: [['pony', N('Ponytail')], ['bun', N('Bun')]],
+};
+const MEASURES = [['w', N('Face width')], ['jaw', N('Jaw')], ['chin', N('Chin')], ['cheek', N('Cheeks')], ['eye', N('Eye size')],
+  ['gap', N('Eye spacing')], ['nose', N('Nose')], ['mouth', N('Mouth')], ['lips', N('Lips')]];
+// the hairstyles as small glyphs: the head a ring, the hair filled
+const HAIR_GLYPHS = {
+  short: '<circle cx="16" cy="18" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 17.2C7.6 11.4 11 8 16 8s8.6 3.4 7.8 9.2c-1.6-3-4.2-4.8-7-5-1.6 1.6-4.6 2.8-8.6 5z" fill="currentColor"></path>',
+  quiff: '<circle cx="16" cy="18" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 17.2C7.6 12 10.4 8.8 14.6 8.2c-.6-2 .8-3.6 3.6-4-.6 1.2 0 2.4 1.6 3 3 1.2 4.8 4 4 10-1.8-3.2-4.6-4.8-7.8-4.8-2.6 0-5.6 1.4-7.8 4.8z" fill="currentColor"></path>',
+  buzz: '<circle cx="16" cy="18" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.6 16.2a7.6 7.6 0 0 1 14.8 0" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="1.4 1.6"></path>',
+  pony: '<circle cx="15" cy="18" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M7.2 17C7 11.6 10.4 8 15 8s7.8 3.4 7.8 8.4c-1.8-2.8-4.6-4.4-7.8-4.4s-6 1.6-7.8 5z" fill="currentColor"></path><path d="M22 12.5c3.2.6 4.6 3.6 3.6 8.6-.8-1.8-2-3-3.6-3.6z" fill="currentColor"></path>',
+  bun: '<circle cx="16" cy="19" r="8" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M8.2 18C8 12.6 11.4 9 16 9s8 3.6 7.8 9c-1.8-2.8-4.6-4.4-7.8-4.4S10 15.2 8.2 18z" fill="currentColor"></path><circle cx="16" cy="6" r="3.4" fill="currentColor"></circle>',
+};
+const CAMERA_ICON = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>';
+const ONE_ICON = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg>';
+
+// ME: the sheet while it is open. draft: the look being made; before: the
+// one the photo replaced (Undo); photo: what the photo set ({look, thumb});
+// stage: the 3D stage; body3d: body3d.js once loaded (FACE, FACE_RANGES);
+// reading: the photo being read (a token), else null.
+const ME = { draft: null, before: null, photo: null, stage: null, body3d: null, reading: null, opener: null };
+
+// renderFace puts one's face on the button before the name: the picture
+// Done took of it, else a drawing in its colours.
+function renderFace() {
+  const look = myLook();
+  let url = null;
+  try {
+    const f = JSON.parse(readSetting('pool:lookFace') || 'null');
+    if (f && f.key === JSON.stringify(look)) url = f.url;
+  } catch { /* none */ }
+  $('playerFaceImg').src = url || faceIcon(look);
+}
+function faceIcon(o) {
+  const woman = o && o.body === 'woman';
+  const skin = (o && o.skin) || (woman ? '#efc4a4' : '#d6a27f'), hair = (o && o.hairColor) || '#17110d';
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44"><rect width="44" height="44" fill="#0B1119"/><ellipse cx="22" cy="25" rx="11" ry="13" fill="${skin}"/>`
+    + `<path d="M10.5 23c-1-9 4-14 11.5-14S34.5 14 33.5 23c-2-4.5-6.5-7-11.5-7s-9.5 2.5-11.5 7z" fill="${hair}"/>`
+    + `<circle cx="17.8" cy="25" r="1.6" fill="#1a120d"/><circle cx="26.2" cy="25" r="1.6" fill="#1a120d"/><path d="M19 31q3 2 6 0" stroke="#7a4a3a" stroke-width="1.2" fill="none" stroke-linecap="round"/></svg>`;
+  return 'data:image/svg+xml,' + encodeURIComponent(svg);
+}
+
+async function openPlayer(e) {
+  ME.opener = e && e.currentTarget;
+  ME.draft = JSON.parse(JSON.stringify(myLook() || { body: 'man' }));
+  ME.before = null;
+  ME.photo = null;
+  ME.reading = null;
+  $('player').hidden = false;
+  document.body.classList.add('is-player');
+  playerMode('edit');
+  $('playerBody').scrollTop = 0;
+  $('playerClose').focus({ preventScroll: true });
+  try {
+    ME.body3d = ME.body3d || await import('/body3d.js');
+  } catch (err) {
+    console.error('Your player:', err);
+  }
+  renderPlayer();
+  startStage();
+}
+// startStage puts the player on the stage, when the device can draw 3D
+async function startStage() {
+  $('playerNo3d').hidden = true;
+  if (ME.stage || $('player').hidden) return;
+  try {
+    const m = await import('/players3d.js');
+    if ($('player').hidden || ME.stage) return;
+    // a fresh canvas each time: the last stage's context was lost with it
+    const old = $('playerCanvas'), canvas = old.cloneNode(false);
+    old.replaceWith(canvas);
+    // a phone's stage is small: coarser meshes, sooner up
+    const phone = compactLayout.matches;
+    ME.stage = m.createStage(canvas, { coarse: phone ? 2.2 : 1.6, headCoarse: phone ? 1.4 : 1.1, onChange: (st) => { $('playerBusy').hidden = !st.busy; } });
+    window.__playerStage = ME.stage; // for the browser tests
+    ME.stage.setLook(ME.draft);
+  } catch (err) {
+    if (err && !/WebGL|context/i.test(String(err.message))) console.error('Your player:', err);
+    $('playerNo3d').hidden = false;
+  }
+}
+function closePlayer(save) {
+  if ($('player').hidden) return;
+  ME.reading = null;
+  if (save) {
+    writeSetting('pool:look', JSON.stringify(ME.draft));
+    const url = ME.stage && ME.stage.ready ? ME.stage.snapshot(160) : null;
+    writeSetting('pool:lookFace', url ? JSON.stringify({ key: JSON.stringify(ME.draft), url }) : null);
+    renderFace();
+  }
+  if (ME.stage) { ME.stage.dispose(); ME.stage = null; window.__playerStage = null; }
+  $('player').hidden = true;
+  document.body.classList.remove('is-player');
+  if (ME.opener && ME.opener.offsetParent) ME.opener.focus({ preventScroll: true });
+  ME.opener = null;
+}
+// playerMode shows the sheet's choices ('edit'), a photo being read
+// ('read') or a photo without a face ('noface'), and the buttons for each
+function playerMode(mode) {
+  const sheet = $('player').querySelector('.player__sheet');
+  sheet.dataset.mode = mode;
+  $('playerRead').hidden = mode !== 'read';
+  $('playerNoFace').hidden = mode !== 'noface';
+  const edit = mode === 'edit', photo = edit && !!ME.photo;
+  $('playerDone').hidden = !edit;
+  $('playerDone').textContent = photo ? T`Use this player` : T`Done`;
+  $('playerAnother').hidden = !photo;
+  $('playerCancel').hidden = mode !== 'read';
+  $('playerPick').hidden = $('playerHand').hidden = mode !== 'noface';
+  $('playerUndo').hidden = !photo;
+  $('playerTitle').textContent = mode === 'edit' ? T`Your player` : T`Reading the photo`;
+}
+
+// renderPlayer shows the draft in the choices
+function renderPlayer() {
+  const d = ME.draft, woman = d.body === 'woman', B = ME.body3d;
+  const on = (yes) => (yes ? 'true' : 'false');
+  for (const b of $('playerBodySeg').querySelectorAll('[data-body]')) b.setAttribute('aria-pressed', on(b.dataset.body === (woman ? 'woman' : 'man')));
+  const styles = HAIRSTYLES[woman ? 'woman' : 'man'];
+  const hair = styles.some(([k]) => k === d.hair) ? d.hair : styles[0][0];
+  $('playerHair').replaceChildren(...styles.map(([k, name]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'hair-pick__opt';
+    b.dataset.hair = k;
+    b.setAttribute('aria-pressed', on(k === hair));
+    b.innerHTML = `<svg width="32" height="32" viewBox="0 0 32 32" aria-hidden="true">${HAIR_GLYPHS[k]}</svg><span class="hair-pick__name"></span>`;
+    b.lastChild.textContent = tr(name);
+    return b;
+  }));
+  const P = ME.photo && ME.photo.look;
+  swatchRow($('playerHairColor'), 'hairColor', LOOK_HAIRS, HAIR_NAMES, P && P.hairColor, d.hairColor || LOOK_HAIRS[0]);
+  swatchRow($('playerSkin'), 'skin', LOOK_SKINS, SKIN_NAMES, P && P.skin, d.skin || (woman ? LOOK_SKINS[1] : LOOK_SKINS[3]));
+  swatchRow($('playerEyes'), 'eyes', LOOK_EYES, EYE_NAMES, P && P.eyes, d.eyes || LOOK_EYES[1]);
+  if (B) renderRanges(B);
+  $('playerBeardField').hidden = woman;
+  const beard = (d.face && d.face.beard) || 0;
+  for (const b of $('playerBeard').querySelectorAll('[data-beard]')) b.setAttribute('aria-pressed', on(Number(b.dataset.beard) === beard));
+  // what the photo set
+  $('playerTaken').hidden = !ME.photo;
+  $('playerReset').hidden = !ME.photo;
+  $('playerThumb').hidden = !ME.photo;
+  $('playerFrom').textContent = ME.photo ? T`From a photo` : T`Player`;
+  if (ME.photo) {
+    $('playerThumbImg').src = ME.photo.thumb;
+    const chip = (color, label) => `<span class="taken__chip">${color ? `<span class="taken__dot" style="background:${color}"></span>` : ONE_ICON}${esc(label)}</span>`;
+    $('playerChips').innerHTML = [P.skin && chip(P.skin, T`Skin`), P.hairColor && chip(P.hairColor, T`Hair colour`), P.eyes && chip(P.eyes, T`Eyes`), chip(null, T`Face · 9 measures`)].filter(Boolean).join('');
+  }
+}
+// swatchRow: the colours of a row, the photo's first when there is one
+function swatchRow(el, key, colors, names, photo, picked) {
+  const list = photo ? [[photo, N('From the photo'), true], ...colors.map((c, i) => [c, names[i], false])] : colors.map((c, i) => [c, names[i], false]);
+  el.replaceChildren(...list.map(([c, name, fromPhoto]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'cloth-pick__swatch';
+    b.style.setProperty('--swatch', c);
+    b.dataset.key = key;
+    b.dataset.color = c;
+    b.setAttribute('aria-label', tr(name));
+    b.title = tr(name);
+    b.setAttribute('aria-pressed', c.toLowerCase() === String(picked).toLowerCase() ? 'true' : 'false');
+    if (fromPhoto) b.innerHTML = `<span class="cloth-pick__badge">${CAMERA_ICON}</span>`;
+    return b;
+  }));
+}
+// renderRanges: a slider a measure of the face, within its range; the
+// brass tick is what the photo read
+function renderRanges(B) {
+  const d = ME.draft, usual = B.FACE[d.body === 'woman' ? 'woman' : 'man'], P = ME.photo && ME.photo.look.face;
+  const box = $('playerRanges');
+  if (!box.children.length) {
+    for (const [k, name] of MEASURES) {
+      const row = document.createElement('label');
+      row.className = 'range';
+      row.innerHTML = '<span class="range__label"></span><span class="range__ctl"><span class="range__tick" aria-hidden="true"></span><input class="range__input" type="range" min="0" max="100" step="1"></span>';
+      row.firstChild.textContent = tr(name);
+      row.querySelector('input').dataset.measure = k;
+      box.append(row);
+    }
+  }
+  for (const input of box.querySelectorAll('input')) {
+    const k = input.dataset.measure, [lo, hi] = B.FACE_RANGES[k];
+    const pos = (v) => Math.round((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * 100);
+    input.value = String(pos((d.face && d.face[k]) ?? usual[k]));
+    const tick = input.previousElementSibling;
+    tick.hidden = !(P && P[k] !== undefined);
+    if (!tick.hidden) tick.style.left = `calc(11px + (100% - 22px) * ${pos(P[k]) / 100})`;
+  }
+}
+// a change to the draft: shown on the stage at once (colours), or meshed
+// again a moment after a slider stops (the shape)
+let lookTimer = 0;
+function setDraft(patch, later) {
+  Object.assign(ME.draft, patch);
+  clearTimeout(lookTimer);
+  if (!ME.stage) return;
+  if (later) lookTimer = setTimeout(() => ME.stage && ME.stage.setLook(ME.draft), 280);
+  else ME.stage.setLook(ME.draft);
+}
+$('playerFace').onclick = openPlayer;
+$('playerClose').onclick = () => closePlayer(false);
+$('playerDone').onclick = () => closePlayer(true);
+$('player').addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (ME.reading) cancelReading(); else closePlayer(false);
+});
+$('playerView').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-view]');
+  if (!b) return;
+  for (const x of $('playerView').querySelectorAll('[data-view]')) x.setAttribute('aria-pressed', x === b ? 'true' : 'false');
+  if (ME.stage) ME.stage.setView(b.dataset.view);
+});
+$('playerBodySeg').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-body]');
+  if (!b || b.dataset.body === ME.draft.body) return;
+  const body = b.dataset.body, styles = HAIRSTYLES[body];
+  const patch = { body };
+  if (!styles.some(([k]) => k === ME.draft.hair)) patch.hair = styles[0][0];
+  if (body === 'woman' && ME.draft.face) delete ME.draft.face.beard;
+  setDraft(patch);
+  renderPlayer();
+});
+$('playerHair').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-hair]');
+  if (!b) return;
+  setDraft({ hair: b.dataset.hair });
+  renderPlayer();
+});
+for (const id of ['playerHairColor', 'playerSkin', 'playerEyes']) {
+  $(id).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-color]');
+    if (!b) return;
+    setDraft({ [b.dataset.key]: b.dataset.color });
+    renderPlayer();
+  });
+}
+$('playerRanges').addEventListener('input', (e) => {
+  const input = e.target.closest('input[data-measure]');
+  if (!input || !ME.body3d) return;
+  const k = input.dataset.measure, [lo, hi] = ME.body3d.FACE_RANGES[k];
+  const v = Math.round((lo + (hi - lo) * Number(input.value) / 100) * 100) / 100;
+  setDraft({ face: { ...(ME.draft.face || {}), [k]: v } }, true);
+});
+$('playerBeard').addEventListener('click', (e) => {
+  const b = e.target.closest('[data-beard]');
+  if (!b) return;
+  setDraft({ face: { ...(ME.draft.face || {}), beard: Number(b.dataset.beard) } });
+  renderPlayer();
+});
+$('playerReset').onclick = () => {
+  if (!ME.photo) return;
+  setDraft({ face: { ...(ME.draft.face || {}), ...ME.photo.look.face } });
+  renderPlayer();
+};
+$('playerUndo').onclick = () => {
+  if (!ME.before) return;
+  ME.draft = ME.before;
+  ME.before = null;
+  ME.photo = null;
+  if (ME.stage) ME.stage.setLook(ME.draft);
+  playerMode('edit');
+  renderPlayer();
+};
+
+// --- a player from a photo --------------------------------------------------
+// The photo is drawn on a canvas (at most 1024 px along) and read there by
+// face3d.js; the points it found appear over it, then the look takes the
+// skin's, the hair's and the eyes' colours and the face's measures. Nothing
+// of the photo is kept but a small picture of the face for the stage while
+// the sheet is open.
+const pickPhoto = () => { $('playerFile').value = ''; $('playerFile').click(); };
+$('playerPhoto').onclick = pickPhoto;
+$('playerAnother').onclick = pickPhoto;
+$('playerPick').onclick = pickPhoto;
+$('playerHand').onclick = () => { playerMode('edit'); renderPlayer(); };
+$('playerCancel').onclick = () => cancelReading();
+$('playerFile').addEventListener('change', (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (file) readPhoto(file);
+});
+function cancelReading() {
+  ME.reading = null;
+  playerMode('edit');
+  renderPlayer();
+}
+function readingProgress(p) {
+  $('playerProgress').style.width = p + '%';
+  $('playerRead').querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(Math.round(p)));
+}
+async function readPhoto(file) {
+  const token = ME.reading = {};
+  playerMode('read');
+  $('playerStatus').textContent = T`Finding the points of the face…`;
+  $('playerFirst').hidden = !!readSetting('pool:faceReader');
+  readingProgress(4);
+  let work;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const k = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+    work = document.createElement('canvas');
+    work.width = Math.max(1, Math.round(bitmap.width * k));
+    work.height = Math.max(1, Math.round(bitmap.height * k));
+    work.getContext('2d', { willReadFrequently: true }).drawImage(bitmap, 0, 0, work.width, work.height);
+    if (bitmap.close) bitmap.close();
+  } catch {
+    if (ME.reading === token) showNoFace(null);
+    return;
+  }
+  drawPhoto($('playerPhotoCanvas'), work, null, 0);
+  readingProgress(12);
+  try {
+    const [face3d, B] = await Promise.all([import('/face3d.js'), ME.body3d || import('/body3d.js')]);
+    ME.body3d = B;
+    if (ME.reading !== token) return;
+    readingProgress(40);
+    const res = await face3d.readFace(work, B.FACE[ME.draft.body === 'woman' ? 'woman' : 'man']);
+    if (ME.reading !== token) return;
+    writeSetting('pool:faceReader', '1');
+    if (!res) { showNoFace(work); return; }
+    readingProgress(70);
+    await revealPoints($('playerPhotoCanvas'), work, res.points, token);
+    if (ME.reading !== token) return;
+    readingProgress(100);
+    ME.before = ME.before || JSON.parse(JSON.stringify(ME.draft));
+    ME.photo = { look: res.look, thumb: faceThumb(work, res.box) };
+    const L = res.look;
+    ME.draft = { ...ME.draft, ...(L.skin && { skin: L.skin }), ...(L.hairColor && { hairColor: L.hairColor }), ...(L.eyes && { eyes: L.eyes }), face: { ...(ME.draft.face || {}), ...L.face } };
+    ME.reading = null;
+    playerMode('edit');
+    renderPlayer();
+    if (ME.stage) ME.stage.setLook(ME.draft);
+    $('playerBody').scrollTop = 0;
+  } catch (err) {
+    if (ME.reading !== token) return;
+    console.error('face reader:', err);
+    ME.reading = null;
+    playerMode('edit');
+    renderPlayer();
+    toast(T`Photos cannot be read here. Make the player by hand.`, 'foul');
+  }
+}
+function showNoFace(work) {
+  ME.reading = null;
+  const c = $('playerNoFaceCanvas');
+  if (work) drawPhoto(c, work, null, 0); else { c.width = c.height = 1; }
+  playerMode('noface');
+}
+// drawPhoto: the photo on c, fitted, and the first n of the points over it
+function drawPhoto(c, work, points, n) {
+  const box = c.parentElement.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
+  c.width = Math.max(1, Math.round(box.width * dpr));
+  c.height = Math.max(1, Math.round(box.height * dpr));
+  const g = c.getContext('2d');
+  const k = Math.max(c.width / work.width, c.height / work.height); // cover
+  const ox = (c.width - work.width * k) / 2, oy = (c.height - work.height * k) / 2;
+  g.drawImage(work, ox, oy, work.width * k, work.height * k);
+  if (!points) return;
+  g.fillStyle = 'rgba(11, 17, 25, .25)';
+  g.fillRect(0, 0, c.width, c.height);
+  g.fillStyle = '#F3C978';
+  const r = Math.max(1.2, 1.4 * dpr);
+  for (let i = 0; i < n && i < points.length; i++) {
+    g.beginPath();
+    g.arc(ox + points[i].x * k, oy + points[i].y * k, r, 0, Math.PI * 2);
+    g.fill();
+  }
+}
+// revealPoints draws the points found over the photo, top to bottom, in
+// about 0.7 s (at once with reduced motion)
+function revealPoints(c, work, points, token) {
+  const order = points.map((p, i) => [p.y, i]).sort((a, b) => a[0] - b[0]).map(([, i]) => points[i]);
+  if (reduceMotion.matches) { drawPhoto(c, work, order, order.length); return Promise.resolve(); }
+  return new Promise((resolve) => {
+    const t0 = performance.now();
+    const step = (now) => {
+      if (ME.reading !== token) { resolve(); return; }
+      const p = Math.min(1, (now - t0) / 700);
+      drawPhoto(c, work, order, Math.round(order.length * p));
+      readingProgress(70 + 30 * p);
+      if (p < 1) requestAnimationFrame(step); else setTimeout(resolve, 250);
+    };
+    requestAnimationFrame(step);
+  });
+}
+// faceThumb: the face, cut from the photo with some room round it, small
+function faceThumb(work, b) {
+  const w = b.x1 - b.x0, h = b.y1 - b.y0, cx = (b.x0 + b.x1) / 2, cy = (b.y0 + b.y1) / 2 - h * 0.08;
+  const sh = h * 1.7, sw = sh * 0.76;
+  const c = document.createElement('canvas');
+  c.width = 116; c.height = 152;
+  c.getContext('2d').drawImage(work, cx - sw / 2, cy - sh / 2, sw, sh, 0, 0, c.width, c.height);
+  return c.toDataURL('image/jpeg', 0.82);
+}
+renderFace();
+
 // setLang shows the page in lang at once: its own words, then everything
 // the code wrote, drawn again (CLIENT.md, "Languages"). The status band
 // keeps what it said until the next event.

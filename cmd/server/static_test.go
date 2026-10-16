@@ -14,6 +14,8 @@ func TestGzipStatic(t *testing.T) {
 		"app.js":     {Data: []byte("console.log('hello, hello, hello, hello')")},
 		"index.html": {Data: []byte("<!doctype html><title>pool</title>")},
 		"a.wav":      {Data: []byte("RIFF....WAVE")},
+		"m.mjs":      {Data: []byte("export const hello = 'hello, hello, hello'")},
+		"m.wasm":     {Data: []byte("\x00asm\x01\x00\x00\x00")},
 	}
 	h := gzipStatic(fsys, http.FileServerFS(fsys))
 	get := func(path, enc string) *http.Response {
@@ -46,6 +48,8 @@ func TestGzipStatic(t *testing.T) {
 		{"/app.js", "", "console.log('hello, hello, hello, hello')", false},
 		{"/", "gzip", "<!doctype html><title>pool</title>", true},
 		{"/a.wav", "gzip", "RIFF....WAVE", false},
+		{"/m.mjs", "gzip", "export const hello = 'hello, hello, hello'", true},
+		{"/m.wasm", "gzip", "\x00asm\x01\x00\x00\x00", true},
 	} {
 		res := get(tc.path, tc.enc)
 		if got := res.Header.Get("Content-Encoding") == "gzip"; got != tc.gzipped {
@@ -57,6 +61,10 @@ func TestGzipStatic(t *testing.T) {
 		if tc.gzipped && res.Header.Get("Content-Type") == "" {
 			t.Errorf("%s: no content type", tc.path)
 		}
+	}
+	// wasm keeps its type, or the browser can't compile it as it arrives
+	if got := get("/m.wasm", "gzip").Header.Get("Content-Type"); got != "application/wasm" {
+		t.Errorf("wasm: content type %q", got)
 	}
 	if res := get("/missing.js", "gzip"); res.StatusCode != http.StatusNotFound {
 		t.Errorf("missing file: %d", res.StatusCode)

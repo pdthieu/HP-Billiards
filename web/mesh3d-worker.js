@@ -4,9 +4,9 @@
 import { meshLook, transfers } from '/body3d.js';
 
 self.onmessage = (e) => {
-  const { id, look, coarse } = e.data;
+  const { id, look, coarse, headCoarse } = e.data;
   try {
-    const data = meshLook(look, coarse);
+    const data = meshLook(look, coarse, headCoarse);
     self.postMessage({ id, data }, transfers(data));
   } catch (err) {
     self.postMessage({ id, error: String((err && err.stack) || err) });

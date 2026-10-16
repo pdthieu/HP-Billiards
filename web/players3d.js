@@ -248,16 +248,16 @@ function eyeTexture(iris) {
 const cache = new Map(); // lookKey → Promise of the arrays
 let worker = null, workerFailed = false, nextJob = 1;
 const jobs = new Map();
-function meshes(look, coarse) {
-  const key = lookKey(look, coarse);
+function meshes(look, coarse, headCoarse = coarse) {
+  const key = lookKey(look, coarse, headCoarse);
   let p = cache.get(key);
   if (p) { cache.delete(key); cache.set(key, p); return p; } // most recent last
-  p = inWorker(look, coarse).catch(() => meshLook(look, coarse));
+  p = inWorker(look, coarse, headCoarse).catch(() => meshLook(look, coarse, headCoarse));
   cache.set(key, p);
   while (cache.size > 6) cache.delete(cache.keys().next().value);
   return p;
 }
-function inWorker(look, coarse) {
+function inWorker(look, coarse, headCoarse) {
   if (workerFailed || typeof Worker === 'undefined') return Promise.reject(new Error('no worker'));
   if (!worker) {
     try {
@@ -284,7 +284,7 @@ function inWorker(look, coarse) {
   return new Promise((resolve, reject) => {
     const id = nextJob++;
     jobs.set(id, { resolve, reject });
-    worker.postMessage({ id, look, coarse });
+    worker.postMessage({ id, look, coarse, headCoarse });
   });
 }
 
@@ -620,6 +620,184 @@ export function createPlayers(k) {
 // the looks of players who sent none: a man for the first side, a woman for
 // the second, as on the design canvas
 const DEFAULT = [{ body: 'man' }, { body: 'woman' }];
+
+// --- Your player's stage ------------------------------------------------------
+// createStage draws one player in canvas for Your player (app.js), on a
+// clear background over the page's hall: standing with nothing in the
+// hands, turned by a drag, the face close or the player whole. setLook
+// recolours at once and meshes again only when the shape changed (the
+// newest look wins). A frame is drawn only when something changed: the
+// player stands still, so an open sheet costs a phone nothing. o: coarse
+// (the meshes' step), headCoarse (the head's and the hair's, finer: the
+// face is seen close), onChange (called when a mesh starts or a look is
+// up: stage.busy).
+export function createStage(canvas, o = {}) {
+  const coarse = o.coarse || 1.6, headCoarse = Math.min(coarse, o.headCoarse || 1.1);
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+  renderer.setClearColor(0x000000, 0);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
+  const scene = new THREE.Scene();
+  { // reflections: a dark hall, a bright panel overhead, warm and cool boards
+    const pm = new THREE.PMREMGenerator(renderer), room = new THREE.Scene(), parts = [];
+    const add = (geo, color, k, x, y, z, rx = 0, ry = 0) => {
+      const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide }));
+      m.material.color.multiplyScalar(k); m.position.set(x, y, z); m.rotation.set(rx, ry, 0); room.add(m); parts.push(m);
+    };
+    add(new THREE.BoxGeometry(16, 8, 16), '#1d2128', 1, 0, 2, 0);
+    add(new THREE.PlaneGeometry(2.4, 0.6), '#ffffff', 6, 0, 3, 0, Math.PI / 2);
+    add(new THREE.PlaneGeometry(6, 0.7), '#8a6d3a', 1.6, 0, 0.5, -3.2);
+    add(new THREE.PlaneGeometry(4, 2), '#6f86b0', 0.8, -4, 2, 0, 0, Math.PI / 2);
+    scene.environment = pm.fromScene(room, 0.03).texture;
+    scene.environmentIntensity = 0.6;
+    for (const m of parts) { m.geometry.dispose(); m.material.dispose(); }
+    pm.dispose();
+  }
+  scene.add(new THREE.HemisphereLight('#c9d6ee', '#20180f', 0.45));
+  const key = new THREE.DirectionalLight('#ffe6cc', 2.6);
+  key.position.set(-2.2, 5.2, 3.4);
+  key.target.position.set(0, 1, 0);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  Object.assign(key.shadow.camera, { left: -1, right: 1, top: 2.1, bottom: -0.1, near: 2, far: 10 });
+  key.shadow.bias = -0.0006; key.shadow.normalBias = 0.035;
+  scene.add(key, key.target);
+  for (const [c, k, x, y, z] of [['#a9c4ff', 2.2, 3, 4, -3.5], ['#ffcf9a', 1.2, -3.5, 3.5, -2.5], ['#dfe8ff', 0.45, 3, 2.2, 3]]) {
+    const l = new THREE.DirectionalLight(c, k);
+    l.position.set(x, y, z);
+    l.target.position.set(0, 1, 0);
+    scene.add(l, l.target);
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.ShadowMaterial({ opacity: 0.35 }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.02, 30);
+  const cam = { pos: new THREE.Vector3(0, 1.6, 1), at: new THREE.Vector3(0, 1.6, 0), fresh: true };
+
+  let player = null, shapeKey = '', want = null, building = false, disposed = false;
+  let yaw = 0.35, view = 'face', raf = 0, lastW = 0, lastH = 0, dirty = true;
+  const stage = { busy: false };
+  async function setLook(opts) {
+    const look = makeLook({ ...(opts || {}), side: 0 });
+    // (while a mesh is on its way, the look waits for it: it may be another
+    // shape's)
+    if (player && !building && lookKey(look, coarse, headCoarse) === shapeKey) { colorPlayer(player, look); dirty = true; return; }
+    want = look;
+    if (building) return;
+    building = true;
+    stage.busy = true;
+    if (o.onChange) o.onChange(stage);
+    try {
+      while (want && !disposed) {
+        const l = want;
+        want = null;
+        const data = await meshes(l, coarse, headCoarse);
+        if (disposed) return;
+        const next = assemble(data, l, true);
+        idle(next);
+        next.setRoomLight(1);
+        if (player) { scene.remove(player.root); player.dispose(); }
+        player = next;
+        scene.add(player.root);
+        shapeKey = lookKey(l, coarse, headCoarse);
+        if (want && lookKey(want, coarse, headCoarse) === shapeKey) { colorPlayer(player, want); want = null; }
+        dirty = true;
+      }
+    } finally {
+      building = false;
+      stage.busy = false;
+      if (!disposed && o.onChange) o.onChange(stage);
+    }
+  }
+  // the camera: the head close, or the player whole; eased. True while it
+  // is still on its way.
+  const hd = new THREE.Vector3(), toPos = new THREE.Vector3(), toAt = new THREE.Vector3();
+  function aim() {
+    if (!player) return false;
+    player.root.rotation.y = yaw;
+    player.root.updateMatrixWorld(true);
+    player.bones.head.getWorldPosition(hd);
+    const tall = canvas.clientHeight > canvas.clientWidth;
+    const t = view === 'whole'
+      ? { d: tall ? 5.0 : 4.4, eye: player.look.height * 0.56, at: player.look.height * 0.5 }
+      : { d: tall ? 1.15 : 0.95, eye: hd.y + 0.06, at: hd.y + 0.05 };
+    const f = cam.fresh ? 1 : 0.18;
+    cam.pos.lerp(toPos.set(0, t.eye, t.d), f);
+    cam.at.lerp(toAt.set(0, t.at, 0), f);
+    cam.fresh = false;
+    camera.position.copy(cam.pos);
+    camera.lookAt(cam.at);
+    return cam.pos.distanceToSquared(toPos) + cam.at.distanceToSquared(toAt) > 1e-7; // a third of a millimetre
+  }
+  function resize() {
+    const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
+    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+    renderer.setSize(w, h, false);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  function frame() {
+    raf = requestAnimationFrame(frame);
+    if (canvas.clientWidth !== lastW || canvas.clientHeight !== lastH) { lastW = canvas.clientWidth; lastH = canvas.clientHeight; resize(); dirty = true; }
+    if (!dirty) return;
+    dirty = aim();
+    renderer.render(scene, camera);
+  }
+  raf = requestAnimationFrame(frame);
+  // a drag turns the player
+  let drag = null;
+  const down = (e) => { drag = { x: e.clientX, yaw }; canvas.setPointerCapture(e.pointerId); };
+  const move = (e) => { if (drag) { yaw = drag.yaw + (e.clientX - drag.x) * 0.012; dirty = true; } };
+  const up = () => { drag = null; };
+  canvas.addEventListener('pointerdown', down);
+  canvas.addEventListener('pointermove', move);
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  // snapshot: the head, size px square, as a PNG data URL (the home page's
+  // face beside the name); the next frame sizes the canvas again
+  function snapshot(size = 160) {
+    if (!player) return null;
+    player.root.rotation.y = 0.3;
+    player.root.updateMatrixWorld(true);
+    player.bones.head.getWorldPosition(hd);
+    const shot = new THREE.PerspectiveCamera(30, 1, 0.02, 30);
+    shot.position.set(0, hd.y + 0.1, 0.86);
+    shot.lookAt(0, hd.y + 0.085, 0);
+    renderer.setPixelRatio(1);
+    renderer.setSize(size, size, false);
+    floor.visible = false;
+    renderer.render(scene, shot);
+    const url = canvas.toDataURL('image/png');
+    floor.visible = true;
+    lastW = lastH = 0;
+    return url;
+  }
+  function dispose() {
+    disposed = true;
+    cancelAnimationFrame(raf);
+    canvas.removeEventListener('pointerdown', down);
+    canvas.removeEventListener('pointermove', move);
+    canvas.removeEventListener('pointerup', up);
+    canvas.removeEventListener('pointercancel', up);
+    if (player) { scene.remove(player.root); player.dispose(); player = null; }
+    floor.geometry.dispose(); floor.material.dispose();
+    if (scene.environment) scene.environment.dispose();
+    renderer.dispose();
+    renderer.forceContextLoss();
+  }
+  Object.assign(stage, {
+    setLook, snapshot, dispose,
+    setView(v) { view = v === 'whole' ? 'whole' : 'face'; dirty = true; },
+  });
+  // (getters: Object.assign would copy their values once); for the browser
+  // tests, frames (how many were drawn) and look (the one shown)
+  Object.defineProperty(stage, 'ready', { get: () => !!player && !building });
+  Object.defineProperty(stage, 'frames', { get: () => renderer.info.render.frame });
+  Object.defineProperty(stage, 'look', { get: () => player && player.look });
+  return stage;
+}
 
 // --- posing -------------------------------------------------------------
 // All in the player's own space (its root's). A bone's turn there is the

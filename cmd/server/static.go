@@ -12,15 +12,17 @@ import (
 	"sync"
 )
 
-// compressible lists the text files worth gzipping; the sounds, icons and
-// fonts are compressed already.
+// compressible lists the files worth gzipping: text, and the face reader's
+// wasm; the sounds, icons, fonts and its model are compressed already.
 var compressible = map[string]bool{
-	".js": true, ".css": true, ".html": true, ".svg": true, ".webmanifest": true, ".json": true,
+	".js": true, ".mjs": true, ".css": true, ".html": true, ".svg": true, ".webmanifest": true, ".json": true,
+	".wasm": true,
 }
 
 // gzipStatic serves text files from fsys gzipped to browsers that accept
 // it, compressing each file once. Everything else, and range requests, go to
-// next. The 3D library shrinks from about 740 KB to 190 KB.
+// next. The 3D library shrinks from about 740 KB to 190 KB, the face
+// reader's wasm (vendor/mediapipe-1.0.1) from 11.8 MB to 3.4 MB.
 func gzipStatic(fsys fs.FS, next http.Handler) http.Handler {
 	var cache sync.Map // name → []byte
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

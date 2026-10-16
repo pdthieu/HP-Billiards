@@ -218,6 +218,7 @@
         <div class="field home__name" id="nameField">
           <label class="field__label" for="name">Your name</label>
           <div class="input-group">
+            <button class="face-btn" type="button" id="playerFace" aria-label="Your player" title="Your player" aria-haspopup="dialog"><img id="playerFaceImg" alt="" width="44" height="44"></button>
             <input class="input" id="name" maxlength="20" autocomplete="nickname" autocapitalize="words" enterkeyhint="done" placeholder="Enter your name">
             <button class="icon-btn" type="button" id="shuffleName" aria-label="Suggest another name" title="Suggest another name"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5"></path><path d="M4 20 21 3"></path><path d="M21 16v5h-5"></path><path d="M15 15l6 6"></path><path d="M4 4l5 5"></path></svg></button>
           </div>
@@ -475,6 +476,95 @@
     <button id="chatSend" class="btn btn--primary btn--small chat__send" type="submit">Send</button>
   </form>
 </section>
+<!-- Your player (CLIENT.md, "Your player"): how one looks in 3D, made from a
+     photo read on the device or by hand; opened by the face before the name -->
+<div id="player" class="player" hidden>
+  <section class="player__sheet" role="dialog" aria-modal="true" aria-labelledby="playerTitle" data-mode="edit">
+    <header class="player__bar">
+      <button id="playerClose" class="icon-btn" type="button" aria-label="Close" title="Close"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg></button>
+      <h2 id="playerTitle" class="player__title">Your player</h2>
+      <button id="playerUndo" class="btn btn--quiet player__undo" type="button" hidden>Undo</button>
+    </header>
+    <div id="playerBody" class="player__body">
+      <div id="playerStage" class="player__stage hall on-hall">
+        <span class="hall__lamp" aria-hidden="true"></span>
+        <canvas id="playerCanvas" class="player__canvas" role="img" aria-label="Your player"></canvas>
+        <div class="player__top">
+          <span id="playerFrom" class="eyebrow">Player</span>
+          <div id="playerView" class="seg player__view" role="group" aria-label="View">
+            <button class="seg__btn" type="button" data-view="face" aria-pressed="true">Face</button>
+            <button class="seg__btn" type="button" data-view="whole" aria-pressed="false">Whole</button>
+          </div>
+        </div>
+        <span class="player__hint"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"></path><path d="M21 3v6h-6"></path></svg><span>Drag to turn</span></span>
+        <span id="playerBusy" class="player__busy" hidden>Making the player…</span>
+        <span id="playerThumb" class="player__thumb" hidden><img id="playerThumbImg" alt="The photo used"></span>
+        <p id="playerNo3d" class="player__no3d" hidden>The player cannot be shown in 3D here; the choices still count.</p>
+      </div>
+      <div class="player__controls">
+        <button id="playerPhoto" class="option option--primary player__make" type="button">
+          <span class="player__makeicon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></span>
+          <span class="option__text"><span class="option__title">Make from a photo</span><span class="option__sub">Take or pick a portrait. The photo is only read on this device.</span></span>
+          <span class="option__chev"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></span>
+        </button>
+        <input id="playerFile" type="file" accept="image/*" hidden>
+        <div id="playerTaken" class="taken" hidden>
+          <p class="taken__head"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg><span>Taken from the photo</span></p>
+          <div id="playerChips" class="taken__chips"></div>
+          <p class="caption">The body and hairstyle are yours to choose.</p>
+        </div>
+        <p id="playerByHand" class="eyebrow">Or adjust by hand</p>
+        <div class="field"><span class="field__label" id="playerBodyL">Body</span>
+          <div id="playerBodySeg" class="seg seg--block" role="group" aria-labelledby="playerBodyL">
+            <button class="seg__btn" type="button" data-body="man" aria-pressed="true">Man</button>
+            <button class="seg__btn" type="button" data-body="woman" aria-pressed="false">Woman</button>
+          </div>
+        </div>
+        <div class="field"><span class="field__label" id="playerHairL">Hairstyle</span><div id="playerHair" class="hair-pick" role="group" aria-labelledby="playerHairL"></div></div>
+        <div class="field"><span class="field__label" id="playerHairColorL">Hair colour</span><div id="playerHairColor" class="cloth-pick" role="group" aria-labelledby="playerHairColorL"></div></div>
+        <div class="field"><span class="field__label" id="playerSkinL">Skin</span><div id="playerSkin" class="cloth-pick" role="group" aria-labelledby="playerSkinL"></div></div>
+        <div class="field"><span class="field__label" id="playerEyesL">Eyes</span><div id="playerEyes" class="cloth-pick" role="group" aria-labelledby="playerEyesL"></div></div>
+        <div class="field">
+          <div class="player__facehead"><span class="field__label" id="playerFaceL">Face shape</span><button id="playerReset" class="btn btn--quiet btn--small" type="button" hidden><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 3v6h6"></path></svg><span>Back to the photo’s</span></button></div>
+          <div id="playerRanges" class="ranges" role="group" aria-labelledby="playerFaceL"></div>
+        </div>
+        <div id="playerBeardField" class="field"><span class="field__label" id="playerBeardL">Beard</span>
+          <div id="playerBeard" class="seg seg--block" role="group" aria-labelledby="playerBeardL">
+            <button class="seg__btn" type="button" data-beard="0" aria-pressed="true">None</button>
+            <button class="seg__btn" type="button" data-beard="0.5" aria-pressed="false">Stubble</button>
+            <button class="seg__btn" type="button" data-beard="1" aria-pressed="false">Short</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="playerRead" class="player__read" hidden>
+      <div class="player__photo"><canvas id="playerPhotoCanvas" role="img" aria-label="Your photo, being read"></canvas></div>
+      <div class="player__reading">
+        <p id="playerStatus" class="player__status" role="status">Finding the points of the face…</p>
+        <div class="progress" role="progressbar" aria-label="Reading the photo" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div id="playerProgress" class="progress__bar"></div></div>
+      </div>
+      <p id="playerFirst" class="note" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg><span>The first time, the face reader downloads, about 15 MB. After that it opens at once, offline.</span></p>
+      <p class="player__private"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span>The photo is only read on this device and never sent to the server.</span></p>
+    </div>
+    <div id="playerNoFace" class="player__read" hidden>
+      <div class="player__photo player__photo--none"><canvas id="playerNoFaceCanvas" aria-hidden="true"></canvas><span class="player__ask"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg></span></div>
+      <div class="player__reading"><h3 class="player__h">No face found</h3><p class="player__sub">Try another photo:</p></div>
+      <ul class="tips">
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="M4.9 4.9l1.4 1.4"></path><path d="M17.7 17.7l1.4 1.4"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="M4.9 19.1l1.4-1.4"></path><path d="M17.7 6.3l1.4-1.4"></path></svg><span>Face the camera, in good light.</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 4-6 8-6s8 2 8 6"></path></svg><span>Just one person in the photo.</span></li>
+        <li><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Nothing over the face: sunglasses, a mask, a long fringe.</span></li>
+      </ul>
+      <p class="player__private"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><span>The photo is only read on this device and never sent to the server.</span></p>
+    </div>
+    <footer class="player__dock">
+      <button id="playerDone" class="btn btn--primary btn--lg" type="button">Done</button>
+      <button id="playerAnother" class="btn btn--secondary btn--lg" type="button" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg><span>New photo</span></button>
+      <button id="playerCancel" class="btn btn--secondary btn--lg" type="button" hidden>Cancel</button>
+      <button id="playerPick" class="btn btn--primary btn--lg" type="button" hidden><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg><span>Pick another photo</span></button>
+      <button id="playerHand" class="btn btn--secondary btn--lg" type="button" hidden>Adjust by hand</button>
+    </footer>
+  </section>
+</div>
 <div id="toasts" class="toasts" aria-live="polite"></div>
 
 <script src="/i18n.js"></script>

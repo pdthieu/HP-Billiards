@@ -901,7 +901,7 @@ the battery.
     only the bridge arm, its hand and cuff show, the sleeve fading out above
     the elbow.
   - *Looks*: each seat's comes with the room's state (PROTOCOL.md, Looks);
-    one's own is `pool:look`, sent on `join`. A seat
+    one's own is `pool:look` (Your player, below), sent on `join`. A seat
     without one gets its side's default, a man for the first, a woman for
     the second.
   - *Built in code* (`body3d.js`): signed distance functions (`sdf3d.js`)
@@ -986,6 +986,62 @@ the object ball that moves most in the next 0.4 s. A press or a key ends it
 (that press does nothing else), as does a new shot. The record is dropped when
 the object balls change other than by a shot (a new rack, an undo, a ball
 moved in practice).
+
+### Your player
+
+The face before the name on the landing (`#playerFace`) opens a sheet for
+how one looks in 3D: a dialog on a desktop, the whole screen on a phone
+held upright, two columns on one on its side. The face is a picture of the
+player's head taken by the last *Done* (`pool:lookFace`, kept with the look
+it shows), else a drawing in the look's colours.
+
+- **Stage** (`players3d.js`, `createStage`): the player standing alone on a
+  clear canvas over the hall, close on the face or whole (*Face*, *Whole*),
+  turned by a drag. A colour shows at once; a change of shape (the body,
+  the hairstyle, a measure 280 ms after its slider stops) is meshed again
+  in the worker, the newest look winning. The meshes are finer than at the
+  table, as the face is seen close: a step of 1.6, the head and the hair
+  1.1 (2.2 and 1.4 on a phone). The player stands still, so a frame is
+  drawn only when something changed. Each opening gets a new canvas and
+  context, given back on closing. Without WebGL the sheet works without
+  the player, with a note.
+- **By hand**: the body (*Man*, *Woman*) and its hairstyles (three for
+  him, two for her), the hair, skin and eye colours from short palettes,
+  nine measures of the face on sliders (within `FACE_RANGES`, `body3d.js`)
+  and, for him, a beard (*None*, *Stubble*, *Short*).
+- **From a photo** (`face3d.js`): *Make from a photo* takes or picks one (a
+  phone's picker offers the camera). It is drawn on a canvas at most
+  1024 px along and read there; nothing of it is sent, and only a small
+  picture of the face stays while the sheet is open.
+  - The reader is MediaPipe's Face Landmarker, `vendor/mediapipe-1.0.1`
+    (Apache 2.0, its licence and sources beside it): the Tasks Vision
+    bundle, its wasm on the CPU and the `face_landmarker.task` model, about
+    15 MB the first time (a note says so), cached for a year after; the
+    server gzips the wasm to 3.4 MB. It finds 478 points on the biggest
+    face, which appear over the photo.
+  - The measures are ratios of the points' distances (to the distance
+    between the irises or to the face's width), against an average face's,
+    a little stronger on the stylised player and kept within the ranges.
+  - The colours come from the pixels: the skin round the cheeks and the
+    forehead, lifted a little (a photo's light leaves it darker); the eyes
+    round the irises, brightened; the hair just above the hairline, the first
+    patch walking up from the forehead that is not skin (darker than the
+    forehead, or of another tint). No hair found, the player keeps theirs.
+  - Then the sheet shows what the photo set (chips, the photo's colour
+    first in each row with a camera on it, a brass tick on each slider;
+    *Back to the photo's* resets the measures). *Undo* goes back to the
+    player before the photo, *New photo* reads another. The body, the
+    hairstyle and the beard stay one's own choice.
+  - No face, or a file that is no picture: *No face found* with tips,
+    *Pick another photo* or *Adjust by hand*. A reader that cannot load
+    here: a notice, and the player made by hand. *Cancel* (or Escape)
+    stops a reading.
+- **Kept**: *Done* (*Use this player* after a photo) stores the look
+  (`pool:look`) and the face's picture; × or Escape keep nothing. The look
+  goes with the name on every `join` (PROTOCOL.md, Looks): the room's
+  players are seen as they made themselves (Players, above).
+- `ME` (the open sheet) and `window.__playerStage` (`ready`, `busy`,
+  `frames`, `look`) are for the browser tests (`e2e/player.js`).
 
 ## Rendering
 

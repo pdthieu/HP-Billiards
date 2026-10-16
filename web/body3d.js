@@ -63,7 +63,7 @@ export function makeLook(o = {}) {
   const body = o.body === 'woman' ? 'woman' : 'man';
   const woman = body === 'woman';
   const skin = o.skin || (woman ? '#efc4a4' : '#d6a27f');
-  const hairColor = o.hairColor || (woman ? '#1a120e' : '#17110d');
+  const hairColor = o.hairColor || '#17110d';
   const sk = hex(skin), hc = hex(hairColor);
   return {
     id: o.id || body, body, ...BODY[body],
@@ -634,23 +634,24 @@ export function paint(part, m) {
 
 // --- meshes ---------------------------------------------------------------
 // meshLook turns a look into the arrays of its meshes, each part at coarse
-// times its own step (2.2 is the game's weight: about 160k triangles). Only
+// times its own step (2.2 is the game's weight: about 160k triangles), the
+// head and hair at headCoarse (finer where the face is seen close). Only
 // the look's shape counts (its body, measures, face and hair): the colours
 // are the materials' (players3d.js), so one mesh serves any colouring and
 // either seat (lookKey). Skinned parts carry their bones and weights; the
 // rigid ones say which bone they ride on and where it was in the bind pose.
-export function meshLook(p, coarse = 1) {
+export function meshLook(p, coarse = 1, headCoarse = coarse) {
   const B = build(p), J = B.J;
-  const part = (q) => paint(q, S.mesh(q.shape, q.lo, q.hi, q.h * coarse));
+  const part = (q, k = coarse) => paint(q, S.mesh(q.shape, q.lo, q.hi, q.h * k));
   const names = BONES.map((b) => b[0]);
   const segs = boneSegments(J);
   const parts = {};
   const bm = part(B.body);
   parts.body = pack(bm, [0, 0], 'raw', skinWeights(bm, segs.filter((s) => s.bone !== 'head'), names));
-  const hm = part(B.head);
+  const hm = part(B.head, headCoarse);
   const headSegs = segs.filter((s) => ['chest', 'neck', 'head'].includes(s.bone));
   parts.head = pack(hm, [0], 'factor', skinWeights(hm, headSegs, names));
-  parts.hair = { ...pack(part(B.hair), [0], 'factor'), bone: 'head', at: J.head };
+  parts.hair = { ...pack(part(B.hair, headCoarse), [0], 'factor'), bone: 'head', at: J.head };
   const shoe = part(B.shoe);
   parts.shoeL = { ...pack(shoe, [0], 'srgb'), bone: 'foot.L', at: J.ankleL };
   parts.shoeR = { ...pack(S.mirrorX(shoe), [0], 'srgb'), bone: 'foot.R', at: J.ankleR };
@@ -669,9 +670,12 @@ export function meshLook(p, coarse = 1) {
     eyes: B.head.eyes, eyeR: B.head.eyeR, features: B.head.features, groove: B.hands.bridge.groove,
   };
 }
-// lookKey names a look's meshes: two looks with one key share them.
-export function lookKey(p, coarse) {
-  return JSON.stringify([p.body, p.height, p.headSize, p.hair, p.face, coarse]);
+// lookKey names a look's meshes: two looks with one key share them. The
+// beard and the face's paint (the lips' tint, the blush, the lashes) are
+// the face's shader's, not the mesh's.
+export function lookKey(p, coarse, headCoarse = coarse) {
+  const { beard, tint, blush, lash, ...shape } = p.face;
+  return JSON.stringify([p.body, p.height, p.headSize, p.hair, shape, coarse, headCoarse]);
 }
 // transfers lists the buffers of meshLook's arrays, to hand them from the
 // worker to the page without a copy.
