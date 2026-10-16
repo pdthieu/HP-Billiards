@@ -197,7 +197,7 @@ A spectator joins with `{"type": "join", "roomCode", "name", "watch": true}`. It
 
 ### `welcome`
 
-`{type, v, playerId, seat, token, roomCode, aimLine}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect. `aimLine` is how long, in millimetres, the client draws the object ball's path after contact in the aim guide (100 by default, `-aim-line` / `AIM_LINE_MM`); `0` means the guide stops at the ghost ball. A spectator's `welcome` has `seat` -1, `spectator` true and an empty `token`.
+`{type, v, playerId, seat, token, roomCode, aimLine}` — answers a successful `join`. `v` is the protocol version (1). `token` is a 128-bit secret for this seat; keep it to reconnect. `aimLine` is how long, in millimetres, the client draws the object ball's path after contact in the aim guide (50 by default, `-aim-line` / `AIM_LINE_MM`); `0` means the guide stops at the ghost ball. A spectator's `welcome` has `seat` -1, `spectator` true and an empty `token`.
 
 ### `room_state`
 

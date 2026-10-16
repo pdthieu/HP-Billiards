@@ -649,6 +649,8 @@ const VI = {
   'An arrow over the ball to shoot next: the lowest in 9-ball, the nearest of your group in 8-ball': 'Mũi tên trên bi nên đánh tiếp: bi nhỏ nhất ở 9-ball, bi gần nhất trong nhóm của bạn ở 8-ball',
   'Point at the target': 'Chỉ vào mục tiêu',
   'Instead of holding the cue\'s butt while you aim': 'Thay vì cầm đuôi cơ khi ngắm',
+  'Aim after contact': 'Hướng sau va chạm',
+  'The object ball\'s line and the cue ball\'s path after it hits': 'Vạch chỉ hướng bi mục tiêu và bi trắng sau khi chạm',
   'Vibration': 'Rung',
   'A tick at each quarter of the power bar, and on the shot': 'Rung nhẹ ở mỗi phần tư thanh lực, và khi đánh',
   'Or press': 'Hoặc bấm',

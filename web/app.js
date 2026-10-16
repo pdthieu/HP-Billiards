@@ -318,6 +318,7 @@ const S = {
   lefty: false,          // power bar on the left
   aimFront: readSetting('pool:aim') === 'front', // aim by pointing at the target, not by the butt of the cue
   nextBall: readSetting('pool:pointer') !== 'off', // point at the ball to shoot next (pointerBall)
+  afterLines: readSetting('pool:after') !== 'off', // the guide's lines after contact (aimGuide)
   pointerAt: 0,          // performance.now() the turn began: the pointer bounces for a moment
   hoverBall: null,       // ball under the mouse, for its label
   call: null,            // {pocket} for the 8-ball, {safety: true}, or {pushOut: true} in 9-ball
@@ -359,7 +360,7 @@ const S = {
   oppAimAt: 0,
   hoverUntil: 0,         // touch: hide the hover label after this time
   statusTimer: 0,
-  aimLine: 0.1,          // m of object-ball guide after contact, from welcome; 0 = none
+  aimLine: 0.05,         // m of object-ball guide after contact, from welcome; 0 = none
   lastBreaker: -1,       // who broke the current rack, for the game-over note
   shotWasBreak: false,   // the shot in progress (or just settled) is a break
   resultReason: '',      // why the rack ended, for the result banner
@@ -3579,8 +3580,10 @@ function aimGuide(balls, cue, aim) {
     return { cast, lines, marks, ghost: null, alpha: mine ? 1 : 0.5 };
   }
   // After contact: the object ball's path and the cue ball's deflection,
-  // as long as the server's aimLine (the deflection half of it).
-  const reach = S.aimLine;
+  // as long as the server's aimLine (the deflection half of it). Settings
+  // → Controls → Aim after contact hides both, here and in 3D, for every
+  // guide this screen draws (the opponent's too).
+  const reach = S.afterLines ? S.aimLine : 0;
   if (cast.objDir && reach > 0) {
     const b = balls.get(cast.hit);
     const od = cast.objDir;
@@ -6643,6 +6646,7 @@ function renderSettings() {
   $('leftyToggle').setAttribute('aria-pressed', String(S.lefty));
   $('aimFrontToggle').setAttribute('aria-pressed', String(S.aimFront));
   $('pointerToggle').setAttribute('aria-pressed', String(S.nextBall));
+  $('afterToggle').setAttribute('aria-pressed', String(S.afterLines));
   $('soundToggle').setAttribute('aria-pressed', String(SND.on));
   $('bubblesToggle').setAttribute('aria-pressed', String(readSetting('pool:bubbles') !== 'off'));
   renderViewControls();
@@ -6753,6 +6757,12 @@ $('pointerToggle').onclick = () => {
 $('aimFrontToggle').onclick = () => {
   S.aimFront = !S.aimFront;
   writeSetting('pool:aim', S.aimFront ? 'front' : null);
+  renderSettings();
+};
+$('afterToggle').onclick = () => {
+  S.afterLines = !S.afterLines;
+  writeSetting('pool:after', S.afterLines ? null : 'off');
+  wakeDraw();
   renderSettings();
 };
 $('viewSeg').addEventListener('click', (e) => {

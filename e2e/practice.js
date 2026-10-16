@@ -200,6 +200,32 @@ async function shootAndSettle(page, angle, power) {
     await A.click('#soundToggle');
     await A.click('#settingsClose');
 
+    // The guide after contact: the object ball's line 50 mm (the server's
+    // aimLine; the cue ball's path half that). Settings → Controls → Aim
+    // after contact turns both off, so the guide stops at the ghost ball,
+    // and it is remembered.
+    const guideOf = () => A.evaluate(() => {
+      const c = S.balls.get(0);
+      let t = null;
+      for (const [k, b] of S.balls) if (k && (!t || Math.hypot(b.x - c.x, b.y - c.y) < Math.hypot(t.x - c.x, t.y - c.y))) t = b;
+      const g = aimGuide(S.balls, c, { angle: Math.atan2(t.y - c.y, t.x - c.x) + 0.01, power: 0.4, elev: 0, mine: true }); // a thin cut on the nearest ball
+      const solid = g.lines.filter((l) => !l.dash).map((l) => Math.hypot(l.b.x - l.a.x, l.b.y - l.a.y));
+      return { aimLine: S.aimLine, hit: g.cast.hit, lines: g.lines.length, ghost: !!g.ghost, object: Math.max(0, ...solid) };
+    });
+    await A.click('#settingsBtn');
+    await A.click('#settingsTabs [data-tab="controls"]');
+    if ((await A.getAttribute('#afterToggle', 'aria-pressed')) !== 'true') fail('aim after contact off by default');
+    const withAfter = await guideOf();
+    if (Math.abs(withAfter.aimLine - 0.05) > 1e-9 || withAfter.lines < 4 || Math.abs(withAfter.object - 0.05) > 1e-6) fail(`the guide after contact ${JSON.stringify(withAfter)}`);
+    await A.click('#afterToggle');
+    const noAfter = await guideOf();
+    if (noAfter.lines !== 1 || !noAfter.ghost || noAfter.hit !== withAfter.hit) fail(`aim after contact off ${JSON.stringify(noAfter)}`);
+    if (await A.evaluate(() => localStorage.getItem('pool:after')) !== 'off') fail('aim after contact off was not remembered');
+    await A.click('#afterToggle');
+    if (await A.evaluate(() => localStorage.getItem('pool:after')) !== null || (await guideOf()).lines !== withAfter.lines) fail('aim after contact did not come back on');
+    await A.click('#settingsClose');
+    console.log('aim after contact ok');
+
     // Phone layout: an iPhone in Safari with its bars (393 x 670). The table
     // stands upright and every panel fits its slot.
     const P = await (await flat(browser, { viewport: { width: 393, height: 670 }, hasTouch: true, isMobile: true })).newPage();

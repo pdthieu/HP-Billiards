@@ -84,8 +84,8 @@ Condensed 600 10 px), with a 1 px rim of light `#FFF` α .3.
 |---|---|
 | Path | cue-ball edge → ghost edge, 3 mm `#FFF` α .78, dash 20 / 14, round caps |
 | Ghost ball | r R, stroke 3 mm `#FFF` α .78, fill `#FFF` α .06 |
-| Object direction | from the object ball's edge, `aimLine` from `welcome` (100 mm by default; none when 0), chevron shrinks to 0.4 × the line when shorter than 60 mm, 4 mm `#E3B25C` α .95, chevron 18 × 24 at the end |
-| Cue deflection | from the ghost edge along the tangent, half the object direction, 3 mm `#FFF` α .5, dash 10 / 10 |
+| Object direction | from the object ball's edge, `aimLine` from `welcome` (50 mm by default; none when 0, or when Settings → Controls → *Aim after contact* is off), chevron shrinks to 0.4 × the line when shorter than 60 mm, 4 mm `#E3B25C` α .95, chevron 18 × 24 at the end |
+| Cue deflection | from the ghost edge along the tangent, half the object direction (and off with it), 3 mm `#FFF` α .5, dash 10 / 10 |
 | Opponent preview | same geometry, colour `#A9C1DD`, group α .5, cue α .4, no brass |
 
 ## Highlights

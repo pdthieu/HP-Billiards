@@ -315,10 +315,13 @@ landscape phones, icons only on phones) has:
      Settings → *Aiming* switches to pointing (`pool:aim` = `front`): the
      shot goes toward the pointer, from the press on. In 3D, behind the cue,
      a sideways drag turns the aim instead (see *3D view*). The guide shows the ghost ball at first contact and, as far
-     as the server's `aimLine` allows (100 mm by default, none at 0), the
-     object ball's line and the cue ball's deflection: the tangent line for a
-     stun shot, bent forward or back by the top or bottom spin set on the
-     spin pad (a tendency, not a prediction). Arrow keys nudge the angle
+     as the server's `aimLine` allows (50 mm by default, none at 0), the
+     object ball's line and the cue ball's deflection (half as long): the
+     tangent line for a stun shot, bent forward or back by the top or bottom
+     spin set on the spin pad (a tendency, not a prediction). Settings →
+     Controls → *Aim after contact* hides both lines on that screen, in 2D
+     and 3D and on the opponent's guide too (`pool:after` = `off`); the
+     path to the ghost ball and the ghost ball stay. Arrow keys nudge the angle
      (0.5°, Shift for 0.05°) and power; the `«‹›»` buttons nudge by 5° and
      0.25°. Under them the fine aim wheel (`#aimJog`) turns the cue 0.02°
      per px dragged sideways (100 px = 2°), without end, clockwise to the
@@ -406,7 +409,7 @@ landscape phones, icons only on phones) has:
      the gear again. Over the landing it lies on a scrim. Each on/off
      setting is a row with a switch at its end. Theme (system, dark,
      light), power bar on the left for left-handed play (on the right, held
-     upright), vibration, full
+     upright), the guide's lines after contact, vibration, full
      screen and "show hints again". Stored in `localStorage` under
      `pool:*`.
    - Aim changes are relayed to the opponent as `aim` at most every 100 ms.

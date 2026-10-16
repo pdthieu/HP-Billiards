@@ -74,7 +74,7 @@ func DefaultOptions() Options {
 		AbandonTimeout: 5 * time.Minute,
 		ShotClock:      30 * time.Second,
 		LongShotClock:  40 * time.Second,
-		AimLine:        0.1,
+		AimLine:        0.05,
 		MaxSpectators:  10,
 		ChatCooldown:   5 * time.Second,
 		WS:             ws.DefaultOptions(),

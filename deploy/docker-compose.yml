@@ -6,7 +6,7 @@ services:
     build: ..
     command: ["-max-rooms", "10"]   # add -physics Name=value here to tune the table
     environment:
-      AIM_LINE_MM: ${AIM_LINE_MM:-100}  # aim guide after contact, mm; 0 hides it
+      AIM_LINE_MM: ${AIM_LINE_MM:-50}  # aim guide after contact, mm; 0 hides it
     restart: unless-stopped
     expose: ["8080"]
 

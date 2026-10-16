@@ -55,7 +55,7 @@ Những điều cần biết:
 
 | biến | mặc định | ý nghĩa |
 |---|---|---|
-| `AIM_LINE_MM` | `100` | độ dài (mm) vạch chỉ hướng bi mục tiêu sau khi chạm, vạch đường đi bi trắng bằng một nửa; `0` là không hiện |
+| `AIM_LINE_MM` | `50` | độ dài (mm) vạch chỉ hướng bi mục tiêu sau khi chạm, vạch đường đi bi trắng bằng một nửa; `0` là không hiện |
 | `PHYSICS` | trống | chỉnh hằng số vật lý, cùng cú pháp với `-physics`, ví dụ `RollingFriction=0.017` cho bàn chậm hơn, `0.012` cho bàn nhanh hơn (mặc định 0.015); nhiều giá trị cách nhau bằng dấu phẩy |
 | `PORT` | do Render đặt | đừng tự đặt |
 

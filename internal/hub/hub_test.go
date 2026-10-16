@@ -1054,7 +1054,7 @@ func TestWelcomeCarriesTheAimLine(t *testing.T) {
 	for _, tt := range []struct {
 		aim  float64
 		want float64
-	}{{0, 100}, {0.25, 250}, {-1, 0}} {
+	}{{0, 50}, {0.25, 250}, {-1, 0}} {
 		opts := fastOptions()
 		opts.AimLine = tt.aim
 		_, srv := newServer(t, opts)
