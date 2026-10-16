@@ -8,9 +8,9 @@ The players on the canvas's "Players (3D)" page come from this folder. It is a p
   - The bones, and the solids of the body and clothes, the head, the hair, the hands (relaxed, bridge, grip), the shoes, cuffs and collar.
 - `rig.js`: the Three.js side.
   - Meshes on a skeleton (skin weights from the bones) and the materials. The face's shader draws the brows, lash lines, lips and blush from the head's measures, crisp at any distance; the hair's adds a highlight along the strands.
-  - The poses: `stand`, `sit` (the arena's chair), `stance` (solved from the cue: the bridge, the grip under the elbow, the head over the cue) and `firstPerson` (only the bridge arm, its sleeve fading out above the elbow).
+  - The poses: `stand`, `sit` (the arena's chair), `stance` (solved from the cue: the bridge, the grip under the elbow, the head over the cue), `idle` (nothing in the hands, for the player's own screen) and `firstPerson` (only the bridge arm, its sleeve fading out above the elbow).
   - `createPlayer(look, { coarse })` meshes at that many times the parts' own steps. 2.2 is the game's weight: on a desktop about 0.7 s and 160k triangles a player, against 3.5 s and 800k at 1.
-- `sheet.html`, `sheet.js`: a stage to look at them: `?scene=sheet|face|heads|stance|hands|variety`, with `&coarse=2.2` for the game's weight.
+- `sheet.html`, `sheet.js`: a stage to look at them: `?scene=sheet|face|heads|stance|hands|variety`, with `&coarse=2.2` for the game's weight. `?scene=portrait&look={…}&view=head|bust|full&bg=none` draws any look (the JSON `makeLook()` takes) on a clear background, for pictures laid over the app's own; `shoot.js` keeps the clear background in its PNG.
 - `inject.js`: puts them into the running game's 3D view without changing it, for pictures.
 
 To take the pictures (Playwright from `e2e/node_modules`):

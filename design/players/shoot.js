@@ -33,7 +33,7 @@ const shots = process.argv.slice(2);
     const built = await page.evaluate(() => window.__built);
     const joints = await page.evaluate(() => window.__joints);
     if (joints && process.env.JOINTS) console.log(JSON.stringify(joints, null, 1));
-    await page.screenshot({ path: out });
+    await page.screenshot({ path: out, omitBackground: true });
     console.log(out, 'built', built, 'ms; total', Date.now() - t, 'ms', errors.length ? '\n  ' + errors.slice(0, 6).join('\n  ') : '');
     await ctx.close();
   }

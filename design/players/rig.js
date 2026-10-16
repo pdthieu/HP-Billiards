@@ -649,6 +649,33 @@ export function stand(player, cue) {
   player.root.updateMatrixWorld(true);
 }
 
+// standing with nothing in the hands, as the player's own screen shows
+// them: both arms hang, the elbows a little bent, the feet a little apart
+export function idle(player) {
+  resetPose(player);
+  const J = player.J, h = player.look.height / 1.78;
+  const hips = V3(S.lerp(J.hipL, J.hipR, 0.5)).add(new THREE.Vector3(0, -0.01, 0));
+  trunk(player, hips, new THREE.Quaternion().setFromEuler(new THREE.Euler(0.04, 0, 0.02)), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.04, 0, -0.015)));
+  player.root.updateMatrixWorld(true);
+  foot(player, 'R', new THREE.Vector3(J.ankleR[0] - 0.02, J.ankleL[1], J.ankleR[2]), new THREE.Vector3(-0.2, 0, 1), new THREE.Vector3(-0.1, 0.5, 1));
+  foot(player, 'L', new THREE.Vector3(J.ankleL[0] + 0.02, J.ankleL[1], J.ankleL[2] + 0.01), new THREE.Vector3(0.2, 0, 1), new THREE.Vector3(0.1, 0.5, 1));
+  for (const side of ['L', 'R']) {
+    const sx = side === 'L' ? 1 : -1;
+    player.root.updateMatrixWorld(true);
+    const sh = charPos(player, player.bones['arm.' + side]);
+    twoBone(player, 'arm.' + side, 'fore.' + side, 'shoulder' + side, 'elbow' + side, 'wrist' + side,
+      sh.clone().add(new THREE.Vector3(0.035 * sx, -0.5 * h, 0.07)), sh.clone().add(new THREE.Vector3(0.12 * sx, -0.3, -0.6)));
+    player.root.updateMatrixWorld(true);
+    const el = charPos(player, player.bones['fore.' + side]), wr = charPos(player, player.bones['hand.' + side]);
+    const along = wr.clone().sub(el).normalize().add(new THREE.Vector3(0, -1.2, -0.25)).normalize();
+    setCharQuat(player, player.bones['hand.' + side], handQuat(player, side, along, new THREE.Vector3(0.15 * sx, 0, 1).normalize()));
+    player.setHand(side, 'relaxed');
+  }
+  player.root.updateMatrixWorld(true);
+  look(player, new THREE.Vector3(0, 1.55 * h, 2.5), 0.35);
+  player.root.updateMatrixWorld(true);
+}
+
 // on the chair (its seat seatH above the floor, its back behind, facing
 // +z): sitting back, the cue upright between the knees in both hands
 export function sit(player, cue, seatH = 0.49) {

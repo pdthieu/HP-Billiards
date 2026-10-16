@@ -1,6 +1,6 @@
-// sheet.js: a stage for looking at the players: ?scene=sheet|face|heads|stance|hands|variety&view=…
+// sheet.js: a stage for looking at the players: ?scene=sheet|face|heads|stance|hands|variety|portrait&view=…
 import * as THREE from '/vendor/three-r186/three.min.js';
-import { createPlayer, stand, sit, stance, makeCue, resetPose, BED } from './rig.js';
+import { createPlayer, stand, sit, stance, idle, makeCue, resetPose, BED } from './rig.js';
 import { MAN, WOMAN, HAND_POSES, handShape, GRIP, BRIDGE, makeLook } from './body.js';
 import * as S from './sdf.js';
 
@@ -9,7 +9,9 @@ const sceneName = q.get('scene') || 'sheet', view = q.get('view') || 'front';
 const W = 2.54, H = 1.27, R = 0.028575, RAIL = 0.1;
 
 const canvas = document.querySelector('canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
+// &bg=none: a clear background, for pictures laid over the app's own
+const clear = q.get('bg') === 'none';
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true, alpha: clear });
 renderer.setPixelRatio(Number(q.get('dpr') || 2));
 renderer.setSize(innerWidth, innerHeight, false);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -17,7 +19,8 @@ renderer.toneMappingExposure = Number(q.get('exp') || 1.0);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color('#06080c');
+scene.background = clear ? null : new THREE.Color('#06080c');
+if (clear) { renderer.setClearColor(0x000000, 0); document.documentElement.style.background = document.body.style.background = 'transparent'; }
 const camera = new THREE.PerspectiveCamera(Number(q.get('fov') || 30), innerWidth / innerHeight, 0.02, 60);
 
 // reflections: a dark hall, a bright panel overhead, warm and cool boards
@@ -276,6 +279,24 @@ if (sceneName === 'variety') {
     pl.setRoomLight(1);
   });
   lookFrom(new THREE.Vector3(0, 1.45, 3.9), new THREE.Vector3(0, 1.32, 0));
+}
+// ?scene=portrait&look={json for makeLook}&view=head|bust|full: one player
+// with nothing in the hands, as the player's own screen would show them
+if (sceneName === 'portrait') {
+  showcaseLights(new THREE.Vector3(0, 1.2, 0), 1.6);
+  const pl = createPlayer(makeLook(JSON.parse(q.get('look') || '{}')), { coarse });
+  scene.add(pl.root);
+  idle(pl);
+  pl.setRoomLight(1);
+  pl.root.rotation.y = Number(q.get('yaw') || 0.35);
+  if (view === 'full') {
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), new THREE.ShadowMaterial({ opacity: 0.4 }));
+    g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
+  }
+  pl.root.updateMatrixWorld(true);
+  const hd = new THREE.Vector3(); pl.bones.head.getWorldPosition(hd);
+  const [d, eye, at] = { head: [0.86, hd.y + 0.1, hd.y + 0.085], bust: [1.45, hd.y - 0.04, hd.y - 0.07], full: [4.4, pl.look.height * 0.56, pl.look.height * 0.5] }[view] || [1.45, hd.y - 0.04, hd.y - 0.07];
+  lookFrom(new THREE.Vector3(0, eye, d), new THREE.Vector3(0, at, 0));
 }
 let multi = null;
 if (sceneName === 'face') {
